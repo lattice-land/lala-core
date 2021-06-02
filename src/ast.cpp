@@ -1,6 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
 #include "ast.hpp"
+#include "abstract_domain.hpp"
 #include "cuda_helper.hpp"
 
 namespace lala {

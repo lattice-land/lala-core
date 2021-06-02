@@ -49,6 +49,21 @@ if(NOT ecuda_POPULATED)
     FetchContent_Populate(ecuda)
 endif()
 
+# Thrust dependency
+
+FetchContent_Declare(
+  thrust
+  GIT_REPOSITORY "https://github.com/NVIDIA/thrust.git"
+  GIT_TAG        1.12.0
+)
+FetchContent_GetProperties(thrust)
+if(NOT thrust_POPULATED)
+    FetchContent_Populate(thrust)
+endif()
+
+
+# Preparing the library
+
 if(GPU)
     set_source_files_properties(
         src/ast.cpp
@@ -57,7 +72,7 @@ endif()
 
 add_library(lala_core src/ast.cpp)
 target_include_directories(lala_core PUBLIC include)
-target_include_directories(lala_core PRIVATE ${ecuda_SOURCE_DIR}/include)
+target_include_directories(lala_core PRIVATE ${ecuda_SOURCE_DIR}/include ${thrust_SOURCE_DIR}/thrust)
 
 if(GPU)
     set_property(TARGET lala_core PROPERTY CUDA_ARCHITECTURES 75)
@@ -86,3 +101,33 @@ target_link_libraries(
 
 include(GoogleTest)
 gtest_discover_tests(ast_test)
+
+# Documentation
+
+find_package(Doxygen REQUIRED doxygen)
+
+# Options based on those of Halide: https://github.com/halide/Halide/blob/feb81a2a0f7bc39cfa499e4e1a7dfedbc5250aaa/doc/CMakeLists.txt
+set(DOXYGEN_PROJECT_NAME "Lattice land core library")
+set(DOXYGEN_BUILTIN_STL_SUPPORT YES)
+set(DOXYGEN_CASE_SENSE_NAMES NO)
+set(DOXYGEN_CLASS_DIAGRAMS NO)
+set(DOXYGEN_DISTRIBUTE_GROUP_DOC YES)
+set(DOXYGEN_EXTRACT_ALL YES)
+set(DOXYGEN_FILE_PATTERNS *.hpp)
+set(DOXYGEN_GENERATE_TREEVIEW YES)
+set(DOXYGEN_HIDE_IN_BODY_DOCS YES)
+set(DOXYGEN_QUIET YES)
+set(DOXYGEN_RECURSIVE YES)
+set(DOXYGEN_REFERENCED_BY_RELATION YES)
+set(DOXYGEN_REFERENCES_RELATION YES)
+set(DOXYGEN_SORT_BY_SCOPE_NAME YES)
+set(DOXYGEN_SORT_MEMBER_DOCS NO)
+set(DOXYGEN_SOURCE_BROWSER NO)
+set(DOXYGEN_STRIP_CODE_COMMENTS NO)
+set(DOXYGEN_USE_MATHJAX YES)
+set(DOXYGEN_EXTRA_PACKAGES stmaryrd)
+
+doxygen_add_docs(doc
+                 "include/"
+                 ALL
+                 COMMENT "Generate HTML documentation")
