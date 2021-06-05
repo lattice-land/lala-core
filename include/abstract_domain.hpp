@@ -41,12 +41,12 @@ public:
    It can be an interval or a set of values for instance. */
   typedef VD VarDom;
 
-  /** An interpretation partial function \f$[\![\varphi]\!]_a^\updownarrow \f$ turns the logical formula \f$\varphi\f$ (`f`) into a logical element according to the current abstract element \f$a\f$ and the approximation kind \f$\updownarrow\f$ (`appx`).
+  /** A partial interpretation function \f$[\![\varphi]\!]_a^\updownarrow \f$ turns the logical formula \f$\varphi\f$ (`f`) into a logical element according to the current abstract element \f$a\f$ and the approximation kind \f$\updownarrow\f$ (`appx`).
   See also `LogicalElement`.
   The approximation kind is not necessarily bound to an abstract element.
   For instance, let an abstract element \f$a\f$ under-approximating a logical formula \f$\varphi\f$.
   We can still add over-approximating _redundant constraints_ in \f$a\f$, which will not impact the under-approximating property of \f$a\f$ w.r.t. \f$\varphi\f$.
-  \return `None` if the formula cannot be interpreted in the abstract domain. Otherwise, it returns the interpreted formula. */
+  \return An empty optional if the formula cannot be interpreted in the abstract domain. Otherwise, it returns the interpreted formula. */
   CUDA virtual thrust::optional<LogicalElement> interpret(Approx appx, const Formula& f) = 0;
 
   /** Compute \f$ a \sqcup [\![\varphi]\!] \f$ where \f$a\f$ is the current element and \f$ [\![\varphi]\!] \f$ an interpreted formula. */
@@ -57,7 +57,7 @@ public:
 
   /** `refine` is an extensive function (\f$\forall{a \in A},~\mathit{refine}(a) \geq a \f$) refining an abstract element \f$a\f$.
   It can have additional properties such as under- or over-approximation depending on the abstract domain.
-  It returns `true` if the abstract element has changed and `false` if we reached a fixed point. */
+  \return `true` if the abstract element has changed and `false` if we reached a fixed point. */
   CUDA virtual bool refine() = 0;
 
   /** The entailment, formally written \f$a \models \varphi\f$, is `true` whenever we can deduce a formula \f$\varphi\f$ from an abstract element \f$a\f$, i.e., \f$\gamma(a) \subseteq [\![\varphi]\!]\f$.
@@ -65,30 +65,36 @@ public:
   Therefore, to test for _disentailment_, you should ask if the negation of the formula is entailed. */
   CUDA virtual bool entailment(const LogicalElement& element) const = 0;
 
-  /** The projection of an interpreted formula \f$[\![\varphi]\!]\f$ onto the underlying variable domain `VarDom`.
-  A common example is to project the domain of a variable `x` or of a term `x + y` onto an interval or set variable domain.
-  The projection of a formula takes the semantics that \f$ \top \f$ is `false` and \f$ \bot \f$ is `true` where \f$ \top \f$ is the largest element of `VarDom`, and \f$ \bot \f$ its least element.
-  Anything else is considered neither `true` or `false`. */
+  /** The projection of term onto the underlying variable domain `VarDom`.
+  A common example is to project the domain of a variable `x` or a term such as `x + y` onto an interval or set variable domain.
+  If you want to project a formula onto a Boolean, you should use `entailment` instead. */
   CUDA virtual VarDom project(const LogicalElement& x) const = 0;
 
-  /** Equivalent to \f$ a \sqcup [\![\varphi]\!]\f$ where \f$\varphi\f$ is obtained by interpretation of a formula \f$\varphi\f$ in an abstract domain `VarDom` such that \f$\varphi\f$ has a single free variable named `x`.
-  This method mainly exists for optimization purposes. */
+  /** The function `embed(x, dom)` is similar to \f$ a \sqcup [\![\varphi]\!] \f$ where \f$\varphi\f$ is a formula with a single variable equals to \f$ x \f$ and interpretable in `VarDom`.
+   Here, the underlying element `VarDom` has already been created. */
   CUDA virtual void embed(AVar x, const VarDom& dom) const = 0;
 
   /** `split` is an extensive function, i.e., \f$ \forall{a \in A},~\forall{b \in \mathit{split}(a)},~a \leq b \f$, that divides an abstract element into a set of subelements.
   We call _unsplittable elements_ the elements such that \f$\mathit{split}(a) \f$ is a singleton.
   We require \f$\mathit{split}(a) = \{a\} \f$ for all unsplittable elements \f$a \in A \f$.
-  An additional usage of `split` is to classify the fixed points of `refine` as being satisfiable, unsatisfiable or unknown, but it depends on the approximation kind.
-    - In case of over-approximation: \f$\mathit{split}(a) = \{\} \Rightarrow \gamma(a) = \{\} \f$,
-    - In case of under-approximation: \f$\mathit{split}(a) \neq \{\} \Rightarrow \gamma(a) \neq \{\} \land \gamma(a) \subseteq [\![\varphi]\!]^\flat\f$.
+  An additional usage of `split` is to detect unsatisfiability of over-approximation, and satisfiability of under-approximation:
+    - In case of an over-approximating element \f$a\f$, we have \f$\mathit{split}(a) = \{\} \Rightarrow \gamma(a) = \{\} \f$.
+    - In case of an under-approximating element \f$a\f$, we have \f$\mathit{split}(a) \neq \{\} \Rightarrow \gamma(a) \neq \{\} \land \gamma(a) \subseteq [\![\varphi]\!]^\flat\f$.
 
-  In any case, when more than one element is returned, we consider the satisfiability status of the abstract element unknown.
+  \return A list of logical elements (possibly complementary, but not necessarily) that can be joined in an abstract element to further refine its state.
   */
   CUDA virtual ecuda::vector<LogicalElement> split(/*const SearchStrategy& strat*/) const = 0;
+
+  /** An abstract domain can be _eventually under-approximating_ which means that after a sufficient number of split and refine operations, it always reach an under-approximating element.
+   \return `true` if \f$\gamma(a) \subseteq [\![\varphi]\!]^\flat\f$. `false` is returned whenever `a` is an over-approximation or if we do not know whether `a` is an under-approximation. */
+  CUDA virtual bool is_underappx() const = 0;
 
   /** This method resets the current abstract element to an anterior state \f$b \f$.
       Therefore, this operation is similar to computing \f$ a \sqcap b \f$ where \f$ a \geq b \f$. */
   CUDA virtual void reset(const AbstractDomain& b) = 0;
+
+  /** \return A copy of the current abstract element. */
+  CUDA virtual AbstractDomain clone() const = 0;
 
   /** This function is the inverse of `interpret`, but directly maps to a general `Formula`.
       Let \f$ a = [\![\varphi]\!]_A \f$, then we must have \f$ \gamma(a) = [\![[\![a]\!]^{-1}]\!]^\flat \f$. */
