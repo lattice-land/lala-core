@@ -26,6 +26,19 @@ if(CMAKE_CONFIGURATION_TYPES)
     FORCE)
 endif()
 
+# Cuda-battery dependency
+
+FetchContent_Declare(
+  cuda_battery
+  GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
+  GIT_TAG        23244bd219fbfd10f7b2baedd96e9bac32031d97
+)
+#FetchContent_GetProperties(cuda_battery)
+#if(NOT cuda_battery_POPULATED)
+#    FetchContent_Populate(cuda_battery)
+#endif()
+FetchContent_MakeAvailable(cuda_battery)
+
 # Google Test dependency
 
 FetchContent_Declare(
@@ -35,19 +48,6 @@ FetchContent_Declare(
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
-
-# Ecuda dependency (header only library)
-
-FetchContent_Declare(
-    ecuda
-    GIT_REPOSITORY    "https://github.com/lattice-land/ecuda.git"
-    GIT_TAG           6a004ad11c7d938b0c247d474a2f733d6aa71499
-)
-
-FetchContent_GetProperties(ecuda)
-if(NOT ecuda_POPULATED)
-    FetchContent_Populate(ecuda)
-endif()
 
 # Thrust dependency
 
@@ -61,7 +61,6 @@ if(NOT thrust_POPULATED)
     FetchContent_Populate(thrust)
 endif()
 
-
 # Preparing the library
 
 if(GPU)
@@ -72,7 +71,7 @@ endif()
 
 add_library(lala_core src/ast.cpp)
 target_include_directories(lala_core PUBLIC include)
-target_include_directories(lala_core PRIVATE ${ecuda_SOURCE_DIR}/include ${thrust_SOURCE_DIR}/thrust)
+target_include_directories(lala_core PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR}/thrust)
 
 if(GPU)
     set_property(TARGET lala_core PROPERTY CUDA_ARCHITECTURES 75)
@@ -83,8 +82,8 @@ target_compile_options(lala_core PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:
         --expt-relaxed-constexpr
         -rdc=true>
-    $<$<CONFIG:Debug>:-g -G -DDEBUG>
-    $<$<CONFIG:LDebug>:-g -G -DTRACE>
+    $<$<CONFIG:Debug>:-g -DDEBUG>
+    $<$<CONFIG:LDebug>:-g -DTRACE>
 )
 
 enable_testing()
@@ -93,14 +92,31 @@ add_executable(
   ast_test
   tests/ast_test.cpp
 )
+
+add_executable(
+  z_test
+  tests/z_test.cpp
+)
+
 target_link_libraries(
   ast_test
+  cuda_battery
   lala_core
   gtest_main
 )
 
+target_link_libraries(
+  z_test
+  cuda_battery
+  lala_core
+  gtest_main
+)
+
+target_include_directories(z_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR}/thrust)
+
 include(GoogleTest)
 gtest_discover_tests(ast_test)
+gtest_discover_tests(z_test)
 
 # Documentation
 
@@ -127,7 +143,7 @@ set(DOXYGEN_STRIP_CODE_COMMENTS NO)
 set(DOXYGEN_USE_MATHJAX YES)
 set(DOXYGEN_EXTRA_PACKAGES stmaryrd)
 
-doxygen_add_docs(doc
+doxygen_add_docs(doc_lalacore
                  "include/"
                  ALL
                  COMMENT "Generate HTML documentation")

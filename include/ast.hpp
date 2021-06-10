@@ -3,8 +3,7 @@
 #ifndef AST_HPP
 #define AST_HPP
 
-#include <cassert>
-#include "cuda_helper.hpp"
+#include "utility.hpp"
 
 namespace lala {
 
@@ -22,8 +21,8 @@ The mapping between logical variables and abstract variables is maintained in `E
 An abstract variable always has a single name (or no name if it is not explicitly represented in the initial formula).
 However, a logical variable can be represented by several abstract variables when the variable occurs in different domains. */
 typedef int AVar;
-#define AID(v) (v & 63)
-#define VID(v) (v >> 6)
+#define AID(v) (v & ((1 << 8) - 1))
+#define VID(v) (v >> 8)
 
 CUDA AVar make_var(int ad_uid, int var_id);
 
@@ -43,9 +42,9 @@ We can have `x + (x > y \/ y > x + 4)` and this expression is true if the value 
 struct Formula {
   AD_UID ad_uid;
 
-  enum {
+  enum Type {
     ///@{
-    INT, FLOAT,                    ///< Constant in the domain of discourse that can be represented exactly.
+    LONG, DOUBLE,                    ///< Constant in the domain of discourse that can be represented exactly.
     ///@}
     AVAR,                          ///< Abstract variable
     ///@{
@@ -55,10 +54,12 @@ struct Formula {
     EQ, LEQ, GEQ, NEQ, GT, LT,     ///< Predicates
     ///@}
     ///@{
-    AND, OR, IMPLY, EQUIV, NOT,    ///< Formulas
+    TRUE, FALSE, AND, OR, IMPLY, EQUIV, NOT,    ///< Formulas
     ///@}
     RAW                            ///< General tag for extension purposes.
-  } tag;
+  };
+
+  Type tag;
 
   /** The name of the variable, term, function or predicate is represented by a string.
   This struct can also be used for representing constant such as real numbers.
@@ -70,8 +71,8 @@ struct Formula {
   };
 
   union {
-    int i;    // INT
-    float f;  // FLOAT
+    long long int i;    // LONG
+    double f;           // DOUBLE
     AVar v;   // AVAR
     struct {  // ADD, SUB, ..., EQ, ..., AND, .., NOT
       Formula* children;
@@ -80,6 +81,23 @@ struct Formula {
     Raw raw;  // LVar, global constraints, predicates, real numbers, ...
   };
 };
+
+#define SHAPE(f,a,b,c) (f.tag == (a) && f.children[0].tag == (b) && f.children[1].tag == (c))
+
+template<typename Allocator>
+Formula make_x_op_i(Allocator& allocator, Formula::Type op, AVar x, long long int i) {
+  Formula* children = new(allocator) Formula[2];
+  children[0].tag = Formula::AVAR;
+  children[0].v = x;
+  children[1].tag = Formula::LONG;
+  children[1].i = i;
+  Formula f;
+  f.ad_uid = UNTYPED_AD;
+  f.tag = op;
+  f.children = children;
+  f.n = 2;
+  return f;
+}
 
 struct SolveMode {
   enum {

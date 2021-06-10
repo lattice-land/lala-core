@@ -4,8 +4,8 @@
 #define ABSTRACT_DOMAIN_HPP
 
 #include "thrust/optional.h"
-#include "ecuda/ecuda.hpp"
-#include "cuda_helper.hpp"
+#include "darray.hpp"
+#include "utility.hpp"
 
 namespace lala {
 
@@ -29,7 +29,7 @@ Whereas an over-approximating element guarantees we have all solutions of \f$\va
 This class exists only for documentation purposes as abstract domains will be combined using templates, and not by relying on inheritance from an abstract class.
 Ideally, `AbstractDomain` should be a C++20 concept, but it is not yet possible because neither NVCC or Doxygen support concepts yet.
 */
-template <typename LE, typename VD>
+template <typename LE, typename VD, typename Alloc>
 class AbstractDomain {
 public:
   /** `LogicalElement` is an intermediate representation between a logical formula (see `Formula`) and an abstract element.
@@ -41,19 +41,32 @@ public:
    It can be an interval or a set of values for instance. */
   typedef VD VarDom;
 
+  /** The memory allocator used for creating new elements in this abstract domain. */
+  typedef Alloc Allocator;
+
+  typedef AbstractDomain<LE,VD> this_type;
+
+  /** \return The least element \f$\bot\f$ of this abstract domain. */
+  CUDA /* static */ this_type* bot() const = 0;
+
+  /** \return The largest element \f$\top\f$ of this abstract domain. */
+  CUDA /* static */ this_type* top() const = 0;
+
   /** A partial interpretation function \f$[\![\varphi]\!]_a^\updownarrow \f$ turns the logical formula \f$\varphi\f$ (`f`) into a logical element according to the current abstract element \f$a\f$ and the approximation kind \f$\updownarrow\f$ (`appx`).
   See also `LogicalElement`.
   The approximation kind is not necessarily bound to an abstract element.
   For instance, let an abstract element \f$a\f$ under-approximating a logical formula \f$\varphi\f$.
   We can still add over-approximating _redundant constraints_ in \f$a\f$, which will not impact the under-approximating property of \f$a\f$ w.r.t. \f$\varphi\f$.
-  \return An empty optional if the formula cannot be interpreted in the abstract domain. Otherwise, it returns the interpreted formula. */
+  The returned logical elements must be joined later in the current abstract element `this` and not in another abstract element.
+  \return An empty optional if the formula cannot be interpreted in the abstract domain, or if \f$\bot\f$ would be trivially returned in case of over-approximation (dually for \f$ \top \f$ and under-approximation).
+  Otherwise, it returns the interpreted formula. */
   CUDA virtual thrust::optional<LogicalElement> interpret(Approx appx, const Formula& f) = 0;
 
   /** Compute \f$ a \sqcup [\![\varphi]\!] \f$ where \f$a\f$ is the current element and \f$ [\![\varphi]\!] \f$ an interpreted formula. */
-  CUDA virtual void join(const LogicalElement& other) = 0;
+  CUDA virtual this_type& join(const LogicalElement& other) = 0;
 
   /** Compute \f$ a \sqcap [\![\varphi]\!] \f$, see also `join`. */
-  CUDA virtual void meet(const LogicalElement& other) = 0;
+  CUDA virtual this_type& meet(const LogicalElement& other) = 0;
 
   /** `refine` is an extensive function (\f$\forall{a \in A},~\mathit{refine}(a) \geq a \f$) refining an abstract element \f$a\f$.
   It can have additional properties such as under- or over-approximation depending on the abstract domain.
@@ -72,7 +85,7 @@ public:
 
   /** The function `embed(x, dom)` is similar to \f$ a \sqcup [\![\varphi]\!] \f$ where \f$\varphi\f$ is a formula with a single variable equals to \f$ x \f$ and interpretable in `VarDom`.
    Here, the underlying element `VarDom` has already been created. */
-  CUDA virtual void embed(AVar x, const VarDom& dom) const = 0;
+  CUDA virtual void embed(AVar x, const VarDom& dom) = 0;
 
   /** `split` is an extensive function, i.e., \f$ \forall{a \in A},~\forall{b \in \mathit{split}(a)},~a \leq b \f$, that divides an abstract element into a set of subelements.
   We call _unsplittable elements_ the elements such that \f$\mathit{split}(a) \f$ is a singleton.
@@ -83,7 +96,7 @@ public:
 
   \return A list of logical elements (possibly complementary, but not necessarily) that can be joined in an abstract element to further refine its state.
   */
-  CUDA virtual ecuda::vector<LogicalElement> split(/*const SearchStrategy& strat*/) const = 0;
+  CUDA virtual DArray<LogicalElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
 
   /** An abstract domain can be _eventually under-approximating_ which means that after a sufficient number of split and refine operations, it always reach an under-approximating element.
    \return `true` if \f$\gamma(a) \subseteq [\![\varphi]\!]^\flat\f$. `false` is returned whenever `a` is an over-approximation or if we do not know whether `a` is an under-approximation. */
@@ -91,10 +104,10 @@ public:
 
   /** This method resets the current abstract element to an anterior state \f$b \f$.
       Therefore, this operation is similar to computing \f$ a \sqcap b \f$ where \f$ a \geq b \f$. */
-  CUDA virtual void reset(const AbstractDomain& b) = 0;
+  CUDA virtual void reset(const this_type& b) = 0;
 
   /** \return A copy of the current abstract element. */
-  CUDA virtual AbstractDomain clone() const = 0;
+  CUDA virtual this_type* clone() const = 0;
 
   /** This function is the inverse of `interpret`, but directly maps to a general `Formula`.
       Let \f$ a = [\![\varphi]\!]_A \f$, then we must have \f$ \gamma(a) = [\![[\![a]\!]^{-1}]\!]^\flat \f$. */

@@ -1,14 +1,14 @@
 // Copyright 2021 Pierre Talbot
 
 #include "ast.hpp"
-#include "abstract_domain.hpp"
-#include "cuda_helper.hpp"
+#include <cassert>
 
 namespace lala {
 
 CUDA AVar make_var(int ad_uid, int var_id) {
-  assert(ad_uid < 63);
-  return (var_id << 6) | ad_uid;
+  assert(ad_uid < (1 << 8));
+  assert(var_id < (1 << 23));
+  return (var_id << 8) | ad_uid;
 }
 
 }
