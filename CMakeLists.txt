@@ -71,7 +71,7 @@ endif()
 
 add_library(lala_core src/ast.cpp)
 target_include_directories(lala_core PUBLIC include)
-target_include_directories(lala_core PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR}/thrust)
+target_include_directories(lala_core PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 
 if(GPU)
     set_property(TARGET lala_core PROPERTY CUDA_ARCHITECTURES 75)
@@ -112,7 +112,7 @@ target_link_libraries(
   gtest_main
 )
 
-target_include_directories(z_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR}/thrust)
+target_include_directories(z_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 
 include(GoogleTest)
 gtest_discover_tests(ast_test)
