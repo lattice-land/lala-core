@@ -31,12 +31,8 @@ endif()
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        23244bd219fbfd10f7b2baedd96e9bac32031d97
+  GIT_TAG        b6d307c06f071822dec207465095217f4be4eda7
 )
-#FetchContent_GetProperties(cuda_battery)
-#if(NOT cuda_battery_POPULATED)
-#    FetchContent_Populate(cuda_battery)
-#endif()
 FetchContent_MakeAvailable(cuda_battery)
 
 # Google Test dependency
@@ -112,6 +108,7 @@ target_link_libraries(
   gtest_main
 )
 
+target_include_directories(ast_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 target_include_directories(z_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 
 include(GoogleTest)

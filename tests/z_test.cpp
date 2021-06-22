@@ -11,9 +11,11 @@
 using namespace lala;
 
 typedef ZInc<int, StandardAllocator> zi;
+typedef Formula<StandardAllocator> F;
 
-void test_formula(Approx appx, const Formula& f, thrust::optional<zi> expect) {
+void test_formula(Approx appx, const F& f, thrust::optional<zi> expect) {
   thrust::optional<zi> j = zi::bot().interpret(appx, f);
+  EXPECT_EQ(j.has_value(), expect.has_value());
   EXPECT_EQ(j, expect);
 }
 
@@ -25,40 +27,40 @@ TEST(ZDeathTest, BadConstruction) {
 TEST(ZTest, ValidInterpret) {
   test_formula(
     EXACT,
-    make_x_op_i(standard_allocator, Formula::GEQ, 0, 10),
+    make_x_op_i(F::GEQ, 0, 10, standard_allocator),
     zi(10));
   test_formula(
     EXACT,
-    make_x_op_i(standard_allocator, Formula::GT, 0, 10),
+    make_x_op_i(F::GT, 0, 10, standard_allocator),
     zi(11));
   test_formula(
     UNDER,
-    make_x_op_i(standard_allocator, Formula::NEQ, 0, 10),
+    make_x_op_i(F::NEQ, 0, 10, standard_allocator),
     zi(11));
   test_formula(
     OVER,
-    make_x_op_i(standard_allocator, Formula::EQ, 0, 10),
+    make_x_op_i(F::EQ, 0, 10, standard_allocator),
     zi(10));
 }
 
 TEST(ZTest, NoInterpret) {
   test_formula(
     EXACT,
-    make_x_op_i(standard_allocator, Formula::NEQ, 0, 10),
+    make_x_op_i(F::NEQ, 0, 10, standard_allocator),
     {});
   test_formula(
     EXACT,
-    make_x_op_i(standard_allocator, Formula::EQ, 0, 10),
+    make_x_op_i(F::EQ, 0, 10, standard_allocator),
     {});
   Approx appxs[3] = {EXACT, UNDER, OVER};
   for(int i = 0; i < 3; ++i) {
     test_formula(
       appxs[i],
-      make_x_op_i(standard_allocator, Formula::LEQ, 0, 10),
+      make_x_op_i(F::LEQ, 0, 10, standard_allocator),
       {});
     test_formula(
       appxs[i],
-      make_x_op_i(standard_allocator, Formula::LT, 0, 10),
+      make_x_op_i(F::LT, 0, 10, standard_allocator),
       {});
   }
 }
@@ -96,9 +98,9 @@ TEST(ZTest, JoinMeet) {
 }
 
 TEST(ZTest, Refine) {
-  EXPECT_EQ(zi(0).refine(), true);
-  EXPECT_EQ(zi::top().refine(), true);
-  EXPECT_EQ(zi::bot().refine(), true);
+  EXPECT_EQ(zi(0).refine(), false);
+  EXPECT_EQ(zi::top().refine(), false);
+  EXPECT_EQ(zi::bot().refine(), false);
 }
 
 TEST(ZTest, Entailment) {
@@ -113,8 +115,31 @@ TEST(ZTest, Entailment) {
   EXPECT_EQ(zi::top().entailment(zi(0)), true);
 }
 
-// TEST(ZTest, Split) {
-//   EXPECT_EQ(zi(0).split(), {zi(0)});
-//   EXPECT_EQ(zi::top().split(), {});
-//   EXPECT_EQ(zi::bot().split(), {zi::bot()});
-// }
+typedef DArray<zi, StandardAllocator> SplitSeq;
+
+SplitSeq make_singleton(zi x) {
+  return SplitSeq({x});
+}
+
+SplitSeq make_empty() {
+  return SplitSeq();
+}
+
+TEST(ZTest, Split) {
+  EXPECT_EQ(zi(0).split(), make_singleton(zi(0)));
+  EXPECT_EQ(zi::top().split(), make_empty());
+  EXPECT_EQ(zi::bot().split(), make_singleton(zi::bot()));
+}
+
+TEST(ZTest, Deinterpret) {
+  F f10 = make_x_op_i(F::GEQ, 0, 10, standard_allocator);
+  zi z10 = zi::bot().interpret(EXACT, f10).value();
+  F f10_bis = z10.deinterpret();
+  EXPECT_EQ(f10, f10_bis);
+  F f9 = make_x_op_i(F::GT, 0, 9, standard_allocator);
+  zi z9 = zi::bot().interpret(EXACT, f9).value();
+  F f9_bis = z9.deinterpret();
+  EXPECT_EQ(f10, f9_bis);
+  EXPECT_EQ(zi::bot().deinterpret(), F::make_true());
+  EXPECT_EQ(zi::top().deinterpret(), F::make_false());
+}

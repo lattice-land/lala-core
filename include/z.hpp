@@ -59,6 +59,7 @@ public:
     - If `appx` is OVER: `op` can be >=, > or ==.
   An empty optional is also returned if the element would overflow in `int_type`.
     */
+  template<typename Formula>
   CUDA thrust::optional<LogicalElement> interpret(Approx appx, const Formula& f) {
     typedef Formula F;
     if(f.tag == F::TRUE) {
@@ -84,6 +85,16 @@ public:
     return {};
   }
 
+  /** `true` whenever \f$ a = \top \f$, `false` otherwise. */
+  CUDA bool is_top() const {
+    return value == Limits<ValueType>::top();
+  }
+
+  /** `true` whenever \f$ a = \bot \f$, `false` otherwise. */
+  CUDA bool is_bot() const {
+    return value == Limits<ValueType>::bot();
+  }
+
   /** \f$ a \sqcup b = \mathit{max}(a,b) \f$. */
   CUDA this_type& join(const LogicalElement& other) {
     value = max(other.value, value);
@@ -97,28 +108,22 @@ public:
   }
 
   /** Has no effect.
-     \return `true`. */
-  CUDA bool refine() { return true; }
+     \return always `false`. */
+  CUDA bool refine() { return false; }
 
   /** \f$ a \models \varphi \f$ is defined as \f$ a \geq [\![\varphi]\!] \f$. */
   CUDA bool entailment(const LogicalElement& other) const {
     return value >= ValueType(other);
   }
 
-  template<typename Allocator>
-  CUDA DArray<LogicalElement, Allocator> split(Allocator& allocator) const {
-    if(*this == top()) {
-      return DArray<LogicalElement, Allocator>(0, allocator);
+  template<typename Allocator = Alloc>
+  CUDA DArray<LogicalElement, Allocator> split(const Allocator& allocator = Allocator()) const {
+    if(is_top()) {
+      return DArray<LogicalElement, Allocator>();
     }
     else {
-      return DArray<LogicalElement, Allocator>(1, value, allocator);
+      return DArray<LogicalElement, Allocator>(1, *this, allocator);
     }
-  }
-
-  /** An abstract domain can be _eventually under-approximating_ which means that after a sufficient number of split and refine operations, it always reach an under-approximating element.
-   \return `true` if \f$\gamma(a) \subseteq [\![\varphi]\!]^\flat\f$. `false` is returned whenever `a` is an over-approximation or if we do not know whether `a` is an under-approximation. */
-  CUDA bool is_underappx() const {
-    return true;
   }
 
   /** Reset the internal counter to the one of `other`. */
@@ -131,10 +136,17 @@ public:
     return *this;
   }
 
-  /** \return \f$ _ \geq i \f$ where `_` is an arbitrary variable's name and `i` the integer value. */
-  template<typename Allocator>
-  CUDA Formula deinterpret(Allocator& allocator) const {
-    return make_x_op_i(allocator, Formula::GEQ, 0, value);
+  /** \return \f$ _ \geq i \f$ where `_` is an arbitrary variable's name and `i` the integer value.
+  `true` is returned whenever \f$ a = \bot \f$ and `false` whenever \f$ a = \top \f$. */
+  template<typename Allocator = Alloc>
+  CUDA Formula<Allocator> deinterpret(const Allocator& allocator = Allocator()) const {
+    if(is_top()) {
+      return Formula<Allocator>::make_false();
+    }
+    else if(is_bot()) {
+      return Formula<Allocator>::make_true();
+    }
+    return make_x_op_i(Formula<Allocator>::GEQ, 0, value, allocator);
   }
 
   /** Print the current element with the logical name of the variables. */

@@ -69,7 +69,7 @@ public:
   CUDA virtual this_type& meet(const LogicalElement& other) = 0;
 
   /** `refine` is an extensive function (\f$\forall{a \in A},~\mathit{refine}(a) \geq a \f$) refining an abstract element \f$a\f$.
-  It can have additional properties such as under- or over-approximation depending on the abstract domain.
+  It can have additional properties such as being under- or over-approximating depending on the abstract domain.
   \return `true` if the abstract element has changed and `false` if we reached a fixed point. */
   CUDA virtual bool refine() = 0;
 
@@ -94,13 +94,11 @@ public:
     - In case of an over-approximating element \f$a\f$, we have \f$\mathit{split}(a) = \{\} \Rightarrow \gamma(a) = \{\} \f$.
     - In case of an under-approximating element \f$a\f$, we have \f$\mathit{split}(a) \neq \{\} \Rightarrow \gamma(a) \neq \{\} \land \gamma(a) \subseteq [\![\varphi]\!]^\flat\f$.
 
+  For the special case of _eventually under-approximating_ abstract domain, \f$a\f$ is an under-approximation whenever \f$\mathit{split}(a) = \{a\}\f$.
+
   \return A list of logical elements (possibly complementary, but not necessarily) that can be joined in an abstract element to further refine its state.
   */
   CUDA virtual DArray<LogicalElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
-
-  /** An abstract domain can be _eventually under-approximating_ which means that after a sufficient number of split and refine operations, it always reach an under-approximating element.
-   \return `true` if \f$\gamma(a) \subseteq [\![\varphi]\!]^\flat\f$. `false` is returned whenever `a` is an over-approximation or if we do not know whether `a` is an under-approximation. */
-  CUDA virtual bool is_underappx() const = 0;
 
   /** This method resets the current abstract element to an anterior state \f$b \f$.
       Therefore, this operation is similar to computing \f$ a \sqcap b \f$ where \f$ a \geq b \f$. */
@@ -112,6 +110,9 @@ public:
   /** This function is the inverse of `interpret`, but directly maps to a general `Formula`.
       Let \f$ a = [\![\varphi]\!]_A \f$, then we must have \f$ \gamma(a) = [\![[\![a]\!]^{-1}]\!]^\flat \f$. */
   CUDA virtual Formula deinterpret() const = 0;
+
+  /** This function is similar to `deinterpret` but for a logical element. */
+  CUDA virtual Formula deinterpret(const LogicalElement& element) const = 0;
 
   /** Print the current element with the logical name of the variables. */
   CUDA virtual void print() const = 0;
