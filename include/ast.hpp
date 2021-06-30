@@ -290,6 +290,7 @@ CUDA bool operator==(const Formula<Allocator>& lhs, const Formula<Allocator>& rh
       return lhs.children == rhs.children;
     default:
       assert(false);
+      return false;
       break;
   }
 }

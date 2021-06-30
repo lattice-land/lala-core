@@ -83,37 +83,22 @@ target_compile_options(lala_core PRIVATE
 )
 
 enable_testing()
-
-add_executable(
-  ast_test
-  tests/ast_test.cpp
-)
-
-add_executable(
-  z_test
-  tests/z_test.cpp
-)
-
-target_link_libraries(
-  ast_test
-  cuda_battery
-  lala_core
-  gtest_main
-)
-
-target_link_libraries(
-  z_test
-  cuda_battery
-  lala_core
-  gtest_main
-)
-
-target_include_directories(ast_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-target_include_directories(z_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-
 include(GoogleTest)
+
+add_executable(ast_test tests/ast_test.cpp)
+target_link_libraries(ast_test cuda_battery lala_core gtest_main)
+target_include_directories(ast_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 gtest_discover_tests(ast_test)
+
+add_executable(z_test tests/z_test.cpp)
+target_link_libraries(z_test cuda_battery lala_core gtest_main)
+target_include_directories(z_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 gtest_discover_tests(z_test)
+
+add_executable(arithmetic_test tests/arithmetic_test.cpp)
+target_link_libraries(arithmetic_test cuda_battery lala_core gtest_main)
+target_include_directories(arithmetic_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+gtest_discover_tests(arithmetic_test)
 
 # Documentation
 

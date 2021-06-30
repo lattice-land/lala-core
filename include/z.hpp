@@ -6,6 +6,7 @@
 #include "thrust/optional.h"
 #include "utility.hpp"
 #include "darray.hpp"
+#include "ast.hpp"
 
 namespace lala {
 
