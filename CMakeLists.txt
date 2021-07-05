@@ -31,7 +31,7 @@ endif()
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        1e02ad32aa44d475355679ecc18cc7e17698c095
+  GIT_TAG        450dbb4056112cbc02b91fa010dd3f3bb011a6b4
 )
 FetchContent_MakeAvailable(cuda_battery)
 
@@ -99,6 +99,11 @@ add_executable(arithmetic_test tests/arithmetic_test.cpp)
 target_link_libraries(arithmetic_test cuda_battery lala_core gtest_main)
 target_include_directories(arithmetic_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 gtest_discover_tests(arithmetic_test)
+
+add_executable(cartesian_product_test tests/cartesian_product_test.cpp)
+target_link_libraries(cartesian_product_test cuda_battery lala_core gtest_main)
+target_include_directories(cartesian_product_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+gtest_discover_tests(cartesian_product_test)
 
 # Documentation
 

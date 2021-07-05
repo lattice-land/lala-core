@@ -6,6 +6,7 @@
 #include "utility.hpp"
 #include "darray.hpp"
 #include "string.hpp"
+#include "tuple.hpp"
 #include "variant.hpp"
 #include "thrust/optional.h"
 
@@ -79,10 +80,10 @@ public:
   using Sequence = DArray<this_type, Allocator>;
   using Formula = Variant<
     long long int, ///< Constant in the domain of discourse that can be represented exactly.
-    std::tuple<double, double>,    ///< A real represented as an interval \f$ [d[0]..d[1]] \f$. Indeed, we sometimes cannot use a single `double` because it cannot represent all real numbers, it is up to the abstract domain to under- or over-approximate it, or choose an exact representation such as rational.
+    battery::tuple<double, double>,    ///< A real represented as an interval \f$ [d[0]..d[1]] \f$. Indeed, we sometimes cannot use a single `double` because it cannot represent all real numbers, it is up to the abstract domain to under- or over-approximate it, or choose an exact representation such as rational.
     AVar,          ///< Abstract variable
-    std::tuple<Sig, Sequence>,  ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
-    std::tuple<ExtendedSig, Sequence> ///< see above
+    battery::tuple<Sig, Sequence>,  ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
+    battery::tuple<ExtendedSig, Sequence> ///< see above
   >;
 
   static constexpr int Z = 0;
@@ -136,7 +137,7 @@ public:
   }
 
   CUDA static this_type make_real(double lb, double ub, AType atype = UNTYPED) {
-    return this_type(atype, Formula::template create<R>(std::make_tuple(lb, ub)));
+    return this_type(atype, Formula::template create<R>(battery::make_tuple(lb, ub)));
   }
 
   /** The type of the formula is embedded in `v`. */
@@ -149,7 +150,7 @@ public:
   }
 
   CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
-    return this_type(atype, Formula::template create<Seq>(std::make_tuple(sig, children)));
+    return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, children)));
   }
 
   CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
@@ -167,7 +168,7 @@ public:
 
 
   CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
-    return this_type(atype, Formula::create<ESeq>(std::make_tuple(std::move(esig), std::move(children))));
+    return this_type(atype, Formula::create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
   }
 
   CUDA bool is(int kind) const {
@@ -186,7 +187,7 @@ public:
     return get<Z>(formula);
   }
 
-  CUDA const std::tuple<double, double>& r() const {
+  CUDA const battery::tuple<double, double>& r() const {
     return get<R>(formula);
   }
 
@@ -195,15 +196,15 @@ public:
   }
 
   CUDA Sig sig() const {
-    return std::get<0>(get<Seq>(formula));
+    return battery::get<0>(get<Seq>(formula));
   }
 
   CUDA const ExtendedSig& esig() const {
-    return std::get<0>(get<ESeq>(formula));
+    return battery::get<0>(get<ESeq>(formula));
   }
 
   CUDA const Sequence& seq() const {
-    return std::get<1>(get<Seq>(formula));
+    return battery::get<1>(get<Seq>(formula));
   }
 
   CUDA const this_type& seq(size_t i) const {
@@ -211,7 +212,7 @@ public:
   }
 
   CUDA const Sequence& eseq() const {
-    return std::get<1>(get<ESeq>(formula));
+    return battery::get<1>(get<ESeq>(formula));
   }
 
   CUDA const this_type& eseq(size_t i) const {
@@ -222,7 +223,7 @@ public:
     return get<Z>(formula);
   }
 
-  CUDA std::tuple<double, double>& r() {
+  CUDA battery::tuple<double, double>& r() {
     return get<R>(formula);
   }
 
@@ -231,15 +232,15 @@ public:
   }
 
   CUDA Sig& sig() {
-    return std::get<0>(get<Seq>(formula));
+    return battery::get<0>(get<Seq>(formula));
   }
 
   CUDA ExtendedSig& esig() {
-    return std::get<0>(get<ESeq>(formula));
+    return battery::get<0>(get<ESeq>(formula));
   }
 
   CUDA Sequence& seq() {
-    return std::get<1>(get<Seq>(formula));
+    return battery::get<1>(get<Seq>(formula));
   }
 
   CUDA this_type& seq(size_t i) {

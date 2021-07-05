@@ -10,19 +10,20 @@
 
 namespace lala {
 
-/** The lattice of increasing integers. */
+/** The lattice of increasing integers.
+Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \leq y\} \f$. */
 template<typename VT, typename Alloc>
 class ZInc {
 public:
-  typedef VT ValueType;
-  typedef Alloc Allocator;
-  typedef ZInc<ValueType, Allocator> this_type;
+  using ValueType = VT;
+  using Allocator = Alloc;
+  using this_type = ZInc<ValueType, Allocator>;
 private:
   VT value;
 
   CUDA ZInc() {}
 public:
-  typedef this_type LogicalElement;
+  using LogicalElement = this_type;
 
   /** Similar to \f$[\![\mathit{true}]\!]\f$. */
   CUDA static ZInc bot() {
@@ -40,9 +41,12 @@ public:
 
   CUDA explicit operator ValueType() const { return value; }
 
+  template<typename T, typename U>
+  using IsConvertible = std::enable_if_t<std::is_convertible_v<T, U>, bool>;
+
   /** Similar to \f$[\![x \geq i]\!]\f$ for any name `x`. */
-  template<typename VT2>
-  CUDA ZInc(VT2 i): value(static_cast<ValueType>(i)) {
+  template<typename VT2, IsConvertible<VT2, ValueType> = true>
+  CUDA explicit ZInc(VT2 i): value(static_cast<ValueType>(i)) {
     assert(i > bot().value && i < top().value);
   }
 
@@ -168,24 +172,25 @@ public:
   friend class ZDec;
 };
 
-/** The lattice of decreasing integers. */
+/** The lattice of decreasing integers.
+Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \geq y\} \f$. */
 template<typename VT, typename Alloc>
 class ZDec {
 public:
   /** The dual lattice of ZDec.
    * Note, however, that the interpretation function is not dually equivalent.
    * This is still not very clear what is the dual of an abstract domain as a whole. */
-  typedef ZInc<VT, Alloc> DualType;
-  typedef typename DualType::ValueType ValueType;
-  typedef typename DualType::Allocator Allocator;
-  typedef ZDec<ValueType, Allocator> this_type;
+  using DualType = ZInc<VT, Alloc>;
+  using ValueType = typename DualType::ValueType;
+  using Allocator = typename DualType::Allocator;
+  using this_type = ZDec<ValueType, Allocator>;
 private:
   DualType dual;
 
   CUDA ZDec() {}
   CUDA ZDec(DualType dual): dual(dual) {}
 public:
-  typedef this_type LogicalElement;
+  using LogicalElement = this_type;
 
   /** Similar to \f$[\![\mathit{true}]\!]\f$. */
   CUDA static ZDec bot() {
