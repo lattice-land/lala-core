@@ -61,26 +61,25 @@ public:
     */
   template<typename Formula>
   CUDA thrust::optional<LogicalElement> interpret(Approx appx, const Formula& f) {
-    typedef Formula F;
-    if(f.tag == F::TRUE) {
+    if(f.is_true()) {
       return bot();
     }
-    else if(f.tag == F::FALSE) {
+    else if(f.is_false()) {
       return top();
     }
-    if(SHAPE(f, F::GEQ, F::AVAR, F::LONG)) {      // x >= 4
-      return ZInc(f.children[1].i);
+    if(is_v_op_z(f, GEQ)) {      // x >= 4
+      return ZInc(f.seq(1).z());
     }
-    else if(SHAPE(f, F::GT, F::AVAR, F::LONG)) {  // x > 4
-      return ZInc(f.children[1].i + 1);
+    else if(is_v_op_z(f, GT)) {  // x > 4
+      return ZInc(f.seq(1).z() + 1);
     }
     // Under-approximation of `x != 4` as `5`.
-    else if(SHAPE(f, F::NEQ, F::AVAR, F::LONG) && appx == UNDER) {
-      return ZInc(f.children[1].i + 1);
+    else if(is_v_op_z(f, NEQ) && appx == UNDER) {
+      return ZInc(f.seq(1).z() + 1);
     }
     // Over-approximation of `x == 4` as `4`.
-    else if(SHAPE(f, F::EQ, F::AVAR, F::LONG) && appx == OVER) {
-      return ZInc(f.children[1].i);
+    else if(is_v_op_z(f, EQ) && appx == OVER) {
+      return ZInc(f.seq(1).z());
     }
     return {};
   }
@@ -139,14 +138,14 @@ public:
   /** \return \f$ _ \geq i \f$ where `_` is an arbitrary variable's name and `i` the integer value.
   `true` is returned whenever \f$ a = \bot \f$ and `false` whenever \f$ a = \top \f$. */
   template<typename Allocator = Alloc>
-  CUDA Formula<Allocator> deinterpret(const Allocator& allocator = Allocator()) const {
+  CUDA TFormula<Allocator> deinterpret(const Allocator& allocator = Allocator()) const {
     if(is_top()) {
-      return Formula<Allocator>::make_false();
+      return TFormula<Allocator>::make_false();
     }
     else if(is_bot()) {
-      return Formula<Allocator>::make_true();
+      return TFormula<Allocator>::make_true();
     }
-    return make_x_op_i(Formula<Allocator>::GEQ, 0, value, allocator);
+    return make_v_op_z(0, GEQ, value, allocator);
   }
 
   /** Print the current element. */
@@ -219,26 +218,25 @@ public:
     */
   template<typename Formula>
   CUDA thrust::optional<LogicalElement> interpret(Approx appx, const Formula& f) {
-    typedef Formula F;
-    if(f.tag == F::TRUE) {
+    if(f.is_true()) {
       return bot();
     }
-    else if(f.tag == F::FALSE) {
+    else if(f.is_false()) {
       return top();
     }
-    if(SHAPE(f, F::LEQ, F::AVAR, F::LONG)) {      // x <= 4
-      return ZDec(f.children[1].i);
+    if(is_v_op_z(f, LEQ)) {      // x <= 4
+      return ZDec(f.seq(1).z());
     }
-    else if(SHAPE(f, F::LT, F::AVAR, F::LONG)) {  // x < 4
-      return ZDec(f.children[1].i - 1);
+    else if(is_v_op_z(f, LT)) {  // x < 4
+      return ZDec(f.seq(1).z() - 1);
     }
     // Under-approximation of `x != 4` as `3`.
-    else if(SHAPE(f, F::NEQ, F::AVAR, F::LONG) && appx == UNDER) {
-      return ZDec(f.children[1].i - 1);
+    else if(is_v_op_z(f, NEQ) && appx == UNDER) {
+      return ZDec(f.seq(1).z() - 1);
     }
     // Over-approximation of `x == 4` as `4`.
-    else if(SHAPE(f, F::EQ, F::AVAR, F::LONG) && appx == OVER) {
-      return ZDec(f.children[1].i);
+    else if(is_v_op_z(f, EQ) && appx == OVER) {
+      return ZDec(f.seq(1).z());
     }
     return {};
   }
@@ -297,14 +295,14 @@ public:
   /** \return \f$ _ \leq i \f$ where `_` is an arbitrary variable's name and `i` the integer value.
   `true` is returned whenever \f$ a = \bot \f$ and `false` whenever \f$ a = \top \f$. */
   template<typename Allocator = Alloc>
-  CUDA Formula<Allocator> deinterpret(const Allocator& allocator = Allocator()) const {
+  CUDA TFormula<Allocator> deinterpret(const Allocator& allocator = Allocator()) const {
     if(is_top()) {
-      return Formula<Allocator>::make_false();
+      return TFormula<Allocator>::make_false();
     }
     else if(is_bot()) {
-      return Formula<Allocator>::make_true();
+      return TFormula<Allocator>::make_true();
     }
-    return make_x_op_i(Formula<Allocator>::LEQ, 0, ValueType(dual), allocator);
+    return make_v_op_z(0, LEQ, ValueType(dual), allocator);
   }
 
   /** Print the current element. */

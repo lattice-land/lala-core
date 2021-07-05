@@ -8,7 +8,7 @@ ctest;
 cd ../..)
 
 mkdir -p build/gpu-debug
-cmake -DCMAKE_BUILD_TYPE=Debug -DGPU=OFF -Bbuild/gpu-debug &&
+cmake -DCMAKE_BUILD_TYPE=Debug -DGPU=ON -Bbuild/gpu-debug &&
 cmake --build build/gpu-debug &&
 (cd build/gpu-debug;
 ctest;

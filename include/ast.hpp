@@ -6,14 +6,15 @@
 #include "utility.hpp"
 #include "darray.hpp"
 #include "string.hpp"
+#include "variant.hpp"
 #include "thrust/optional.h"
 
 namespace lala {
 
 /** Each abstract domain is uniquely identified by an UID. */
-typedef int AD_UID;
+using AType = int;
 /** This value means a formula is not typed in a particular abstract domain and its type should be inferred. */
-#define UNTYPED_AD (-1)
+#define UNTYPED (-1)
 
 /** A "logical variable" is just the name of the variable. */
 template<typename Allocator>
@@ -28,7 +29,7 @@ typedef int AVar;
 #define AID(v) (v & ((1 << 8) - 1))
 #define VID(v) (v >> 8)
 
-CUDA AVar make_var(int ad_uid, int var_id);
+CUDA AVar make_var(AType type, int var_id);
 
 /** The approximation of a formula in an abstract domain w.r.t. the concrete domain.
 * `UNDER`: An under-approximating element contains only solutions but not necessarily all.
@@ -40,267 +41,279 @@ enum Approx {
   EXACT
 };
 
-/** We represent everything at the same level (terms, formula, predicate, variable, constant).
+/** The symbols of the terms and predicates of a first-order signature.
+We also include the symbol of logical connectors, and a `RAW` variant for possible extension of the signature.
+For genericity purpose, we sometimes reuse the same symbols over different universes of discourse such as LEQ for the inclusion \f$ X \subseteq Y \f$ in the universe of sets. */
+enum Sig {
+  ///@{
+  NEG, ADD, SUB, MUL, DIV, MOD, POW,  ///< Terms
+  ///@}
+  ///@{
+  EQ, LEQ, GEQ, NEQ, GT, LT,     ///< Predicates
+  ///@}
+  ///@{
+  AND, OR, IMPLY, EQUIV, NOT,    ///< Formulas
+  ///@}
+};
+}
+
+template<>
+CUDA void print(const lala::Sig& sig);
+
+namespace lala {
+
+/** `TFormula` represents the AST of a typed multi-sorted first-order logical formula.
+In our context, the type of a formula is an integer representing the UID of an abstract domain in which the formula should to be interpreted.
+This integer can take the value `UNTYPED` if the formula is not (yet) typed.
+By default, the sorts of integer and real number are supported (although constants are bounded).
+The supported symbols can be extended with the template parameter `ExtendedSig`.
+This extended signature can also be used for representing exactly constant such as real numbers using a string.
+The AST of a formula is represented by a variant, where each alternative is described below.
+We represent everything at the same level (terms, formula, predicate, variable, constant).
 This is general convenient when modelling to avoid creating intermediate boolean variables when reifying.
 We can have `x + (x > y \/ y > x + 4)` and this expression is true if the value is != 0. */
-template<typename Allocator>
-struct Formula {
-  typedef Formula<Allocator> this_type;
-  typedef DArray<this_type, Allocator> sequence;
+template<typename Allocator, typename ExtendedSig = String<Allocator>>
+class TFormula {
+public:
+  using this_type = TFormula<Allocator, ExtendedSig>;
+  using Sequence = DArray<this_type, Allocator>;
+  using Formula = Variant<
+    long long int, ///< Constant in the domain of discourse that can be represented exactly.
+    std::tuple<double, double>,    ///< A real represented as an interval \f$ [d[0]..d[1]] \f$. Indeed, we sometimes cannot use a single `double` because it cannot represent all real numbers, it is up to the abstract domain to under- or over-approximate it, or choose an exact representation such as rational.
+    AVar,          ///< Abstract variable
+    std::tuple<Sig, Sequence>,  ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
+    std::tuple<ExtendedSig, Sequence> ///< see above
+  >;
 
-  AD_UID ad_uid;
-
-  enum Type {
-    ///@{
-    LONG, REAL,                    ///< Constant in the domain of discourse that can be represented exactly.
-    ///@}
-    AVAR,                          ///< Abstract variable
-    ///@{
-    NEG, ADD, SUB, MUL, DIV, MOD, POW,  ///< Terms
-    ///@}
-    ///@{
-    EQ, LEQ, GEQ, NEQ, GT, LT,     ///< Predicates
-    ///@}
-    ///@{
-    TRUE, FALSE, AND, OR, IMPLY, EQUIV, NOT,    ///< Formulas
-    ///@}
-    RAW                            ///< General tag for extension purposes.
-  };
-
-  Type tag;
-
-  /** The name of the variable, term, function or predicate is represented by a string.
-  This struct can also be used for representing constant such as real numbers.
-  NOTE: We sometimes cannot use a float type because it cannot represent all real numbers, it is up to the abstract domain to under- or over-approximate it, or choose an exact representation such as rational. */
-  struct Raw {
-    String<Allocator> name;
-    sequence children;
-
-    Raw(String<Allocator> name, sequence children):
-      name(std::move(name)), children(std::move(children)) {}
-  };
-
-  union {
-    long long int i;    ///< LONG
-    double d[2];    ///< REAL represented as an interval [rlb..rub]
-    AVar v;   ///< AVAR
-    sequence children; ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
-    Raw raw;  ///< LVar, global constraints, predicates, real numbers, ...
-  };
+  static constexpr int Z = 0;
+  static constexpr int R = 1;
+  static constexpr int V = 2;
+  static constexpr int Seq = 3;
+  static constexpr int ESeq = 4;
 
 private:
-  CUDA void clear() {
-    switch(tag) {
-      case LONG: case REAL: case AVAR: break;
-      case RAW:
-        raw.~Raw();
-        break;
-      case NEG: case ADD: case SUB: case MUL: case DIV: case MOD: case POW:
-      case EQ: case LEQ: case GEQ: case NEQ: case GT: case LT:
-      case TRUE: case FALSE: case AND: case OR: case IMPLY: case EQUIV: case NOT:
-        children.~sequence();
-        break;
-      default:
-        printf("tag=%d / avar = %d\n", tag, AVAR);
-        assert(false);
-        break;
-    }
-    tag = LONG;
-    i = 0;
-  }
+  AType type_;
+  Formula formula;
 
-  CUDA void init_from(this_type&& other) {
-    switch(tag) {
-      case LONG: i = other.i; break;
-      case REAL: d[0] = other.d[0]; d[1] = other.d[1]; break;
-      case AVAR: v = other.v; break;
-      case RAW: new(&raw) Raw(std::move(other.raw)); break;
-      case NEG: case ADD: case SUB: case MUL: case DIV: case MOD: case POW:
-      case EQ: case LEQ: case GEQ: case NEQ: case GT: case LT:
-      case TRUE: case FALSE: case AND: case OR: case IMPLY: case EQUIV: case NOT:
-        new(&children) sequence(std::move(other.children));
-        break;
-      default:
-        assert(false);
-        break;
-    }
-    other.tag = LONG;
-    other.i = 0;
-  }
 public:
+  /** By default, we initialize the formula to `true`. */
+  CUDA TFormula(): type_(UNTYPED), formula(Formula::template create<Z>(1)) {}
+  CUDA TFormula(Formula&& formula): type_(UNTYPED), formula(std::forward<Formula>(formula)) {}
+  CUDA TFormula(AType uid, Formula&& formula): type_(uid), formula(std::forward<Formula>(formula)) {}
 
-  /** By default, we initialize a constant 0 of type LONG. */
-  CUDA Formula(): ad_uid(UNTYPED_AD), tag(LONG), i(0) {}
-  CUDA Formula(const this_type& other):
-    ad_uid(other.ad_uid), tag(other.tag)
-  {
-    switch(tag) {
-      case LONG: i = other.i; break;
-      case REAL: d[0] = other.d[0]; d[1] = other.d[1]; break;
-      case AVAR: v = other.v; break;
-      case RAW: new(&raw) Raw(other.raw); break;
-      case NEG: case ADD: case SUB: case MUL: case DIV: case MOD: case POW:
-      case EQ: case LEQ: case GEQ: case NEQ: case GT: case LT:
-      case TRUE: case FALSE: case AND: case OR: case IMPLY: case EQUIV: case NOT:
-        new(&children) sequence(other.children);
-        break;
-      default:
-        assert(false);
-        break;
-    }
-  }
+  CUDA TFormula(const this_type& other): type_(other.type_), formula(other.formula) {}
+  CUDA TFormula(this_type&& other): type_(other.type_), formula(std::move(other.formula)) {}
 
-  CUDA this_type& operator=(this_type other) {
-    clear();
-    ad_uid = other.ad_uid;
-    tag = other.tag;
-    init_from(std::move(other));
+  CUDA this_type& operator=(this_type& rhs) {
+    type_ = rhs.type_;
+    formula = rhs.formula;
     return *this;
   }
 
-  CUDA Formula(this_type&& other): ad_uid(other.ad_uid), tag(other.tag) {
-    init_from(std::forward<this_type>(other));
+  CUDA this_type& operator=(this_type&& rhs) {
+    type_ = rhs.type_;
+    formula = std::move(rhs.formula);
+    return *this;
   }
 
-  CUDA static this_type make_long(AD_UID ad_uid, long long int i) {
-    this_type f;
-    f.ad_uid = ad_uid;
-    f.tag = LONG;
-    f.i = i;
-    return std::move(f);
-  }
-
-  CUDA static this_type make_avar(AD_UID ad_uid, AVar v) {
-    this_type f;
-    f.ad_uid = ad_uid;
-    f.tag = AVAR;
-    f.v = v;
-    return std::move(f);
-  }
-
-  CUDA static this_type make_true() {
-    this_type f;
-    f.tag = TRUE;
-    new(&f.children) sequence;
-    return f;
-  }
-
-  CUDA static this_type make_false() {
-    this_type f;
-    f.tag = FALSE;
-    new(&f.children) sequence;
-    return f;
-  }
-
-  CUDA Formula(AD_UID ad_uid, double lb, double ub):
-    ad_uid(ad_uid), tag(REAL)
-  {
-    d[0] = lb;
-    d[1] = ub;
-  }
-
-  CUDA Formula(AD_UID ad_uid, Type type, Formula sub, const Allocator& allocator = Allocator()):
-    ad_uid(ad_uid), tag(type)
-  {
-    new(&children) sequence(1, allocator);
-    children[0] = std::move(sub);
-  }
-
-  CUDA Formula(AD_UID ad_uid, Type type, Formula left, Formula right, const Allocator& allocator = Allocator()):
-    ad_uid(ad_uid), tag(type)
-  {
-    new(&children) sequence(2, allocator);
-    children[0] = std::move(left);
-    children[1] = std::move(right);
-  }
-
-  CUDA Formula(AD_UID ad_uid, Type type, sequence children):
-    ad_uid(ad_uid), tag(type)
-  {
-    new(&children) sequence(std::move(children));
-  }
-
-  CUDA Formula(AD_UID ad_uid, String<Allocator> name, sequence children):
-    ad_uid(ad_uid), tag(RAW)
-  {
-    new(&raw) Raw(std::move(name), std::move(children));
-  }
-
-  CUDA ~Formula() {
-    clear();
-  }
-
-  CUDA void print() const {
-    const char* op = nullptr;
-    const sequence* children_ptr = &children;
-    switch(tag) {
-      case LONG: printf("%lld:long", i); break;
-      case REAL: printf("[%lf..%lf]", d[0], d[1]); break;
-      case AVAR: printf("%d:var", v); break;
-      case RAW: op = raw.name.data(); children_ptr = &raw.children; break;
-      case NEG: printf("-("); children[0].print(); printf(")"); break;
-      case TRUE: printf("true"); break;
-      case FALSE: printf("false"); break;
-      case ADD: op = "+"; break;
-      case SUB: op = "-"; break;
-      case MUL: op = "*"; break;
-      case DIV: op = "/"; break;
-      case MOD: op = "%"; break;
-      case POW: op = "^"; break;
-      case EQ: op = "="; break;
-      case LEQ: op = "<="; break;
-      case GEQ: op = ">="; break;
-      case NEQ: op = "!="; break;
-      case GT: op = ">"; break;
-      case LT: op = "<"; break;
-      case AND: op = "/\\"; break;
-      case OR: op = "\\/"; break;
-      case IMPLY: op = "=>"; break;
-      case EQUIV: op = "<=>"; break;
-      case NOT: op = "!"; break;
-      default:
-        assert(false);
-        break;
+  CUDA Formula& data() { return formula; }
+  CUDA const Formula& data() const { return formula; }
+  CUDA AType type() const { return type_; }
+  CUDA void type_as(AType ty) {
+    type_ = ty;
+    if(is(V)) {
+      v() = make_var(ty, VID(v()));
     }
-    if(op != nullptr) {
+  }
+
+  /** The formula `true` is represented by the integer constant `1`. */
+  CUDA static this_type make_true() { return TFormula(); }
+  /** The formula `false` is represented by the integer constant `0`. */
+  CUDA static this_type make_false() { return TFormula(Formula::template create<Z>(0)); }
+
+  CUDA static this_type make_z(long long int i, AType atype = UNTYPED) {
+    return this_type(atype, Formula::template create<Z>(i));
+  }
+
+  CUDA static this_type make_real(double lb, double ub, AType atype = UNTYPED) {
+    return this_type(atype, Formula::template create<R>(std::make_tuple(lb, ub)));
+  }
+
+  /** The type of the formula is embedded in `v`. */
+  CUDA static this_type make_avar(AVar v) {
+    return this_type(AID(v), Formula::template create<V>(v));
+  }
+
+  CUDA static this_type make_avar(AType ty, int vid) {
+    return make_avar(make_var(ty, vid));
+  }
+
+  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+    return this_type(atype, Formula::template create<Seq>(std::make_tuple(sig, children)));
+  }
+
+  CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+    Sequence children(1, allocator);
+    children[0] = std::move(child);
+    return make_nary(sig, std::move(children), atype, allocator);
+  }
+
+  CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+    Sequence children(2, allocator);
+    children[0] = std::move(lhs);
+    children[1] = std::move(rhs);
+    return make_nary(sig, std::move(children), atype, allocator);
+  }
+
+
+  CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+    return this_type(atype, Formula::create<ESeq>(std::make_tuple(std::move(esig), std::move(children))));
+  }
+
+  CUDA bool is(int kind) const {
+    return formula.index() == kind;
+  }
+
+  CUDA bool is_true() const {
+    return is(Z) && z() != 0;
+  }
+
+  CUDA bool is_false() const {
+    return is(Z) && z() == 0;
+  }
+
+  CUDA long long int z() const {
+    return get<Z>(formula);
+  }
+
+  CUDA const std::tuple<double, double>& r() const {
+    return get<R>(formula);
+  }
+
+  CUDA AVar v() const {
+    return get<V>(formula);
+  }
+
+  CUDA Sig sig() const {
+    return std::get<0>(get<Seq>(formula));
+  }
+
+  CUDA const ExtendedSig& esig() const {
+    return std::get<0>(get<ESeq>(formula));
+  }
+
+  CUDA const Sequence& seq() const {
+    return std::get<1>(get<Seq>(formula));
+  }
+
+  CUDA const this_type& seq(size_t i) const {
+    return seq()[i];
+  }
+
+  CUDA const Sequence& eseq() const {
+    return std::get<1>(get<ESeq>(formula));
+  }
+
+  CUDA const this_type& eseq(size_t i) const {
+    return eseq()[i];
+  }
+
+  CUDA long long int& z() {
+    return get<Z>(formula);
+  }
+
+  CUDA std::tuple<double, double>& r() {
+    return get<R>(formula);
+  }
+
+  CUDA AVar& v() {
+    return get<V>(formula);
+  }
+
+  CUDA Sig& sig() {
+    return std::get<0>(get<Seq>(formula));
+  }
+
+  CUDA ExtendedSig& esig() {
+    return std::get<0>(get<ESeq>(formula));
+  }
+
+  CUDA Sequence& seq() {
+    return std::get<1>(get<Seq>(formula));
+  }
+
+  CUDA this_type& seq(size_t i) {
+    return seq()[i];
+  }
+
+  CUDA Sequence& eseq() {
+    return std::get<1>(get<ESeq>(formula));
+  }
+
+  CUDA this_type& eseq(size_t i) {
+    return eseq()[i];
+  }
+
+
+private:
+  template<size_t n>
+  CUDA void print_sequence() const {
+    auto op = std::get<0>(get<n>(formula));
+    auto children = std::get<1>(get<n>(formula));
+    assert(children.size() > 0);
+    if(children.size() == 1) {
+      ::print(op);
+      ::print(children[0]);
+    }
+    else {
       printf("(");
-      for(int i = 0; i < children_ptr->size(); ++i) {
-        (*children_ptr)[i].print();
-        if(i < children_ptr->size() - 1)
-          printf(" %s ", op);
+      for(int i = 0; i < children.size(); ++i) {
+        ::print(children[i]);
+        if(i < children.size() - 1) {
+          printf(" ");
+          ::print(op);
+          printf(" ");
+        }
       }
       printf(")");
     }
   }
+
+public:
+  CUDA void print(bool print_types = true) const {
+    switch(formula.index()) {
+      case Z: printf("%lld:long", z()); break;
+      case R: printf("[%lf..%lf]", get<0>(r()), get<1>(r())); break;
+      case V: printf("%d:var", v()); break;
+      case Seq: print_sequence<Seq>(); break;
+      case ESeq: print_sequence<ESeq>(); break;
+      default: assert(0); break;
+    }
+    if(print_types) {
+      printf(":%d", type_);
+    }
+  }
 };
 
-template<typename Allocator>
-CUDA bool operator==(const Formula<Allocator>& lhs, const Formula<Allocator>& rhs) {
-  if(lhs.tag != rhs.tag) return false;
-  if(lhs.ad_uid != rhs.ad_uid) return false;
-  typedef Formula<Allocator> F;
-  switch(lhs.tag) {
-    case F::LONG: return lhs.i == rhs.i;
-    case F::REAL: return lhs.d[0] == rhs.d[0] && lhs.d[1] == rhs.d[1];
-    case F::AVAR: return lhs.v == rhs.v;
-    case F::RAW: return lhs.raw.name == rhs.raw.name && lhs.raw.children == rhs.raw.children;
-    case F::NEG: case F::ADD: case F::SUB: case F::MUL: case F::DIV: case F::MOD: case F::POW:
-    case F::EQ: case F::LEQ: case F::GEQ: case F::NEQ: case F::GT: case F::LT:
-    case F::TRUE: case F::FALSE: case F::AND: case F::OR: case F::IMPLY: case F::EQUIV: case F::NOT:
-      return lhs.children == rhs.children;
-    default:
-      assert(false);
-      return false;
-      break;
-  }
+template<typename Allocator, typename ExtendedSig>
+CUDA bool operator==(const TFormula<Allocator, ExtendedSig>& lhs, const TFormula<Allocator, ExtendedSig>& rhs) {
+  return lhs.type() == rhs.type() && lhs.data() == rhs.data();
 }
 
-#define SHAPE(f,a,b,c) (f.tag == (a) && f.children[0].tag == (b) && f.children[1].tag == (c))
+/** \return `true` if the formula `f` has the shape `variable op constant`, e.g., `x < 4`. */
+template<typename Allocator, typename ExtendedSig>
+CUDA bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
+  using F = TFormula<Allocator, ExtendedSig>;
+  return f.is(F::Seq)
+    && f.sig() == sig
+    && f.seq(0).is(F::V)
+    && f.seq(1).is(F::Z);
+}
 
 template<typename Allocator>
-CUDA Formula<Allocator> make_x_op_i(typename Formula<Allocator>::Type op, AVar x, long long int i, const Allocator& allocator = Allocator()) {
-  typedef Formula<Allocator> F;
-  return F(UNTYPED_AD, op, F::make_avar(UNTYPED_AD, x), F::make_long(UNTYPED_AD, i), allocator);
+CUDA TFormula<Allocator> make_v_op_z(AVar x, Sig sig, long long int i, const Allocator& allocator = Allocator()) {
+  typedef TFormula<Allocator> F;
+  return F::make_binary(F::make_avar(x), sig, F::make_z(i), UNTYPED, allocator);
 }
 
 /** `SFormula` is a formula to be solved with a possible optimisation mode (MINIMIZE or MAXIMIZE), otherwise it will enumerate `n` satisfiable solutions, if any. */
@@ -318,7 +331,7 @@ struct SFormula {
     int num_sols; ///< How many solutions should we compute (SATISFY mode).
   };
 
-  Formula<Allocator> f;
+  TFormula<Allocator> f;
 };
 
 /** A `VarEnv` is a variable environment mapping between logical variables and abstract variables.
@@ -328,14 +341,14 @@ class VarEnv {
   typedef LVar<Allocator> vname;
   typedef DArray<LVar<Allocator>, Allocator> env_type;
 
-  AD_UID uid;
+  AType uid;
   /** Given an abstract variable `v`, `avar2lvar[VID(v)]` is the name of the variable. */
   env_type avar2lvar;
   /** This is the number of variables in the environment. */
   size_t size_;
 
 public:
-  CUDA VarEnv(AD_UID uid, int capacity): uid(uid), avar2lvar(capacity), size_(0) {}
+  CUDA VarEnv(AType uid, int capacity): uid(uid), avar2lvar(capacity), size_(0) {}
 
   CUDA const vname& to_lvar(AVar av) const {
     assert(VID(av) < size_);
@@ -358,7 +371,7 @@ public:
     return make_var(uid, size_ - 1);
   }
 
-  CUDA AD_UID ad_uid() const {
+  CUDA AType ad_uid() const {
     return uid;
   }
 

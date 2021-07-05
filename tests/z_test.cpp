@@ -12,7 +12,7 @@ using namespace lala;
 
 typedef ZInc<int, StandardAllocator> zi;
 typedef ZDec<int, StandardAllocator> zd;
-typedef Formula<StandardAllocator> F;
+typedef TFormula<StandardAllocator> F;
 
 TEST(ZDeathTest, BadConstruction) {
   ASSERT_DEATH(zi(Limits<int>::bot()), "");
@@ -30,58 +30,58 @@ void test_formula(Approx appx, const F& f, thrust::optional<VarDom> expect) {
 }
 
 template<typename VarDom>
-void test_interpret(F::Type relation, Approx appx, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
+void test_interpret(Sig sig, Approx appx, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
   test_formula<VarDom>(
     appx,
-    make_x_op_i(relation, 0, elem, standard_allocator),
+    make_v_op_z(0, sig, elem, standard_allocator),
     expect);
 }
 
 template<typename VarDom>
-void test_all_interpret(F::Type relation, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
+void test_all_interpret(Sig sig, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
   Approx appxs[3] = {EXACT, UNDER, OVER};
   for(int i = 0; i < 3; ++i) {
-    test_interpret<VarDom>(relation, appxs[i], elem, expect);
+    test_interpret<VarDom>(sig, appxs[i], elem, expect);
   }
 }
 
 template<typename VarDom>
-void test_exact_interpret(F::Type relation, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
-  test_interpret<VarDom>(relation, EXACT, elem, expect);
+void test_exact_interpret(Sig sig, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
+  test_interpret<VarDom>(sig, EXACT, elem, expect);
 }
 
 template<typename VarDom>
-void test_under_interpret(F::Type relation, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
-  test_interpret<VarDom>(relation, UNDER, elem, expect);
+void test_under_interpret(Sig sig, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
+  test_interpret<VarDom>(sig, UNDER, elem, expect);
 }
 
 template<typename VarDom>
-void test_over_interpret(F::Type relation, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
-  test_interpret<VarDom>(relation, OVER, elem, expect);
+void test_over_interpret(Sig sig, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
+  test_interpret<VarDom>(sig, OVER, elem, expect);
 }
 
 TEST(ZTest, ValidInterpret) {
-  test_all_interpret<zi>(F::GEQ, 10, zi(10));
-  test_all_interpret<zi>(F::GT, 10, zi(11));
-  test_under_interpret<zi>(F::NEQ, 10, zi(11));
-  test_over_interpret<zi>(F::EQ, 10, zi(10));
+  test_all_interpret<zi>(GEQ, 10, zi(10));
+  test_all_interpret<zi>(GT, 10, zi(11));
+  test_under_interpret<zi>(NEQ, 10, zi(11));
+  test_over_interpret<zi>(EQ, 10, zi(10));
   // Dual
-  test_all_interpret<zd>(F::LEQ, 10, zd(10));
-  test_all_interpret<zd>(F::LT, 10, zd(9));
-  test_under_interpret<zd>(F::NEQ, 10, zd(9));
-  test_over_interpret<zd>(F::EQ, 10, zd(10));
+  test_all_interpret<zd>(LEQ, 10, zd(10));
+  test_all_interpret<zd>(LT, 10, zd(9));
+  test_under_interpret<zd>(NEQ, 10, zd(9));
+  test_over_interpret<zd>(EQ, 10, zd(10));
 }
 
 TEST(ZTest, NoInterpret) {
-  test_exact_interpret<zi>(F::NEQ, 10, {});
-  test_exact_interpret<zi>(F::EQ, 10, {});
-  test_all_interpret<zi>(F::LEQ, 10, {});
-  test_all_interpret<zi>(F::LT, 10, {});
+  test_exact_interpret<zi>(NEQ, 10, {});
+  test_exact_interpret<zi>(EQ, 10, {});
+  test_all_interpret<zi>(LEQ, 10, {});
+  test_all_interpret<zi>(LT, 10, {});
   // Dual
-  test_exact_interpret<zd>(F::NEQ, 10, {});
-  test_exact_interpret<zd>(F::EQ, 10, {});
-  test_all_interpret<zd>(F::GEQ, 10, {});
-  test_all_interpret<zd>(F::GT, 10, {});
+  test_exact_interpret<zd>(NEQ, 10, {});
+  test_exact_interpret<zd>(EQ, 10, {});
+  test_all_interpret<zd>(GEQ, 10, {});
+  test_all_interpret<zd>(GT, 10, {});
 }
 
 // `a` and `b` are supposed ordered and `a <= b`.
@@ -189,21 +189,21 @@ void generic_deinterpret_test() {
 }
 
 TEST(ZTest, Deinterpret) {
-  F f10 = make_x_op_i(F::GEQ, 0, 10, standard_allocator);
+  F f10 = make_v_op_z(0, GEQ, 10, standard_allocator);
   zi z10 = zi::bot().interpret(EXACT, f10).value();
   F f10_bis = z10.deinterpret();
   EXPECT_EQ(f10, f10_bis);
-  F f9 = make_x_op_i(F::GT, 0, 9, standard_allocator);
+  F f9 = make_v_op_z(0, GT, 9, standard_allocator);
   zi z9 = zi::bot().interpret(EXACT, f9).value();
   F f9_bis = z9.deinterpret();
   EXPECT_EQ(f10, f9_bis);
   generic_deinterpret_test<zi>();
   // Dual
-  F f10_d = make_x_op_i(F::LEQ, 0, 10, standard_allocator);
+  F f10_d = make_v_op_z(0, LEQ, 10, standard_allocator);
   zd z10_d = zd::bot().interpret(EXACT, f10_d).value();
   F f10_bis_d = z10_d.deinterpret();
   EXPECT_EQ(f10_d, f10_bis_d);
-  F f11_d = make_x_op_i(F::LT, 0, 11, standard_allocator);
+  F f11_d = make_v_op_z(0, LT, 11, standard_allocator);
   zd z11_d = zd::bot().interpret(EXACT, f11_d).value();
   F f11_bis_d = z11_d.deinterpret();
   EXPECT_EQ(f10_d, f11_bis_d);
