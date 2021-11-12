@@ -14,6 +14,8 @@ typedef ZInc<int, StandardAllocator> zi;
 typedef ZDec<int, StandardAllocator> zd;
 typedef TFormula<StandardAllocator> F;
 
+static AVar var_x = 0;
+
 TEST(ZDeathTest, BadConstruction) {
   ASSERT_DEATH(zi(Limits<int>::bot()), "");
   ASSERT_DEATH(zi(Limits<int>::top()), "");
@@ -22,42 +24,42 @@ TEST(ZDeathTest, BadConstruction) {
   ASSERT_DEATH(zd(Limits<int>::top()), "");
 }
 
-template<typename VarDom>
-void test_formula(Approx appx, const F& f, thrust::optional<VarDom> expect) {
-  thrust::optional<VarDom> j = VarDom::bot().interpret(appx, f);
+template<typename Universe>
+void test_formula(Approx appx, const F& f, thrust::optional<Universe> expect) {
+  thrust::optional<Universe> j = Universe::interpret(appx, f);
   EXPECT_EQ(j.has_value(), expect.has_value());
   EXPECT_EQ(j, expect);
 }
 
-template<typename VarDom>
-void test_interpret(Sig sig, Approx appx, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
-  test_formula<VarDom>(
+template<typename Universe>
+void test_interpret(Sig sig, Approx appx, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
+  test_formula<Universe>(
     appx,
     make_v_op_z(0, sig, elem, standard_allocator),
     expect);
 }
 
-template<typename VarDom>
-void test_all_interpret(Sig sig, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
+template<typename Universe>
+void test_all_interpret(Sig sig, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
   Approx appxs[3] = {EXACT, UNDER, OVER};
   for(int i = 0; i < 3; ++i) {
-    test_interpret<VarDom>(sig, appxs[i], elem, expect);
+    test_interpret<Universe>(sig, appxs[i], elem, expect);
   }
 }
 
-template<typename VarDom>
-void test_exact_interpret(Sig sig, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
-  test_interpret<VarDom>(sig, EXACT, elem, expect);
+template<typename Universe>
+void test_exact_interpret(Sig sig, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
+  test_interpret<Universe>(sig, EXACT, elem, expect);
 }
 
-template<typename VarDom>
-void test_under_interpret(Sig sig, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
-  test_interpret<VarDom>(sig, UNDER, elem, expect);
+template<typename Universe>
+void test_under_interpret(Sig sig, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
+  test_interpret<Universe>(sig, UNDER, elem, expect);
 }
 
-template<typename VarDom>
-void test_over_interpret(Sig sig, typename VarDom::ValueType elem, thrust::optional<VarDom> expect) {
-  test_interpret<VarDom>(sig, OVER, elem, expect);
+template<typename Universe>
+void test_over_interpret(Sig sig, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
+  test_interpret<Universe>(sig, OVER, elem, expect);
 }
 
 TEST(ZTest, ValidInterpret) {
@@ -121,40 +123,31 @@ TEST(ZTest, JoinMeet) {
   join_meet_generic_test(zd(Limits<int>::bot() + 1), zd::top());
 }
 
-TEST(ZTest, Refine) {
-  EXPECT_EQ(zi(0).refine(), false);
-  EXPECT_EQ(zi::top().refine(), false);
-  EXPECT_EQ(zi::bot().refine(), false);
-  // Dual
-  EXPECT_EQ(zd(0).refine(), false);
-  EXPECT_EQ(zd::top().refine(), false);
-  EXPECT_EQ(zd::bot().refine(), false);
-}
-
 template<typename A>
-void generic_entailment_test(A element) {
-  EXPECT_EQ(element.entailment(A::top()), false);
-  EXPECT_EQ(element.entailment(A::bot()), true);
-  EXPECT_EQ(A::bot().entailment(A::bot()), true);
-  EXPECT_EQ(A::top().entailment(A::top()), true);
-  EXPECT_EQ(A::top().entailment(A::bot()), true);
-  EXPECT_EQ(A::top().entailment(element), true);
+void generic_order_test(A element) {
+  EXPECT_EQ(element.order(A::top()), true);
+  EXPECT_EQ(element.order(A::bot()), false);
+  EXPECT_EQ(A::bot().order(A::bot()), true);
+  EXPECT_EQ(A::top().order(A::top()), true);
+  EXPECT_EQ(A::top().order(A::bot()), false);
+  EXPECT_EQ(A::bot().order(A::top()), true);
+  EXPECT_EQ(A::top().order(element), false);
 }
 
-TEST(ZTest, Entailment) {
-  EXPECT_EQ(zi(0).entailment(zi(0)), true);
-  EXPECT_EQ(zi(1).entailment(zi(0)), true);
-  EXPECT_EQ(zi(0).entailment(zi(1)), false);
-  EXPECT_EQ(zi(0).entailment(zi(-1)), true);
-  EXPECT_EQ(zi(-1).entailment(zi(0)), false);
-  generic_entailment_test(zi(0));
+TEST(ZTest, Order) {
+  EXPECT_EQ(zi(0).order(zi(0)), true);
+  EXPECT_EQ(zi(1).order(zi(0)), false);
+  EXPECT_EQ(zi(0).order(zi(1)), true);
+  EXPECT_EQ(zi(0).order(zi(-1)), false);
+  EXPECT_EQ(zi(-1).order(zi(0)), true);
+  generic_order_test(zi(0));
   // Dual
-  EXPECT_EQ(zd(0).entailment(zd(0)), true);
-  EXPECT_EQ(zd(1).entailment(zd(0)), false);
-  EXPECT_EQ(zd(0).entailment(zd(1)), true);
-  EXPECT_EQ(zd(0).entailment(zd(-1)), false);
-  EXPECT_EQ(zd(-1).entailment(zd(0)), true);
-  generic_entailment_test(zd(0));
+  EXPECT_EQ(zd(0).order(zd(0)), true);
+  EXPECT_EQ(zd(1).order(zd(0)), true);
+  EXPECT_EQ(zd(0).order(zd(1)), false);
+  EXPECT_EQ(zd(0).order(zd(-1)), true);
+  EXPECT_EQ(zd(-1).order(zd(0)), false);
+  generic_order_test(zd(0));
 }
 
 template<typename A>
@@ -184,28 +177,28 @@ TEST(ZTest, Split) {
 
 template<typename A>
 void generic_deinterpret_test() {
-  EXPECT_EQ(A::bot().deinterpret(), F::make_true());
-  EXPECT_EQ(A::top().deinterpret(), F::make_false());
+  EXPECT_EQ(A::bot().deinterpret(var_x), F::make_true());
+  EXPECT_EQ(A::top().deinterpret(var_x), F::make_false());
 }
 
 TEST(ZTest, Deinterpret) {
   F f10 = make_v_op_z(0, GEQ, 10, standard_allocator);
-  zi z10 = zi::bot().interpret(EXACT, f10).value();
-  F f10_bis = z10.deinterpret();
+  zi z10 = zi::interpret(EXACT, f10).value();
+  F f10_bis = z10.deinterpret(var_x);
   EXPECT_EQ(f10, f10_bis);
   F f9 = make_v_op_z(0, GT, 9, standard_allocator);
-  zi z9 = zi::bot().interpret(EXACT, f9).value();
-  F f9_bis = z9.deinterpret();
+  zi z9 = zi::interpret(EXACT, f9).value();
+  F f9_bis = z9.deinterpret(var_x);
   EXPECT_EQ(f10, f9_bis);
   generic_deinterpret_test<zi>();
   // Dual
   F f10_d = make_v_op_z(0, LEQ, 10, standard_allocator);
-  zd z10_d = zd::bot().interpret(EXACT, f10_d).value();
-  F f10_bis_d = z10_d.deinterpret();
+  zd z10_d = zd::interpret(EXACT, f10_d).value();
+  F f10_bis_d = z10_d.deinterpret(var_x);
   EXPECT_EQ(f10_d, f10_bis_d);
   F f11_d = make_v_op_z(0, LT, 11, standard_allocator);
-  zd z11_d = zd::bot().interpret(EXACT, f11_d).value();
-  F f11_bis_d = z11_d.deinterpret();
+  zd z11_d = zd::interpret(EXACT, f11_d).value();
+  F f11_bis_d = z11_d.deinterpret(var_x);
   EXPECT_EQ(f10_d, f11_bis_d);
   generic_deinterpret_test<zd>();
 }

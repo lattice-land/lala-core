@@ -16,6 +16,8 @@ typedef ZDec<int, StandardAllocator> zd;
 typedef CartesianProduct<zi, zd> Itv;
 typedef TFormula<StandardAllocator> F;
 
+static AVar var_x = 0;
+
 TEST(CPTest, IntervalAsCartesianProduct) {
   Itv itv1_2(zi(1), zd(2));
   Itv bot_itv = Itv::bot();
@@ -27,8 +29,8 @@ TEST(CPTest, IntervalAsCartesianProduct) {
   EXPECT_FALSE(top_itv.is_bot());
   EXPECT_TRUE(top_itv.is_top());
 
-  auto geq_1 = make_v_op_z(0, GEQ, 1, standard_allocator);
-  auto leq_2 = make_v_op_z(0, LEQ, 2, standard_allocator);
+  auto geq_1 = make_v_op_z(var_x, GEQ, 1, standard_allocator);
+  auto leq_2 = make_v_op_z(var_x, LEQ, 2, standard_allocator);
   auto geq_1_leq_2 = F::make_binary(geq_1, AND, leq_2);
   auto f1_opt = bot_itv.interpret(EXACT, geq_1);
   EXPECT_TRUE(f1_opt.has_value());
@@ -47,22 +49,20 @@ TEST(CPTest, IntervalAsCartesianProduct) {
   EXPECT_NE(itv2, bot_itv);
   EXPECT_NE(itv2, top_itv);
   EXPECT_EQ(itv2, itv1_2);
-  EXPECT_EQ(itv2.deinterpret(), geq_1_leq_2);
+  EXPECT_EQ(itv2.deinterpret(var_x), geq_1_leq_2);
+  // itv2 = [1..2]
   itv2.meet<1>(zd::bot());
+  // itv2 = [1..]
   EXPECT_NE(itv2, bot_itv);
   EXPECT_NE(itv2, top_itv);
   EXPECT_NE(itv2, itv1_2);
   EXPECT_EQ(itv2, itv3);
   itv2.meet<0>(zi::bot());
+  // itv2 = [..]
   EXPECT_EQ(itv2, bot_itv);
   EXPECT_NE(itv2, top_itv);
   EXPECT_NE(itv2, itv1_2);
   EXPECT_NE(itv2, itv3);
-
-  EXPECT_FALSE(bot_itv.refine());
-  EXPECT_FALSE(top_itv.refine());
-  EXPECT_FALSE(itv2.refine());
-  EXPECT_FALSE(itv3.refine());
 
   EXPECT_EQ(bot_itv, bot_itv.clone());
   EXPECT_EQ(top_itv, top_itv.clone());
@@ -75,17 +75,19 @@ TEST(CPTest, IntervalAsCartesianProduct) {
   auto f1_opt_2 = bot_itv.interpret_one<0>(EXACT, geq_1);
   EXPECT_TRUE(f1_opt_2.has_value());
   auto f2_opt_2 = bot_itv.interpret_one<1>(EXACT, leq_2);
-  EXPECT_TRUE(f2_opt.has_value());
+  EXPECT_TRUE(f2_opt_2.has_value());
   auto f1_opt_3 = bot_itv.interpret_one<1>(EXACT, geq_1);
   EXPECT_FALSE(f1_opt_3.has_value());
   auto itv4 = bot_itv.join(f1).join(f2);
   auto itv5 = bot_itv.join(f1_opt_2.value()).join(f2_opt_2.value());
   EXPECT_EQ(itv4, itv5);
 
-  EXPECT_TRUE(itv4.entailment(f1_opt_2.value()));
-  EXPECT_TRUE(itv4.entailment(f2_opt_2.value()));
-  EXPECT_TRUE(itv4.entailment(f1));
-  EXPECT_TRUE(itv4.entailment(f2));
+  EXPECT_FALSE(itv4.order(f1));     // [1..2] <= [1..]
+  EXPECT_FALSE(itv4.order(f2));     // [1..2] <= [..2]
+  EXPECT_TRUE(f1.order(itv4));      // [1..] <= [1..2]
+  EXPECT_TRUE(f2.order(itv4));      // [..2] <= [1..2]
+  EXPECT_FALSE(f1.order(f2));       // [1..] <= [..2]
+  EXPECT_FALSE(f2.order(f1));       // [..2] <= [1..]
 
   auto split_top = top_itv.split();
   auto split_bot = bot_itv.split();

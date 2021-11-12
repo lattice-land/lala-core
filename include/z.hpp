@@ -19,43 +19,44 @@ public:
   using Allocator = Alloc;
   using this_type = ZInc<ValueType, Allocator>;
 private:
-  VT value;
+  VT val;
 
   CUDA ZInc() {}
 public:
-  using LogicalElement = this_type;
-
   /** Similar to \f$[\![\mathit{true}]\!]\f$. */
   CUDA static ZInc bot() {
     ZInc zi;
-    zi.value = Limits<ValueType>::bot();
+    zi.val = Limits<ValueType>::bot();
     return zi;
   }
 
   /** Similar to \f$[\![\mathit{false}]\!]\f$. */
   CUDA static ZInc top() {
     ZInc zi;
-    zi.value = Limits<ValueType>::top();
+    zi.val = Limits<ValueType>::top();
     return zi;
   }
 
-  CUDA explicit operator ValueType() const { return value; }
+  CUDA const ValueType& value() const { return val; }
+  CUDA explicit operator ValueType() const { return val; }
 
   template<typename T, typename U>
   using IsConvertible = std::enable_if_t<std::is_convertible_v<T, U>, bool>;
 
   /** Similar to \f$[\![x \geq i]\!]\f$ for any name `x`. */
   template<typename VT2, IsConvertible<VT2, ValueType> = true>
-  CUDA explicit ZInc(VT2 i): value(static_cast<ValueType>(i)) {
-    assert(i > bot().value && i < top().value);
+  CUDA explicit ZInc(VT2 i): val(static_cast<ValueType>(i)) {
+    assert(i > bot().val && i < top().val);
   }
 
-  template<typename Allocator2>
-  CUDA ZInc(const ZInc<ValueType, Allocator2>& i): value(ValueType(i)) {}
-  CUDA ZInc(const this_type& i): value(i.value) {}
+  template<typename B>
+  CUDA bool operator==(const B& other) const {
+    return val == other.value();
+  }
 
-  CUDA bool operator==(const this_type& other) const {
-    return value == other.value;
+  template<typename B>
+  CUDA bool operator!=(const B& other) const {
+    return val != other.value();
   }
 
   /** Expects a predicate of the form `x <op> i` where `x` is any variable's name, and `i` an integer.
@@ -64,74 +65,70 @@ public:
     - If `appx` is OVER: `op` can be >=, > or ==.
     */
   template<typename Formula>
-  CUDA thrust::optional<LogicalElement> interpret(Approx appx, const Formula& f) {
+  CUDA static thrust::optional<this_type> interpret(Approx appx, const Formula& f) {
     if(f.is_true()) {
-      return bot();
+      return this_type(bot().value());
     }
     else if(f.is_false()) {
-      return top();
+      return this_type(top().value());
     }
     if(is_v_op_z(f, GEQ)) {      // x >= 4
-      return ZInc(f.seq(1).z());
+      return this_type(f.seq(1).z());
     }
     else if(is_v_op_z(f, GT)) {  // x > 4
-      return ZInc(f.seq(1).z() + 1);
+      return this_type(f.seq(1).z() + 1);
     }
     // Under-approximation of `x != 4` as `5`.
     else if(is_v_op_z(f, NEQ) && appx == UNDER) {
-      return ZInc(f.seq(1).z() + 1);
+      return this_type(f.seq(1).z() + 1);
     }
     // Over-approximation of `x == 4` as `4`.
     else if(is_v_op_z(f, EQ) && appx == OVER) {
-      return ZInc(f.seq(1).z());
+      return this_type(f.seq(1).z());
     }
     return {};
   }
 
   /** `true` whenever \f$ a = \top \f$, `false` otherwise. */
   CUDA bool is_top() const {
-    return value == Limits<ValueType>::top();
+    return val == Limits<ValueType>::top();
   }
 
   /** `true` whenever \f$ a = \bot \f$, `false` otherwise. */
   CUDA bool is_bot() const {
-    return value == Limits<ValueType>::bot();
+    return val == Limits<ValueType>::bot();
   }
 
   /** \f$ a \sqcup b = \mathit{max}(a,b) \f$. */
-  CUDA this_type& join(const LogicalElement& other) {
-    value = max(other.value, value);
+  CUDA this_type& join(const this_type& other) {
+    val = max(other.val, val);
     return *this;
   }
 
   /** \f$ a \sqcap b = \mathit{min}(a,b) \f$. */
-  CUDA this_type& meet(const LogicalElement& other) {
-    value = min(other.value, value);
+  CUDA this_type& meet(const this_type& other) {
+    val = min(other.val, val);
     return *this;
   }
 
-  /** Has no effect.
-     \return always `false`. */
-  CUDA bool refine() { return false; }
-
-  /** \f$ a \models \varphi \f$ is defined as \f$ a \geq [\![\varphi]\!] \f$. */
-  CUDA bool entailment(const LogicalElement& other) const {
-    return value >= ValueType(other);
+  /** \f$ a \leq b\f$ is defined by the natural arithmetic order. */
+  CUDA bool order(const this_type& other) const {
+    return val <= other.val;
   }
 
   template<typename Allocator = Alloc>
-  CUDA DArray<LogicalElement, Allocator> split(const Allocator& allocator = Allocator()) const {
+  CUDA DArray<this_type, Allocator> split(const Allocator& allocator = Allocator()) const {
     if(is_top()) {
-      return DArray<LogicalElement, Allocator>();
+      return DArray<this_type, Allocator>();
     }
     else {
-      return DArray<LogicalElement, Allocator>(1, *this, allocator);
+      return DArray<this_type, Allocator>(1, *this, allocator);
     }
   }
 
   /** Reset the internal counter to the one of `other`. */
   CUDA void reset(const this_type& other) {
-    value = other.value;
+    val = other.val;
   }
 
   /** \return A copy of the current abstract element. */
@@ -139,17 +136,17 @@ public:
     return *this;
   }
 
-  /** \return \f$ _ \geq i \f$ where `_` is an arbitrary variable's name and `i` the integer value.
+  /** \return \f$ x \geq i \f$ where `x` is a variable's name and `i` the integer value.
   `true` is returned whenever \f$ a = \bot \f$ and `false` whenever \f$ a = \top \f$. */
   template<typename Allocator = Alloc>
-  CUDA TFormula<Allocator> deinterpret(const Allocator& allocator = Allocator()) const {
+  CUDA TFormula<Allocator> deinterpret(AVar x, const Allocator& allocator = Allocator()) const {
     if(is_top()) {
       return TFormula<Allocator>::make_false();
     }
     else if(is_bot()) {
       return TFormula<Allocator>::make_true();
     }
-    return make_v_op_z(0, GEQ, value, allocator);
+    return make_v_op_z(x, GEQ, val, allocator);
   }
 
   /** Print the current element. */
@@ -160,16 +157,13 @@ public:
     else if(is_top()) {
       printf("%c", 0x22A4);
     }
-    else if(value >= 0) {
-      printf("%llu", (unsigned long long int) value);
+    else if(val >= 0) {
+      printf("%llu", (unsigned long long int) val);
     }
     else {
-      printf("%lld", (long long int) value);
+      printf("%lld", (long long int) val);
     }
   }
-
-  template <typename VT2, typename Alloc2>
-  friend class ZDec;
 };
 
 /** The lattice of decreasing integers.
@@ -177,119 +171,120 @@ Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \geq y\} \f$. */
 template<typename VT, typename Alloc>
 class ZDec {
 public:
-  /** The dual lattice of ZDec.
-   * Note, however, that the interpretation function is not dually equivalent.
-   * This is still not very clear what is the dual of an abstract domain as a whole. */
-  using DualType = ZInc<VT, Alloc>;
-  using ValueType = typename DualType::ValueType;
-  using Allocator = typename DualType::Allocator;
+  using ValueType = VT;
+  using Allocator = Alloc;
   using this_type = ZDec<ValueType, Allocator>;
 private:
-  DualType dual;
+  VT val;
 
   CUDA ZDec() {}
-  CUDA ZDec(DualType dual): dual(dual) {}
 public:
-  using LogicalElement = this_type;
-
   /** Similar to \f$[\![\mathit{true}]\!]\f$. */
   CUDA static ZDec bot() {
-    return ZDec(DualType::top());
+    ZDec zd;
+    zd.val = Limits<ValueType>::top();
+    return zd;
   }
 
   /** Similar to \f$[\![\mathit{false}]\!]\f$. */
   CUDA static ZDec top() {
-    return ZDec(DualType::bot());
+    ZDec zd;
+    zd.val = Limits<ValueType>::bot();
+    return zd;
   }
 
-  CUDA explicit operator ValueType() const { return static_cast<ValueType>(dual); }
+  CUDA const ValueType& value() const { return val; }
+  CUDA explicit operator ValueType() const { return val; }
+
+  template<typename T, typename U>
+  using IsConvertible = std::enable_if_t<std::is_convertible_v<T, U>, bool>;
 
   /** Similar to \f$[\![x \geq i]\!]\f$ for any name `x`. */
-  template<typename VT2>
-  CUDA ZDec(VT2 i): dual(i) {}
+  template<typename VT2, IsConvertible<VT2, ValueType> = true>
+  CUDA explicit ZDec(VT2 i): val(static_cast<ValueType>(i)) {
+    assert(i > top().val && i < bot().val);
+  }
 
-  template<typename Allocator2>
-  CUDA ZDec(const ZDec<ValueType, Allocator2>& i): dual(i.dual) {}
-  CUDA ZDec(const this_type& i): dual(i.dual) {}
+  template<typename B>
+  CUDA bool operator==(const B& other) const {
+    return val == other.value();
+  }
 
-  CUDA bool operator==(const this_type& other) const {
-    return dual == other.dual;
+  template<typename B>
+  CUDA bool operator!=(const B& other) const {
+    return val != other.value();
   }
 
   /** Expects a predicate of the form `x <op> i` where `x` is any variable's name, and `i` an integer.
-    - If `appx` is EXACT: `op` can be <= or <.
-    - If `appx` is UNDER: `op` can be <=, < or !=.
-    - If `appx` is OVER: `op` can be <=, < or ==.
+    - If `appx` is EXACT: `op` can be >= or >.
+    - If `appx` is UNDER: `op` can be >=, > or !=.
+    - If `appx` is OVER: `op` can be >=, > or ==.
     */
   template<typename Formula>
-  CUDA thrust::optional<LogicalElement> interpret(Approx appx, const Formula& f) {
+  CUDA static thrust::optional<this_type> interpret(Approx appx, const Formula& f) {
     if(f.is_true()) {
-      return bot();
+      return this_type(bot().value());
     }
     else if(f.is_false()) {
-      return top();
+      return this_type(top().value());
     }
     if(is_v_op_z(f, LEQ)) {      // x <= 4
-      return ZDec(f.seq(1).z());
+      return this_type(f.seq(1).z());
     }
     else if(is_v_op_z(f, LT)) {  // x < 4
-      return ZDec(f.seq(1).z() - 1);
+      return this_type(f.seq(1).z() - 1);
     }
     // Under-approximation of `x != 4` as `3`.
     else if(is_v_op_z(f, NEQ) && appx == UNDER) {
-      return ZDec(f.seq(1).z() - 1);
+      return this_type(f.seq(1).z() - 1);
     }
     // Over-approximation of `x == 4` as `4`.
     else if(is_v_op_z(f, EQ) && appx == OVER) {
-      return ZDec(f.seq(1).z());
+      return this_type(f.seq(1).z());
     }
     return {};
   }
 
   /** `true` whenever \f$ a = \top \f$, `false` otherwise. */
   CUDA bool is_top() const {
-    return dual.is_bot();
+    return val == Limits<ValueType>::bot();
   }
 
   /** `true` whenever \f$ a = \bot \f$, `false` otherwise. */
   CUDA bool is_bot() const {
-    return dual.is_top();
+    return val == Limits<ValueType>::top();
   }
 
   /** \f$ a \sqcup b = \mathit{min}(a,b) \f$. */
-  CUDA this_type& join(const LogicalElement& other) {
-    dual.meet(other.dual);
+  CUDA this_type& join(const this_type& other) {
+    val = min(other.val, val);
     return *this;
   }
 
   /** \f$ a \sqcap b = \mathit{max}(a,b) \f$. */
-  CUDA this_type& meet(const LogicalElement& other) {
-    dual.join(other.dual);
+  CUDA this_type& meet(const this_type& other) {
+    val = max(other.val, val);
     return *this;
   }
 
-  /** Has no effect.
-     \return always `false`. */
-  CUDA bool refine() { return false; }
-
-  /** \f$ a \models \varphi \f$ is defined as \f$ a \leq [\![\varphi]\!] \f$. */
-  CUDA bool entailment(const LogicalElement& other) const {
-    return ValueType(dual) <= ValueType(other);
+  /**  \f$ a \leq_{ZDec} b\f$ is defined by the inverse arithmetic order \f$ \geq \f$. */
+  CUDA bool order(const this_type& other) const {
+    return val >= other.val;
   }
 
   template<typename Allocator = Alloc>
-  CUDA DArray<LogicalElement, Allocator> split(const Allocator& allocator = Allocator()) const {
+  CUDA DArray<this_type, Allocator> split(const Allocator& allocator = Allocator()) const {
     if(is_top()) {
-      return DArray<LogicalElement, Allocator>();
+      return DArray<this_type, Allocator>();
     }
     else {
-      return DArray<LogicalElement, Allocator>(1, *this, allocator);
+      return DArray<this_type, Allocator>(1, *this, allocator);
     }
   }
 
   /** Reset the internal counter to the one of `other`. */
   CUDA void reset(const this_type& other) {
-    dual.reset(other.dual);
+    val = other.val;
   }
 
   /** \return A copy of the current abstract element. */
@@ -297,17 +292,17 @@ public:
     return *this;
   }
 
-  /** \return \f$ _ \leq i \f$ where `_` is an arbitrary variable's name and `i` the integer value.
+  /** \return \f$ x \leq i \f$ where `x` is a variable's name and `i` the integer value.
   `true` is returned whenever \f$ a = \bot \f$ and `false` whenever \f$ a = \top \f$. */
   template<typename Allocator = Alloc>
-  CUDA TFormula<Allocator> deinterpret(const Allocator& allocator = Allocator()) const {
+  CUDA TFormula<Allocator> deinterpret(AVar x, const Allocator& allocator = Allocator()) const {
     if(is_top()) {
       return TFormula<Allocator>::make_false();
     }
     else if(is_bot()) {
       return TFormula<Allocator>::make_true();
     }
-    return make_v_op_z(0, LEQ, ValueType(dual), allocator);
+    return make_v_op_z(x, LEQ, val, allocator);
   }
 
   /** Print the current element. */
@@ -318,11 +313,11 @@ public:
     else if(is_top()) {
       printf("%c", 0x22A4);
     }
-    else if(ValueType(dual) >= 0) {
-      printf("%llu", (unsigned long long int) ValueType(dual));
+    else if(val >= 0) {
+      printf("%llu", (unsigned long long int) val);
     }
     else {
-      printf("%lld", (long long int) ValueType(dual));
+      printf("%lld", (long long int) val);
     }
   }
 };

@@ -22,14 +22,13 @@ class CartesianProduct {
 public:
   using Allocator = typename TypeOf<0>::Allocator;
   using this_type = CartesianProduct<As...>;
-  using LogicalElement = battery::tuple<thrust::optional<As>...>;
 private:
-  battery::tuple<As...> value;
+  battery::tuple<As...> val;
 
 public:
-  CUDA CartesianProduct(const As&... as): value(battery::make_tuple(as...)) {}
-  CUDA CartesianProduct(As&&... as): value(battery::make_tuple(std::forward<As>(as)...)) {}
-  CUDA CartesianProduct(const this_type& other): value(other.value) {}
+  CUDA CartesianProduct(const As&... as): val(battery::make_tuple(as...)) {}
+  CUDA CartesianProduct(As&&... as): val(battery::make_tuple(std::forward<As>(as)...)) {}
+  CUDA CartesianProduct(const this_type& other): val(other.val) {}
 
   /** Similar to \f$[\![\mathit{true}]\!]\f$. */
   CUDA static this_type bot() {
@@ -42,21 +41,19 @@ public:
   }
 
   template<size_t i, typename Formula>
-  CUDA thrust::optional<LogicalElement> interpret_one(Approx appx, const Formula& f) {
-    auto one = get<i>(value).interpret(appx, f);
+  CUDA static thrust::optional<this_type> interpret_one(Approx appx, const Formula& f) {
+    auto one = TypeOf<i>::interpret(appx, f);
     if(one.has_value()) {
-      LogicalElement res;
-      get<i>(res) = std::move(one).value();
+      auto res = bot();
+      get<i>(res.val) = std::move(one).value();
       return res;
     }
-    else {
-      return {};
-    }
+    return {};
   }
 
 private:
   template<size_t i = 0, typename Formula>
-  CUDA thrust::optional<LogicalElement> interpret_all(Approx appx, const Formula& f, LogicalElement res, bool empty) {
+  CUDA static thrust::optional<this_type> interpret_all(Approx appx, const Formula& f, this_type res, bool empty) {
     if constexpr(i == n) {
       if(empty) {
         return {};
@@ -66,37 +63,38 @@ private:
       }
     }
     else {
-      auto one = get<i>(value).interpret(appx, f);
+      auto one = TypeOf<i>::interpret(appx, f);
       if(one.has_value()) {
         empty = false;
-        get<i>(res) = std::move(one).value();
+        get<i>(res.val) = std::move(one).value();
       }
-      return interpret_all<i+1>(appx, f, res, empty);
+      return interpret_all<i+1>(appx, f, std::move(res), empty);
     }
   }
 
 public:
+  /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
   template<typename Formula>
-  CUDA thrust::optional<LogicalElement> interpret(Approx appx, const Formula& f) {
-    return interpret_all(appx, f, LogicalElement(), true);
+  CUDA thrust::optional<this_type> interpret(Approx appx, const Formula& f) {
+    return interpret_all(appx, f, bot(), true);
   }
 
-  CUDA battery::tuple<As...>& data() {
-    return value;
+  CUDA battery::tuple<As...>& value() {
+    return val;
   }
 
-  CUDA const battery::tuple<As...>& data() const {
-    return value;
+  CUDA const battery::tuple<As...>& value() const {
+    return val;
   }
 
   template<size_t i>
   CUDA TypeOf<i>& project() {
-    return get<i>(value);
+    return get<i>(val);
   }
 
   template<size_t i>
   CUDA const TypeOf<i>& project() const {
-    return get<i>(value);
+    return get<i>(val);
   }
 
   /** `true` if \f$ \exists{j \geq i},~a_j = \top_j \f$, `false` otherwise. */
@@ -123,23 +121,20 @@ public:
 
 private:
   template<size_t i = 0>
-  CUDA this_type& join_(const LogicalElement& other) {
+  CUDA this_type& join_(const this_type& other) {
     if constexpr (i < n) {
-      if(get<i>(other).has_value()) {
-        project<i>().join(get<i>(other).value());
-      }
+      project<i>().join(get<i>(other.val));
       return join_<i+1>(other);
     }
     else {
       return *this;
     }
   }
+
   template<size_t i = 0>
-  CUDA this_type& meet_(const LogicalElement& other) {
+  CUDA this_type& meet_(const this_type& other) {
     if constexpr (i < n) {
-      if(get<i>(other).has_value()) {
-        project<i>().meet(get<i>(other).value());
-      }
+      project<i>().meet(get<i>(other));
       return meet_<i+1>(other);
     }
     else {
@@ -149,12 +144,12 @@ private:
 
 public:
   /** \f$ (a_1, \ldots, a_n) \sqcup (b_1, \ldots, b_n) = (a_1 \sqcup_1 b_1, \ldots, a_n \sqcup_n b_n) \f$ */
-  CUDA this_type& join(const LogicalElement& other) {
+  CUDA this_type& join(const this_type& other) {
     return join_(other);
   }
 
   /** \f$ (a_1, \ldots, a_n) \sqcap (b_1, \ldots, b_n) = (a_1 \sqcap_1 b_1, \ldots, a_n \sqcap_n b_n) \f$ */
-  CUDA this_type& meet(const LogicalElement& other) {
+  CUDA this_type& meet(const this_type& other) {
     return meet_(other);
   }
 
@@ -172,27 +167,13 @@ public:
     return *this;
   }
 
+  /** \f$ (a_1, \ldots, a_n) \leq (b_1, \ldots, b_n) \f$ holds when \f$ \forall{i \leq n},~a_i \leq_i b_i \f$. */
   template<size_t i = 0>
-  CUDA bool refine() {
+  CUDA bool order(const this_type& other) const {
     if constexpr (i < n) {
-      bool has_changed = project<i>().refine();
-      has_changed |= refine<i+1>();
-      return has_changed;
-    }
-    else {
-      return false;
-    }
-  }
-
-  /** \f$ (a_1, \ldots, a_n) \models \varphi \f$ is defined as \f$ (a_1, \ldots, a_n) \geq [\![\varphi]\!] \f$. */
-  template<size_t i = 0>
-  CUDA bool entailment(const LogicalElement& other) const {
-    if constexpr (i < n) {
-      bool is_entailed = true;
-      if(get<i>(other).has_value()) {
-        is_entailed = project<i>().entailment(get<i>(other).value());
-      }
-      return is_entailed && entailment<i+1>(other);
+      bool is_leq = true;
+      is_leq = project<i>().order(get<i>(other.val));
+      return is_leq && order<i+1>(other);
     }
     else {
       return true;
@@ -201,28 +182,26 @@ public:
 
   /** This is a non-commutative split, which splits on the first splittable abstract element (in the order of the template parameters). */
   template<typename Alloc = Allocator, size_t i = 0>
-  CUDA DArray<LogicalElement, Alloc> split(const Alloc& allocator = Alloc()) const {
+  CUDA DArray<this_type, Alloc> split(const Alloc& allocator = Alloc()) const {
     if constexpr(i < n) {
       auto split_i = project<i>().split(allocator);
       switch (split_i.size()) {
-        case 0:
-          return DArray<LogicalElement, Alloc>();
-        case 1:
-          return split<Alloc, i+1>(allocator);
+        case 0: return DArray<this_type, Alloc>();
+        case 1: return split<Alloc, i+1>(allocator);
         default:
-          DArray<LogicalElement, Alloc> res(split_i.size(), allocator);
+          DArray<this_type, Alloc> res(split_i.size(), *this, allocator);
           for(int j = 0; j < res.size(); ++j) {
-            get<i>(res[j]) = std::move(split_i[j]);
+            get<i>(res[j].val) = std::move(split_i[j]);
           }
           return std::move(res);
       }
     }
     else {
-      return DArray<LogicalElement, Alloc>(1, allocator);
+      return DArray<this_type, Alloc>(1, *this, allocator);
     }
   }
 
-  /** Reset the abstract elements \f$(a_1,\ldots,a_n)\f$ to the one of `other`. */
+  /** Reset the abstract elements \f$ (a_1,\ldots,a_n) \f$ to the one of `other`. */
   template<size_t i = 0>
   CUDA void reset(const this_type& other) {
     if constexpr(i < n) {
@@ -250,10 +229,10 @@ public:
 
 private:
   template<size_t i, typename Alloc = Allocator>
-  CUDA TFormula<Allocator> deinterpret_(TFormula<Allocator>::Sequence&& seq, const Allocator& allocator) const {
+  CUDA TFormula<Alloc> deinterpret_(AVar x, TFormula<Allocator>::Sequence&& seq, const Alloc& allocator) const {
     if constexpr(i < n) {
-      seq[i] = project<i>().deinterpret(allocator);
-      return deinterpret_<i+1, Alloc>(std::move(seq), allocator);
+      seq[i] = project<i>().deinterpret(x, allocator);
+      return deinterpret_<i+1, Alloc>(x, std::move(seq), allocator);
     }
     else {
       return TFormula<Allocator>::make_nary(
@@ -265,12 +244,12 @@ private:
 
 public:
   template<typename Alloc = Allocator>
-  CUDA TFormula<Allocator> deinterpret(const Allocator& allocator = Allocator()) const {
-    return deinterpret_<0, Alloc>(typename TFormula<Allocator>::Sequence(n), allocator);
+  CUDA TFormula<Alloc> deinterpret(AVar x, const Alloc& allocator = Alloc()) const {
+    return deinterpret_<0, Alloc>(x, typename TFormula<Allocator>::Sequence(n), allocator);
   }
 
   template<size_t i = 0>
-  CUDA void print() const {
+  CUDA void print(const LVar<Allocator>& x) const {
     if constexpr(i < n) {
       ::print(project<i>());
       if constexpr(i < n - 1) {
@@ -283,12 +262,12 @@ public:
 
 template<class...As>
 CUDA bool operator==(const CartesianProduct<As...>& lhs, const CartesianProduct<As...>& rhs) {
-  return lhs.data() == rhs.data();
+  return lhs.value() == rhs.value();
 }
 
 template<class...As>
 CUDA bool operator!=(const CartesianProduct<As...>& lhs, const CartesianProduct<As...>& rhs) {
-  return !(lhs.data() == rhs.data());
+  return !(lhs.value() == rhs.value());
 }
 
 } // namespace lala
