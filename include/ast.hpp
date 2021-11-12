@@ -14,6 +14,7 @@ namespace lala {
 
 /** Each abstract domain is uniquely identified by an UID. */
 using AType = int;
+
 /** This value means a formula is not typed in a particular abstract domain and its type should be inferred. */
 #define UNTYPED (-1)
 
@@ -32,28 +33,43 @@ typedef int AVar;
 
 CUDA AVar make_var(AType type, int var_id);
 
-/** The approximation of a formula in an abstract domain w.r.t. the concrete domain.
-* `UNDER`: An under-approximating element contains only solutions but not necessarily all.
-* `OVER`: An over-approximating element contains all solutions but not necessarily only solutions.
-* `EXACT`: An exact element is both under- and over-approximating; it exactly represents the set of solutions. */
+/** The approximation of a formula in an abstract domain w.r.t. the concrete domain. */
 enum Approx {
-  UNDER,
-  OVER,
-  EXACT
+  UNDER, ///< An under-approximating element contains only solutions but not necessarily all.
+  OVER, ///< An over-approximating element contains all solutions but not necessarily only solutions.
+  EXACT ///< An exact element is both under- and over-approximating; it exactly represents the set of solutions.
 };
 
-/** The symbols of the terms and predicates of a first-order signature.
-We also include the symbol of logical connectors, and a `RAW` variant for possible extension of the signature.
-For genericity purpose, we sometimes reuse the same symbols over different universes of discourse such as LEQ for the inclusion \f$ X \subseteq Y \f$ in the universe of sets. */
+/** A first-order signature is a triple \f$ (X, F, P) \f$ where \f$ X \f$ is the set of variables, \f$ F \f$ the set of function symbols and \f$ P \f$ the set of predicates.
+  We represent \f$ X \f$ by strings (see `LVar`), while \f$ F \f$ and \f$ P \f$ are described in the following enumeration `Sig`.
+  For programming conveniency, we suppose that logical connectors are included in the set of predicates and thus are in the signature as well.
+
+  Symbols are overloaded across different abstract domains.
+  Therefore, a logical formula can have different semantics depending on the abstract domain in which it is interpreted.
+  This is where the type of the formula becomes important in order to force the formula to be interpreted in the right abstract domain, as intended.
+
+  Another peculiarity of this signature is that the semantics of the predicates (from `JOIN` to `GT` below) are relative to a lattice order given to the universe of discourse.
+
+  Finally, function symbols and predicates are at the "same level".
+  Hence a predicate can occur as the argument of a function, which is convenient when modelling, consider for example a cardinality constraint: \f$ ((x > 4) + (y < 4) + (z = 3)) \neq 2 \f$.
+
+  In the following, we suppose \f$ L \f$ is a universe of discourse with a lattice structure.
+ */
 enum Sig {
   ///@{
-  NEG, ADD, SUB, MUL, DIV, MOD, POW,  ///< Terms
+  NEG, ADD, SUB, MUL, DIV, MOD, POW,  ///< Arithmetic function symbol.
   ///@}
+  JOIN,   ///< The join operator \f$ x \sqcup y \f$ (function \f$\sqcup: L \times L \to L \f$). For instance, on the lattice of increasing integers it is the max function, on the lattice of increasing sets it is the union.
+  MEET,   ///< The meet operator \f$ x \sqcap y \f$ (function \f$\sqcap: L \times L \to L \f$). For instance, on the lattice of increasing integers it is the min function, on the lattice of increasing sets it is the intersection.
+  COMPLEMENT, ///< The complement operator \f$ \lnot x \f$ (function \f$\lnot: L \to L \f$) such that \f$ x \sqcup \lnot x = \top \f$ and \f$ x \sqcap \lnot x = \bot \f$. For instance, the complement does not exist on the lattice of increasing integers, and it is the set complement on the lattice of increasing or decreasing sets.
+  LEQ,   ///< The lattice order of the underlying universe of discourse (predicate \f$\leq: L \times L \f$).
+  GEQ,   ///< \f$ x \geq y \Leftrightarrow y \leq x \f$ (predicate \f$\geq: L \times L \f$).
+  EQ,    ///< \f$ x = y \Leftrightarrow x \leq y \land x \geq y \f$ (predicate \f$=: L \times L \f$).
+  NEQ,   ///< \f$ x \neq y \Leftrightarrow \lnot (x = y) \f$ (predicate \f$\neq: L \times L \f$).
+  LT,    ///< \f$ x < y \Leftrightarrow x \leq y \land x \neq y \f$ (predicate \f$<: L \times L \f$).
+  GT,    ///< \f$ x > y \Leftrightarrow x \geq y \land x \neq y \f$ (predicate \f$>: L \times L \f$).
   ///@{
-  EQ, LEQ, GEQ, NEQ, GT, LT,     ///< Predicates
-  ///@}
-  ///@{
-  AND, OR, IMPLY, EQUIV, NOT,    ///< Formulas
+  AND, OR, IMPLY, EQUIV, NOT,    ///< Logical connector.
   ///@}
 };
 }
@@ -63,14 +79,14 @@ CUDA void print(const lala::Sig& sig);
 
 namespace lala {
 
-/** `TFormula` represents the AST of a typed multi-sorted first-order logical formula.
+/** `TFormula` represents the AST of a typed first-order logical formula.
 In our context, the type of a formula is an integer representing the UID of an abstract domain in which the formula should to be interpreted.
 This integer can take the value `UNTYPED` if the formula is not (yet) typed.
-By default, the sorts of integer and real number are supported (although constants are bounded).
+By default, the types of integer and real number are supported, but constants are bounded.
 The supported symbols can be extended with the template parameter `ExtendedSig`.
 This extended signature can also be used for representing exactly constant such as real numbers using a string.
 The AST of a formula is represented by a variant, where each alternative is described below.
-We represent everything at the same level (terms, formula, predicate, variable, constant).
+We represent everything at the same level (term, formula, predicate, variable, constant).
 This is general convenient when modelling to avoid creating intermediate boolean variables when reifying.
 We can have `x + (x > y \/ y > x + 4)` and this expression is true if the value is != 0. */
 template<typename Allocator, typename ExtendedSig = String<Allocator>>
@@ -86,10 +102,19 @@ public:
     battery::tuple<ExtendedSig, Sequence> ///< see above
   >;
 
+  /** Index of integers in the variant type `Formula` (called kind below). */
   static constexpr int Z = 0;
+
+  /** Index of real numbers in the variant type `Formula` (called kind below). */
   static constexpr int R = 1;
+
+  /** Index of asbtract variables in the variant type `Formula` (called kind below). */
   static constexpr int V = 2;
+
+  /** Index of n-ary operators in the variant type `Formula` (called kind below). */
   static constexpr int Seq = 3;
+
+  /** Index of n-ary operators where the operator is an extended signature in the variant type `Formula` (called kind below). */
   static constexpr int ESeq = 4;
 
 private:
@@ -129,6 +154,7 @@ public:
 
   /** The formula `true` is represented by the integer constant `1`. */
   CUDA static this_type make_true() { return TFormula(); }
+
   /** The formula `false` is represented by the integer constant `0`. */
   CUDA static this_type make_false() { return TFormula(Formula::template create<Z>(0)); }
 
