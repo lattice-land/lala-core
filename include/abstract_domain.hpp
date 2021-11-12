@@ -9,42 +9,30 @@
 
 namespace lala {
 
-/** An abstract domain is a [lattice](https://en.wikipedia.org/wiki/Lattice_(order)) with additional operations including an interpretation function, a refinement operator and a split operator.
-We now explain the main idea of this abstract framework, although it is not possible to be very precise here, for more information on the theory, please contact Pierre Talbot (pierre.talbot@uni.lu).
-We have three entities playing a role in our framework: logical formulas, abstract domains and the concrete domain.
-The concrete domain is a mathematical object, possibly infinite and not computable, which is not explicitly represented in the code.
-The concrete domain is however crucial to establish the proofs of soundness and completeness of our abstract domains.
-We will write the concrete domain \f$ D^\flat \f$ and an abstract domain \f$ A \f$.
-We can interpret a logical formula \f$ \varphi \f$ in the concrete domain with \f$[\![\varphi]\!]^\flat\f$, and this element contains all the solutions of \f$\varphi\f$.
-We connect the concrete and abstract worlds using a monotone concretization function \f$\gamma: A \to D^\flat\f$ which turns an abstract element into a concrete element.
-The concretization is useful to establish two properties.
-Let \f$ \varphi \f$ be a formula and  \f$ a \in A \f$ an abstract element, then:
-  - \f$a\f$ is an under-approximation if \f$\gamma(a) \subseteq [\![\varphi]\!]^\flat \f$ (soundness).
-  - \f$a\f$ is an over-approximation if \f$\gamma(a) \supseteq [\![\varphi]\!]^\flat \f$ (completeness).
-  - \f$a \f$ is an exact representation of \f$\varphi\f$ if it is both an under- and over-approximation.
-
-In brief, an under-approximating element guarantees we have only solutions of \f$\varphi\f$ represented in the abstract element \f$a\f$, but not necessarily all.
-Whereas an over-approximating element guarantees we have all solutions of \f$\varphi\f$ but possibly with extra non-solution elements.
-
-This class exists only for documentation purposes as abstract domains will be combined using templates, and not by relying on inheritance from an abstract class.
-Ideally, `AbstractDomain` should be a C++20 concept, but it is not yet possible because neither NVCC or Doxygen support concepts yet.
+/** An abstract domain is an extension of an abstract universe to formula with multiple variables.
+ * You should first read `AbstractUniverse`.
 */
-template <typename LE, typename VD, typename Alloc>
+template <typename T, typename A, typename U, typename Alloc>
 class AbstractDomain {
 public:
-  /** `LogicalElement` is an intermediate representation between a logical formula (see `Formula`) and an abstract element.
-   The design rational is that we want to avoid manipulating `Formula` during solving for efficiency purposes (since Formula contains dynamic arrays, string representation of operators, ...).
-   Therefore, we can create the logical elements at the beginning, and adding them in the abstract element later on, when appropriate. */
-  typedef LE LogicalElement;
+  /** `TellElement` is an intermediate representation between a logical formula (see `Formula`) and an abstract element.
+  The design rational is that we want to avoid manipulating `Formula` during solving for efficiency purposes (since Formula contains dynamic arrays, string representation of operators, ...).
+  Therefore, we can create the tell elements at the beginning, and adding them in the abstract element later on, when appropriate. */
+  typedef T TellElement;
 
-  /** A variable domain (`VarDom`) is the underlying representation of a single variable inside this abstract element.
-   It can be an interval or a set of values for instance. */
-  typedef VD VarDom;
+  /** Similar to `TellElement` but with the purpose to be used with the function `entailment`.
+  The terminology, ask and tell, comes from concurrent constraint programming, where a tell operation adds constraints into a global and shared store, and an ask operation query the store to check if a constraint is entailed (can be deduced from what we already know).
+  Here the store is the abstract element. */
+  typedef A AskElement;
+
+  /** The underlying representation of a single variable inside this abstract element, given by an abstract universe.
+   For instance, it can be an interval or a set of values for instance. */
+  typedef U Universe;
 
   /** The memory allocator used for creating new elements in this abstract domain. */
   typedef Alloc Allocator;
 
-  typedef AbstractDomain<LE,VD> this_type;
+  typedef AbstractDomain<T,A,U,Alloc> this_type;
 
   /** \return The least element \f$\bot\f$ of this abstract domain. */
   CUDA /* static */ this_type* bot() const = 0;
@@ -52,21 +40,23 @@ public:
   /** \return The largest element \f$\top\f$ of this abstract domain. */
   CUDA /* static */ this_type* top() const = 0;
 
-  /** A partial interpretation function \f$[\![\varphi]\!]_a^\updownarrow \f$ turns the logical formula \f$\varphi\f$ (`f`) into a logical element according to the current abstract element \f$a\f$ and the approximation kind \f$\updownarrow\f$ (`appx`).
-  See also `LogicalElement`.
-  The approximation kind is not necessarily bound to an abstract element.
-  For instance, let an abstract element \f$a\f$ under-approximating a logical formula \f$\varphi\f$.
-  We can still add over-approximating _redundant constraints_ in \f$a\f$, which will not impact the under-approximating property of \f$a\f$ w.r.t. \f$\varphi\f$.
-  The returned logical elements must be joined later in the current abstract element `this` and not in another abstract element.
+  /** See `AbstractUniverse.interpret` and `TellElement`.
   \return An empty optional if the formula cannot be interpreted in the abstract domain, or if \f$\bot\f$ would be trivially returned in case of over-approximation (dually for \f$ \top \f$ and under-approximation).
-  Otherwise, it returns the interpreted formula. */
-  CUDA virtual thrust::optional<LogicalElement> interpret(Approx appx, const Formula& f) = 0;
+  Otherwise, it returns the interpreted formula.
+  The returned tell element must be joined later in the current abstract element `this` and not in another abstract element. */
+  CUDA virtual thrust::optional<TellElement> interpret(Approx appx, const Formula& f) = 0;
 
-  /** Compute \f$ a \sqcup [\![\varphi]\!] \f$ where \f$a\f$ is the current element and \f$ [\![\varphi]\!] \f$ an interpreted formula. */
-  CUDA virtual this_type& join(const LogicalElement& other) = 0;
+  /** Similar to `interpret` but for the ask queries.
+  A reasonable default implementation is `return interpret(UNDER, f)`, with `AskElement = TellElement`.
+  If `f` is under-approximated, then \f$ entailment(f) \f$ will hold only if the solutions of `this` are included in the solution of `f`.
+  See also `AskElement`. */
+  CUDA virtual thrust::optional<AskElement> interpret_ask(const Formula& f) = 0;
+
+  /** Compute \f$ a \sqcup [\![\varphi]\!] \f$ where \f$a\f$ (`this`) is the current element and \f$ [\![\varphi]\!] \f$ (`other`) an interpreted formula. */
+  CUDA virtual this_type& join(const TellElement& other) = 0;
 
   /** Compute \f$ a \sqcap [\![\varphi]\!] \f$, see also `join`. */
-  CUDA virtual this_type& meet(const LogicalElement& other) = 0;
+  CUDA virtual this_type& meet(const TellElement& other) = 0;
 
   /** `refine` is an extensive function (\f$\forall{a \in A},~\mathit{refine}(a) \geq a \f$) refining an abstract element \f$a\f$.
   It can have additional properties such as being under- or over-approximating depending on the abstract domain.
@@ -76,43 +66,35 @@ public:
   /** The entailment, formally written \f$a \models \varphi\f$, is `true` whenever we can deduce a formula \f$\varphi\f$ from an abstract element \f$a\f$, i.e., \f$\gamma(a) \subseteq [\![\varphi]\!]\f$.
   Note that if it returns `false`, it can either mean \f$\lnot\varphi\f$ is entailed, or that we do not know yet if it is entailed or not.
   Therefore, to test for _disentailment_, you should ask if the negation of the formula is entailed. */
-  CUDA virtual bool entailment(const LogicalElement& element) const = 0;
+  CUDA virtual bool entailment(const AskElement& element) const = 0;
 
-  /** The projection of term onto the underlying variable domain `VarDom`.
+  /** The projection of term onto the underlying abstract universe `Universe`.
   A common example is to project the domain of a variable `x` or a term such as `x + y` onto an interval or set variable domain.
   If you want to project a formula onto a Boolean, you should use `entailment` instead. */
-  CUDA virtual VarDom project(const LogicalElement& x) const = 0;
+  CUDA virtual Universe project(const TellElement& x) const = 0;
 
-  /** The function `embed(x, dom)` is similar to \f$ a \sqcup [\![\varphi]\!] \f$ where \f$\varphi\f$ is a formula with a single variable equals to \f$ x \f$ and interpretable in `VarDom`.
-   Here, the underlying element `VarDom` has already been created. */
-  CUDA virtual void embed(AVar x, const VarDom& dom) = 0;
+  /** The function `embed(x, dom)` is similar to \f$ a \sqcup [\![\varphi]\!] \f$ where \f$\varphi\f$ is a formula with a single variable equals to \f$ x \f$ and interpretable in `Universe`.
+   Here, the underlying element `Universe` has already been created. */
+  CUDA virtual void embed(AVar x, const Universe& dom) = 0;
 
-  /** `split` is an extensive function, i.e., \f$ \forall{a \in A},~\forall{b \in \mathit{split}(a)},~a \leq b \f$, that divides an abstract element into a set of subelements.
-  We call _unsplittable elements_ the elements such that \f$\mathit{split}(a) \f$ is a singleton.
-  We require \f$\mathit{split}(a) = \{a\} \f$ for all unsplittable elements \f$a \in A \f$.
-  An additional usage of `split` is to detect unsatisfiability of over-approximation, and satisfiability of under-approximation:
-    - In case of an over-approximating element \f$a\f$, we have \f$\mathit{split}(a) = \{\} \Rightarrow \gamma(a) = \{\} \f$.
-    - In case of an under-approximating element \f$a\f$, we have \f$\mathit{split}(a) \neq \{\} \Rightarrow \gamma(a) \neq \{\} \land \gamma(a) \subseteq [\![\varphi]\!]^\flat\f$.
+  /** See `AbstractUniverse.split`.  */
+  CUDA virtual DArray<TellElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
 
-  For the special case of _eventually under-approximating_ abstract domain, \f$a\f$ is an under-approximation whenever \f$\mathit{split}(a) = \{a\}\f$.
-
-  \return A list of logical elements (possibly complementary, but not necessarily) that can be joined in an abstract element to further refine its state.
-  */
-  CUDA virtual DArray<LogicalElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
-
-  /** This method resets the current abstract element to an anterior state \f$b \f$.
-      Therefore, this operation is similar to computing \f$ a \sqcap b \f$ where \f$ a \geq b \f$. */
+  /** See `AbstractUniverse.reset`. */
   CUDA virtual void reset(const this_type& b) = 0;
 
-  /** \return A copy of the current abstract element. */
+  /** See `AbstractUniverse.clone`. */
   CUDA virtual this_type* clone() const = 0;
 
   /** This function is the inverse of `interpret`, but directly maps to a general `Formula`.
       Let \f$ a = [\![\varphi]\!]_A \f$, then we must have \f$ \gamma(a) = [\![[\![a]\!]^{-1}]\!]^\flat \f$. */
   CUDA virtual Formula deinterpret() const = 0;
 
-  /** This function is similar to `deinterpret` but for a logical element. */
-  CUDA virtual Formula deinterpret(const LogicalElement& element) const = 0;
+  /** This function is similar to `deinterpret` but for a specific tell element, that is not necessarily in the abstract element yet. */
+  CUDA virtual Formula deinterpret_tell(const TellElement& element) const = 0;
+
+  /** This function is similar to `deinterpret` but for a specific ask element. */
+  CUDA virtual Formula deinterpret_ask(const AskElement& element) const = 0;
 
   /** Print the current element with the logical name of the variables. */
   CUDA virtual void print() const = 0;
