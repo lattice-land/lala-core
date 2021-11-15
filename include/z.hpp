@@ -105,9 +105,25 @@ public:
     return *this;
   }
 
-  /** \f$ a \sqcap b = \mathit{min}(a,b) \f$. */
+  /** \f$ a \sqcup b = \mathit{min}(a,b) \f$. */
   CUDA this_type& meet(const this_type& other) {
     val = min(other.val, val);
+    return *this;
+  }
+
+  CUDA this_type& tell(const this_type& other, bool& has_changed) {
+    if(other.val > val) {
+      val = other.val;
+      has_changed = true;
+    }
+    return *this;
+  }
+
+  CUDA this_type& dtell(const this_type& other, bool& has_changed) {
+    if(other.val < val) {
+      val = other.val;
+      has_changed = true;
+    }
     return *this;
   }
 
@@ -264,6 +280,22 @@ public:
   /** \f$ a \sqcap b = \mathit{max}(a,b) \f$. */
   CUDA this_type& meet(const this_type& other) {
     val = max(other.val, val);
+    return *this;
+  }
+
+  CUDA this_type& tell(const this_type& other, bool& has_changed) {
+    if(other.val < val) {
+      val = other.val;
+      has_changed = true;
+    }
+    return *this;
+  }
+
+  CUDA this_type& dtell(const this_type& other, bool& has_changed) {
+    if(other.val > val) {
+      val = other.val;
+      has_changed = true;
+    }
     return *this;
   }
 

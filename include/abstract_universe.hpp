@@ -62,6 +62,14 @@ public:
   /** Compute \f$ a \sqcap b \f$, see also `join`. */
   CUDA virtual this_type& meet(const this_type& b) = 0;
 
+  /** Similar to `join`, but in addition set `has_changed` to `true` if \f$ a \sqcup b \neq a \f$, that is, `this` has changed.
+  Also it only performs a write operation into `this` if \f$ a \sqcup b \neq a \f$, which is an important property for convergence. */
+  CUDA virtual this_type& tell(const this_type& b, bool& has_changed) = 0;
+
+  /** Similar to `meet`, but in addition set `has_changed` to `true` if \f$ a \sqcup b \neq a \f$, that is, `this` has changed.
+   * `dtell` stands for _dual tell_. */
+  CUDA virtual this_type& dtell(const this_type& b, bool& has_changed) = 0;
+
   /** \return `true` if \f$ a \leq b \f$, and `false` otherwise. */
   CUDA virtual bool order(const this_type& b) const = 0;
 

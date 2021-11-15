@@ -1,20 +1,12 @@
 // Copyright 2021 Pierre Talbot
 
-#include <gtest/gtest.h>
-#include <gtest/gtest-spi.h>
-#include "thrust/optional.h"
-#include "ast.hpp"
 #include "z.hpp"
-#include "allocator.hpp"
-#include "utility.hpp"
+#include "generic_universe_test.hpp"
 
 using namespace lala;
 
 typedef ZInc<int, StandardAllocator> zi;
 typedef ZDec<int, StandardAllocator> zd;
-typedef TFormula<StandardAllocator> F;
-
-static AVar var_x = 0;
 
 TEST(ZDeathTest, BadConstruction) {
   ASSERT_DEATH(zi(Limits<int>::bot()), "");
@@ -22,44 +14,6 @@ TEST(ZDeathTest, BadConstruction) {
   // Dual
   ASSERT_DEATH(zd(Limits<int>::bot()), "");
   ASSERT_DEATH(zd(Limits<int>::top()), "");
-}
-
-template<typename Universe>
-void test_formula(Approx appx, const F& f, thrust::optional<Universe> expect) {
-  thrust::optional<Universe> j = Universe::interpret(appx, f);
-  EXPECT_EQ(j.has_value(), expect.has_value());
-  EXPECT_EQ(j, expect);
-}
-
-template<typename Universe>
-void test_interpret(Sig sig, Approx appx, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
-  test_formula<Universe>(
-    appx,
-    make_v_op_z(0, sig, elem, standard_allocator),
-    expect);
-}
-
-template<typename Universe>
-void test_all_interpret(Sig sig, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
-  Approx appxs[3] = {EXACT, UNDER, OVER};
-  for(int i = 0; i < 3; ++i) {
-    test_interpret<Universe>(sig, appxs[i], elem, expect);
-  }
-}
-
-template<typename Universe>
-void test_exact_interpret(Sig sig, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
-  test_interpret<Universe>(sig, EXACT, elem, expect);
-}
-
-template<typename Universe>
-void test_under_interpret(Sig sig, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
-  test_interpret<Universe>(sig, UNDER, elem, expect);
-}
-
-template<typename Universe>
-void test_over_interpret(Sig sig, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
-  test_interpret<Universe>(sig, OVER, elem, expect);
 }
 
 TEST(ZTest, ValidInterpret) {
@@ -86,31 +40,6 @@ TEST(ZTest, NoInterpret) {
   test_all_interpret<zd>(GT, 10, {});
 }
 
-// `a` and `b` are supposed ordered and `a <= b`.
-template <typename A>
-void join_meet_generic_test(A a, A b) {
-  // Reflexivity
-  EXPECT_EQ(a.join(a), a);
-  EXPECT_EQ(a.meet(a), a);
-  EXPECT_EQ(b.join(b), b);
-  EXPECT_EQ(b.meet(b), b);
-  // Coherency of join/meet w.r.t. ordering
-  EXPECT_EQ(a.join(b), b);
-  EXPECT_EQ(b.join(a), b);
-  // Commutativity
-  EXPECT_EQ(a.meet(b), a);
-  EXPECT_EQ(b.meet(a), a);
-  // Absorbing
-  EXPECT_EQ(a.meet(A::top()), a);
-  EXPECT_EQ(b.meet(A::top()), b);
-  EXPECT_EQ(a.join(A::top()), A::top());
-  EXPECT_EQ(b.join(A::top()), A::top());
-  EXPECT_EQ(a.meet(A::bot()), A::bot());
-  EXPECT_EQ(b.meet(A::bot()), A::bot());
-  EXPECT_EQ(a.join(A::bot()), a);
-  EXPECT_EQ(b.join(A::bot()), b);
-}
-
 TEST(ZTest, JoinMeet) {
   join_meet_generic_test(zi::bot(), zi::top());
   join_meet_generic_test(zi(0), zi(1));
@@ -121,17 +50,6 @@ TEST(ZTest, JoinMeet) {
   join_meet_generic_test(zd(1), zd(0));
   join_meet_generic_test(zd(10), zd(-10));
   join_meet_generic_test(zd(Limits<int>::bot() + 1), zd::top());
-}
-
-template<typename A>
-void generic_order_test(A element) {
-  EXPECT_EQ(element.order(A::top()), true);
-  EXPECT_EQ(element.order(A::bot()), false);
-  EXPECT_EQ(A::bot().order(A::bot()), true);
-  EXPECT_EQ(A::top().order(A::top()), true);
-  EXPECT_EQ(A::top().order(A::bot()), false);
-  EXPECT_EQ(A::bot().order(A::top()), true);
-  EXPECT_EQ(A::top().order(element), false);
 }
 
 TEST(ZTest, Order) {
@@ -150,35 +68,9 @@ TEST(ZTest, Order) {
   generic_order_test(zd(0));
 }
 
-template<typename A>
-using SplitSeq = DArray<A, StandardAllocator>;
-
-template<typename A>
-SplitSeq<A> make_singleton(A x) {
-  return SplitSeq<A>({x});
-}
-
-template<typename A>
-SplitSeq<A> make_empty() {
-  return SplitSeq<A>();
-}
-
-template<typename A>
-void generic_split_test(A element) {
-  EXPECT_EQ(element.split(), make_singleton(element));
-  EXPECT_EQ(A::top().split(), make_empty<A>());
-  EXPECT_EQ(A::bot().split(), make_singleton(A::bot()));
-}
-
 TEST(ZTest, Split) {
   generic_split_test(zi(0));
   generic_split_test(zd(0));
-}
-
-template<typename A>
-void generic_deinterpret_test() {
-  EXPECT_EQ(A::bot().deinterpret(var_x), F::make_true());
-  EXPECT_EQ(A::top().deinterpret(var_x), F::make_false());
 }
 
 TEST(ZTest, Deinterpret) {

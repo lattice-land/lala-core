@@ -87,7 +87,7 @@ The supported symbols can be extended with the template parameter `ExtendedSig`.
 This extended signature can also be used for representing exactly constant such as real numbers using a string.
 The AST of a formula is represented by a variant, where each alternative is described below.
 We represent everything at the same level (term, formula, predicate, variable, constant).
-This is general convenient when modelling to avoid creating intermediate boolean variables when reifying.
+This is generally convenient when modelling to avoid creating intermediate boolean variables when reifying.
 We can have `x + (x > y \/ y > x + 4)` and this expression is true if the value is != 0. */
 template<typename Allocator, typename ExtendedSig = String<Allocator>>
 class TFormula {

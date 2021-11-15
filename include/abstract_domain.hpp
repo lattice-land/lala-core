@@ -77,7 +77,7 @@ public:
    Here, the underlying element `Universe` has already been created. */
   CUDA virtual void embed(AVar x, const Universe& dom) = 0;
 
-  /** See `AbstractUniverse.split`.  */
+  /** See `AbstractUniverse.split`. */
   CUDA virtual DArray<TellElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
 
   /** See `AbstractUniverse.reset`. */

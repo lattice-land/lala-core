@@ -22,12 +22,17 @@ class CartesianProduct {
 public:
   using Allocator = typename TypeOf<0>::Allocator;
   using this_type = CartesianProduct<As...>;
+
+  /** We suppose the underlying value type is the same for all components.
+      `ValueType` is the value type of the first component. */
+  using ValueType = typename TypeOf<0>::ValueType;
 private:
   battery::tuple<As...> val;
 
 public:
   CUDA CartesianProduct(const As&... as): val(battery::make_tuple(as...)) {}
   CUDA CartesianProduct(As&&... as): val(battery::make_tuple(std::forward<As>(as)...)) {}
+  CUDA CartesianProduct(typename As::ValueType... vs): val(battery::make_tuple(As(vs)...)) {}
   CUDA CartesianProduct(const this_type& other): val(other.val) {}
 
   /** Similar to \f$[\![\mathit{true}]\!]\f$. */
@@ -75,7 +80,7 @@ private:
 public:
   /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
   template<typename Formula>
-  CUDA thrust::optional<this_type> interpret(Approx appx, const Formula& f) {
+  CUDA static thrust::optional<this_type> interpret(Approx appx, const Formula& f) {
     return interpret_all(appx, f, bot(), true);
   }
 
@@ -134,8 +139,30 @@ private:
   template<size_t i = 0>
   CUDA this_type& meet_(const this_type& other) {
     if constexpr (i < n) {
-      project<i>().meet(get<i>(other));
+      project<i>().meet(get<i>(other.val));
       return meet_<i+1>(other);
+    }
+    else {
+      return *this;
+    }
+  }
+
+  template<size_t i = 0>
+  CUDA this_type& tell_(const this_type& other, bool& has_changed) {
+    if constexpr (i < n) {
+      project<i>().tell(get<i>(other.val), has_changed);
+      return tell_<i+1>(other, has_changed);
+    }
+    else {
+      return *this;
+    }
+  }
+
+  template<size_t i = 0>
+  CUDA this_type& dtell_(const this_type& other, bool& has_changed) {
+    if constexpr (i < n) {
+      project<i>().dtell(get<i>(other.val), has_changed);
+      return dtell_<i+1>(other, has_changed);
     }
     else {
       return *this;
@@ -164,6 +191,19 @@ public:
   template<size_t i>
   CUDA this_type& meet(TypeOf<i>&& b) {
     project<i>().meet(std::forward<TypeOf<i>>(b));
+    return *this;
+  }
+
+  CUDA this_type& tell(const this_type& other, bool& has_changed) { return tell_(other, has_changed); }
+  CUDA this_type& dtell(const this_type& other, bool& has_changed) { return dtell_(other, has_changed); }
+  template<size_t i>
+  CUDA this_type& tell(TypeOf<i>&& b, bool& has_changed) {
+    project<i>().tell(std::forward<TypeOf<i>>(b), has_changed);
+    return *this;
+  }
+  template<size_t i>
+  CUDA this_type& dtell(TypeOf<i>&& b, bool& has_changed) {
+    project<i>().dtell(std::forward<TypeOf<i>>(b), has_changed);
     return *this;
   }
 

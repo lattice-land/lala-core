@@ -1,12 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#include <gtest/gtest.h>
-#include <gtest/gtest-spi.h>
-#include "thrust/optional.h"
-#include "ast.hpp"
+#include "generic_universe_test.hpp"
 #include "z.hpp"
-#include "allocator.hpp"
-#include "utility.hpp"
 #include "cartesian_product.hpp"
 
 using namespace lala;
@@ -14,11 +9,8 @@ using namespace lala;
 typedef ZInc<int, StandardAllocator> zi;
 typedef ZDec<int, StandardAllocator> zd;
 typedef CartesianProduct<zi, zd> Itv;
-typedef TFormula<StandardAllocator> F;
 
-static AVar var_x = 0;
-
-TEST(CPTest, IntervalAsCartesianProduct) {
+TEST(CPTest, BotTopTests) {
   Itv itv1_2(zi(1), zd(2));
   Itv bot_itv = Itv::bot();
   Itv top_itv = Itv::top();
@@ -28,71 +20,118 @@ TEST(CPTest, IntervalAsCartesianProduct) {
   EXPECT_FALSE(bot_itv.is_top());
   EXPECT_FALSE(top_itv.is_bot());
   EXPECT_TRUE(top_itv.is_top());
+}
 
+TEST(CPTest, NoInterpret) {
+  test_exact_interpret<Itv>(NEQ, 10, {});
+  test_exact_interpret<Itv>(EQ, 10, {});
+}
+
+TEST(CPTest, ValidInterpret) {
+  // First component.
+  test_all_interpret<Itv>(GEQ, 10, Itv::bot().join<0>(zi(10)));
+  test_all_interpret<Itv>(GT, 10, Itv::bot().join<0>(zi(11)));
+  // Second component.
+  test_all_interpret<Itv>(LEQ, 10, Itv::bot().join<1>(zd(10)));
+  test_all_interpret<Itv>(LT, 10, Itv::bot().join<1>(zd(9)));
+  // Both.
+  test_under_interpret<Itv>(NEQ, 10, Itv(11, 9));
+  test_over_interpret<Itv>(EQ, 10, Itv(10, 10));
+}
+
+TEST(CPTest, InterpretTwo) {
   auto geq_1 = make_v_op_z(var_x, GEQ, 1, standard_allocator);
   auto leq_2 = make_v_op_z(var_x, LEQ, 2, standard_allocator);
   auto geq_1_leq_2 = F::make_binary(geq_1, AND, leq_2);
-  auto f1_opt = bot_itv.interpret(EXACT, geq_1);
+  auto f1_opt = Itv::interpret(EXACT, geq_1);
   EXPECT_TRUE(f1_opt.has_value());
-  auto f2_opt = bot_itv.interpret(EXACT, leq_2);
+  auto f2_opt = Itv::interpret(EXACT, leq_2);
   EXPECT_TRUE(f2_opt.has_value());
+
   auto f1 = f1_opt.value();
   auto f2 = f2_opt.value();
-
-  Itv itv2 = Itv::bot();
-  itv2.join(f1);
-  EXPECT_NE(itv2, bot_itv);
-  EXPECT_NE(itv2, top_itv);
-  EXPECT_NE(itv2, itv1_2);
-  Itv itv3 = itv2;
-  itv2.join(f2);
-  EXPECT_NE(itv2, bot_itv);
-  EXPECT_NE(itv2, top_itv);
-  EXPECT_EQ(itv2, itv1_2);
+  EXPECT_EQ(f1, Itv::bot().join<0>(zi(1)));
+  EXPECT_EQ(f2, Itv::bot().join<1>(zd(2)));
+  Itv itv2 = f1.clone().join(f2);
+  EXPECT_EQ(itv2, Itv(1,2));
   EXPECT_EQ(itv2.deinterpret(var_x), geq_1_leq_2);
-  // itv2 = [1..2]
-  itv2.meet<1>(zd::bot());
-  // itv2 = [1..]
-  EXPECT_NE(itv2, bot_itv);
-  EXPECT_NE(itv2, top_itv);
-  EXPECT_NE(itv2, itv1_2);
-  EXPECT_EQ(itv2, itv3);
-  itv2.meet<0>(zi::bot());
-  // itv2 = [..]
-  EXPECT_EQ(itv2, bot_itv);
-  EXPECT_NE(itv2, top_itv);
-  EXPECT_NE(itv2, itv1_2);
-  EXPECT_NE(itv2, itv3);
+}
 
+TEST(CPTest, JoinMeetTest) {
+  join_meet_generic_test(Itv::bot(), Itv::top());
+  join_meet_generic_test(Itv(0,0), Itv(0,0));
+  join_meet_generic_test(Itv(0,1), Itv(0,1));
+  join_meet_generic_test(Itv(0,10), Itv(0,5));
+  join_meet_generic_test(Itv(0,10), Itv(5,5));
+  join_meet_generic_test(Itv(0,1), Itv(0,0));
+  join_meet_generic_test(Itv(0,1), Itv(1,1));
+
+  // Unordered intervals [1..2] and [2..3].
+  Itv itv1 = Itv(1,2);
+  Itv itv2 = Itv(2,3);
+  Itv itv3 = Itv(2,2);
+  Itv itv4 = Itv(1,3);
+  join_one_test(itv1, itv2, itv3, true);
+  meet_one_test(itv1, itv2, itv4, true);
+
+  // Unordered intervals [1..2] and [3..4].
+  Itv itv1_b = Itv(1,2);
+  Itv itv2_b = Itv(3,4);
+  Itv itv3_b = Itv(3,2);
+  Itv itv4_b = Itv(1,4);
+  join_one_test(itv1_b, itv2_b, itv3_b, true);
+  meet_one_test(itv1_b, itv2_b, itv4_b, true);
+
+  // Join/Meet a single component
+  Itv itv5 = Itv(1,2);
+  itv5.join<0>(zi::top());
+  EXPECT_EQ(itv5, Itv(zi::top(), zd(2)));
+  itv5.join<1>(zd::top());
+  EXPECT_EQ(itv5, Itv::top());
+
+  Itv itv6 = Itv(1,2);
+  itv6.meet<0>(zi::bot());
+  EXPECT_EQ(itv6, Itv(zi::bot(),zd(2)));
+  itv6.meet<1>(zd::bot());
+  EXPECT_EQ(itv6, Itv::bot());
+}
+
+TEST(CPTest, CPOrder) {
+  generic_order_test(Itv(0,0));
+  generic_order_test(Itv(0,1));
+
+  Itv i1_ = Itv::bot().join<0>(zi(1));
+  Itv i_2 = Itv::bot().join<1>(zd(2));
+  Itv i1_2 = Itv(1,2);
+
+  EXPECT_FALSE(i1_2.order(i1_));     // [1..2] <= [1..]
+  EXPECT_FALSE(i1_2.order(i_2));     // [1..2] <= [..2]
+  EXPECT_TRUE(i1_.order(i1_2));      // [1..] <= [1..2]
+  EXPECT_TRUE(i_2.order(i1_2));      // [..2] <= [1..2]
+  EXPECT_FALSE(i1_.order(i_2));      // [1..] <= [..2]
+  EXPECT_FALSE(i_2.order(i1_));       // [..2] <= [1..]
+}
+
+TEST(CPTest, CPSplit) {
+  auto split_top = Itv::top().split();
+  auto split_bot = Itv::bot().split();
+  auto split1 = Itv(1,1).split();
+  auto split2 = Itv(1,2).split();
+  EXPECT_EQ(split_top.size(), 0);
+  EXPECT_EQ(split_bot.size(), 1);
+  EXPECT_EQ(split1.size(), 1);
+  EXPECT_EQ(split2.size(), 1);
+}
+
+TEST(CPTest, CPCloneReset) {
+  Itv bot_itv = Itv::bot();
+  Itv top_itv = Itv::top();
+  Itv itv2 = Itv(1,2);
+  Itv itv3 = top_itv;
   EXPECT_EQ(bot_itv, bot_itv.clone());
   EXPECT_EQ(top_itv, top_itv.clone());
   EXPECT_EQ(itv2, itv2.clone());
 
-  itv3.reset(bot_itv);
-  EXPECT_EQ(itv3, bot_itv);
+  itv3.reset(itv2);
   EXPECT_EQ(itv3, itv2);
-
-  auto f1_opt_2 = bot_itv.interpret_one<0>(EXACT, geq_1);
-  EXPECT_TRUE(f1_opt_2.has_value());
-  auto f2_opt_2 = bot_itv.interpret_one<1>(EXACT, leq_2);
-  EXPECT_TRUE(f2_opt_2.has_value());
-  auto f1_opt_3 = bot_itv.interpret_one<1>(EXACT, geq_1);
-  EXPECT_FALSE(f1_opt_3.has_value());
-  auto itv4 = bot_itv.join(f1).join(f2);
-  auto itv5 = bot_itv.join(f1_opt_2.value()).join(f2_opt_2.value());
-  EXPECT_EQ(itv4, itv5);
-
-  EXPECT_FALSE(itv4.order(f1));     // [1..2] <= [1..]
-  EXPECT_FALSE(itv4.order(f2));     // [1..2] <= [..2]
-  EXPECT_TRUE(f1.order(itv4));      // [1..] <= [1..2]
-  EXPECT_TRUE(f2.order(itv4));      // [..2] <= [1..2]
-  EXPECT_FALSE(f1.order(f2));       // [1..] <= [..2]
-  EXPECT_FALSE(f2.order(f1));       // [..2] <= [1..]
-
-  auto split_top = top_itv.split();
-  auto split_bot = bot_itv.split();
-  auto split4 = itv4.split();
-  EXPECT_EQ(split_top.size(), 0);
-  EXPECT_EQ(split_bot.size(), 1);
-  EXPECT_EQ(split4.size(), 1);
 }
