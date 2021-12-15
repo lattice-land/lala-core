@@ -48,13 +48,21 @@ public:
   /** \return The largest element of this abstract universe, formally written \f$\top\f$. */
   CUDA static this_type top() const { return this_type(); }
 
-  /** A partial interpretation function \f$[\![\varphi]\!]_a^{\mathit{appx}} \f$ turns the logical formula \f$\varphi\f$ (`f`) into an abstract element according to the approximation kind \f$\mathit{appx}\f$.
+  /** \return `true` if \f$ \gamma(a) = \bot^\flat \f$, that is, if it represents any element of the concrete domain.
+   * We must have `is_bot(bot()) == true`. */
+  CUDA virtual bool is_bot() const = 0;
+
+    /** \return `true` if \f$ \gamma(a) = \{\} = \top^\flat \f$, that is, if it maps to top (empty set) in the concrete domain.
+   * We must have `is_top(top()) == true`. */
+  CUDA virtual bool is_top() const = 0;
+
+  /** A partial interpretation function \f$[\![\varphi]\!]_a^{\mathit{appx}} \f$ turns the logical formula \f$\varphi\f$ (`f`) into an abstract element according to the approximation kind of the formula.
   The approximation kind is not necessarily bound to an abstract element.
   For instance, let an abstract element \f$a\f$ under-approximating a logical formula \f$\varphi\f$.
   We can still add over-approximating _redundant constraints_ in \f$a\f$, which will not impact the under-approximating property of \f$a\f$ w.r.t. \f$\varphi\f$.
   \return An empty optional if the formula cannot be interpreted in the abstract universe, or if \f$\bot\f$ would be trivially returned in case of over-approximation (dually for \f$ \top \f$ and under-approximation).
   Otherwise, it returns the interpreted formula. */
-  CUDA static thrust::optional<this_type> interpret(Approx appx, const Formula& f) { return {}; }
+  CUDA static thrust::optional<this_type> interpret(const TFormula& f) { return {}; }
 
   /** Compute \f$ a \sqcup b \f$ where \f$a\f$ (`this`) is the current element and \f$ b \f$ another element. */
   CUDA virtual this_type& join(const this_type& b) = 0;
@@ -77,8 +85,8 @@ public:
   We call _unsplittable elements_ the elements such that \f$\mathit{split}(a) \f$ is a singleton.
   We require \f$\mathit{split}(a) = \{a\} \f$ for all unsplittable elements \f$a \in A \f$.
   An additional usage of `split` is to detect unsatisfiability of over-approximation, and satisfiability of under-approximation:
-    - In case of an over-approximating element \f$a\f$, we have \f$\mathit{split}(a) = \{\} \Rightarrow \gamma(a) = \{\} \f$.
-    - In case of an under-approximating element \f$a\f$, we have \f$\mathit{split}(a) \neq \{\} \Rightarrow \gamma(a) \neq \{\} \land \gamma(a) \subseteq [\![\varphi]\!]^\flat\f$.
+    - In case of an element \f$a\f$ over-approximating a formula \f$ \varphi \f$, we have \f$\mathit{split}(a) = \{\} \Rightarrow [\![\varphi]\!]^\flat = \{\} \f$.
+    - In case of an element \f$a\f$ under-approximating a formula \f$ \varphi \f$, we have \f$\mathit{split}(a) \neq \{\} \Rightarrow \gamma(a) \neq \{\} \land \gamma(a) \subseteq [\![\varphi]\!]^\flat\f$.
 
   For the special case of _eventually under-approximating_ abstract domain, \f$a\f$ is an under-approximation whenever \f$\mathit{split}(a) = \{a\}\f$.
 
@@ -95,8 +103,9 @@ public:
 
   /** This function is the inverse of `interpret`, and directly maps to a `Formula`.
       Let \f$ a = [\![\varphi]\!]_A \f$, then we must have \f$ \gamma(a) = [\![[\![a]\!]^{-1}]\!]^\flat \f$.
-      `x` is the name of the variable represented by this abstract universe. */
-  CUDA virtual Formula deinterpret(AVar x) const = 0;
+      `x` is the name of the variable represented by this abstract universe.
+      The approximation kind of the deinterpreted formula will not necessarily be the same as the one used when interpreting the formula; it might be equal to `EXACT` instead of `OVER` or `UNDER`. */
+  CUDA virtual Formula deinterpret(const LVar<Allocator>& x) const = 0;
 
   /** Print the current element with the logical name `x` of the variable. */
   CUDA virtual void print(const LVar<Allocator>& x) const = 0;

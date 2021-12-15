@@ -46,8 +46,8 @@ public:
   }
 
   template<size_t i, typename Formula>
-  CUDA static thrust::optional<this_type> interpret_one(Approx appx, const Formula& f) {
-    auto one = TypeOf<i>::interpret(appx, f);
+  CUDA static thrust::optional<this_type> interpret_one(const Formula& f) {
+    auto one = TypeOf<i>::interpret(f);
     if(one.has_value()) {
       auto res = bot();
       get<i>(res.val) = std::move(one).value();
@@ -58,7 +58,7 @@ public:
 
 private:
   template<size_t i = 0, typename Formula>
-  CUDA static thrust::optional<this_type> interpret_all(Approx appx, const Formula& f, this_type res, bool empty) {
+  CUDA static thrust::optional<this_type> interpret_all(const Formula& f, this_type res, bool empty) {
     if constexpr(i == n) {
       if(empty) {
         return {};
@@ -68,20 +68,20 @@ private:
       }
     }
     else {
-      auto one = TypeOf<i>::interpret(appx, f);
+      auto one = TypeOf<i>::interpret(f);
       if(one.has_value()) {
         empty = false;
         get<i>(res.val) = std::move(one).value();
       }
-      return interpret_all<i+1>(appx, f, std::move(res), empty);
+      return interpret_all<i+1>(f, std::move(res), empty);
     }
   }
 
 public:
   /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
   template<typename Formula>
-  CUDA static thrust::optional<this_type> interpret(Approx appx, const Formula& f) {
-    return interpret_all(appx, f, bot(), true);
+  CUDA static thrust::optional<this_type> interpret(const Formula& f) {
+    return interpret_all(f, bot(), true);
   }
 
   CUDA battery::tuple<As...>& value() {
@@ -92,17 +92,19 @@ public:
     return val;
   }
 
+private:
   template<size_t i>
   CUDA TypeOf<i>& project() {
     return get<i>(val);
   }
 
+public:
   template<size_t i>
   CUDA const TypeOf<i>& project() const {
     return get<i>(val);
   }
 
-  /** `true` if \f$ \exists{j \geq i},~a_j = \top_j \f$, `false` otherwise. */
+  /** `true` if \f$ \exists{j \geq i},~\gamma(a_j) = \top^\flat \f$, `false` otherwise. */
   template<size_t i = 0>
   CUDA bool is_top() const {
     if constexpr (i < n) {
@@ -113,7 +115,7 @@ public:
     }
   }
 
-  /** `true` if \f$ \forall{j \geq i},~a_j = \bot_j \f$, `false` otherwise. */
+  /** `true` if \f$ \forall{j \geq i},~\gamma(a_j) = \bot^\flat \f$, `false` otherwise. */
   template<size_t i = 0>
   CUDA bool is_bot() const {
     if constexpr (i < n) {
@@ -269,7 +271,7 @@ public:
 
 private:
   template<size_t i, typename Alloc = Allocator>
-  CUDA TFormula<Alloc> deinterpret_(AVar x, TFormula<Allocator>::Sequence&& seq, const Alloc& allocator) const {
+  CUDA TFormula<Alloc> deinterpret_(const LVar<Allocator>& x, TFormula<Allocator>::Sequence&& seq, const Alloc& allocator) const {
     if constexpr(i < n) {
       seq[i] = project<i>().deinterpret(x, allocator);
       return deinterpret_<i+1, Alloc>(x, std::move(seq), allocator);
@@ -278,13 +280,13 @@ private:
       return TFormula<Allocator>::make_nary(
         AND,
         std::forward<typename TFormula<Allocator>::Sequence>(seq),
-        UNTYPED, allocator);
+        UNTYPED, EXACT, allocator);
     }
   }
 
 public:
   template<typename Alloc = Allocator>
-  CUDA TFormula<Alloc> deinterpret(AVar x, const Alloc& allocator = Alloc()) const {
+  CUDA TFormula<Alloc> deinterpret(const LVar<Allocator>& x, const Alloc& allocator = Alloc()) const {
     return deinterpret_<0, Alloc>(x, typename TFormula<Allocator>::Sequence(n), allocator);
   }
 

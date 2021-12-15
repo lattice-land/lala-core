@@ -4,22 +4,13 @@
 #include "z.hpp"
 #include "cartesian_product.hpp"
 
-using namespace lala;
-
-typedef ZInc<int, StandardAllocator> zi;
-typedef ZDec<int, StandardAllocator> zd;
-typedef CartesianProduct<zi, zd> Itv;
+using zi = ZInc<int, StandardAllocator>;
+using zd = ZDec<int, StandardAllocator>;
+using Itv = CartesianProduct<zi, zd>;
 
 TEST(CPTest, BotTopTests) {
   Itv itv1_2(zi(1), zd(2));
-  Itv bot_itv = Itv::bot();
-  Itv top_itv = Itv::top();
-  EXPECT_FALSE(itv1_2.is_bot());
-  EXPECT_FALSE(itv1_2.is_top());
-  EXPECT_TRUE(bot_itv.is_bot());
-  EXPECT_FALSE(bot_itv.is_top());
-  EXPECT_FALSE(top_itv.is_bot());
-  EXPECT_TRUE(top_itv.is_top());
+  bot_top_test(itv1_2);
 }
 
 TEST(CPTest, NoInterpret) {
@@ -40,12 +31,12 @@ TEST(CPTest, ValidInterpret) {
 }
 
 TEST(CPTest, InterpretTwo) {
-  auto geq_1 = make_v_op_z(var_x, GEQ, 1, standard_allocator);
-  auto leq_2 = make_v_op_z(var_x, LEQ, 2, standard_allocator);
+  auto geq_1 = make_v_op_z(var_x, GEQ, 1, EXACT, standard_allocator);
+  auto leq_2 = make_v_op_z(var_x, LEQ, 2, EXACT, standard_allocator);
   auto geq_1_leq_2 = F::make_binary(geq_1, AND, leq_2);
-  auto f1_opt = Itv::interpret(EXACT, geq_1);
+  auto f1_opt = Itv::interpret(geq_1);
   EXPECT_TRUE(f1_opt.has_value());
-  auto f2_opt = Itv::interpret(EXACT, leq_2);
+  auto f2_opt = Itv::interpret(leq_2);
   EXPECT_TRUE(f2_opt.has_value());
 
   auto f1 = f1_opt.value();

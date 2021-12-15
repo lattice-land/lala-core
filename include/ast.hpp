@@ -12,21 +12,30 @@
 
 namespace lala {
 
-/** Each abstract domain is uniquely identified by an UID. */
+/** Each abstract domain is uniquely identified by an UID.
+    We call it an _abstract type_.
+    Each formula (and recursively, its subformulas) is assigned to an abstract type indicating in what abstract domain this formula should be interpreted. */
 using AType = int;
 
 /** This value means a formula is not typed in a particular abstract domain and its type should be inferred. */
 #define UNTYPED (-1)
 
+/** The concrete type of variables introduced by existential quantification.
+    More concrete types could be added later. */
+enum CType {
+  Int,
+  Real
+};
+
 /** A "logical variable" is just the name of the variable. */
 template<typename Allocator>
 using LVar = String<Allocator>;
 
-/** We call an "abstract variable" the representation of this variable in an abstract domain.
-It is simply an integer containing the UID of the abstract element and an internal integer variable identifier proper to the abstract domain.
-The mapping between logical variables and abstract variables is maintained in `Environment` below.
+/** We call an "abstract variable" the representation of a logical variable in an abstract domain.
+It is a pair of integers `(aid, vid)` where `aid` is the UID of the abstract element and `vid` is an internal identifier of the variable inside the abstract element.
+The mapping between logical variables and abstract variables is maintained in `VarEnv` below.
 An abstract variable always has a single name (or no name if it is not explicitly represented in the initial formula).
-However, a logical variable can be represented by several abstract variables when the variable occurs in different domains. */
+However, a logical variable can be represented by several abstract variables when the variable occurs in different abstract elements. */
 typedef int AVar;
 #define AID(v) (v & ((1 << 8) - 1))
 #define VID(v) (v >> 8)
@@ -69,7 +78,7 @@ enum Sig {
   LT,    ///< \f$ x < y \Leftrightarrow x \leq y \land x \neq y \f$ (predicate \f$<: L \times L \f$).
   GT,    ///< \f$ x > y \Leftrightarrow x \geq y \land x \neq y \f$ (predicate \f$>: L \times L \f$).
   ///@{
-  AND, OR, IMPLY, EQUIV, NOT,    ///< Logical connector.
+  AND, OR, IMPLY, EQUIV, NOT    ///< Logical connector.
   ///@}
 };
 }
@@ -94,12 +103,15 @@ class TFormula {
 public:
   using this_type = TFormula<Allocator, ExtendedSig>;
   using Sequence = DArray<this_type, Allocator>;
+  using Existential = battery::tuple<LVar<Allocator>, CType, Sequence>; // Note that the usage of Sequence instead of `this_type` is to enable recursivity inside the variant.
   using Formula = Variant<
     long long int, ///< Constant in the domain of discourse that can be represented exactly.
     battery::tuple<double, double>,    ///< A real represented as an interval \f$ [d[0]..d[1]] \f$. Indeed, we sometimes cannot use a single `double` because it cannot represent all real numbers, it is up to the abstract domain to under- or over-approximate it, or choose an exact representation such as rational.
-    AVar,          ///< Abstract variable
-    battery::tuple<Sig, Sequence>,  ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
-    battery::tuple<ExtendedSig, Sequence> ///< see above
+    AVar,            ///< Abstract variable
+    LVar<Allocator>, ///< Logical variable
+    Existential,     ///< Existential quantifier
+    battery::tuple<Sig, Sequence>,              ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
+    battery::tuple<ExtendedSig, Sequence>       ///< see above
   >;
 
   /** Index of integers in the variant type `Formula` (called kind below). */
@@ -108,36 +120,45 @@ public:
   /** Index of real numbers in the variant type `Formula` (called kind below). */
   static constexpr int R = 1;
 
-  /** Index of asbtract variables in the variant type `Formula` (called kind below). */
+  /** Index of abstract variables in the variant type `Formula` (called kind below). */
   static constexpr int V = 2;
 
+  /** Index of logical variables in the variant type `Formula` (called kind below). */
+  static constexpr int LV = 3;
+
+  /** Index of existential quantifier in the variant type `Formula` (called kind below). */
+  static constexpr int E = 4;
+
   /** Index of n-ary operators in the variant type `Formula` (called kind below). */
-  static constexpr int Seq = 3;
+  static constexpr int Seq = 5;
 
   /** Index of n-ary operators where the operator is an extended signature in the variant type `Formula` (called kind below). */
-  static constexpr int ESeq = 4;
+  static constexpr int ESeq = 6;
 
 private:
   AType type_;
+  Approx appx;
   Formula formula;
 
 public:
   /** By default, we initialize the formula to `true`. */
-  CUDA TFormula(): type_(UNTYPED), formula(Formula::template create<Z>(1)) {}
-  CUDA TFormula(Formula&& formula): type_(UNTYPED), formula(std::forward<Formula>(formula)) {}
-  CUDA TFormula(AType uid, Formula&& formula): type_(uid), formula(std::forward<Formula>(formula)) {}
+  CUDA TFormula(): type_(UNTYPED), appx(EXACT), formula(Formula::template create<Z>(1)) {}
+  CUDA TFormula(Formula&& formula): type_(UNTYPED), appx(EXACT), formula(std::forward<Formula>(formula)) {}
+  CUDA TFormula(AType uid, Approx appx, Formula&& formula): type_(uid), formula(std::forward<Formula>(formula)), appx(appx) {}
 
-  CUDA TFormula(const this_type& other): type_(other.type_), formula(other.formula) {}
-  CUDA TFormula(this_type&& other): type_(other.type_), formula(std::move(other.formula)) {}
+  CUDA TFormula(const this_type& other): type_(other.type_), appx(other.appx), formula(other.formula) {}
+  CUDA TFormula(this_type&& other): type_(other.type_), appx(other.appx), formula(std::move(other.formula)) {}
 
   CUDA this_type& operator=(this_type& rhs) {
     type_ = rhs.type_;
+    appx = rhs.appx;
     formula = rhs.formula;
     return *this;
   }
 
   CUDA this_type& operator=(this_type&& rhs) {
     type_ = rhs.type_;
+    appx = rhs.appx;
     formula = std::move(rhs.formula);
     return *this;
   }
@@ -145,11 +166,16 @@ public:
   CUDA Formula& data() { return formula; }
   CUDA const Formula& data() const { return formula; }
   CUDA AType type() const { return type_; }
+  CUDA Approx approx() const { return appx; }
   CUDA void type_as(AType ty) {
     type_ = ty;
     if(is(V)) {
       v() = make_var(ty, VID(v()));
     }
+  }
+
+  CUDA void approx_as(Approx a) {
+    appx = a;
   }
 
   /** The formula `true` is represented by the integer constant `1`. */
@@ -159,42 +185,57 @@ public:
   CUDA static this_type make_false() { return TFormula(Formula::template create<Z>(0)); }
 
   CUDA static this_type make_z(long long int i, AType atype = UNTYPED) {
-    return this_type(atype, Formula::template create<Z>(i));
+    return this_type(atype, EXACT, Formula::template create<Z>(i));
   }
 
-  CUDA static this_type make_real(double lb, double ub, AType atype = UNTYPED) {
-    return this_type(atype, Formula::template create<R>(battery::make_tuple(lb, ub)));
+  /** Create a term representing a real number which is approximated by interval [lb..ub].
+      By default the real number is supposedly over-approximated. */
+  CUDA static this_type make_real(double lb, double ub, AType atype = UNTYPED, Approx a = OVER) {
+    return this_type(atype, a, Formula::template create<R>(battery::make_tuple(lb, ub)));
   }
 
   /** The type of the formula is embedded in `v`. */
-  CUDA static this_type make_avar(AVar v) {
-    return this_type(AID(v), Formula::template create<V>(v));
+  CUDA static this_type make_avar(AVar v, Approx a = EXACT) {
+    return this_type(AID(v), a, Formula::template create<V>(v));
   }
 
-  CUDA static this_type make_avar(AType ty, int vid) {
-    return make_avar(make_var(ty, vid));
+  CUDA static this_type make_avar(AType ty, int vid, Approx a = EXACT) {
+    return make_avar(make_var(ty, vid), a);
   }
 
-  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
-    return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, children)));
+  CUDA static this_type make_lvar(AType ty, LVar<Allocator> lvar, Approx a = EXACT) {
+    return this_type(ty, a, Formula::template create<LV>(std::move(lvar)));
   }
 
-  CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, CType ctype, this_type subformula, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+    Sequence child(1, allocator);
+    child[0] = std::move(subformula);
+    return this_type(ty, a, Formula::template create<E>(battery::make_tuple(std::move(lvar), ctype, std::move(child))));
+  }
+
+  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+    return this_type(atype, a, Formula::template create<Seq>(battery::make_tuple(sig, children)));
+  }
+
+  CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
     Sequence children(1, allocator);
     children[0] = std::move(child);
-    return make_nary(sig, std::move(children), atype, allocator);
+    return make_nary(sig, std::move(children), atype, a, allocator);
   }
 
-  CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+  CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
     Sequence children(2, allocator);
     children[0] = std::move(lhs);
     children[1] = std::move(rhs);
-    return make_nary(sig, std::move(children), atype, allocator);
+    return make_nary(sig, std::move(children), atype, a, allocator);
   }
 
+  CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+    return this_type(atype, a, Formula::create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
+  }
 
-  CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
-    return this_type(atype, Formula::create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
+  CUDA int index() const {
+    return formula.index();
   }
 
   CUDA bool is(int kind) const {
@@ -219,6 +260,14 @@ public:
 
   CUDA AVar v() const {
     return get<V>(formula);
+  }
+
+  CUDA const LVar<Allocator>& lv() const {
+    return get<LV>(formula);
+  }
+
+  CUDA const Existential& exists() const {
+    return get<E>(formula);
   }
 
   CUDA Sig sig() const {
@@ -281,21 +330,21 @@ public:
     return eseq()[i];
   }
 
-
+  // CUDA void print(bool print_atype = true) const;
 private:
   template<size_t n>
-  CUDA void print_sequence() const {
+  CUDA void print_sequence(bool print_atype) const {
     auto op = std::get<0>(get<n>(formula));
     auto children = std::get<1>(get<n>(formula));
     assert(children.size() > 0);
     if(children.size() == 1) {
       ::print(op);
-      ::print(children[0]);
+      children[0].print(print_atype);
     }
     else {
       printf("(");
       for(int i = 0; i < children.size(); ++i) {
-        ::print(children[i]);
+        children[i].print(print_atype);
         if(i < children.size() - 1) {
           printf(" ");
           ::print(op);
@@ -307,16 +356,39 @@ private:
   }
 
 public:
-  CUDA void print(bool print_types = true) const {
+  CUDA void print(bool print_atype = true) const {
     switch(formula.index()) {
-      case Z: printf("%lld:long", z()); break;
-      case R: printf("[%lf..%lf]", get<0>(r()), get<1>(r())); break;
-      case V: printf("%d:var", v()); break;
-      case Seq: print_sequence<Seq>(); break;
-      case ESeq: print_sequence<ESeq>(); break;
-      default: assert(0); break;
+      case Z:
+        printf("%lld", z());
+        break;
+      case R:
+        printf("[%lf..%lf]", get<0>(r()), get<1>(r()));
+        break;
+      case V:
+        printf("var(%d)", v());
+        break;
+      case LV:
+        lv().print();
+        break;
+      case E:
+        if(print_atype) { printf("("); }
+        auto e = exists();
+        printf("\u2203");
+        get<0>(e).print();
+        switch(get<1>(e)) {
+          Int: printf(":Z"); break;
+          Real: printf(":R"); break;
+          default: printf("print: concrete type (CType) not handled.\n"); assert(false); break;
+        }
+        printf(", ");
+        get<2>(e).print(print_atype);
+        if(print_atype) { printf(")"); }
+        break;
+      case Seq: print_sequence<Seq>(print_atype); break;
+      case ESeq: print_sequence<ESeq>(print_atype); break;
+      default: printf("print: formula not handled.\n"); assert(false); break;
     }
-    if(print_types) {
+    if(print_atype) {
       printf(":%d", type_);
     }
   }
@@ -324,7 +396,7 @@ public:
 
 template<typename Allocator, typename ExtendedSig>
 CUDA bool operator==(const TFormula<Allocator, ExtendedSig>& lhs, const TFormula<Allocator, ExtendedSig>& rhs) {
-  return lhs.type() == rhs.type() && lhs.data() == rhs.data();
+  return lhs.type() == rhs.type() && lhs.approx() == rhs.approx() && lhs.data() == rhs.data();
 }
 
 /** \return `true` if the formula `f` has the shape `variable op constant`, e.g., `x < 4`. */
@@ -333,14 +405,58 @@ CUDA bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
   using F = TFormula<Allocator, ExtendedSig>;
   return f.is(F::Seq)
     && f.sig() == sig
-    && f.seq(0).is(F::V)
+    && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
     && f.seq(1).is(F::Z);
 }
 
 template<typename Allocator>
-CUDA TFormula<Allocator> make_v_op_z(AVar x, Sig sig, long long int i, const Allocator& allocator = Allocator()) {
+CUDA TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, long long int z, Approx a = EXACT, const Allocator& allocator = Allocator()) {
   typedef TFormula<Allocator> F;
-  return F::make_binary(F::make_avar(x), sig, F::make_z(i), UNTYPED, allocator);
+  return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), UNTYPED, a, allocator);
+}
+
+namespace impl {
+  template<typename Allocator, typename ExtendedSig>
+  CUDA const TFormula<Allocator, ExtendedSig>& var_in_impl(const TFormula<Allocator, ExtendedSig>& f, bool& found);
+
+  template<size_t n, typename Allocator, typename ExtendedSig>
+  CUDA const TFormula<Allocator, ExtendedSig>& find_var_in_seq(const TFormula<Allocator, ExtendedSig>& f, bool& found) {
+    auto children = std::get<1>(get<n>(f));
+    for(int i = 0; i < children.size(); ++i) {
+      auto subformula = var_in_impl(f, found);
+      if(found) {
+        return subformula;
+      }
+    }
+    return f;
+  }
+
+  template<typename Allocator, typename ExtendedSig>
+  CUDA const TFormula<Allocator, ExtendedSig>& var_in_impl(const TFormula<Allocator, ExtendedSig>& f, bool& found)
+  {
+    using F = TFormula<Allocator, ExtendedSig>;
+    switch(f.index()) {
+      case F::Z:
+      case F::R:
+        return f;
+      case F::V:
+      case F::E:
+      case F::LV:
+        found = true;
+        return f;
+      case F::Seq: return find_var_in_seq<F::Seq>(f, found);
+      case F::ESeq: return find_var_in_seq<F::ESeq>(f, found);
+      default: printf("var_in: formula not handled.\n"); assert(false); return false;
+    }
+  }
+}
+
+/** \return The first variable occurring in the formula, or any other subformula if the formula does not contain a variable.
+    It returns either a logical variable, an abstract variable or a quantifier. */
+template<typename Allocator, typename ExtendedSig>
+CUDA const TFormula<Allocator, ExtendedSig>& var_in(const TFormula<Allocator, ExtendedSig>& f) {
+  bool found = false;
+  return impl::var_in_impl(f, found);
 }
 
 /** `SFormula` is a formula to be solved with a possible optimisation mode (MINIMIZE or MAXIMIZE), otherwise it will enumerate `n` satisfiable solutions, if any. */
@@ -365,24 +481,27 @@ struct SFormula {
 This class is supposed to be used inside an abstract domain, to help with the conversion. */
 template<typename Allocator>
 class VarEnv {
-  typedef LVar<Allocator> vname;
-  typedef DArray<LVar<Allocator>, Allocator> env_type;
+public:
+  using LName = LVar<Allocator>;
+
+private:
+  using EnvType = DArray<LName, Allocator>;
 
   AType uid;
   /** Given an abstract variable `v`, `avar2lvar[VID(v)]` is the name of the variable. */
-  env_type avar2lvar;
+  EnvType avar2lvar;
   /** This is the number of variables in the environment. */
   size_t size_;
 
 public:
   CUDA VarEnv(AType uid, int capacity): uid(uid), avar2lvar(capacity), size_(0) {}
 
-  CUDA const vname& to_lvar(AVar av) const {
+  CUDA const LName& to_lvar(AVar av) const {
     assert(VID(av) < size_);
     return avar2lvar[VID(av)];
   }
 
-  CUDA thrust::optional<AVar> to_avar(const vname& lv) const {
+  CUDA thrust::optional<AVar> to_avar(const LName& lv) const {
     AVar i = 0;
     for(; i < size_; ++i) {
       if(avar2lvar[i] == lv) {
@@ -392,7 +511,7 @@ public:
     return {};
   }
 
-  CUDA AVar add(vname lv) {
+  CUDA AVar add(LName lv) {
     assert(size() < capacity());
     avar2lvar[size_++] = std::move(lv);
     return make_var(uid, size_ - 1);

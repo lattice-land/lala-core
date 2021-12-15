@@ -13,9 +13,28 @@
 
 using namespace lala;
 
-typedef TFormula<StandardAllocator> F;
+using F = TFormula<StandardAllocator>;
 
-static AVar var_x = 0;
+static LVar<StandardAllocator> var_x = "x";
+
+/** We must have `A::bot() < mid < A::top()`. */
+template <typename A>
+void bot_top_test(A mid) {
+  A bot = A::bot();
+  A top = A::top();
+  EXPECT_EQ(bot, A::bot());
+  EXPECT_EQ(top, A::top());
+  EXPECT_NE(top, bot);
+  EXPECT_TRUE(top.is_top());
+  EXPECT_TRUE(bot.is_bot());
+  EXPECT_FALSE(top.is_bot());
+  EXPECT_FALSE(bot.is_top());
+
+  EXPECT_FALSE(mid.is_bot());
+  EXPECT_FALSE(mid.is_top());
+  EXPECT_NE(bot, mid);
+  EXPECT_NE(top, mid);
+}
 
 template <typename A>
 void join_one_test(A a, A b, A expect, bool has_changed_expect) {
@@ -96,8 +115,8 @@ void generic_deinterpret_test() {
 }
 
 template<typename Universe>
-void test_formula(Approx appx, const F& f, thrust::optional<Universe> expect) {
-  thrust::optional<Universe> j = Universe::interpret(appx, f);
+void test_formula(const F& f, thrust::optional<Universe> expect) {
+  thrust::optional<Universe> j = Universe::interpret(f);
   EXPECT_EQ(j.has_value(), expect.has_value());
   EXPECT_EQ(j, expect);
 }
@@ -105,8 +124,7 @@ void test_formula(Approx appx, const F& f, thrust::optional<Universe> expect) {
 template<typename Universe>
 void test_interpret(Sig sig, Approx appx, typename Universe::ValueType elem, thrust::optional<Universe> expect) {
   test_formula<Universe>(
-    appx,
-    make_v_op_z(0, sig, elem, standard_allocator),
+    make_v_op_z(var_x, sig, elem, appx, standard_allocator),
     expect);
 }
 

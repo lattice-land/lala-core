@@ -7,8 +7,8 @@
 
 using namespace lala;
 
-typedef ZInc<int, StandardAllocator> zi;
-typedef ZDec<int, StandardAllocator> zd;
+using zi = ZInc<int, StandardAllocator>;
+using zd = ZDec<int, StandardAllocator>;
 
 template<typename A>
 void test_exact_op(A one) {

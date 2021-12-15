@@ -35,10 +35,10 @@ public:
   typedef AbstractDomain<T,A,U,Alloc> this_type;
 
   /** \return The least element \f$\bot\f$ of this abstract domain. */
-  CUDA /* static */ this_type* bot() const = 0;
+  CUDA /* static */ this_type* bot(AType uid = UNTYPED) const = 0;
 
   /** \return The largest element \f$\top\f$ of this abstract domain. */
-  CUDA /* static */ this_type* top() const = 0;
+  CUDA /* static */ this_type* top(AType uid = UNTYPED) const = 0;
 
   /** See `AbstractUniverse.interpret` and `TellElement`.
   \return An empty optional if the formula cannot be interpreted in the abstract domain, or if \f$\bot\f$ would be trivially returned in case of over-approximation (dually for \f$ \top \f$ and under-approximation).

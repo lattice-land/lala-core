@@ -83,8 +83,8 @@ public:
     - If `appx` is OVER: `op` can be, in addition to exact, `==`.
     */
   template<typename Formula>
-  CUDA static thrust::optional<this_type> interpret(Approx appx, const Formula& f) {
-     if(f.is_true()) {
+  CUDA static thrust::optional<this_type> interpret(const Formula& f) {
+    if(f.is_true()) {
       return bot();
     }
     else if(f.is_false()) {
@@ -97,11 +97,11 @@ public:
       return this_type(U::next(f.seq(1).z()));
     }
     // Under-approximation of `x != 4` as `next(4)`.
-    else if(is_v_op_z(f, NEQ) && appx == UNDER) {
+    else if(is_v_op_z(f, NEQ) && f.approx() == UNDER) {
       return this_type(U::next(f.seq(1).z()));
     }
     // Over-approximation of `x == 4` as `4`.
-    else if(is_v_op_z(f, EQ) && appx == OVER) {
+    else if(is_v_op_z(f, EQ) && f.approx() == OVER) {
       return this_type(f.seq(1).z());
     }
     return {};
@@ -163,14 +163,14 @@ public:
   /** \return \f$ x \geq i \f$ where `x` is a variable's name and `i` the integer value.
   `true` is returned whenever \f$ a = \bot \f$ and `false` whenever \f$ a = \top \f$. */
   template<typename Allocator = Alloc>
-  CUDA TFormula<Allocator> deinterpret(AVar x, const Allocator& allocator = Allocator()) const {
+  CUDA TFormula<Allocator> deinterpret(const LVar<Allocator>& x, const Allocator& allocator = Allocator()) const {
     if(is_top()) {
       return TFormula<Allocator>::make_false();
     }
     else if(is_bot()) {
       return TFormula<Allocator>::make_true();
     }
-    return make_v_op_z(x, U::sig_order(), val, allocator);
+    return make_v_op_z(x, U::sig_order(), val, EXACT, allocator);
   }
 
   template<typename Allocator = Alloc>

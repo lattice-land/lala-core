@@ -3,10 +3,8 @@
 #include "z.hpp"
 #include "generic_universe_test.hpp"
 
-using namespace lala;
-
-typedef ZInc<int, StandardAllocator> zi;
-typedef ZDec<int, StandardAllocator> zd;
+using zi = ZInc<int, StandardAllocator>;
+using zd = ZDec<int, StandardAllocator>;
 
 TEST(ZDeathTest, BadConstruction) {
   ASSERT_DEATH(zi(Limits<int>::bot()), "");
@@ -14,6 +12,11 @@ TEST(ZDeathTest, BadConstruction) {
   // Dual
   ASSERT_DEATH(zd(Limits<int>::bot()), "");
   ASSERT_DEATH(zd(Limits<int>::top()), "");
+}
+
+TEST(ZTest, TopBot) {
+  bot_top_test<zi>(zi(0));
+  bot_top_test<zd>(zd(0));
 }
 
 TEST(ZTest, ValidInterpret) {
@@ -74,22 +77,22 @@ TEST(ZTest, Split) {
 }
 
 TEST(ZTest, Deinterpret) {
-  F f10 = make_v_op_z(0, GEQ, 10, standard_allocator);
-  zi z10 = zi::interpret(EXACT, f10).value();
+  F f10 = make_v_op_z(var_x, GEQ, 10, EXACT, standard_allocator);
+  zi z10 = zi::interpret(f10).value();
   F f10_bis = z10.deinterpret(var_x);
   EXPECT_EQ(f10, f10_bis);
-  F f9 = make_v_op_z(0, GT, 9, standard_allocator);
-  zi z9 = zi::interpret(EXACT, f9).value();
+  F f9 = make_v_op_z(var_x, GT, 9, EXACT, standard_allocator);
+  zi z9 = zi::interpret(f9).value();
   F f9_bis = z9.deinterpret(var_x);
   EXPECT_EQ(f10, f9_bis);
   generic_deinterpret_test<zi>();
   // Dual
-  F f10_d = make_v_op_z(0, LEQ, 10, standard_allocator);
-  zd z10_d = zd::interpret(EXACT, f10_d).value();
+  F f10_d = make_v_op_z(var_x, LEQ, 10, EXACT, standard_allocator);
+  zd z10_d = zd::interpret(f10_d).value();
   F f10_bis_d = z10_d.deinterpret(var_x);
   EXPECT_EQ(f10_d, f10_bis_d);
-  F f11_d = make_v_op_z(0, LT, 11, standard_allocator);
-  zd z11_d = zd::interpret(EXACT, f11_d).value();
+  F f11_d = make_v_op_z(var_x, LT, 11, EXACT, standard_allocator);
+  zd z11_d = zd::interpret(f11_d).value();
   F f11_bis_d = z11_d.deinterpret(var_x);
   EXPECT_EQ(f10_d, f11_bis_d);
   generic_deinterpret_test<zd>();
