@@ -43,6 +43,22 @@ TEST(ZTest, NoInterpret) {
   test_all_interpret<zd>(GT, 10, {});
 }
 
+TEST(ZTest, ExistentialInterpret) {
+  Approx appxs[3] = {EXACT, UNDER, OVER};
+  for(int i = 0; i < 3; ++i) {
+    auto e = F::make_exists(0, var_x, Int, appxs[i]);
+    zi z = zi::bot();
+    ASSERT_TRUE(z.interpret(e).has_value());
+    ASSERT_EQ(*(z.interpret(e)), zi::bot());
+  }
+  auto e1 = F::make_exists(0, var_x, Real, EXACT);
+  ASSERT_FALSE(zi::bot().interpret(e1).has_value());
+  auto e2 = F::make_exists(0, var_x, Real, OVER);
+  ASSERT_FALSE(zi::bot().interpret(e2).has_value());
+  auto e3 = F::make_exists(0, var_x, Real, UNDER);
+  ASSERT_TRUE(zi::bot().interpret(e3).has_value());
+}
+
 TEST(ZTest, JoinMeet) {
   join_meet_generic_test(zi::bot(), zi::top());
   join_meet_generic_test(zi(0), zi(1));

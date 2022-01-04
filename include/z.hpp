@@ -78,9 +78,12 @@ public:
   CUDA explicit operator ValueType() const { return val; }
 
   /** Expects a predicate of the form `x <op> i` where `x` is any variable's name, and `i` an integer.
-    - If `appx` is EXACT: `op` can be `U::sig_order()` or `U::sig_strict_order()`.
-    - If `appx` is UNDER: `op` can be, in addition to exact, `!=`.
-    - If `appx` is OVER: `op` can be, in addition to exact, `==`.
+    - If `f.approx()` is EXACT: `op` can be `U::sig_order()` or `U::sig_strict_order()`.
+    - If `f.approx()` is UNDER: `op` can be, in addition to exact, `!=`.
+    - If `f.approx()` is OVER: `op` can be, in addition to exact, `==`.
+    Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom).
+    - The type `Int` is supported regardless of the approximation.
+    - If `f.approx()` is UNDER, then `T` can also be equal to `Real`.
     */
   template<typename Formula>
   CUDA static thrust::optional<this_type> interpret(const Formula& f) {
@@ -90,7 +93,16 @@ public:
     else if(f.is_false()) {
       return top();
     }
-    if(is_v_op_z(f, U::sig_order())) {      // e.g., x <= 4
+    else if(f.is(Formula::E)) {
+      CType ty = get<1>(f.exists());
+      if(ty == Int) {
+        return bot();
+      }
+      else if(ty == Real && f.approx() == UNDER) {
+        return bot();
+      }
+    }
+    else if(is_v_op_z(f, U::sig_order())) {      // e.g., x <= 4
       return this_type(f.seq(1).z());
     }
     else if(is_v_op_z(f, U::sig_strict_order())) {  // e.g., x < 4
