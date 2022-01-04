@@ -1,6 +1,5 @@
 // Copyright 2021 Pierre Talbot
 
-
 #ifndef GENERIC_UNIVERSE_TEST_HPP
 #define GENERIC_UNIVERSE_TEST_HPP
 

@@ -74,7 +74,7 @@ public:
   Also it only performs a write operation into `this` if \f$ a \sqcup b \neq a \f$, which is an important property for convergence. */
   CUDA virtual this_type& tell(const this_type& b, bool& has_changed) = 0;
 
-  /** Similar to `meet`, but in addition set `has_changed` to `true` if \f$ a \sqcup b \neq a \f$, that is, `this` has changed.
+  /** Similar to `meet`, but in addition set `has_changed` to `true` if \f$ a \sqcap b \neq a \f$, that is, `this` has changed.
    * `dtell` stands for _dual tell_. */
   CUDA virtual this_type& dtell(const this_type& b, bool& has_changed) = 0;
 

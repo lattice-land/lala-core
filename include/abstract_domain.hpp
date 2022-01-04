@@ -52,11 +52,15 @@ public:
   See also `AskElement`. */
   CUDA virtual thrust::optional<AskElement> interpret_ask(const Formula& f) = 0;
 
-  /** Compute \f$ a \sqcup [\![\varphi]\!] \f$ where \f$a\f$ (`this`) is the current element and \f$ [\![\varphi]\!] \f$ (`other`) an interpreted formula. */
-  CUDA virtual this_type& join(const TellElement& other) = 0;
+  /** Compute \f$ a \sqcup b \f$ where \f$a\f$ (`this`) is the current element and \f$ b \f$ (`other`) another abstract element. */
+  CUDA virtual this_type& join(const this_type& other) = 0;
 
-  /** Compute \f$ a \sqcap [\![\varphi]\!] \f$, see also `join`. */
-  CUDA virtual this_type& meet(const TellElement& other) = 0;
+  /** Compute \f$ a \sqcap b \f$, see also `join`. */
+  CUDA virtual this_type& meet(const this_type& other) = 0;
+
+  /** Similar to `join`, but in addition set `has_changed` to `true` if \f$ a \sqcup b \neq a \f$, that is, `this` has changed.
+  Also it only performs a write operation into `this` if \f$ a \sqcup b \neq a \f$, which is an important property for convergence. */
+  CUDA virtual this_type& tell(const TellElement& other, bool& has_changed) = 0;
 
   /** `refine` is an extensive function (\f$\forall{a \in A},~\mathit{refine}(a) \geq a \f$) refining an abstract element \f$a\f$.
   It can have additional properties such as being under- or over-approximating depending on the abstract domain.

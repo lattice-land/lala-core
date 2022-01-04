@@ -31,7 +31,7 @@ endif()
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        450dbb4056112cbc02b91fa010dd3f3bb011a6b4
+  GIT_TAG        1a377d4508d686686929707c9a95353c50419f8a
 )
 FetchContent_MakeAvailable(cuda_battery)
 

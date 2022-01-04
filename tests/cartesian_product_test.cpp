@@ -1,8 +1,8 @@
 // Copyright 2021 Pierre Talbot
 
-#include "generic_universe_test.hpp"
 #include "z.hpp"
 #include "cartesian_product.hpp"
+#include "generic_universe_test.hpp"
 
 using zi = ZInc<int, StandardAllocator>;
 using zd = ZDec<int, StandardAllocator>;

@@ -13,7 +13,7 @@ CUDA AVar make_var(AType atype, int var_id) {
   return (var_id << 8) | atype;
 }
 }
-
+namespace battery {
 template<>
 CUDA void print(const lala::Sig& sig) {
   using namespace lala;
@@ -40,4 +40,5 @@ CUDA void print(const lala::Sig& sig) {
       assert(false);
       break;
   }
+}
 }

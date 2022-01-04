@@ -10,6 +10,8 @@
 #include "variant.hpp"
 #include "thrust/optional.h"
 
+using namespace battery;
+
 namespace lala {
 
 /** Each abstract domain is uniquely identified by an UID.
@@ -83,8 +85,10 @@ enum Sig {
 };
 }
 
-template<>
-CUDA void print(const lala::Sig& sig);
+namespace battery {
+  template<>
+  CUDA void print(const lala::Sig& sig);
+}
 
 namespace lala {
 
@@ -97,13 +101,17 @@ This extended signature can also be used for representing exactly constant such 
 The AST of a formula is represented by a variant, where each alternative is described below.
 We represent everything at the same level (term, formula, predicate, variable, constant).
 This is generally convenient when modelling to avoid creating intermediate boolean variables when reifying.
-We can have `x + (x > y \/ y > x + 4)` and this expression is true if the value is != 0. */
+We can have `x + (x > y \/ y > x + 4)` and this expression is true if the value is != 0.
+
+Differently from first-order logic, the existential quantifier does not have a subformula, i.e., we write \f$ \exists{x:Int} \land \exists{y:Int} \land x < y\f$.
+This semantics comes from `dynamic predicate logic` where a formula is interpreted in a context (here the abstract element).
+(The exact connection of our framework to dynamic predicate logic is not yet perfectly clear.) */
 template<typename Allocator, typename ExtendedSig = String<Allocator>>
 class TFormula {
 public:
   using this_type = TFormula<Allocator, ExtendedSig>;
   using Sequence = DArray<this_type, Allocator>;
-  using Existential = battery::tuple<LVar<Allocator>, CType, Sequence>; // Note that the usage of Sequence instead of `this_type` is to enable recursivity inside the variant.
+  using Existential = battery::tuple<LVar<Allocator>, CType>;
   using Formula = Variant<
     long long int, ///< Constant in the domain of discourse that can be represented exactly.
     battery::tuple<double, double>,    ///< A real represented as an interval \f$ [d[0]..d[1]] \f$. Indeed, we sometimes cannot use a single `double` because it cannot represent all real numbers, it is up to the abstract domain to under- or over-approximate it, or choose an exact representation such as rational.
@@ -207,10 +215,8 @@ public:
     return this_type(ty, a, Formula::template create<LV>(std::move(lvar)));
   }
 
-  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, CType ctype, this_type subformula, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    Sequence child(1, allocator);
-    child[0] = std::move(subformula);
-    return this_type(ty, a, Formula::template create<E>(battery::make_tuple(std::move(lvar), ctype, std::move(child))));
+  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, CType ctype, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+    return this_type(ty, a, Formula::template create<E>(battery::make_tuple(std::move(lvar), ctype)));
   }
 
   CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
@@ -323,7 +329,7 @@ public:
   }
 
   CUDA Sequence& eseq() {
-    return std::get<1>(get<ESeq>(formula));
+    return get<1>(get<ESeq>(formula));
   }
 
   CUDA this_type& eseq(size_t i) {
@@ -334,8 +340,8 @@ public:
 private:
   template<size_t n>
   CUDA void print_sequence(bool print_atype) const {
-    auto op = std::get<0>(get<n>(formula));
-    auto children = std::get<1>(get<n>(formula));
+    const auto& op = get<0>(get<n>(formula));
+    const auto& children = get<1>(get<n>(formula));
     assert(children.size() > 0);
     if(children.size() == 1) {
       ::print(op);
@@ -372,7 +378,7 @@ public:
         break;
       case E:
         if(print_atype) { printf("("); }
-        auto e = exists();
+        const auto& e = exists();
         printf("\u2203");
         get<0>(e).print();
         switch(get<1>(e)) {
@@ -421,9 +427,9 @@ namespace impl {
 
   template<size_t n, typename Allocator, typename ExtendedSig>
   CUDA const TFormula<Allocator, ExtendedSig>& find_var_in_seq(const TFormula<Allocator, ExtendedSig>& f, bool& found) {
-    auto children = std::get<1>(get<n>(f));
+    const auto& children = get<1>(get<n>(f.data()));
     for(int i = 0; i < children.size(); ++i) {
-      auto subformula = var_in_impl(f, found);
+      const auto& subformula = var_in_impl(children[i], found);
       if(found) {
         return subformula;
       }
@@ -446,7 +452,7 @@ namespace impl {
         return f;
       case F::Seq: return find_var_in_seq<F::Seq>(f, found);
       case F::ESeq: return find_var_in_seq<F::ESeq>(f, found);
-      default: printf("var_in: formula not handled.\n"); assert(false); return false;
+      default: printf("var_in: formula not handled.\n"); assert(false); return f;
     }
   }
 }
@@ -496,6 +502,18 @@ private:
 public:
   CUDA VarEnv(AType uid, int capacity): uid(uid), avar2lvar(capacity), size_(0) {}
 
+  CUDA AType ad_uid() const {
+    return uid;
+  }
+
+  CUDA size_t capacity() const {
+    return avar2lvar.size();
+  }
+
+  CUDA size_t size() const {
+    return size_;
+  }
+
   CUDA const LName& to_lvar(AVar av) const {
     assert(VID(av) < size_);
     return avar2lvar[VID(av)];
@@ -517,18 +535,32 @@ public:
     return make_var(uid, size_ - 1);
   }
 
-  CUDA AType ad_uid() const {
-    return uid;
-  }
-
-  CUDA size_t capacity() const {
-    return avar2lvar.size();
-  }
-
-  CUDA size_t size() const {
-    return size_;
+  CUDA void reserve(int new_cap) {
+    if(new_cap > capacity()) {
+      EnvType avar2lvar2 = EnvType(new_cap);
+      for(int i = 0; i < avar2lvar.size(); ++i) {
+        avar2lvar2[i] = std::move(avar2lvar[i]);
+      }
+      avar2lvar = avar2lvar2;
+    }
   }
 };
+
+/** Given a formula `f` and an environment, return the first abstract variable (`AVar`) occurring in `f` or `-1` if `f` has no variable in `env`. */
+template <typename F, typename Allocator>
+CUDA thrust::optional<AVar> var_in(const F& f, const VarEnv<Allocator>& env) {
+  const auto& g = var_in(f);
+  switch(g.index()) {
+    case F::V:
+      return g.v();
+    case F::E:
+      return env.to_avar(get<0>(g.exists()));
+    case F::LV:
+      return env.to_avar(g.lv());
+    default:
+      return {};
+  }
+}
 
 } // namespace lala
 #endif
