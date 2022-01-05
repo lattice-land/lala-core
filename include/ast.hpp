@@ -546,7 +546,7 @@ public:
   }
 };
 
-/** Given a formula `f` and an environment, return the first abstract variable (`AVar`) occurring in `f` or `-1` if `f` has no variable in `env`. */
+/** Given a formula `f` and an environment, return the first abstract variable (`AVar`) occurring in `f` or `{}` if `f` has no variable in `env`. */
 template <typename F, typename Allocator>
 CUDA thrust::optional<AVar> var_in(const F& f, const VarEnv<Allocator>& env) {
   const auto& g = var_in(f);

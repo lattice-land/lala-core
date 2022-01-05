@@ -15,6 +15,7 @@ using namespace lala;
 using F = TFormula<StandardAllocator>;
 
 static LVar<StandardAllocator> var_x = "x";
+static LVar<StandardAllocator> var_y = "y";
 
 /** We must have `A::bot() < mid < A::top()`. */
 template <typename A>
