@@ -50,6 +50,5 @@ void test_exact_op(A one) {
 }
 
 TEST(ArithZTest, ExactOp) {
-  test_exact_op<zi>(zi(1));
-  test_exact_op(zd(1));
+  test_exact_op(1);
 }

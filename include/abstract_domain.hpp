@@ -44,7 +44,7 @@ public:
   \return An empty optional if the formula cannot be interpreted in the abstract domain, or if \f$\bot\f$ would be trivially returned in case of over-approximation (dually for \f$ \top \f$ and under-approximation).
   Otherwise, it returns the interpreted formula.
   The returned tell element must be joined later in the current abstract element `this` and not in another abstract element. */
-  CUDA virtual thrust::optional<TellElement> interpret(Approx appx, const Formula& f) = 0;
+  CUDA virtual thrust::optional<TellElement> interpret(const Formula& f) = 0;
 
   /** Similar to `interpret` but for the ask queries.
   A reasonable default implementation is `return interpret(UNDER, f)`, with `AskElement = TellElement`.

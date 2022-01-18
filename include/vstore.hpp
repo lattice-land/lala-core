@@ -26,10 +26,11 @@ public:
   using this_type = VStore<U, Allocator>;
 
   using TellType = DArray<battery::tuple<int, Universe>, EnvAllocator>;
+  using Env = VarEnv<EnvAllocator>;
 
 private:
   using Array = DArray<Universe, DataAllocator>;
-  using Env = VarEnv<EnvAllocator>;
+
   Array data;
   Env env;
   bool is_at_top;
@@ -157,7 +158,7 @@ public:
   */
   template <typename F>
   CUDA thrust::optional<TellType> interpret(const F& f, bool declaration_errors = true) {
-    if(f.is(F::Seq) && f.sig() == AND) {
+    if(f.type() == env.ad_uid() && f.is(F::Seq) && f.sig() == AND) {
       const typename F::Sequence& seq = f.seq();
       // 1. We collect all existential quantifiers to resize `data` and `env` if needed.
       //    We also check that all subformulas are interpretable in `U`.
@@ -251,64 +252,28 @@ public:
     return {};
   }
 
-  // /** See `AbstractUniverse.interpret` and `TellElement`.
-  // \return An empty optional if the formula cannot be interpreted in the abstract domain, or if \f$\bot\f$ would be trivially returned in case of over-approximation (dually for \f$ \top \f$ and under-approximation).
-  // Otherwise, it returns the interpreted formula.
-  // The returned tell element must be joined later in the current abstract element `this` and not in another abstract element. */
-  // CUDA virtual thrust::optional<TellElement> interpret(Approx appx, const Formula& f) = 0;
+  CUDA const Universe& project(AVar x) const {
+    return data[VID(x)];
+  }
 
-  // /** Similar to `interpret` but for the ask queries.
-  // A reasonable default implementation is `return interpret(UNDER, f)`, with `AskElement = TellElement`.
-  // If `f` is under-approximated, then \f$ entailment(f) \f$ will hold only if the solutions of `this` are included in the solution of `f`.
-  // See also `AskElement`. */
-  // CUDA virtual thrust::optional<AskElement> interpret_ask(const Formula& f) = 0;
+  CUDA Universe& project(AVar x) {
+    return data[VID(x)];
+  }
 
-  // /** Compute \f$ a \sqcup [\![\varphi]\!] \f$ where \f$a\f$ (`this`) is the current element and \f$ [\![\varphi]\!] \f$ (`other`) an interpreted formula. */
-  // CUDA virtual this_type& join(const TellElement& other) = 0;
+  CUDA this_type& embed(AVar x, const Universe& dom, bool& has_changed) {
+    is_at_top |= data[VID(x)].tell(dom, has_changed).is_top();
+    return *this;
+  }
 
-  // /** Compute \f$ a \sqcap [\![\varphi]\!] \f$, see also `join`. */
-  // CUDA virtual this_type& meet(const TellElement& other) = 0;
+  CUDA this_type& tell(const TellType& t, bool& has_changed) {
+    for(int i = 0; i < t.size(); ++i) {
+      embed(make_var(env.ad_uid(), get<0>(t[i])), get<1>(t[i]), has_changed);
+    }
+    return *this;
+  }
 
-  // /** `refine` is an extensive function (\f$\forall{a \in A},~\mathit{refine}(a) \geq a \f$) refining an abstract element \f$a\f$.
-  // It can have additional properties such as being under- or over-approximating depending on the abstract domain.
-  // \return `true` if the abstract element has changed and `false` if we reached a fixed point. */
-  // CUDA virtual bool refine() = 0;
+  CUDA const Env& environment() const { return env; }
 
-  // * The entailment, formally written \f$a \models \varphi\f$, is `true` whenever we can deduce a formula \f$\varphi\f$ from an abstract element \f$a\f$, i.e., \f$\gamma(a) \subseteq [\![\varphi]\!]\f$.
-  // Note that if it returns `false`, it can either mean \f$\lnot\varphi\f$ is entailed, or that we do not know yet if it is entailed or not.
-  // Therefore, to test for _disentailment_, you should ask if the negation of the formula is entailed.
-  // CUDA virtual bool entailment(const AskElement& element) const = 0;
-
-  // /** The projection of term onto the underlying abstract universe `Universe`.
-  // A common example is to project the domain of a variable `x` or a term such as `x + y` onto an interval or set variable domain.
-  // If you want to project a formula onto a Boolean, you should use `entailment` instead. */
-  // CUDA virtual Universe project(const TellElement& x) const = 0;
-
-  // /** The function `embed(x, dom)` is similar to \f$ a \sqcup [\![\varphi]\!] \f$ where \f$\varphi\f$ is a formula with a single variable equals to \f$ x \f$ and interpretable in `Universe`.
-  //  Here, the underlying element `Universe` has already been created. */
-  // CUDA virtual void embed(AVar x, const Universe& dom) = 0;
-
-  // /** See `AbstractUniverse.split`. */
-  // CUDA virtual DArray<TellElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
-
-  // /** See `AbstractUniverse.reset`. */
-  // CUDA virtual void reset(const this_type& b) = 0;
-
-  // /** See `AbstractUniverse.clone`. */
-  // CUDA virtual this_type* clone() const = 0;
-
-  // /** This function is the inverse of `interpret`, but directly maps to a general `Formula`.
-  //     Let \f$ a = [\![\varphi]\!]_A \f$, then we must have \f$ \gamma(a) = [\![[\![a]\!]^{-1}]\!]^\flat \f$. */
-  // CUDA virtual Formula deinterpret() const = 0;
-
-  // /** This function is similar to `deinterpret` but for a specific tell element, that is not necessarily in the abstract element yet. */
-  // CUDA virtual Formula deinterpret_tell(const TellElement& element) const = 0;
-
-  // /** This function is similar to `deinterpret` but for a specific ask element. */
-  // CUDA virtual Formula deinterpret_ask(const AskElement& element) const = 0;
-
-  // /** Print the current element with the logical name of the variables. */
-  // CUDA virtual void print() const = 0;
 };
 
 } // namespace lala
