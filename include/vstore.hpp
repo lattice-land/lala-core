@@ -202,9 +202,6 @@ public:
         // 4. We compress the resulting `tell_data`.
         int tell_elements = 0;
         for(int i = 0; i < tell_data.size(); ++i) {
-          if(tell_data[i].is_top()) {
-            return TellType(1, make_tuple(i, tell_data[i]));
-          }
           if(!tell_data[i].is_bot()) {
             ++tell_elements;
           }
@@ -256,18 +253,15 @@ public:
     return data[VID(x)];
   }
 
-  CUDA Universe& project(AVar x) {
-    return data[VID(x)];
-  }
-
-  CUDA this_type& embed(AVar x, const Universe& dom, bool& has_changed) {
-    is_at_top |= data[VID(x)].tell(dom, has_changed).is_top();
+  CUDA this_type& tell(AVar x, const Universe& dom, bool& has_changed) {
+    bool is_top_dom = data[VID(x)].tell(dom, has_changed).is_top();
+    if(is_top_dom) { is_at_top = true; }
     return *this;
   }
 
   CUDA this_type& tell(const TellType& t, bool& has_changed) {
     for(int i = 0; i < t.size(); ++i) {
-      embed(make_var(env.ad_uid(), get<0>(t[i])), get<1>(t[i]), has_changed);
+      tell(make_var(env.ad_uid(), get<0>(t[i])), get<1>(t[i]), has_changed);
     }
     return *this;
   }

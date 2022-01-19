@@ -79,13 +79,14 @@ void join_meet_generic_test(A a, A b) {
 
 template<typename A>
 void generic_order_test(A element) {
-  EXPECT_EQ(element.order(A::top()), true);
-  EXPECT_EQ(element.order(A::bot()), false);
-  EXPECT_EQ(A::bot().order(A::bot()), true);
-  EXPECT_EQ(A::top().order(A::top()), true);
-  EXPECT_EQ(A::top().order(A::bot()), false);
-  EXPECT_EQ(A::bot().order(A::top()), true);
-  EXPECT_EQ(A::top().order(element), false);
+  using B = typename A::dual_type;
+  EXPECT_EQ(element.order(B::bot()), true);
+  EXPECT_EQ(element.order(B::top()), false);
+  EXPECT_EQ(A::bot().order(B::top()), true);
+  EXPECT_EQ(A::top().order(B::bot()), true);
+  EXPECT_EQ(A::top().order(B::top()), false);
+  EXPECT_EQ(A::bot().order(B::bot()), true);
+  EXPECT_EQ(B::top().order(element), false);
 }
 
 template<typename A>

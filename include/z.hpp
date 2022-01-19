@@ -11,21 +11,11 @@
 namespace lala {
 
 template<typename VT>
-struct ZIncUniverse {
-  using ValueType = VT;
-  static ValueType next(ValueType i) { return i + 1; }
-  static ValueType bot() { return Limits<ValueType>::bot(); }
-  static ValueType top() { return Limits<ValueType>::top(); }
-  static ValueType join(ValueType x, ValueType y) { return max(x, y); }
-  static ValueType meet(ValueType x, ValueType y) { return min(x, y); }
-  static bool order(ValueType x, ValueType y) { return x <= y; }
-  static bool strict_order(ValueType x, ValueType y) { return x < y; }
-  static Sig sig_order() { return GEQ; }
-  static Sig sig_strict_order() { return GT; }
-};
+struct ZIncUniverse;
 
 template<typename VT>
 struct ZDecUniverse {
+  using dual_type = ZIncUniverse<VT>;
   using ValueType = VT;
   static ValueType next(ValueType i) { return i - 1; }
   static ValueType bot() { return Limits<ValueType>::top(); }
@@ -38,12 +28,32 @@ struct ZDecUniverse {
   static Sig sig_strict_order() { return LT; }
 };
 
+template<typename VT>
+struct ZIncUniverse {
+  using dual_type = ZDecUniverse<VT>;
+  using ValueType = VT;
+  static ValueType next(ValueType i) { return i + 1; }
+  static ValueType bot() { return Limits<ValueType>::bot(); }
+  static ValueType top() { return Limits<ValueType>::top(); }
+  static ValueType join(ValueType x, ValueType y) { return max(x, y); }
+  static ValueType meet(ValueType x, ValueType y) { return min(x, y); }
+  static bool order(ValueType x, ValueType y) { return x <= y; }
+  static bool strict_order(ValueType x, ValueType y) { return x < y; }
+  static Sig sig_order() { return GEQ; }
+  static Sig sig_strict_order() { return GT; }
+};
+
 template<typename ZUniverse, typename Alloc>
 class ZTotalOrder {
 public:
   using ValueType = typename ZUniverse::ValueType;
   using Allocator = Alloc;
   using this_type = ZTotalOrder<ZUniverse, Alloc>;
+  using dual_type = ZTotalOrder<typename ZUniverse::dual_type, Alloc>;
+
+  template<typename ZU, typename Al>
+  friend class ZTotalOrder;
+
 private:
   using U = ZUniverse;
 
@@ -63,6 +73,12 @@ public:
     this_type a;
     a.val = U::top();
     return a;
+  }
+
+  CUDA dual_type dual() const {
+    dual_type d;
+    d.val = val;
+    return d;
   }
 
   template<typename T, typename U>
@@ -168,9 +184,8 @@ public:
   }
 
   /** \f$ a \leq b\f$ is defined by `U::order`. */
-  CUDA bool order(const this_type& other) const {
-    return U::order(this->val, other.val);
-  }
+  CUDA bool order(const ValueType& val) const { return U::order(this->val, val); }
+  CUDA bool order(const dual_type& other) const { return order(other.value()); }
 
   /** \return \f$ x \geq i \f$ where `x` is a variable's name and `i` the integer value.
   `true` is returned whenever \f$ a = \bot \f$ and `false` whenever \f$ a = \top \f$. */

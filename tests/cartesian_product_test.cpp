@@ -95,12 +95,12 @@ TEST(CPTest, CPOrder) {
   Itv i_2 = Itv::bot().join<1>(zd(2));
   Itv i1_2 = Itv(1,2);
 
-  EXPECT_FALSE(i1_2.order(i1_));     // [1..2] <= [1..]
-  EXPECT_FALSE(i1_2.order(i_2));     // [1..2] <= [..2]
-  EXPECT_TRUE(i1_.order(i1_2));      // [1..] <= [1..2]
-  EXPECT_TRUE(i_2.order(i1_2));      // [..2] <= [1..2]
-  EXPECT_FALSE(i1_.order(i_2));      // [1..] <= [..2]
-  EXPECT_FALSE(i_2.order(i1_));       // [..2] <= [1..]
+  EXPECT_FALSE(i1_2.order(i1_.dual()));     // [1..2] <= [1..]
+  EXPECT_FALSE(i1_2.order(i_2.dual()));     // [1..2] <= [..2]
+  EXPECT_TRUE(i1_.order(i1_2.dual()));      // [1..] <= [1..2]
+  EXPECT_TRUE(i_2.order(i1_2.dual()));      // [..2] <= [1..2]
+  EXPECT_FALSE(i1_.order(i_2.dual()));      // [1..] <= [..2]
+  EXPECT_FALSE(i_2.order(i1_.dual()));       // [..2] <= [1..]
 }
 
 TEST(CPTest, CPSplit) {

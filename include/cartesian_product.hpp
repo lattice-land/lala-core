@@ -22,6 +22,9 @@ class CartesianProduct {
 public:
   using Allocator = typename TypeOf<0>::Allocator;
   using this_type = CartesianProduct<As...>;
+  using dual_type = CartesianProduct<typename As::dual_type...>;
+
+  template<class...Bs> friend class CartesianProduct;
 
   /** We suppose the underlying value type is the same for all components.
       `ValueType` is the value type of the first component. */
@@ -43,6 +46,10 @@ public:
   /** Similar to \f$[\![\mathit{false}]\!]\f$. */
   CUDA static this_type top() {
     return CartesianProduct(As::top()...);
+  }
+
+  CUDA dual_type dual() const {
+    return dual_type(typename As::dual_type(get<As>(val).dual())...);
   }
 
   template<size_t i, typename Formula>
@@ -93,6 +100,7 @@ public:
   }
 
 private:
+  // The non-const version must stay private, otherwise it violates the PCCP model since the caller might not check if the updated value is strictly greater w.r.t. lattice order.
   template<size_t i>
   CUDA TypeOf<i>& project() {
     return get<i>(val);
@@ -211,7 +219,7 @@ public:
 
   /** \f$ (a_1, \ldots, a_n) \leq (b_1, \ldots, b_n) \f$ holds when \f$ \forall{i \leq n},~a_i \leq_i b_i \f$. */
   template<size_t i = 0>
-  CUDA bool order(const this_type& other) const {
+  CUDA bool order(const dual_type& other) const {
     if constexpr (i < n) {
       bool is_leq = true;
       is_leq = project<i>().order(get<i>(other.val));

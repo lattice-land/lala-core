@@ -72,18 +72,18 @@ TEST(ZTest, JoinMeet) {
 }
 
 TEST(ZTest, Order) {
-  EXPECT_EQ(zi(0).order(zi(0)), true);
-  EXPECT_EQ(zi(1).order(zi(0)), false);
-  EXPECT_EQ(zi(0).order(zi(1)), true);
-  EXPECT_EQ(zi(0).order(zi(-1)), false);
-  EXPECT_EQ(zi(-1).order(zi(0)), true);
+  EXPECT_EQ(zi(0).order(zd(0)), true);
+  EXPECT_EQ(zi(1).order(zd(0)), false);
+  EXPECT_EQ(zi(0).order(zd(1)), true);
+  EXPECT_EQ(zi(0).order(zd(-1)), false);
+  EXPECT_EQ(zi(-1).order(zd(0)), true);
   generic_order_test(zi(0));
   // Dual
-  EXPECT_EQ(zd(0).order(zd(0)), true);
-  EXPECT_EQ(zd(1).order(zd(0)), true);
-  EXPECT_EQ(zd(0).order(zd(1)), false);
-  EXPECT_EQ(zd(0).order(zd(-1)), true);
-  EXPECT_EQ(zd(-1).order(zd(0)), false);
+  EXPECT_EQ(zd(0).order(zi(0)), true);
+  EXPECT_EQ(zd(1).order(zi(0)), true);
+  EXPECT_EQ(zd(0).order(zi(1)), false);
+  EXPECT_EQ(zd(0).order(zi(-1)), true);
+  EXPECT_EQ(zd(-1).order(zi(0)), false);
   generic_order_test(zd(0));
 }
 
