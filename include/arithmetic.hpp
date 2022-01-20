@@ -17,8 +17,11 @@ Precondition: For efficiency purposes, all operators suppose their arguments to 
 
 namespace lala {
 
-template<typename U>
-using IsInteger = std::enable_if_t<std::numeric_limits<U>::is_integer, bool>;
+template<typename K>
+using IsInteger = std::enable_if_t<std::numeric_limits<K>::is_integer, bool>;
+
+template<Approx appx> using IsUnder = std::enable_if_t<appx == UNDER, bool>;
+template<Approx appx> using IsOver = std::enable_if_t<appx == OVER, bool>;
 
 // I. Integer-like functions
 // =========================
@@ -26,33 +29,27 @@ using IsInteger = std::enable_if_t<std::numeric_limits<U>::is_integer, bool>;
 // I.a Ground functions
 // --------------------
 
-template<typename U, IsInteger<U> = true> CUDA U neg(U a) { return -a; }
-template<typename U, IsInteger<U> = true> CUDA U add(U a, U b) { return a + b; }
-template<typename U, IsInteger<U> = true> CUDA U sub(U a, U b) { return a - b; }
-template<typename U, IsInteger<U> = true> CUDA U mul(U a, U b) { return a * b; }
+template<Approx appx = EXACT, typename K, IsInteger<K> = true> CUDA K neg(K a) { return -a; }
+template<Approx appx = EXACT, typename K, IsInteger<K> = true> CUDA K add(K a, K b) { return a + b; }
+template<Approx appx = EXACT, typename K, IsInteger<K> = true> CUDA K sub(K a, K b) { return a - b; }
+template<Approx appx = EXACT, typename K, IsInteger<K> = true> CUDA K mul(K a, K b) { return a * b; }
 
-template<typename U, IsInteger<U> = true> CUDA U neg_up(U a) { return neg(a); }
-template<typename U, IsInteger<U> = true> CUDA U add_up(U a, U b) { return add(a, b); }
-template<typename U, IsInteger<U> = true> CUDA U sub_up(U a, U b) { return sub(a, b); }
-template<typename U, IsInteger<U> = true> CUDA U mul_up(U a, U b) { return mul(a, b); }
-template<typename U, IsInteger<U> = true>
-CUDA U div_up(U a, U b) {
+/** Rounding up the result a / b (towards infinity). */
+template<Approx appx, typename K, IsInteger<K> = true, IsUnder<appx> = true>
+CUDA K div(K a, K b) {
   assert(b != 0);
-  U r = a / b;
+  K r = a / b;
   // division is rounded towards zero.
   // We add one only if `r` was truncated and `a, b` are of equal sign (so the division operated in the positive numbers).
   // Inspired by https://stackoverflow.com/questions/921180/how-can-i-ensure-that-a-division-of-integers-is-always-rounded-up/926806#926806
   return (a % b != 0 && a > 0 == b > 0) ? r + 1 : r;
 }
 
-template<typename U, IsInteger<U> = true> CUDA U neg_down(U a) { return neg(a); }
-template<typename U, IsInteger<U> = true> CUDA U add_down(U a, U b) { return add(a, b); }
-template<typename U, IsInteger<U> = true> CUDA U sub_down(U a, U b) { return sub(a, b); }
-template<typename U, IsInteger<U> = true> CUDA U mul_down(U a, U b) { return mul(a, b); }
-template<typename U, IsInteger<U> = true>
-CUDA U div_down(U a, U b) {
+/** Rounding down the result a / b (towards negative infinity). */
+template<Approx appx, typename K, IsInteger<K> = true, IsOver<appx> = true>
+CUDA K div(K a, K b) {
   assert(b != 0);
-  U r = a / b;
+  K r = a / b;
   return (a % b != 0 && a > 0 != b > 0) ? r - 1 : r;
 }
 }
