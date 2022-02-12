@@ -1,0 +1,7 @@
+a*b z+  z-  zi+   zi-   zd+   zd-
+z+  z+  z-  zi+   zi-   zd+   zd-
+z-  z-  z+  zd-   zd+   zi-   zi+
+zi+ zi+ zd- zi+   -     -     zd-
+zi- zi- zd+ -     zd+   zi-   -
+zd+ zd+ zi- -     zi-   zd+   -
+zd- zd- zi+ zd-   -     -     zi+

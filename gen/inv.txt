@@ -1,0 +1,2 @@
+inv(a) z+  z-  zi+   zi-   zd+   zd-
+-      z+  z-  zd+   zd-   zi+   zi-

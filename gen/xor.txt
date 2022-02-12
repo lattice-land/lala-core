@@ -1,0 +1,4 @@
+xor(a,b) B  BI  BD
+B        B  -   -
+BI       -  -   -
+BD       -  -   -
