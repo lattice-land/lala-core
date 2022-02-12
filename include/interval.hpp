@@ -14,28 +14,33 @@ class Interval {
     using UB = typename LB::dual_type;
     using this_type = Interval<LB>;
     using dual_type = Interval<UB>;
+    using CP = CartesianProduct<LB, UB>;
+    using ValueType = typename CP::ValueType;
 
     template <typename A>
     friend class Interval;
 
   private:
-    using CP = CartesianProduct<LB, UB>;
     CP cp;
     CUDA Interval(CP&& cp): cp(cp) {}
     CUDA Interval(const CP& cp): cp(cp) {}
 
   public:
-    using Allocator = typename CP::Allocator;
-
     CUDA Interval(LB&& lb, UB&& ub): cp(std::forward<LB>(lb), std::forward<UB>(ub)) {}
     CUDA Interval(const LB& lb, const UB& ub): cp(lb, ub) {}
     CUDA Interval(const this_type& other): cp(other.cp) {}
+    CUDA this_type& operator=(this_type&& other) {
+      cp = std::move(other.cp);
+      return *this;
+    }
 
     CUDA static this_type bot() { return Interval(CP::bot()); }
     CUDA static this_type top() { return Interval(CP::top()); }
-    CUDA bool is_top() const { return cp.is_top() || !(lb().order(ub())); }
-    CUDA bool is_bot() const { return cp.is_bot(); }
+    CUDA BInc is_top() const { return lor(cp.is_top(), gt<LB>(lb(), ub())); }
+    CUDA BDec is_bot() const { return cp.is_bot(); }
     CUDA dual_type dual() const { return dual_type(cp.dual()); }
+    CUDA const CP& as_product() const { return cp; }
+    CUDA ValueType value() const { return cp.value(); }
 
     template<typename F>
     CUDA static thrust::optional<this_type> interpret(const F& f) {
@@ -45,7 +50,7 @@ class Interval {
         if(lb.has_value()) {
           auto ub = CP::template interpret_one<1>(F::make_binary(f.seq(0), LEQ, f.seq(1), UNTYPED, f.approx()));
           if(ub.has_value()) {
-            return Interval(lb->join(*ub));
+            return Interval(join(*lb,*ub));
           }
         }
       }
@@ -54,7 +59,7 @@ class Interval {
         auto x = CP::interpret(f);
         if(x.has_value()) {
           auto itv = Interval(*x);
-          if(!itv.is_top()) {
+          if(!itv.is_top().value()) {
             return itv;
           }
         }
@@ -71,34 +76,40 @@ class Interval {
       return {};
     }
 
-    CUDA const LB& lb() const { return cp.template project<0>(); }
-    CUDA const UB& ub() const { return cp.template project<1>(); }
-    CUDA this_type& tell(const LB& lb, bool& has_changed) {
+    CUDA const LB& lb() const { return project<0>(cp); }
+    CUDA const UB& ub() const { return project<1>(cp); }
+    CUDA this_type& tell(const LB& lb, BInc& has_changed) {
       cp.tell(lb, has_changed);
       return *this;
     }
-    CUDA this_type& tell(const UB& ub, bool& has_changed) {
+    CUDA this_type& tell(const UB& ub, BInc& has_changed) {
       cp.tell(ub, has_changed);
       return *this;
     }
-    CUDA this_type& tell(const this_type& other, bool& has_changed) {
+    CUDA this_type& tell(const this_type& other, BInc& has_changed) {
       cp.tell(other.cp, has_changed);
       return *this;
     }
-    CUDA this_type& join(const this_type& other) {
-      cp.join(other.cp);
+    CUDA this_type& dtell(const LB& lb, BInc& has_changed) {
+      cp.dtell(lb, has_changed);
       return *this;
     }
-    CUDA bool order(const dual_type& other) const { return cp.order(other.cp); }
-    CUDA void reset(const this_type& other) { cp.reset(other.cp); }
+    CUDA this_type& dtell(const UB& ub, BInc& has_changed) {
+      cp.dtell(ub, has_changed);
+      return *this;
+    }
+    CUDA this_type& dtell(const this_type& other, BInc& has_changed) {
+      cp.dtell(other.cp, has_changed);
+      return *this;
+    }
     CUDA this_type clone() const { return this_type(cp.clone()); }
 
-    template<typename Alloc = Allocator>
-    CUDA TFormula<Alloc> deinterpret(const LVar<Allocator>& x, const Alloc& allocator = Alloc()) const {
-      if(is_top()) {
+    template<class Allocator>
+    CUDA TFormula<Allocator> deinterpret(const LVar<Allocator>& x, const Allocator& allocator = Allocator()) const {
+      if(is_top().guard()) {
         return TFormula<Allocator>::make_false();
       }
-      else if(is_bot()) {
+      else if(is_bot().value()) {
         return TFormula<Allocator>::make_true();
       }
       else {
@@ -106,6 +117,7 @@ class Interval {
       }
     }
 
+    template<class Allocator>
     CUDA void print(const LVar<Allocator>& x) const {
       printf("[");
       ::print(lb());
@@ -115,16 +127,39 @@ class Interval {
     }
 };
 
-template<class U>
-CUDA bool operator==(const Interval<U>& lhs, const Interval<U>& rhs) {
-  return lhs.lb() == rhs.lb() && lhs.ub() == rhs.ub();
+template<class L, class K>
+CUDA typename join_t<Interval<L>, Interval<K>>::type
+join(const Interval<L>& a, const Interval<K>& b)
+{
+  using R = typename join_t<Interval<L>, Interval<K>>::type;
+  return R(join(a.as_product(), b.as_product()));
 }
 
-template<class U>
-CUDA bool operator!=(const Interval<U>& lhs, const Interval<U>& rhs) {
-  return !(lhs == rhs);
+template<class L, class K>
+CUDA typename meet_t<Interval<L>, Interval<K>>::type
+meet(const Interval<L>& a, const Interval<K>& b)
+{
+  using R = typename meet_t<Interval<L>, Interval<K>>::type;
+  return R(meet(a.as_product(), b.as_product()));
 }
 
+template<class O, class L, class K>
+CUDA typename leq_t<O, Interval<L>, Interval<K>>::type leq(
+  const Interval<L>& a,
+  const Interval<K>& b)
+{
+  return leq<typename O::CP>(a.as_product(), b.as_product());
 }
+
+template<class O, class L, class K>
+CUDA typename lt_t<O, Interval<L>, Interval<K>>::type lt(
+  const Interval<L>& a,
+  const Interval<K>& b)
+{
+  return lt<typename O::CP>(a.as_product(), b.as_product());
+}
+
+
+} // namespace lala
 
 #endif

@@ -4,6 +4,7 @@
 #define VSTORE_HPP
 
 #include "ast.hpp"
+#include "z.hpp"
 
 namespace lala {
 
@@ -13,8 +14,8 @@ The top element is smashed and the equality between two stores is represented by
 \f$ S \equiv T \Leftrightarrow \forall{x \in \mathit{Vars}},~S(x) = T(x) \lor \exists{x \in \mathit{dom}(S)},\exists{y \in \mathit{dom}(T)},~S(x) = \top \land T(x) = \top \f$.
 Intuitively, it means that either all elements are equal or both stores have a top element, in which case they "collapse" to the top element, and are considered equal.
 
-  `DataAlloc` is the allocator of the underlying array of universes.
-  `EnvAlloc` is the allocator of the mapping between names (LVar) and indices in the store (AVar).
+  `DataAllocator` is the allocator of the underlying array of universes.
+  `EnvAllocator` is the allocator of the mapping between names (LVar) and indices in the store (AVar).
 On some architecture, such as GPU, it is better to store the data in the shared memory whenever possible, while the environment can stay in the global memory because it is usually not queried during solving (but before or after). */
 template<class U, class Alloc>
 class VStore {
@@ -33,17 +34,17 @@ private:
 
   Array data;
   Env env;
-  bool is_at_top;
+  BInc is_at_top;
 
 public:
   /** Initialize an empty store equivalent to \f$ \bot \f$ with memory reserved for `n` variables. */
   CUDA VStore(AType uid, size_t n,
-    DataAllocator alloc = DataAllocator()): data(n, Universe::bot(), alloc), env(uid, n), is_at_top(false) {}
+    DataAllocator alloc = DataAllocator()): data(n, Universe::bot(), alloc), env(uid, n), is_at_top(BInc::bot()) {}
   CUDA VStore(const VStore& other): data(other.data), env(other.env), is_at_top(other.is_at_top) {}
   CUDA VStore(VStore&& other): data(std::move(other.data)), env(std::move(other.env)), is_at_top(other.is_at_top) {}
 
   /** Returns the number of variables currently represented by this abstract element. */
-  CUDA int vars() const {
+  CUDA ZPInc<int> vars() const {
     return env.size();
   }
 
@@ -54,46 +55,25 @@ public:
   /** A special symbolic element representing top. */
   CUDA static this_type top(AType uid = UNTYPED) {
     VStore s(uid, 0);
-    s.is_at_top = true;
+    s.is_at_top = BInc::top();
     return std::move(s);
   }
 
   /** `true` if at least one element is equal to top in the store, `false` otherwise. */
-  CUDA bool is_top() const {
+  CUDA BInc is_top() const {
     return is_at_top;
   }
 
   /** Bottom is represented by the empty variable store. */
-  CUDA bool is_bot() const {
-    return !is_at_top && vars() == 0;
-  }
-
-  template<typename U2, typename Alloc2>
-  CUDA bool operator==(const VStore<U2, Alloc2>& other) const {
-    if(is_top()) {
-      return other.is_top();
-    }
-    if(vars() != other.vars()) {
-      return false;
-    }
-    for(int i = 0; i < vars(); ++i) {
-      if(data[i] != other.data[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  template<typename U2, typename Alloc2>
-  CUDA bool operator!=(const VStore<U2, Alloc2>& other) const {
-    return !(*this == other);
+  CUDA BDec is_bot() const {
+    return land(is_at_top.is_bot(), vars().is_bot());
   }
 
 private:
   CUDA void resize(int newsize) {
     Array data2(newsize, Universe::bot(), data.get_allocator());
-    for(int i = 0; i < vars(); ++i) {
-      data2[i] = data[i];
+    for(int i = 0; i < vars().value(); ++i) {
+      data2[i] = std::move(data[i]);
     }
     data = std::move(data2);
     env.reserve(newsize);
@@ -101,7 +81,7 @@ private:
 
   // Redeclaration of variable is not supported.
   // That does not depend on the approximation because ignoring it might lead to some subformulas to rely on the preexisting variable instead of the one we just ignored, which might eventually lead to unsound results.
-  template <typename F>
+  template <class F>
   CUDA bool check_declaration_errors(const typename F::Sequence& seq, int i) const {
     auto var = var_in(seq[i], env);
     if(seq[i].is(F::E)) {
@@ -156,7 +136,7 @@ public:
 
     PoolAllocator (for shared memory) does not support deallocation of memory, therefore you should call interpret once with all existential quantifiers first to avoid reallocating this array (and wasting shared memory space).
   */
-  template <typename F>
+  template <class F>
   CUDA thrust::optional<TellType> interpret(const F& f, bool declaration_errors = true) {
     if(f.type() == env.ad_uid() && f.is(F::Seq) && f.sig() == AND) {
       const typename F::Sequence& seq = f.seq();
@@ -177,8 +157,8 @@ public:
           return {};
         }
       }
-      if(vars() + newvars >= env.capacity()) {
-        resize(vars() + newvars);
+      if(vars().value() + newvars >= env.capacity()) {
+        resize(vars().value() + newvars);
       }
       // 2. We extend the environment with new bindings.
       for(int i = 0; i < seq.size(); ++i) {
@@ -189,26 +169,27 @@ public:
       }
       // 3. We convert each subformula to its corresponding universe element.
       if(seq.size() > newvars) {
-        DArray<U, EnvAllocator> tell_data(vars(), Universe::bot());
+        DArray<U, EnvAllocator> tell_data(vars().value(), Universe::bot());
         for(int i = 0; i < seq.size(); ++i) {
           if(!seq[i].is(F::E)) {
             auto u = Universe::interpret(seq[i]);
             if(u.has_value()) {
               thrust::optional<AVar> v = var_in(seq[i], env);
-              tell_data[VID(*v)].join(*u);
+              BInc has_changed_ = BInc::bot();
+              tell_data[VID(*v)].tell(*u, has_changed_);
             }
           }
         }
         // 4. We compress the resulting `tell_data`.
         int tell_elements = 0;
         for(int i = 0; i < tell_data.size(); ++i) {
-          if(!tell_data[i].is_bot()) {
+          if(lnot(tell_data[i].is_bot()).guard()) {
             ++tell_elements;
           }
         }
         TellType res(tell_elements, make_tuple(0,tell_data[0]));
         for(int i = 0, j = 0; i < tell_data.size(); ++i) {
-          if(!tell_data[i].is_bot()) {
+          if(lnot(tell_data[i].is_bot()).guard()) {
             res[j] = make_tuple(i, tell_data[i]);
             j++;
           }
@@ -227,7 +208,7 @@ public:
             return {}; // redeclaration
           }
           else {
-            resize(vars() + 1);
+            resize(vars().value() + 1);
             const auto& var_name = get<0>(f.exists());
             env.add(var_name);
             return TellType();
@@ -236,7 +217,7 @@ public:
         else {
           thrust::optional<AVar> v = var_in(f, env);
           if(v.has_value()) {
-            if(u->is_bot()) {
+            if(u->is_bot().value()) {
               return TellType();
             }
             else {
@@ -253,13 +234,13 @@ public:
     return data[VID(x)];
   }
 
-  CUDA this_type& tell(AVar x, const Universe& dom, bool& has_changed) {
-    bool is_top_dom = data[VID(x)].tell(dom, has_changed).is_top();
-    if(is_top_dom) { is_at_top = true; }
+  CUDA this_type& tell(AVar x, const Universe& dom, BInc& has_changed) {
+    data[VID(x)].tell(dom, has_changed);
+    is_at_top.tell(data[VID(x)].is_top(), has_changed);
     return *this;
   }
 
-  CUDA this_type& tell(const TellType& t, bool& has_changed) {
+  CUDA this_type& tell(const TellType& t, BInc& has_changed) {
     for(int i = 0; i < t.size(); ++i) {
       tell(make_var(env.ad_uid(), get<0>(t[i])), get<1>(t[i]), has_changed);
     }

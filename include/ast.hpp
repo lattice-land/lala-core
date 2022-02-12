@@ -51,6 +51,10 @@ enum Approx {
   EXACT ///< An exact element is both under- and over-approximating; it exactly represents the set of solutions.
 };
 
+static constexpr Approx dapprox(Approx appx) {
+  return appx == EXACT ? EXACT : (appx == UNDER ? OVER : UNDER);
+}
+
 /** A first-order signature is a triple \f$ (X, F, P) \f$ where \f$ X \f$ is the set of variables, \f$ F \f$ the set of function symbols and \f$ P \f$ the set of predicates.
   We represent \f$ X \f$ by strings (see `LVar`), while \f$ F \f$ and \f$ P \f$ are described in the following enumeration `Sig`.
   For programming conveniency, we suppose that logical connectors are included in the set of predicates and thus are in the signature as well.
@@ -68,7 +72,8 @@ enum Approx {
  */
 enum Sig {
   ///@{
-  NEG, ADD, SUB, MUL, DIV, MOD, POW,  ///< Arithmetic function symbol.
+  NEG, ABS, SQR, ///< Unary arithmetic function symbol.
+  ADD, SUB, MUL, DIV, MOD, POW,  ///< Binary arithmetic function symbol.
   ///@}
   JOIN,   ///< The join operator \f$ x \sqcup y \f$ (function \f$\sqcup: L \times L \to L \f$). For instance, on the lattice of increasing integers it is the max function, on the lattice of increasing sets it is the union.
   MEET,   ///< The meet operator \f$ x \sqcap y \f$ (function \f$\sqcap: L \times L \to L \f$). For instance, on the lattice of increasing integers it is the min function, on the lattice of increasing sets it is the intersection.
@@ -336,7 +341,6 @@ public:
     return eseq()[i];
   }
 
-  // CUDA void print(bool print_atype = true) const;
 private:
   template<size_t n>
   CUDA void print_sequence(bool print_atype) const {
@@ -344,8 +348,11 @@ private:
     const auto& children = get<1>(get<n>(formula));
     assert(children.size() > 0);
     if(children.size() == 1) {
-      ::print(op);
+      if(op == ABS) printf("|");
+      else if(op != SQR) ::print(op);
       children[0].print(print_atype);
+      if(op == ABS) printf("|");
+      else if(op == SQR) printf("^2");
     }
     else {
       printf("(");

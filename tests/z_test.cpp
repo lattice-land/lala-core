@@ -3,8 +3,8 @@
 #include "z.hpp"
 #include "generic_universe_test.hpp"
 
-using zi = ZInc<int, StandardAllocator>;
-using zd = ZDec<int, StandardAllocator>;
+using zi = ZInc<int>;
+using zd = ZDec<int>;
 
 TEST(ZDeathTest, BadConstruction) {
   ASSERT_DEATH(zi(Limits<int>::bot()), "");
@@ -49,7 +49,7 @@ TEST(ZTest, ExistentialInterpret) {
     auto e = F::make_exists(0, var_x, Int, appxs[i]);
     zi z = zi::bot();
     ASSERT_TRUE(z.interpret(e).has_value());
-    ASSERT_EQ(*(z.interpret(e)), zi::bot());
+    ASSERT_TRUE(z.interpret(e)->is_bot().value());
   }
   auto e1 = F::make_exists(0, var_x, Real, EXACT);
   ASSERT_FALSE(zi::bot().interpret(e1).has_value());
@@ -72,18 +72,18 @@ TEST(ZTest, JoinMeet) {
 }
 
 TEST(ZTest, Order) {
-  EXPECT_EQ(zi(0).order(zd(0)), true);
-  EXPECT_EQ(zi(1).order(zd(0)), false);
-  EXPECT_EQ(zi(0).order(zd(1)), true);
-  EXPECT_EQ(zi(0).order(zd(-1)), false);
-  EXPECT_EQ(zi(-1).order(zd(0)), true);
+  EXPECT_EQ2((leq<zi>(zi(0), zd(0))), true);
+  EXPECT_EQ2((leq<zi>(zi(1), zd(0))), false);
+  EXPECT_EQ2((leq<zi>(zi(0), zd(1))), true);
+  EXPECT_EQ2((leq<zi>(zi(0), zd(-1))), false);
+  EXPECT_EQ2((leq<zi>(zi(-1), zd(0))), true);
   generic_order_test(zi(0));
   // Dual
-  EXPECT_EQ(zd(0).order(zi(0)), true);
-  EXPECT_EQ(zd(1).order(zi(0)), true);
-  EXPECT_EQ(zd(0).order(zi(1)), false);
-  EXPECT_EQ(zd(0).order(zi(-1)), true);
-  EXPECT_EQ(zd(-1).order(zi(0)), false);
+  EXPECT_EQ2((leq<zd>(zd(0), zi(0))), true);
+  EXPECT_EQ2((leq<zd>(zd(1), zi(0))), true);
+  EXPECT_EQ2((leq<zd>(zd(0), zi(1))), false);
+  EXPECT_EQ2((leq<zd>(zd(0), zi(-1))), true);
+  EXPECT_EQ2((leq<zd>(zd(-1), zi(0))), false);
   generic_order_test(zd(0));
 }
 

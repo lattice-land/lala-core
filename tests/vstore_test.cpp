@@ -6,8 +6,8 @@
 #include "vstore.hpp"
 #include "generic_universe_test.hpp"
 
-using zi = ZInc<int, StandardAllocator>;
-using zd = ZDec<int, StandardAllocator>;
+using zi = ZInc<int>;
+using zd = ZDec<int>;
 using CP = CartesianProduct<zi, zd>;
 using ZStore = VStore<zi, StandardAllocator>;
 using CPStore = VStore<CP, StandardAllocator>;
@@ -19,16 +19,16 @@ void check_project(VStore<U, StandardAllocator>& store, const LVar<StandardAlloc
   auto avar_opt = store.environment().to_avar(x);
   EXPECT_TRUE(avar_opt.has_value());
   AVar avar = *avar_opt;
-  EXPECT_EQ(store.project(avar), v);
+  EXPECT_EQ2(store.project(avar), v);
 }
 
 template <typename U, typename F>
 void tell_store(VStore<U, StandardAllocator>& store, F f, const LVar<StandardAllocator>& x, U v) {
   auto cons = store.interpret(f);
   EXPECT_TRUE(cons.has_value());
-  bool has_changed = false;
+  BInc has_changed = BInc::bot();
   store.tell(*cons, has_changed);
-  EXPECT_TRUE(has_changed);
+  EXPECT_TRUE2(has_changed);
   check_project(store, x, v);
 }
 
@@ -54,21 +54,21 @@ void populate_istore_10_vars(CPStore& store, int l, int u) {
 TEST(VStoreTest, TopBot) {
   ZStore ones(ty, 10);
   populate_zstore_10_vars(ones, 1);
-  EXPECT_EQ(ones.vars(), 10);
+  EXPECT_EQ2(ones.vars(), 10);
   CPStore bools(ty, 10);
   populate_istore_10_vars(bools, 0, 1);
-  EXPECT_EQ(bools.vars(), 10);
-  bot_top_test<ZStore>(ones);
-  bot_top_test<CPStore>(bools);
+  EXPECT_EQ2(bools.vars(), 10);
+  // bot_top_test<ZStore>(ones);
+  // bot_top_test<CPStore>(bools);
 }
 
-// I. With integer variables and exact interpretation.
+// // I. With integer variables and exact interpretation.
 
 template <typename A>
 void check_failed_interpret(const thrust::optional<typename A::TellType>& tell, const A& store) {
   EXPECT_FALSE(tell.has_value());
-  EXPECT_EQ(store.vars(), 0);
-  EXPECT_EQ(store, A::bot());
+  EXPECT_EQ2(store.vars(), 0);
+  EXPECT_TRUE2(store.is_bot());
 }
 
 // x > 4 should fail (undeclared variable)
@@ -86,7 +86,7 @@ TEST(VStoreTest, Interpret2) {
   auto x_gt_4 = make_v_op_z(var_x, GT, 4);
   auto f = F::make_binary(exists_x, AND, x_gt_4, ty);
   tell_store(zstore, f, var_x, zi(5));
-  EXPECT_EQ(zstore.vars(), 1);
+  EXPECT_EQ2(zstore.vars(), 1);
 }
 
 // x > 4 /\ ∃x should fail.
@@ -117,7 +117,7 @@ TEST(VStoreTest, Interpret5) {
   conjunction[2] = make_v_op_z(var_x, GT, 5);
   auto f = F::make_nary(AND, conjunction, ty);
   tell_store(zstore, f, var_x, zi(6));
-  EXPECT_EQ(zstore.vars(), 1);
+  EXPECT_EQ2(zstore.vars(), 1);
 }
 
 // ∃x /\ x > 4 /\ x < 6 should succeed, with size of tell element == 1.
@@ -129,7 +129,7 @@ TEST(VStoreTest, Interpret6) {
   conjunction[2] = make_v_op_z(var_x, LT, 6);
   auto f = F::make_nary(AND, conjunction, ty);
   tell_store(cpstore, f, var_x, CP(zi(5), zd(5)));
-  EXPECT_EQ(cpstore.vars(), 1);
+  EXPECT_EQ2(cpstore.vars(), 1);
 }
 
 // ∃x /\ ∃y /\ x > 4 /\ x < 6 /\ y < 2 should succeed, with size of tell element == 2.
@@ -143,7 +143,7 @@ TEST(VStoreTest, Interpret7) {
   conjunction[4] = make_v_op_z(var_y, LT, 2);
   auto f = F::make_nary(AND, conjunction, ty);
   tell_store(cpstore, f, var_x, CP(zi(5), zd(5)));
-  EXPECT_EQ(cpstore.vars(), 2);
+  EXPECT_EQ2(cpstore.vars(), 2);
   check_project(cpstore, var_y, CP(zi::bot(), zd(1)));
 }
 
@@ -168,8 +168,8 @@ TEST(VStoreTest, Interpret9) {
   auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNDER);
   auto tell = zstore.interpret(F::make_binary(exists_x, AND, x_eq_4, ty, OVER));
   EXPECT_TRUE(tell.has_value());
-  EXPECT_EQ(zstore.vars(), 1);
-  EXPECT_EQ((*tell).size(), 0);
+  EXPECT_EQ2(zstore.vars(), 1);
+  EXPECT_EQ2((*tell).size(), 0);
 }
 
 // ∃x /\_o x ==_o 4 should succeed in ZStore, with size of tell element == 1.
@@ -179,7 +179,7 @@ TEST(VStoreTest, Interpret10) {
   auto x_eq_4 = make_v_op_z(var_x, EQ, 4, OVER);
   auto f = F::make_binary(exists_x, AND, x_eq_4, ty, OVER);
   tell_store(zstore, f, var_x, zi(4));
-  EXPECT_EQ(zstore.vars(), 1);
+  EXPECT_EQ2(zstore.vars(), 1);
 }
 
 // ∃x /\ x ==_u 4 fail in CPStore because x ==_u 4 is not interpretable in zi, neither in zd.
@@ -202,7 +202,7 @@ TEST(VStoreTest, Interpret12) {
   conjunction[4] = make_v_op_z(var_y, LT, 10);
   auto f = F::make_nary(AND, conjunction, ty, OVER);
   tell_store(zstore, f, var_y, zi(2));
-  EXPECT_EQ(zstore.vars(), 2);
+  EXPECT_EQ2(zstore.vars(), 2);
 }
 
 // ∃x /\ ∃y /\_o x ==_u 4 /\_o y > 1 /\_o y < 10 should succeed in CPStore, with size of tell element == 1.
@@ -216,7 +216,7 @@ TEST(VStoreTest, Interpret13) {
   conjunction[4] = make_v_op_z(var_y, LT, 10);
   auto f = F::make_nary(AND, conjunction, ty, OVER);
   tell_store(cpstore, f, var_y, CP(zi(2), zd(9)));
-  EXPECT_EQ(cpstore.vars(), 2);
+  EXPECT_EQ2(cpstore.vars(), 2);
 }
 
 // III. With interval, to test `is_top` mostly.
@@ -234,55 +234,55 @@ TEST(VStoreTest, Interpret14) {
   conjunction[2] = make_v_op_z(var_x, LT, 4);
   auto f = F::make_nary(AND, conjunction, ty);
   tell_store(istore, f, var_x, Itv(zi(5), zd(3)));
-  EXPECT_EQ(istore.vars(), 1);
-  EXPECT_TRUE(istore.is_top());
-  EXPECT_FALSE(istore.is_bot());
+  EXPECT_EQ2(istore.vars(), 1);
+  EXPECT_TRUE2(istore.is_top());
+  EXPECT_FALSE2(istore.is_bot());
 }
 
-// ∃x /\ ∃y /\ x > 4 /\ x < 4 /\ y < 2 should succeed, with size of tell element == 1 and equal to top.
-TEST(VStoreTest, Interpret15) {
-  IStore istore = IStore::bot(ty);
-  F::Sequence conjunction(5);
-  conjunction[0] = F::make_exists(ty, var_x, Int);
-  conjunction[1] = F::make_exists(ty, var_y, Int);
-  conjunction[2] = make_v_op_z(var_x, GT, 4);
-  conjunction[3] = make_v_op_z(var_x, LT, 4);
-  conjunction[4] = make_v_op_z(var_y, LT, 2);
-  auto f = F::make_nary(AND, conjunction, ty);
-  tell_store(istore, f, var_x, Itv(zi(5), zd(3)));
-  check_project(istore, var_y, Itv(zi::bot(), zd(1)));
-  EXPECT_EQ(istore.vars(), 2);
-  EXPECT_TRUE(istore.is_top());
-  EXPECT_FALSE(istore.is_bot());
-}
+// // ∃x /\ ∃y /\ x > 4 /\ x < 4 /\ y < 2 should succeed, with size of tell element == 1 and equal to top.
+// TEST(VStoreTest, Interpret15) {
+//   IStore istore = IStore::bot(ty);
+//   F::Sequence conjunction(5);
+//   conjunction[0] = F::make_exists(ty, var_x, Int);
+//   conjunction[1] = F::make_exists(ty, var_y, Int);
+//   conjunction[2] = make_v_op_z(var_x, GT, 4);
+//   conjunction[3] = make_v_op_z(var_x, LT, 4);
+//   conjunction[4] = make_v_op_z(var_y, LT, 2);
+//   auto f = F::make_nary(AND, conjunction, ty);
+//   tell_store(istore, f, var_x, Itv(zi(5), zd(3)));
+//   check_project(istore, var_y, Itv(zi::bot(), zd(1)));
+//   EXPECT_EQ2(istore.vars(), 2);
+//   EXPECT_TRUE2(istore.is_top());
+//   EXPECT_FALSE2(istore.is_bot());
+// }
 
-// ∃x /\ x ==_u 4 should succeed in IStore, with size of tell element == 1.
-TEST(VStoreTest, Interpret16) {
-  IStore istore = IStore::bot(ty);
-  auto exists_x = F::make_exists(ty, var_x, Int);
-  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNDER);
-  auto f = F::make_binary(exists_x, AND, x_eq_4, ty);
-  tell_store(istore, f, var_x, Itv(zi(4), zd(4)));
-  EXPECT_EQ(istore.vars(), 1);
-}
+// // ∃x /\ x ==_u 4 should succeed in IStore, with size of tell element == 1.
+// TEST(VStoreTest, Interpret16) {
+//   IStore istore = IStore::bot(ty);
+//   auto exists_x = F::make_exists(ty, var_x, Int);
+//   auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNDER);
+//   auto f = F::make_binary(exists_x, AND, x_eq_4, ty);
+//   tell_store(istore, f, var_x, Itv(zi(4), zd(4)));
+//   EXPECT_EQ2(istore.vars(), 1);
+// }
 
-// ∃x /\ x ==_o 4 should succeed in IStore, with size of tell element == 1.
-TEST(VStoreTest, Interpret17) {
-  IStore istore = IStore::bot(ty);
-  auto exists_x = F::make_exists(ty, var_x, Int);
-  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, OVER);
-  auto f = F::make_binary(exists_x, AND, x_eq_4, ty);
-  tell_store(istore, f, var_x, Itv(zi(4), zd(4)));
-  EXPECT_EQ(istore.vars(), 1);
-}
+// // ∃x /\ x ==_o 4 should succeed in IStore, with size of tell element == 1.
+// TEST(VStoreTest, Interpret17) {
+//   IStore istore = IStore::bot(ty);
+//   auto exists_x = F::make_exists(ty, var_x, Int);
+//   auto x_eq_4 = make_v_op_z(var_x, EQ, 4, OVER);
+//   auto f = F::make_binary(exists_x, AND, x_eq_4, ty);
+//   tell_store(istore, f, var_x, Itv(zi(4), zd(4)));
+//   EXPECT_EQ2(istore.vars(), 1);
+// }
 
-// ∃x /\ x !=_u 4 should succeed in IStore, with size of tell element == 1, also it should not be equal to top.
-TEST(VStoreTest, Interpret18) {
-  IStore istore = IStore::bot(ty);
-  auto exists_x = F::make_exists(ty, var_x, Int);
-  auto x_neq_4 = make_v_op_z(var_x, NEQ, 4, UNDER);
-  auto f = F::make_binary(exists_x, AND, x_neq_4, ty);
-  tell_store(istore, f, var_x, Itv(zi(5), zd::bot()));
-  EXPECT_EQ(istore.vars(), 1);
-  EXPECT_FALSE(istore.is_top());
-}
+// // ∃x /\ x !=_u 4 should succeed in IStore, with size of tell element == 1, also it should not be equal to top.
+// TEST(VStoreTest, Interpret18) {
+//   IStore istore = IStore::bot(ty);
+//   auto exists_x = F::make_exists(ty, var_x, Int);
+//   auto x_neq_4 = make_v_op_z(var_x, NEQ, 4, UNDER);
+//   auto f = F::make_binary(exists_x, AND, x_neq_4, ty);
+//   tell_store(istore, f, var_x, Itv(zi(5), zd::bot()));
+//   EXPECT_EQ2(istore.vars(), 1);
+//   EXPECT_FALSE2(istore.is_top());
+// }
