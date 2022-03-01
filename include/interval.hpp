@@ -8,7 +8,22 @@
 namespace lala {
 
 template <typename U>
-class Interval {
+class Interval;
+
+template<class L>
+struct arithmetic_projection {};
+
+template<class U>
+struct arithmetic_projection<Interval<ZTotalOrder<U>>> {
+  using sub_type = Interval<ZTotalOrder<U>>;
+  CUDA const typename ZTotalOrder<U>::pos_t lbp() const { return static_cast<const sub_type*>(this)->lb().pos(); }
+  CUDA const typename ZTotalOrder<U>::neg_t lbn() const { return static_cast<const sub_type*>(this)->lb().neg(); }
+  CUDA const typename ZTotalOrder<U>::dual_type::pos_t ubp() const { return static_cast<const sub_type*>(this)->ub().pos(); }
+  CUDA const typename ZTotalOrder<U>::dual_type::neg_t ubn() const { return static_cast<const sub_type*>(this)->ub().neg(); }
+};
+
+template <typename U>
+class Interval: public arithmetic_projection<Interval<U>> {
   public:
     using LB = U;
     using UB = typename LB::dual_type;
@@ -78,6 +93,7 @@ class Interval {
 
     CUDA const LB& lb() const { return project<0>(cp); }
     CUDA const UB& ub() const { return project<1>(cp); }
+
     CUDA this_type& tell(const LB& lb, BInc& has_changed) {
       cp.tell(lb, has_changed);
       return *this;
@@ -159,6 +175,107 @@ CUDA typename lt_t<O, Interval<L>, Interval<K>>::type lt(
   return lt<typename O::CP>(a.as_product(), b.as_product());
 }
 
+template<Approx appx = EXACT, class L, class K>
+CUDA Interval<L> add(const Interval<L>& a, const K& b) {
+  if constexpr(std::is_same_v<K, Interval<L>>) {
+    return Interval<L>(add<appx>(a.lb(), b.lb()), add<appx>(a.ub(), b.ub()));
+  }
+  else {
+    return Interval<L>(add<appx>(a.lb(), b), add<appx>(a.ub(), b));
+  }
+}
+
+template<Approx appx = EXACT, class L, class K, std::enable_if_t<!std::is_same<L, Interval<K>>::value, bool> = true>
+CUDA Interval<K> add(const L& a, const Interval<K>& b) {
+  return add<appx>(b, a);
+}
+
+template<Approx appx = EXACT, class L, class K>
+CUDA Interval<L> sub(const Interval<L>& a, const K& b) {
+  if constexpr(std::is_same_v<K, Interval<L>>) {
+    return Interval<L>(sub<appx>(a.lb(), b.ub()), sub<appx>(a.ub(), b.lb()));
+  }
+  else {
+    return Interval<L>(sub<appx>(a.lb(), b), sub<appx>(a.ub(), b));
+  }
+}
+
+template<Approx appx = EXACT, class L, class K, std::enable_if_t<!std::is_same<L, Interval<K>>::value, bool> = true>
+CUDA Interval<K> sub(const L& a, const Interval<K>& b) {
+  return Interval<K>(sub<appx>(a, b.ub()), sub<appx>(a, b.lb()));
+}
+
+// By default, multiplication is over-approximating as it is not possible to exactly represent multiplication in general.
+// Under-approximation of multiplication is not the best possible, it returns a singleton with the lower bound.
+template<Approx appx = OVER, class L, class K, std::enable_if_t<appx != EXACT, bool> = true>
+CUDA Interval<L> mul(const Interval<L>& a, const K& b) {
+  if(a.is_top().guard()) {
+    return a;
+  }
+  if constexpr(std::is_same_v<K, Interval<L>>) {
+    if(b.is_top().guard()) {
+      return b;
+    }
+    if constexpr(appx == UNDER) {
+      auto l = mul<appx>(a.lb(), b.ub());
+      return Interval<L>(l, l);
+    }
+    // When both arguments are positive integers, we have [a..b] * [c..d] = [a*c..b*d].
+    // As this is a very common case, we make a special case out of it (for efficiency).
+    else if constexpr(std::is_same_v<L, ZPInc<typename L::ValueType>>) {
+      return Interval<L>(mul<appx>(a.lb(), b.lb()), mul<appx>(a.ub(), b.ub()));
+    }
+    // General case [al..au] * [bl..bu]
+    else {
+      // au <= 0
+      if(leq<L>(a.ub(), 0).guard()) {
+        if(leq<L>(b.ub(), 0).guard()) { return Interval<L>(mul<appx>(a.ubn(), b.ubn()), mul<appx>(a.lbn(), b.lbn())); }
+        if(geq<L>(b.lb(), 0).guard()) { return Interval<L>(mul<appx>(a.lbn(), b.ubp()), mul<appx>(a.ubn(), b.lbp())); }
+        else { return Interval<L>(mul<appx>(a.lbn(), b.ubp()), mul<appx>(a.lbn(), b.lbn())); }
+      }
+      // al >= 0
+      else if(geq<L>(a.lb(), 0).guard()) {
+        if(leq<L>(b.ub(), 0).guard()) {
+          return Interval<L>(mul<appx>(a.ubp(), b.lbn()), mul<appx>(a.lbp(), b.ubn()));
+        }
+        else if(geq<L>(b.lb(), 0).guard()) {
+          return Interval<L>(mul<appx>(a.lb(), b.lb()), mul<appx>(a.ub(), b.ub()));
+        }
+        else {
+          return Interval<L>(mul<appx>(a.ubp(), b.lbn()), mul<appx>(a.ubp(), b.ubp()));
+        }
+      }
+      // al < 0 < au
+      else {
+        if(leq<L>(b.ub(), 0).guard()) {
+          return Interval<L>(mul<appx>(a.ubp(), b.lbn()), mul<appx>(a.lbn(), b.lbn()));
+        }
+        else if(geq<L>(b.lb(), 0).guard()) {
+          return Interval<L>(mul<appx>(a.lbn(), b.ubp()), mul<appx>(a.ubp(), b.ubp()));
+        }
+        else {
+          return Interval<L>(
+            meet(mul<appx>(a.lbn(), b.ubp()), mul<appx>(a.ubp(), b.lbn())),
+            meet(mul<appx>(a.lbn(), b.lbn()), mul<appx>(a.ubp(), b.ubp())));
+        }
+      }
+    }
+  }
+  else {
+    if constexpr(appx == UNDER) {
+      auto l = mul<appx>(a.lb(), b);
+      return Interval<L>(l, l);
+    }
+    else {
+      if(b >= 0) {
+        return Interval<L>(mul<appx>(a.lb(), b), mul<appx>(a.ub(), b));
+      }
+      else {
+        return Interval<L>(mul<appx>(a.ub(), b), mul<appx>(a.lb(), b));
+      }
+    }
+  }
+}
 
 } // namespace lala
 

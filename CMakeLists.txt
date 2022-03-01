@@ -105,6 +105,11 @@ target_link_libraries(cartesian_product_test cuda_battery lala_core gtest_main)
 target_include_directories(cartesian_product_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 gtest_discover_tests(cartesian_product_test)
 
+add_executable(interval_test tests/interval_test.cpp)
+target_link_libraries(interval_test cuda_battery lala_core gtest_main)
+target_include_directories(interval_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+gtest_discover_tests(interval_test)
+
 add_executable(vstore_test tests/vstore_test.cpp)
 target_link_libraries(vstore_test cuda_battery lala_core gtest_main)
 target_include_directories(vstore_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})

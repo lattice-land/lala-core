@@ -20,28 +20,6 @@ Precondition: For efficiency purposes, all operators suppose their arguments to 
 
 namespace lala {
 
-template <typename T, typename = void>
-struct value_type {
-  static constexpr bool value = false;
-  using type = T;
-};
-
-template <typename T>
-struct value_type<T, std::void_t<typename T::ValueType>> {
-  static constexpr bool value = true;
-  using type = T::ValueType;
-};
-
-template <typename L>
-typename value_type<L>::type unwrap(L x) {
-  if constexpr(value_type<L>::value) {
-    return x.value();
-  }
-  else {
-    return x;
-  }
-}
-
 template<Approx appx = EXACT, typename L>
 CUDA typename neg_z<L>::type neg(L a) { return typename neg_z<L>::type(-unwrap(a)); }
 
