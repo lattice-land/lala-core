@@ -177,7 +177,9 @@ CUDA typename lt_t<O, Interval<L>, Interval<K>>::type lt(
 
 template<Approx appx = EXACT, class L, class K>
 CUDA Interval<L> add(const Interval<L>& a, const K& b) {
+  if(a.is_top().guard()) { return a; }
   if constexpr(std::is_same_v<K, Interval<L>>) {
+    if(b.is_top().guard()) { return b; }
     return Interval<L>(add<appx>(a.lb(), b.lb()), add<appx>(a.ub(), b.ub()));
   }
   else {
@@ -192,7 +194,9 @@ CUDA Interval<K> add(const L& a, const Interval<K>& b) {
 
 template<Approx appx = EXACT, class L, class K>
 CUDA Interval<L> sub(const Interval<L>& a, const K& b) {
+  if(a.is_top().guard()) { return a; }
   if constexpr(std::is_same_v<K, Interval<L>>) {
+    if(b.is_top().guard()) { return b; }
     return Interval<L>(sub<appx>(a.lb(), b.ub()), sub<appx>(a.ub(), b.lb()));
   }
   else {
@@ -202,6 +206,7 @@ CUDA Interval<L> sub(const Interval<L>& a, const K& b) {
 
 template<Approx appx = EXACT, class L, class K, std::enable_if_t<!std::is_same<L, Interval<K>>::value, bool> = true>
 CUDA Interval<K> sub(const L& a, const Interval<K>& b) {
+  if(b.is_top().guard()) { return b; }
   return Interval<K>(sub<appx>(a, b.ub()), sub<appx>(a, b.lb()));
 }
 
@@ -209,6 +214,7 @@ CUDA Interval<K> sub(const L& a, const Interval<K>& b) {
 // Under-approximation of multiplication is not the best possible, it returns a singleton with the lower bound.
 template<Approx appx = OVER, class L, class K, std::enable_if_t<appx != EXACT, bool> = true>
 CUDA Interval<L> mul(const Interval<L>& a, const K& b) {
+  // i) Check if the operands are equal to top.
   if(a.is_top().guard()) {
     return a;
   }
@@ -216,13 +222,17 @@ CUDA Interval<L> mul(const Interval<L>& a, const K& b) {
     if(b.is_top().guard()) {
       return b;
     }
-    if constexpr(appx == UNDER) {
-      auto l = mul<appx>(a.lb(), b.ub());
-      return Interval<L>(l, l);
-    }
+  }
+  // ii) Under-approximation case.
+  if constexpr(appx == UNDER) {
+    auto l = mul<appx>(a.lb().value(), b.lb().value());
+    return Interval<L>(l, l);
+  }
+  // iii) Interval multiplication case.
+  if constexpr(std::is_same_v<K, Interval<L>>) {
     // When both arguments are positive integers, we have [a..b] * [c..d] = [a*c..b*d].
     // As this is a very common case, we make a special case out of it (for efficiency).
-    else if constexpr(std::is_same_v<L, ZPInc<typename L::ValueType>>) {
+    if constexpr(std::is_same_v<L, ZPInc<typename L::ValueType>>) {
       return Interval<L>(mul<appx>(a.lb(), b.lb()), mul<appx>(a.ub(), b.ub()));
     }
     // General case [al..au] * [bl..bu]
@@ -261,19 +271,59 @@ CUDA Interval<L> mul(const Interval<L>& a, const K& b) {
       }
     }
   }
+  // iv) Multiplication of an interval and a constant.
   else {
-    if constexpr(appx == UNDER) {
-      auto l = mul<appx>(a.lb(), b);
-      return Interval<L>(l, l);
+    if(b >= 0) {
+      return Interval<L>(mul<appx>(a.lb(), spos(b)), mul<appx>(a.ub(), spos(b)));
     }
     else {
-      if(b >= 0) {
-        return Interval<L>(mul<appx>(a.lb(), b), mul<appx>(a.ub(), b));
-      }
-      else {
-        return Interval<L>(mul<appx>(a.ub(), b), mul<appx>(a.lb(), b));
-      }
+      return Interval<L>(mul<appx>(a.ub(), sneg(b)), mul<appx>(a.lb(), sneg(b)));
     }
+  }
+}
+
+template<Approx appx = OVER, class L, class K, std::enable_if_t<!std::is_same<L, Interval<K>>::value, bool> = true>
+CUDA Interval<K> mul(const L& a, const Interval<K>& b) {
+  return mul<appx>(b, a);
+}
+
+template<Approx appx = OVER, class L, class K, std::enable_if_t<appx != EXACT, bool> = true>
+CUDA Interval<L> div(const Interval<L>& a, const K& b) {
+  if(a.is_top().guard()) {
+    return a;
+  }
+  if constexpr(std::is_same_v<K, Interval<L>>) {
+    if(b.is_top().guard()) {
+      return b;
+    }
+  }
+  if constexpr(appx == UNDER) {
+    auto l = div<appx>(a.lb().value(), b.lb().value());
+    return Interval<L>(l, l);
+  }
+  if constexpr(std::is_same_v<K, Interval<L>>) {
+    // When both arguments are positive integers, we have [a..b] / [c..d] = [a/d..b/c].
+    // If `d == 0`, the result is top.
+    // If `c == 0`, the result is [a/d..b].
+    // As this is a very common case, we make a special case out of it (for efficiency).
+    if constexpr(std::is_same_v<L, ZPInc<typename L::ValueType>>) {
+      if(b.ub().is_top().guard()) { // d == 0.
+        return Interval<L>::top();
+      }
+      if(lnot(b.lb().is_bot()).guard()) { // c > 0
+        return Interval<L>(div<appx, L>(a.lb(), b.ub()), div<appx, typename L::dual_type>(a.ub(), b.lb()));
+      }
+      // c == 0
+      return Interval<L>(div<appx>(a.lb(), b.ub()), a.ub());
+    }
+    // General case [al..au] / [bl..bu]
+    else {
+      assert(false); // not implemented.
+      return Interval<L>::bot();
+    }
+  }
+  else {
+    return div<appx>(a, Interval<L>(unwrap(b), unwrap(b)));
   }
 }
 

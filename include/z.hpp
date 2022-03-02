@@ -511,6 +511,20 @@ template<class L> struct geq_t<L, typename L::dual_type, typename L::ValueType> 
   using type = typename leq_t<typename L::dual_type, typename L::dual_type, typename L::ValueType>::type;
 };
 
+template<class L> struct lt_t<L, typename L::ValueType, typename L::dual_type> {
+  using type = typename gt_t<typename L::dual_type, typename L::ValueType, typename L::dual_type>::type;
+};
+template<class L> struct lt_t<L, typename L::dual_type, typename L::ValueType> {
+  using type = typename gt_t<typename L::dual_type, typename L::dual_type, typename L::ValueType>::type;
+};
+
+template<class L> struct gt_t<L, typename L::ValueType, typename L::dual_type> {
+  using type = typename lt_t<typename L::dual_type, typename L::ValueType, typename L::dual_type>::type;
+};
+
+template<class L> struct gt_t<L, typename L::dual_type, typename L::ValueType> {
+  using type = typename lt_t<typename L::dual_type, typename L::dual_type, typename L::ValueType>::type;
+};
 
 template<class L, class K>
 CUDA typename join_t<L, K>::type join(L a, K b) {
