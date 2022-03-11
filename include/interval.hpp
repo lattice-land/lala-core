@@ -133,8 +133,7 @@ class Interval: public arithmetic_projection<Interval<U>> {
       }
     }
 
-    template<class Allocator>
-    CUDA void print(const LVar<Allocator>& x) const {
+    CUDA void print() const {
       printf("[");
       ::print(lb());
       printf("..");
