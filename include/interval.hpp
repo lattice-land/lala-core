@@ -291,12 +291,6 @@ CUDA Interval<K> mul(const L& a, const Interval<K>& b) {
   return mul<appx>(b, a);
 }
 
-template<Approx appx = EXACT, class L>
-CUDA Interval<L> rev_mul(const Interval<L>& a, const Interval<L>& b) {
-  using I = Interval<L>;
-  return I(div<appx, typename I::LB>(a.lb().value(), b.lb().value()), div<appx, typename I::UB>(a.ub().value(), b.ub().value()));
-}
-
 template<Approx appx = OVER, class L, class K, std::enable_if_t<appx != EXACT, bool> = true>
 CUDA Interval<L> div(const Interval<L>& a, const K& b) {
   if(a.is_top().guard()) {
