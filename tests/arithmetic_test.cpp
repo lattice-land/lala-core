@@ -30,6 +30,10 @@ void test_exact_op(A one) {
   EXPECT_EQ2((div<OVER, zd>(three, two)), two);
   EXPECT_EQ2((div<OVER, zi>(three, two)), one);
   EXPECT_EQ2((div<UNDER, zd>(three, two)), one);
+  EXPECT_EQ2((div<UNDER, zi>(3, 2)), 2);
+  EXPECT_EQ2((div<OVER, zd>(3, 2)), 2);
+  EXPECT_EQ2((div<OVER, zi>(3, 2)), 1);
+  EXPECT_EQ2((div<UNDER, zd>(3, 2)), 1);
   A mtwo = neg(two);
   A mthree = neg(three);
   EXPECT_EQ2((div<UNDER, zi>(mthree, mtwo)), two);

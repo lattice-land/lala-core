@@ -164,9 +164,10 @@ struct select_non_void { using type = A; };
 template <class B>
 struct select_non_void<void, B> { using type = B; };
 
-template<Approx appx, class R = void, class L, class K, class R2 = select_non_void<R, typename div_z<L, K>::type>::type, UpRounding<R, appx> = true>
-CUDA R2 div(L a, K b) {
-  BOT_TOP_BINARY(L, K, R2)
+template<Approx appx, class R = void, class L, class K, class R2 = select_non_void<R, typename div_z<L, K>::type>::type, UpRounding<R2, appx> = true>
+CUDA typename div_z<L, K>::type div(L a, K b) {
+  using R3 = typename div_z<L, K>::type;
+  BOT_TOP_BINARY(L, K, R3)
   auto x = unwrap(a);
   auto y = unwrap(b);
   assert(y != 0);
@@ -174,18 +175,19 @@ CUDA R2 div(L a, K b) {
   // division is rounded towards zero.
   // We add one only if `r` was truncated and `x, y` are of equal sign (so the division operated in the positive numbers).
   // Inspired by https://stackoverflow.com/questions/921180/how-can-i-ensure-that-a-division-of-integers-is-always-rounded-up/926806#926806
-  return R2((x % y != 0 && x > 0 == y > 0) ? r + 1 : r);
+  return R3((x % y != 0 && x > 0 == y > 0) ? r + 1 : r);
 }
 
 /** Rounding down the result a / b (towards negative infinity). */
 template<Approx appx, class R = void, class L, class K, class R2 = select_non_void<R, typename div_z<L, K>::type>::type, DownRounding<R2, appx> = true>
-CUDA R2 div(L a, K b) {
-  BOT_TOP_BINARY(L, K, R2)
+CUDA typename div_z<L, K>::type div(L a, K b) {
+  using R3 = typename div_z<L, K>::type;
+  BOT_TOP_BINARY(L, K, R3)
   auto x = unwrap(a);
   auto y = unwrap(b);
   assert(y != 0);
   auto r = x / y;
-  return R2((x % y != 0 && x > 0 != y > 0) ? r - 1 : r);
+  return R3((x % y != 0 && x > 0 != y > 0) ? r - 1 : r);
 }
 
 template<Approx appx = EXACT, class L>
