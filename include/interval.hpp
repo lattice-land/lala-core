@@ -191,6 +191,11 @@ CUDA Interval<K> add(const L& a, const Interval<K>& b) {
   return add<appx>(b, a);
 }
 
+template<Approx appx = EXACT, class L>
+CUDA Interval<L> rev_add(const Interval<L>& a, const Interval<L>& b) {
+  return Interval<L>(sub<appx>(a.lb(), b.lb().value()), sub<appx>(a.ub(), b.ub().value()));
+}
+
 template<Approx appx = EXACT, class L, class K>
 CUDA Interval<L> sub(const Interval<L>& a, const K& b) {
   if(a.is_top().guard()) { return a; }
@@ -284,6 +289,11 @@ CUDA Interval<L> mul(const Interval<L>& a, const K& b) {
 template<Approx appx = OVER, class L, class K, std::enable_if_t<!std::is_same<L, Interval<K>>::value, bool> = true>
 CUDA Interval<K> mul(const L& a, const Interval<K>& b) {
   return mul<appx>(b, a);
+}
+
+template<Approx appx = EXACT, class L>
+CUDA Interval<L> rev_mul(const Interval<L>& a, const Interval<L>& b) {
+  return Interval<L>(div<appx>(a.lb(), b.lb().value()), div<appx>(a.ub(), b.ub().value()));
 }
 
 template<Approx appx = OVER, class L, class K, std::enable_if_t<appx != EXACT, bool> = true>
