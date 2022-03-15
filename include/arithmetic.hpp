@@ -101,14 +101,14 @@ inline constexpr bool has_inf_bot_v = has_inf_bot<T>::value;
   BOT_UNARY(a, L, R)            \
   BOT_UNARY(b, K, R)
 
-template<Approx appx = EXACT, typename L>
+template<Approx appx = EXACT, class L>
 CUDA typename neg_z<L>::type neg(L a) {
   using R = typename neg_z<L>::type;
   BOT_TOP_UNARY(L, R)
   return R(-unwrap(a));
 }
 
-template<Approx appx = EXACT, typename L>
+template<Approx appx = EXACT, class L>
 CUDA typename abs_z<L>::type abs(L a) {
   using R = typename abs_z<L>::type;
   TOP_UNARY(a, L, R)
@@ -124,21 +124,21 @@ CUDA typename abs_z<L>::type abs(L a) {
   }
 }
 
-template<Approx appx = EXACT, typename L, typename K>
+template<Approx appx = EXACT, class L, class K>
 CUDA typename add_z<L, K>::type add(L a, K b) {
   using R = typename add_z<L, K>::type;
   BOT_TOP_BINARY(L, K, R)
   return R(unwrap(a) + unwrap(b));
 }
 
-template<Approx appx = EXACT, typename L, typename K>
+template<Approx appx = EXACT, class L, class K>
 CUDA typename sub_z<L, K>::type sub(L a, K b) {
   using R = typename sub_z<L, K>::type;
   BOT_TOP_BINARY(L, K, R)
   return R(unwrap(a) - unwrap(b));
 }
 
-template<Approx appx = EXACT, typename L, typename K>
+template<Approx appx = EXACT, class L, class K>
 CUDA typename mul_z<L, K>::type mul(L a, K b) {
   using R = typename mul_z<L, K>::type;
   BOT_TOP_BINARY(L, K, R)
@@ -164,7 +164,7 @@ struct select_non_void { using type = A; };
 template <class B>
 struct select_non_void<void, B> { using type = B; };
 
-template<Approx appx, typename R = void, typename L, typename K, typename R2 = select_non_void<R, typename div_z<L, K>::type>::type, UpRounding<R, appx> = true>
+template<Approx appx, class R = void, class L, class K, class R2 = select_non_void<R, typename div_z<L, K>::type>::type, UpRounding<R, appx> = true>
 CUDA R2 div(L a, K b) {
   BOT_TOP_BINARY(L, K, R2)
   auto x = unwrap(a);
@@ -178,7 +178,7 @@ CUDA R2 div(L a, K b) {
 }
 
 /** Rounding down the result a / b (towards negative infinity). */
-template<Approx appx, typename R = void, typename L, typename K, typename R2 = select_non_void<R, typename div_z<L, K>::type>::type, DownRounding<R2, appx> = true>
+template<Approx appx, class R = void, class L, class K, class R2 = select_non_void<R, typename div_z<L, K>::type>::type, DownRounding<R2, appx> = true>
 CUDA R2 div(L a, K b) {
   BOT_TOP_BINARY(L, K, R2)
   auto x = unwrap(a);
@@ -188,27 +188,27 @@ CUDA R2 div(L a, K b) {
   return R2((x % y != 0 && x > 0 != y > 0) ? r - 1 : r);
 }
 
-template<Approx appx = EXACT, typename L>
+template<Approx appx = EXACT, class L>
 CUDA typename sqr_z<L>::type sqr(L a) {
   using R = typename sqr_z<L>::type;
   BOT_TOP_UNARY(L, R)
   return R(unwrap(a)*unwrap(a));
 }
 
-template<Approx appx = EXACT, typename L, typename K>
+template<Approx appx = EXACT, class L, class K>
 CUDA typename pow_z<L, K>::type pow(L a, K b) {
   using R = typename pow_z<L, K>::type;
   BOT_TOP_BINARY(L, K, R)
   return R(std::pow(unwrap(a), unwrap(b)));
 }
 
-template<class O, Approx appx = EXACT, typename L, typename K>
+template<class O, Approx appx = EXACT, class L, class K>
 CUDA typename geq_t<O, L, K>::type geq(L a, K b) { return leq<O>(b, a); }
 
-template<class O, Approx appx = EXACT, typename L, typename K>
+template<class O, Approx appx = EXACT, class L, class K>
 CUDA typename gt_t<O, L, K>::type gt(L a, K b) { return lt<O>(b, a); }
 
-template<Approx appx = EXACT, typename L>
+template<Approx appx = EXACT, class L>
 CUDA typename not_t<L>::type lnot(L a) {
   return typename not_t<L>::type(!unwrap(a));
 }
@@ -244,17 +244,17 @@ CUDA typename fold_lor<Ls...>::type lor(Ls... vals) {
   return typename fold_lor<Ls...>::type((... || unwrap(vals)));  // C++17 fold expression.
 }
 
-template<Approx appx = EXACT, typename L, typename K>
+template<Approx appx = EXACT, class L, class K>
 CUDA typename imply_t<L, K>::type imply(L a, K b) {
   return typename imply_t<L, K>::type(!unwrap(a) || unwrap(b));
 }
 
-template<Approx appx = EXACT, typename L, typename K>
+template<Approx appx = EXACT, class L, class K>
 CUDA typename equiv_t<L, K>::type equiv(L a, K b) {
   return typename equiv_t<L, K>::type(unwrap(a) == unwrap(b));
 }
 
-template<Approx appx = EXACT, typename L, typename K>
+template<Approx appx = EXACT, class L, class K>
 CUDA typename xor_t<L, K>::type lxor(L a, K b) {
   return typename xor_t<L, K>::type(!unwrap(a) != !unwrap(b));
 }
