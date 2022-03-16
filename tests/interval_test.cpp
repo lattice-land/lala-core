@@ -81,3 +81,8 @@ TEST(IntervalTest, DivTest) {
   EXPECT_EQ2(div(PItv(10,20), PItv(3,6)), PItv(1,7));
   EXPECT_EQ2(div(Itv(10,20), Itv(3,6)), Itv(1,7));
 }
+
+TEST(IntervalTest, JoinMeetTest) {
+  EXPECT_EQ2(join(Itv(10, 20), Itv(4,14)), Itv(10,14));
+  EXPECT_EQ2(meet(Itv(10, 20), Itv(4,14)), Itv(4,20));
+}

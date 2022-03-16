@@ -35,6 +35,15 @@ class Interval: public arithmetic_projection<Interval<U>> {
     template <typename A>
     friend class Interval;
 
+
+    template<class L, class K>
+    friend CUDA typename join_t<Interval<L>, Interval<K>>::type
+    join(const Interval<L>& a, const Interval<K>& b);
+
+    template<class L, class K>
+    friend CUDA typename meet_t<Interval<L>, Interval<K>>::type
+    meet(const Interval<L>& a, const Interval<K>& b);
+
   private:
     CP cp;
     CUDA Interval(CP&& cp): cp(cp) {}
