@@ -75,11 +75,11 @@ TEST(IntervalTest, DivTest) {
   PItv top(1, 0);
   PItv zero(0,0);
   EXPECT_TRUE2(div(zero,zero).is_top());
-  EXPECT_EQ2(div(PItv(1,2), PItv(1,2)), PItv(0,2));
+  EXPECT_EQ2(div(PItv(1,2), PItv(1,2)), PItv(1,2));
   EXPECT_EQ2(div(zero, PItv(1,2)), zero);
-  EXPECT_EQ2(div(PItv(10,20), PItv(2,3)), PItv(3,10));
-  EXPECT_EQ2(div(PItv(10,20), PItv(3,6)), PItv(1,7));
-  EXPECT_EQ2(div(Itv(10,20), Itv(3,6)), Itv(1,7));
+  EXPECT_EQ2(div(PItv(10,20), PItv(2,3)), PItv(4,10));
+  EXPECT_EQ2(div(PItv(10,20), PItv(3,6)), PItv(2,6));
+  EXPECT_EQ2(div(Itv(10,20), Itv(3,6)), Itv(2,6));
 }
 
 TEST(IntervalTest, JoinMeetTest) {

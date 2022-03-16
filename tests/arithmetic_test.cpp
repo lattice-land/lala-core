@@ -26,32 +26,25 @@ void test_exact_op(A one) {
   EXPECT_EQ2(neg<UNDER>(one), neg<OVER>(one));
   A two = add(one, one);
   A three = add(two, one);
-  EXPECT_EQ2((div<UNDER, zi>(three, two)), two);
-  EXPECT_EQ2((div<OVER, zd>(three, two)), two);
-  EXPECT_EQ2((div<OVER, zi>(three, two)), one);
-  EXPECT_EQ2((div<UNDER, zd>(three, two)), one);
-  EXPECT_EQ2((div<UNDER, zi>(3, 2)), 2);
-  EXPECT_EQ2((div<OVER, zd>(3, 2)), 2);
-  EXPECT_EQ2((div<OVER, zi>(3, 2)), 1);
-  EXPECT_EQ2((div<UNDER, zd>(3, 2)), 1);
+  EXPECT_EQ2((div<EXACT, zi>(three, two)), two);
+  EXPECT_EQ2((div<EXACT, zd>(three, two)), one);
+  EXPECT_EQ2((div<EXACT, zi>(3, 2)), 2);
+  EXPECT_EQ2((div<EXACT, zd>(3, 2)), 1);
   A mtwo = neg(two);
   A mthree = neg(three);
-  EXPECT_EQ2((div<UNDER, zi>(mthree, mtwo)), two);
-  EXPECT_EQ2((div<OVER, zi>(mthree, mtwo)), one);
-  EXPECT_EQ2((div<UNDER, zi>(mthree, two)), neg(one));
-  EXPECT_EQ2((div<OVER, zi>(mthree, two)), neg(two));
-  EXPECT_EQ2((div<UNDER, zi>(three, mtwo)), neg(one));
-  EXPECT_EQ2((div<OVER, zi>(three, mtwo)), neg(two));
-  // Exact division
-  EXPECT_EQ2((div<OVER, zi>(two, mtwo)), sub(zero, one));
-  EXPECT_EQ2((div<OVER, zi>(two, mtwo)), (div<UNDER, zi>(two, mtwo)));
-  EXPECT_EQ2((div<OVER, zi>(two, two)), one);
-  EXPECT_EQ2((div<OVER, zi>(two, two)), (div<UNDER, zi>(two, two)));
+  EXPECT_EQ2((div<EXACT, zi>(mthree, mtwo)), two);
+  EXPECT_EQ2((div<EXACT, zi>(mthree, two)), neg(one));
+  EXPECT_EQ2((div<EXACT, zi>(three, mtwo)), neg(one));
+  // No rounding division
+  EXPECT_EQ2((div<EXACT, zi>(two, mtwo)), sub(zero, one));
+  EXPECT_EQ2((div<EXACT, zi>(two, mtwo)), (div<EXACT, zd>(two, mtwo)));
+  EXPECT_EQ2((div<EXACT, zi>(two, two)), one);
+  EXPECT_EQ2((div<EXACT, zi>(two, two)), (div<EXACT, zd>(two, two)));
   // Assert on division by zero.
-  ASSERT_DEATH((div<UNDER, zi>(two, zero)), "");
-  ASSERT_DEATH((div<OVER, zi>(two, zero)), "");
-  ASSERT_DEATH((div<OVER, zi>(zero, zero)), "");
-  ASSERT_DEATH((div<UNDER, zi>(zero, zero)), "");
+  ASSERT_DEATH((div<EXACT, zi>(two, zero)), "");
+  ASSERT_DEATH((div<EXACT, zi>(two, zero)), "");
+  ASSERT_DEATH((div<EXACT, zi>(zero, zero)), "");
+  ASSERT_DEATH((div<EXACT, zi>(zero, zero)), "");
 }
 
 TEST(ArithZTest, ExactOp) {
