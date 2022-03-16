@@ -319,11 +319,11 @@ CUDA Interval<L> div(const Interval<L>& a, const K& b) {
     // If `d == 0`, the result is top.
     // If `c == 0`, the result is [a/d..b].
     // As this is a very common case, we make a special case out of it (for efficiency).
-    if(std::is_same_v<L, ZPInc<typename L::ValueType>> || (geq<L>(a.lb(), 0).guard() && geq<L>(b.lb(), 0).guard())) {
-      if(b.ub().is_top().guard()) { // d == 0.
+    if(std::is_same_v<L, ZPInc<typename L::ValueType>> || (land(geq<L>(a.lb(), 0), geq<L>(b.lb(), 0)).guard())) {
+      if(leq<L>(b.ub(), 0).guard()) { // d == 0. Monotonic as we already checked a >= 0.
         return Interval<L>::top();
       }
-      if(lnot(b.lb().is_bot()).guard()) { // c > 0
+      if(gt<L>(b.lb(), 0).guard()) { // c > 0
         return Interval<L>(div<appx, L>(a.lbp(), b.ubp()), div<appx, typename L::dual_type>(a.ubp(), b.lbp()));
       }
       // c == 0
