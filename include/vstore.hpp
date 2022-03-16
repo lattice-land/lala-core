@@ -40,7 +40,6 @@ public:
   /** Initialize an empty store equivalent to \f$ \bot \f$ with memory reserved for `n` variables. */
   CUDA VStore(AType uid, size_t n,
     DataAllocator alloc = DataAllocator()): data(n, Universe::bot(), alloc), env(uid, n), is_at_top(BInc::bot()) {}
-  CUDA VStore(const VStore& other): data(other.data), env(other.env), is_at_top(other.is_at_top) {}
   CUDA VStore(VStore&& other): data(std::move(other.data)), env(std::move(other.env)), is_at_top(other.is_at_top) {}
 
   /** Returns the number of variables currently represented by this abstract element. */

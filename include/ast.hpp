@@ -225,7 +225,7 @@ public:
   }
 
   CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    return this_type(atype, a, Formula::template create<Seq>(battery::make_tuple(sig, children)));
+    return this_type(atype, a, Formula::template create<Seq>(battery::make_tuple(sig, std::move(children))));
   }
 
   CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
