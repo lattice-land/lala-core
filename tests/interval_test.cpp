@@ -86,3 +86,9 @@ TEST(IntervalTest, JoinMeetTest) {
   EXPECT_EQ2(join(Itv(10, 20), Itv(4,14)), Itv(10,14));
   EXPECT_EQ2(meet(Itv(10, 20), Itv(4,14)), Itv(4,20));
 }
+
+TEST(IntervalTest, NegTest) {
+  EXPECT_EQ2(neg(Itv(10, 20)), Itv(-20, -10));
+  EXPECT_EQ2(neg(neg(Itv(10, 20))), Itv(10, 20));
+  EXPECT_EQ2(neg(Itv(-10, 20)), Itv(-20, 10));
+}

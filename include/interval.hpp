@@ -340,6 +340,11 @@ CUDA Interval<L> div(const Interval<L>& a, const K& b) {
   }
 }
 
+template<Approx appx = EXACT, class L>
+CUDA Interval<L> neg(const Interval<L>& a) {
+  return Interval<L>(neg<appx>(a.ub()), neg<appx>(a.lb()));
+}
+
 } // namespace lala
 
 #endif
