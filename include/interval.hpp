@@ -302,6 +302,8 @@ CUDA Interval<K> mul(const L& a, const Interval<K>& b) {
 
 template<Approx appx = OVER, class L, class K, std::enable_if_t<appx != EXACT, bool> = true>
 CUDA Interval<L> div(const Interval<L>& a, const K& b) {
+  using LB = typename Interval<L>::LB;
+  using UB = typename Interval<L>::UB;
   if(a.is_top().guard()) {
     return a;
   }
@@ -311,28 +313,57 @@ CUDA Interval<L> div(const Interval<L>& a, const K& b) {
     }
   }
   if constexpr(appx == UNDER) {
-    auto l = div<appx>(a.lb().value(), b.lb().value());
-    return Interval<L>(l, l);
+    assert(false); // unimplemented.
+    return Interval<L>::bot();
   }
   if constexpr(std::is_same_v<K, Interval<L>>) {
-    // When both arguments are positive integers, we have [a..b] / [c..d] = [a/d..b/c].
-    // If `d == 0`, the result is top.
-    // If `c == 0`, the result is [a/d..b].
-    // As this is a very common case, we make a special case out of it (for efficiency).
-    if(std::is_same_v<L, ZPInc<typename L::ValueType>> || (land(geq<L>(a.lb(), 0), geq<L>(b.lb(), 0)).guard())) {
-      if(leq<L>(b.ub(), 0).guard()) { // d == 0. Monotonic as we already checked a >= 0.
+    // When the type is positive integers, we make a special case out of it (for efficiency).
+    // Case [al..au] / [bl..bu] with al >= 0 and bl >= 0.
+    if constexpr(std::is_same_v<L, ZPInc<typename L::ValueType>>) {
+      if(leq<L>(b.ub(), 0).guard()) { // [bl..bu] == [0..0].
         return Interval<L>::top();
       }
-      if(gt<L>(b.lb(), 0).guard()) { // c > 0
-        return Interval<L>(div<appx, L>(a.lbp(), b.ubp()), div<appx, typename L::dual_type>(a.ubp(), b.lbp()));
+      if(leq<L>(a.ub(), 0).guard()) { // [al..au] == [0..0]
+        return a;
       }
-      // c == 0
-      return Interval<L>(div<appx>(a.lbp(), b.ubp()), a.ubp());
+      if(gt<L>(b.lb(), 0).guard()) { // bl > 0
+        return Interval<L>(div<appx, LB>(a.lb(), b.ub()), div<appx, UB>(a.ub(), b.lb()));
+      }
+      // bl == 0
+      return Interval<L>(div<appx>(a.lb(), b.ub()), UB::bot());
     }
     // General case [al..au] / [bl..bu]
     else {
-      assert(false); // not implemented.
-      return Interval<L>::bot();
+      // bu < 0
+      if(lt<L>(b.ub(), 0).guard()) {
+        if(leq<L>(a.ub(), 0).guard()) { return Interval<L>(div<appx>(a.ubn(), b.lbn()), div<appx>(a.lbn(), b.ubn())); } // au <= 0
+        else if(leq<L>(0, a.lb()).guard()) { return Interval<L>(div<appx>(a.ubp(), b.ubn()), div<appx>(a.lbp(), b.lbn())); } // 0 <= al
+        else { return Interval<L>(div<appx>(a.ubp(), b.ubn()), div<appx>(a.lbn(), b.ubn())); } // al < 0 < au
+      }
+      // bl > 0
+      else if(gt<L>(b.lb(), 0).guard()) {
+        if(leq<L>(a.ub(), 0).guard()) { return Interval<L>(div<appx>(a.lbn(), b.lbp()), div<appx>(a.ubn(), b.ubp())); } // au <= 0
+        else if(leq<L>(0, a.lb()).guard()) { return Interval<L>(div<appx>(a.lbp(), b.ubp()), div<appx>(a.ubp(), b.lbp())); } // 0 <= al
+        else { return Interval<L>(div<appx>(a.lbn(), b.lbp()), div<appx>(a.ubp(), b.lbp())); } // al < 0 < au
+      }
+      // [bl..bu] == [0..0]
+      else if(land(leq<L>(b.ub(), 0), geq<L>(b.lb(), 0)).guard()) {
+        return Interval<L>::top();
+      }
+      // bl < bu == 0
+      else if(leq<L>(b.ub(), 0).guard()) {
+        if(land(geq<L>(a.lb(), 0), leq<L>(a.ub(), 0)).guard()) { return a; } // [al..au] == [0..0]
+        else if(leq<L>(a.ub(), 0).guard()) { return Interval<L>(div<appx>(a.ubn(), b.lbn()), UB::bot()); } // al < 0, au <= 0  ~ au <= 0 (implicitly al < 0 due to previous condition).
+        else if(geq<L>(a.lb(), 0).guard()) { return Interval<L>(LB::bot(), div<appx>(a.lbp(), b.lbn())); } // 0 <= al, 0 < au   ~ al >= 0 (implicitly au > 0 due to first condition).
+        else { return Interval<L>::bot(); } // al < 0 < au
+      }
+      // 0 == bl < bu
+      else { // if(lt<L>(0, b.ub()).guard()) {
+        if(land(geq<L>(a.lb(), 0), leq<L>(a.ub(), 0)).guard()) { return a; } // [al..au] == [0..0]
+        else if(leq<L>(a.ub(), 0).guard()) { return Interval<L>(LB::bot(), div<appx>(a.ubn(), b.ubp())); } // al < 0, au <= 0  ~ au <= 0 (implicitly al < 0 due to previous condition).
+        else if(geq<L>(a.lb(), 0).guard()) { return Interval<L>(div<appx>(a.lbp(), b.ubp()), UB::bot()); } // 0 <= al, 0 < au   ~ al >= 0 (implicitly au > 0 due to first condition).
+        else { return Interval<L>::bot(); } // al < 0 < au
+      }
     }
   }
   else {

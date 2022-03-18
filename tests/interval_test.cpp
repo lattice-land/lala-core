@@ -6,6 +6,7 @@
 #include "generic_universe_test.hpp"
 
 using zi = ZInc<int>;
+using zd = ZDec<int>;
 using Itv = Interval<zi>;
 
 using zpi = ZPInc<int>;
@@ -71,7 +72,7 @@ TEST(IntervalTest, MulTest) {
   EXPECT_EQ2(mul(10, top), top);
 }
 
-TEST(IntervalTest, DivTest) {
+TEST(IntervalTest, DivTestPItv) {
   PItv top(1, 0);
   PItv zero(0,0);
   EXPECT_TRUE2(div(zero,zero).is_top());
@@ -80,6 +81,39 @@ TEST(IntervalTest, DivTest) {
   EXPECT_EQ2(div(PItv(10,20), PItv(2,3)), PItv(4,10));
   EXPECT_EQ2(div(PItv(10,20), PItv(3,6)), PItv(2,6));
   EXPECT_EQ2(div(Itv(10,20), Itv(3,6)), Itv(2,6));
+}
+
+TEST(IntervalTest, DivTest) {
+  Itv top(1, 0);
+  Itv zero(0,0);
+  EXPECT_TRUE2(div(zero,zero).is_top());
+  EXPECT_EQ2(div(Itv(1,2), Itv(1,2)), PItv(1,2));
+  EXPECT_EQ2(div(zero, Itv(1,2)), zero);
+  EXPECT_EQ2(div(Itv(10,20), Itv(2,3)), Itv(4,10));
+  EXPECT_EQ2(div(Itv(10,20), Itv(3,6)), Itv(2,6));
+
+  EXPECT_EQ2(div(Itv(-2, 0), Itv(-3, -1)), Itv(0, 2));
+  EXPECT_EQ2(div(Itv(-2, 2), Itv(-3, -1)), Itv(-2, 2));
+  EXPECT_EQ2(div(Itv(0, 2), Itv(-3, -1)), Itv(-2, 0));
+
+  EXPECT_EQ2(div(Itv(-2, 0), Itv(1, 3)), Itv(-2, 0));
+  EXPECT_EQ2(div(Itv(-2, 2), Itv(1, 3)), Itv(-2, 2));
+  EXPECT_EQ2(div(Itv(0, 2), Itv(1, 3)), Itv(0, 2));
+
+  EXPECT_EQ2(div(zero, zero), Itv::top());
+  EXPECT_EQ2(div(Itv(1, 3), zero), Itv::top());
+  EXPECT_EQ2(div(Itv(-3, 3), zero), Itv::top());
+  EXPECT_EQ2(div(Itv(-3, -1), zero), Itv::top());
+
+  EXPECT_EQ2(div(zero, Itv(-3, 0)), zero);
+  EXPECT_EQ2(div(Itv(-3, -1), Itv(-3, 0)), Itv(1, zd::bot()));
+  EXPECT_EQ2(div(Itv(-3, 3), Itv(-3, 0)), Itv::bot());
+  EXPECT_EQ2(div(Itv(1, 3), Itv(-3, 0)), Itv(zi::bot(), -1));
+
+  EXPECT_EQ2(div(zero, Itv(0, 3)), zero);
+  EXPECT_EQ2(div(Itv(-3, -1), Itv(0, 3)), Itv(zi::bot(), -1));
+  EXPECT_EQ2(div(Itv(-3, 3), Itv(0, 3)), Itv::bot());
+  EXPECT_EQ2(div(Itv(1, 3), Itv(0, 3)), Itv(1, zd::bot()));
 }
 
 TEST(IntervalTest, JoinMeetTest) {
