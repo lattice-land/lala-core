@@ -420,6 +420,13 @@ public:
     return *this;
   }
 
+  CUDA this_type& tell(const this_type& other) {
+    if(U::strict_order(this->val, other.val)) {
+      this->val = other.val;
+    }
+    return *this;
+  }
+
   CUDA this_type& dtell(const this_type& other, BInc& has_changed) {
     if(U::strict_order(other.val, this->val)) {
       this->val = other.val;
@@ -427,6 +434,14 @@ public:
     }
     return *this;
   }
+
+  CUDA this_type& dtell(const this_type& other) {
+    if(U::strict_order(other.val, this->val)) {
+      this->val = other.val;
+    }
+    return *this;
+  }
+
 
   /** \return \f$ x \geq i \f$ where `x` is a variable's name and `i` the integer value.
   `true` is returned whenever \f$ a = \bot \f$ and `false` whenever \f$ a = \top \f$. */

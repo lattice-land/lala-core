@@ -383,20 +383,21 @@ public:
       case LV:
         lv().print();
         break;
-      case E:
+      case E: {
         if(print_atype) { printf("("); }
         const auto& e = exists();
         printf("\u2203");
         get<0>(e).print();
         switch(get<1>(e)) {
-          Int: printf(":Z"); break;
-          Real: printf(":R"); break;
+          case Int: printf(":Z"); break;
+          case Real: printf(":R"); break;
           default: printf("print: concrete type (CType) not handled.\n"); assert(false); break;
         }
         printf(", ");
         get<2>(e).print(print_atype);
         if(print_atype) { printf(")"); }
         break;
+      }
       case Seq: print_sequence<Seq>(print_atype); break;
       case ESeq: print_sequence<ESeq>(print_atype); break;
       default: printf("print: formula not handled.\n"); assert(false); break;
