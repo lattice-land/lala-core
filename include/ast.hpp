@@ -396,9 +396,8 @@ public:
           case Real: printf(":R"); break;
           default: printf("print: concrete type (CType) not handled.\n"); assert(false); break;
         }
-        printf(", ");
-        get<1>(e).print(print_atype);
         if(print_atype) { printf(")"); }
+        else { printf(", "); }
         break;
       }
       case Seq: print_sequence<Seq>(print_atype); break;
