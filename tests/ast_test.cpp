@@ -19,7 +19,7 @@ TEST(VarTest, MakeVar) {
 }
 
 TEST(AST, VarEnv) {
-  typedef String<StandardAllocator> S;
+  using S = String<StandardAllocator>;
   AType uid = 3;
   VarEnv<StandardAllocator> env(uid, 3);
   EXPECT_EQ(env.add("x"), make_var(uid, 0));
@@ -40,4 +40,14 @@ TEST(AST, VarEnv) {
   EXPECT_EQ(env.to_lvar(make_var(uid, 1)), S("y"));
   EXPECT_EQ(env.to_lvar(make_var(uid, 2)), S("z"));
   ASSERT_DEATH(env.to_lvar(make_var(uid, 3)), "");
+}
+
+TEST(AST, SFormula) {
+  using SF = SFormula<StandardAllocator>;
+  SF satisfy(SF::F::make_true(), 2);
+  SF maximize(SF::F::make_true(), SF::MAXIMIZE, LVar<StandardAllocator>("x"));
+  EXPECT_EQ(satisfy.mode(), SF::SATISFY);
+  EXPECT_EQ(satisfy.num_sols(), 2);
+  EXPECT_EQ(maximize.mode(), SF::MAXIMIZE);
+  EXPECT_EQ(maximize.optimization_lvar(), LVar<StandardAllocator>("x"));
 }

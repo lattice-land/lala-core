@@ -38,7 +38,7 @@ It is a pair of integers `(aid, vid)` where `aid` is the UID of the abstract ele
 The mapping between logical variables and abstract variables is maintained in `VarEnv` below.
 An abstract variable always has a single name (or no name if it is not explicitly represented in the initial formula).
 However, a logical variable can be represented by several abstract variables when the variable occurs in different abstract elements. */
-typedef int AVar;
+using AVar = int;
 #define AID(v) (v & ((1 << 8) - 1))
 #define VID(v) (v >> 8)
 
@@ -478,20 +478,67 @@ CUDA const TFormula<Allocator, ExtendedSig>& var_in(const TFormula<Allocator, Ex
 
 /** `SFormula` is a formula to be solved with a possible optimisation mode (MINIMIZE or MAXIMIZE), otherwise it will enumerate `n` satisfiable solutions, if any. */
 template<typename Allocator>
-struct SFormula {
-  enum {
+class SFormula {
+public:
+  enum Mode {
     MINIMIZE,
     MAXIMIZE,
     SATISFY
-  } tag;
-
-  union {
-    LVar<Allocator> lv;  ///< The logical variable to optimize.
-    AVar av;  ///< The abstract variable to optimize. (We use this one after the variable has been added to an abstract element).
-    int num_sols; ///< How many solutions should we compute (SATISFY mode).
   };
 
-  TFormula<Allocator> f;
+  using F = TFormula<Allocator>;
+
+private:
+  Mode mode_;
+
+  using ModeData = Variant<
+    LVar<Allocator>,  ///< The logical variable to optimize.
+    AVar,   ///< The abstract variable to optimize. (We use this one after the variable has been added to an abstract element).
+    size_t  ///< How many solutions should we compute (SATISFY mode).
+  >;
+
+  ModeData mode_data;
+
+  F f;
+
+public:
+  /** Create a formula for which we want to find one or more solutions. */
+  SFormula(F f, size_t num_sols = 1):
+    mode_(SATISFY), f(std::move(f)), mode_data(ModeData::template create<2>(num_sols)) {}
+
+  /** Create a formula for which we want to find the best solution minimizing or maximizing an objective variable. */
+  SFormula(F f, Mode mode, LVar<Allocator> to_optimize):
+    mode_(mode), f(std::move(f)), mode_data(ModeData::template create<0>(std::move(to_optimize)))
+  {
+    assert(mode_ != SATISFY);
+  }
+
+  Mode mode() const {
+    return mode_;
+  }
+
+  const LVar<Allocator>& optimization_lvar() const {
+    assert(mode_ != SATISFY);
+    return get<0>(mode_data);
+  }
+
+  const AVar optimization_avar() const {
+    assert(mode_ != SATISFY);
+    return get<1>(mode_data);
+  }
+
+  const F& formula() const {
+    return f;
+  }
+
+  size_t num_sols() const {
+    assert(mode_ == SATISFY);
+    return get<2>(mode_data);
+  }
+
+  void convert_optimization_var(AVar a) {
+    mode_data = ModeData::template create<1>(a);
+  }
 };
 
 /** A `VarEnv` is a variable environment mapping between logical variables and abstract variables.
