@@ -84,8 +84,9 @@ enum Sig {
   NEQ,   ///< \f$ x \neq y \Leftrightarrow \lnot (x = y) \f$ (predicate \f$\neq: L \times L \f$).
   LT,    ///< \f$ x < y \Leftrightarrow x \leq y \land x \neq y \f$ (predicate \f$<: L \times L \f$).
   GT,    ///< \f$ x > y \Leftrightarrow x \geq y \land x \neq y \f$ (predicate \f$>: L \times L \f$).
+  CARD,  ///< \f$ #(x) \f$ is a function \f$ #: L \to ZDec \f$ which maps an abstract element to the cardinality of the set \f$ \gamma(x) \f$; note that it can map to \f$ \infty \f$ for elements with infinite cardinality.
   ///@{
-  AND, OR, IMPLY, EQUIV, NOT    ///< Logical connector.
+  AND, OR, IMPLY, EQUIV, NOT, XOR    ///< Logical connector.
   ///@}
 };
 }
@@ -349,9 +350,11 @@ private:
     assert(children.size() > 0);
     if(children.size() == 1) {
       if(op == ABS) printf("|");
+      else if(op == CARD) printf("#(");
       else if(op != SQR) ::print(op);
       children[0].print(print_atype);
       if(op == ABS) printf("|");
+      else if(op == CARD) printf(")");
       else if(op == SQR) printf("^2");
     }
     else {
@@ -394,7 +397,7 @@ public:
           default: printf("print: concrete type (CType) not handled.\n"); assert(false); break;
         }
         printf(", ");
-        get<2>(e).print(print_atype);
+        get<1>(e).print(print_atype);
         if(print_atype) { printf(")"); }
         break;
       }
@@ -425,7 +428,7 @@ CUDA bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
 
 template<typename Allocator>
 CUDA TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, long long int z, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-  typedef TFormula<Allocator> F;
+  using F = TFormula<Allocator>;
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), UNTYPED, a, allocator);
 }
 
