@@ -390,7 +390,7 @@ public:
       case E: {
         if(print_atype) { printf("("); }
         const auto& e = exists();
-        printf("\u2203");
+        printf("var ");
         get<0>(e).print();
         switch(get<1>(e)) {
           case Int: printf(":Z"); break;

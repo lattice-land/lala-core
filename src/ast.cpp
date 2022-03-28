@@ -36,6 +36,9 @@ CUDA void print(const lala::Sig& sig) {
     case IMPLY: printf("=>"); break;
     case EQUIV: printf("<=>"); break;
     case NOT: printf("!"); break;
+    case XOR: printf("xor"); break;
+    case JOIN: printf("|_|"); break;
+    case MEET: printf("|-|"); break;
     default:
       assert(false);
       break;
