@@ -348,27 +348,28 @@ private:
     const auto& op = get<0>(get<n>(formula));
     const auto& children = get<1>(get<n>(formula));
     assert(children.size() > 0);
-    if(children.size() == 1) {
-      if(op == ABS) printf("|");
-      else if(op == CARD) printf("#(");
-      else if(op != SQR) ::print(op);
-      children[0].print(print_atype);
-      if(op == ABS) printf("|");
-      else if(op == CARD) printf(")");
-      else if(op == SQR) printf("^2");
-    }
-    else {
-      printf("(");
-      for(int i = 0; i < children.size(); ++i) {
-        children[i].print(print_atype);
-        if(i < children.size() - 1) {
-          printf(" ");
-          ::print(op);
-          printf(" ");
-        }
+    if constexpr(n == Seq) {
+      if(children.size() == 1) {
+        if(op == ABS) printf("|");
+        else if(op == CARD) printf("#(");
+        else if(op != SQR) ::print(op);
+        children[0].print(print_atype);
+        if(op == ABS) printf("|");
+        else if(op == CARD) printf(")");
+        else if(op == SQR) printf("^2");
+        return;
       }
-      printf(")");
     }
+    printf("(");
+    for(int i = 0; i < children.size(); ++i) {
+      children[i].print(print_atype);
+      if(i < children.size() - 1) {
+        printf(" ");
+        ::print(op);
+        printf(" ");
+      }
+    }
+    printf(")");
   }
 
 public:
