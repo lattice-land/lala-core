@@ -185,6 +185,14 @@ CUDA typename leq_t<O, typename Interval<L>::ValueType, Interval<L>>::type leq(
   return leq<typename O::CP>(a, b.as_product());
 }
 
+template<class O, class L>
+CUDA typename leq_t<O, Interval<L>, typename Interval<L>::ValueType>::type leq(
+  const Interval<L>& a,
+  const typename Interval<L>::ValueType& b)
+{
+  return leq<typename O::CP>(a.as_product(), b);
+}
+
 template<class O, class L, class K>
 CUDA typename lt_t<O, Interval<L>, Interval<K>>::type lt(
   const Interval<L>& a,

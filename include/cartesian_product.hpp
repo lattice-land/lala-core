@@ -291,6 +291,14 @@ namespace impl {
     return land(leq<typename O::TypeOf<I>>(get<I>(a), project<I>(b))...);
   }
 
+  template<class O, class... Ls, size_t... I>
+  CUDA typename leq_t<O, CartesianProduct<Ls...>, typename CartesianProduct<Ls...>::ValueType>::type leq_(
+    const CartesianProduct<Ls...>& a, const typename CartesianProduct<Ls...>::ValueType& b,
+    std::index_sequence<I...>)
+  {
+    return land(leq<typename O::TypeOf<I>>(project<I>(a), get<I>(b))...);
+  }
+
   template<class O, class... Ls, class... Ks, size_t... I>
   CUDA typename lt_t<O, CartesianProduct<Ls...>, CartesianProduct<Ks...>>::type lt_(
     const CartesianProduct<Ls...>& a, const CartesianProduct<Ks...>& b,
@@ -355,6 +363,16 @@ CUDA typename leq_t<O, typename CartesianProduct<Ls...>::ValueType, CartesianPro
 {
   return impl::leq_<O>(a, b, std::index_sequence_for<Ls...>{});
 }
+
+/** Similar to `leq(CartesianProduct, CartesianProduct)`, but with the right side constant. */
+template<class O, class... Ls>
+CUDA typename leq_t<O, CartesianProduct<Ls...>, typename CartesianProduct<Ls...>::ValueType>::type leq(
+  const CartesianProduct<Ls...>& a,
+  const typename CartesianProduct<Ls...>::ValueType& b)
+{
+  return impl::leq_<O>(a, b, std::index_sequence_for<Ls...>{});
+}
+
 
 template<class O, class... Ls, class... Ks>
 CUDA typename lt_t<O, CartesianProduct<Ls...>, CartesianProduct<Ks...>>::type lt(

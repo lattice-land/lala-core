@@ -127,7 +127,13 @@ TEST(IntervalTest, OrderTest) {
   auto constant = Itv(8, 12).value();
   EXPECT_FALSE2(geq<Itv>(Itv(10, 20), constant));
   EXPECT_TRUE2(geq<Itv>(Itv(8, 12), constant));
+  EXPECT_FALSE2(geq<Itv>(Itv(7, 13), constant));
   EXPECT_TRUE2(geq<Itv>(Itv(10, 12), constant));
+
+  EXPECT_FALSE2(geq<Itv>(constant, Itv(10, 20)));
+  EXPECT_TRUE2(geq<Itv>(constant, Itv(8, 12)));
+  EXPECT_TRUE2(geq<Itv>(constant, Itv(7, 13)));
+  EXPECT_FALSE2(geq<Itv>(constant, Itv(10, 12)));
 }
 
 TEST(IntervalTest, NegTest) {
