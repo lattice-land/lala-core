@@ -50,6 +50,8 @@ class Interval: public arithmetic_projection<Interval<U>> {
     CUDA Interval(const CP& cp): cp(cp) {}
 
   public:
+    /** Given a value \f$ x \in U \f$ where \f$ U \f$ is the universe of discourse, we initialize a singleton interval \f$ [x..x] \f$. */
+    CUDA Interval(const typename U::ValueType& x): cp(x, x) {}
     CUDA Interval(LB&& lb, UB&& ub): cp(std::forward<LB>(lb), std::forward<UB>(ub)) {}
     CUDA Interval(const LB& lb, const UB& ub): cp(lb, ub) {}
     CUDA Interval(const this_type& other): cp(other.cp) {}
@@ -173,6 +175,14 @@ CUDA typename leq_t<O, Interval<L>, Interval<K>>::type leq(
   const Interval<K>& b)
 {
   return leq<typename O::CP>(a.as_product(), b.as_product());
+}
+
+template<class O, class L>
+CUDA typename leq_t<O, typename Interval<L>::ValueType, Interval<L>>::type leq(
+  const typename Interval<L>::ValueType& a,
+  const Interval<L>& b)
+{
+  return leq<typename O::CP>(a, b.as_product());
 }
 
 template<class O, class L, class K>

@@ -47,7 +47,9 @@ TEST(IntervalTest, SubTest) {
 
 TEST(IntervalTest, MulTest) {
   Itv top(0, -1);
-  Itv zero(0,0);
+  Itv zero(0);
+  Itv zero2(0, 0);
+  EXPECT_EQ2(zero, zero2);
   EXPECT_EQ2(mul(zero,zero), zero);
   EXPECT_EQ2(mul(Itv(1,2), Itv(1,2)), Itv(1,4));
   EXPECT_TRUE2(mul(top, top).is_top());
@@ -74,7 +76,7 @@ TEST(IntervalTest, MulTest) {
 
 TEST(IntervalTest, DivTestPItv) {
   PItv top(1, 0);
-  PItv zero(0,0);
+  PItv zero(0);
   EXPECT_TRUE2(div(zero,zero).is_top());
   EXPECT_EQ2(div(PItv(1,2), PItv(1,2)), PItv(1,2));
   EXPECT_EQ2(div(zero, PItv(1,2)), zero);
@@ -85,7 +87,7 @@ TEST(IntervalTest, DivTestPItv) {
 
 TEST(IntervalTest, DivTest) {
   Itv top(1, 0);
-  Itv zero(0,0);
+  Itv zero(0);
   EXPECT_TRUE2(div(zero,zero).is_top());
   EXPECT_EQ2(div(Itv(1,2), Itv(1,2)), PItv(1,2));
   EXPECT_EQ2(div(zero, Itv(1,2)), zero);
@@ -119,6 +121,13 @@ TEST(IntervalTest, DivTest) {
 TEST(IntervalTest, JoinMeetTest) {
   EXPECT_EQ2(join(Itv(10, 20), Itv(4,14)), Itv(10,14));
   EXPECT_EQ2(meet(Itv(10, 20), Itv(4,14)), Itv(4,20));
+}
+
+TEST(IntervalTest, OrderTest) {
+  auto constant = Itv(8, 12).value();
+  EXPECT_FALSE2(geq<Itv>(Itv(10, 20), constant));
+  EXPECT_TRUE2(geq<Itv>(Itv(8, 12), constant));
+  EXPECT_TRUE2(geq<Itv>(Itv(10, 12), constant));
 }
 
 TEST(IntervalTest, NegTest) {

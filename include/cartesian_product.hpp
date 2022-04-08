@@ -107,14 +107,6 @@ private:
     return ValueType(project<I>().value()...);
   }
 
-  template<class O, class... Ls, class... Ks, size_t... I>
-  CUDA typename leq_t<O, CartesianProduct<Ls...>, CartesianProduct<Ks...>>::type leq_(
-    const CartesianProduct<Ls...>& a, const CartesianProduct<Ks...>& b,
-    std::index_sequence<I...>)
-  {
-    return land(leq<typename O::TypeOf<I>>(project<I>(a), project<I>(b))...);
-  }
-
   template<size_t... I>
   CUDA BInc is_top_(std::index_sequence<I...>) const {
     return lor(project<I>().is_top()...);
@@ -291,6 +283,14 @@ namespace impl {
     return land(leq<typename O::TypeOf<I>>(project<I>(a), project<I>(b))...);
   }
 
+  template<class O, class... Ls, size_t... I>
+  CUDA typename leq_t<O, typename CartesianProduct<Ls...>::ValueType, CartesianProduct<Ls...>>::type leq_(
+    const typename CartesianProduct<Ls...>::ValueType& a, const CartesianProduct<Ls...>& b,
+    std::index_sequence<I...>)
+  {
+    return land(leq<typename O::TypeOf<I>>(get<I>(a), project<I>(b))...);
+  }
+
   template<class O, class... Ls, class... Ks, size_t... I>
   CUDA typename lt_t<O, CartesianProduct<Ls...>, CartesianProduct<Ks...>>::type lt_(
     const CartesianProduct<Ls...>& a, const CartesianProduct<Ks...>& b,
@@ -343,6 +343,15 @@ template<class O, class... Ls, class... Ks>
 CUDA typename leq_t<O, CartesianProduct<Ls...>, CartesianProduct<Ks...>>::type leq(
   const CartesianProduct<Ls...>& a,
   const CartesianProduct<Ks...>& b)
+{
+  return impl::leq_<O>(a, b, std::index_sequence_for<Ls...>{});
+}
+
+/** Similar to `leq(CartesianProduct, CartesianProduct)`, but with the left side constant. */
+template<class O, class... Ls>
+CUDA typename leq_t<O, typename CartesianProduct<Ls...>::ValueType, CartesianProduct<Ls...>>::type leq(
+  const typename CartesianProduct<Ls...>::ValueType& a,
+  const CartesianProduct<Ls...>& b)
 {
   return impl::leq_<O>(a, b, std::index_sequence_for<Ls...>{});
 }
