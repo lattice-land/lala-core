@@ -137,7 +137,9 @@ public:
   */
   template <class F>
   CUDA thrust::optional<TellType> interpret(const F& f, bool declaration_errors = true) {
-    if(f.type() == env.ad_uid() && f.is(F::Seq) && f.sig() == AND) {
+    if((f.type() == UNTYPED || f.type() == env.ad_uid())
+     && f.is(F::Seq) && f.sig() == AND)
+    {
       const typename F::Sequence& seq = f.seq();
       // 1. We collect all existential quantifiers to resize `data` and `env` if needed.
       //    We also check that all subformulas are interpretable in `U`.
