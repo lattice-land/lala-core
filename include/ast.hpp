@@ -466,6 +466,16 @@ namespace impl {
       default: printf("var_in: formula not handled.\n"); assert(false); return f;
     }
   }
+
+  template<size_t n, class F>
+  CUDA int num_vars_in_seq(const F& f) {
+    const auto& children = get<1>(get<n>(f.data()));
+    int total = 0;
+    for(int i = 0; i < children.size(); ++i) {
+      total += num_vars(children[i]);
+    }
+    return total;
+  }
 }
 
 /** \return The first variable occurring in the formula, or any other subformula if the formula does not contain a variable.
@@ -474,6 +484,25 @@ template<typename Allocator, typename ExtendedSig>
 CUDA const TFormula<Allocator, ExtendedSig>& var_in(const TFormula<Allocator, ExtendedSig>& f) {
   bool found = false;
   return impl::var_in_impl(f, found);
+}
+
+/** \return The number of variables occuring in the formula `F` including existential quantifier, logical variables and abstract variables.
+ * Each occurrence of a variable is added up (duplicates are counted). */
+template<class F>
+CUDA int num_vars(const F& f)
+{
+  switch(f.index()) {
+    case F::Z:
+    case F::R:
+      return 0;
+    case F::V:
+    case F::E:
+    case F::LV:
+      return 1;
+    case F::Seq: return impl::num_vars_in_seq<F::Seq>(f);
+    case F::ESeq: return impl::num_vars_in_seq<F::ESeq>(f);
+    default: printf("num_vars: formula not handled.\n"); assert(false); return 0;
+  }
 }
 
 /** `SFormula` is a formula to be solved with a possible optimisation mode (MINIMIZE or MAXIMIZE), otherwise it will enumerate `n` satisfiable solutions, if any. */

@@ -51,3 +51,14 @@ TEST(AST, SFormula) {
   EXPECT_EQ(maximize.mode(), SF::MAXIMIZE);
   EXPECT_EQ(maximize.optimization_lvar(), LVar<StandardAllocator>("x"));
 }
+
+TEST(AST, NumVars) {
+  using F = TFormula<StandardAllocator>;
+  auto var_x = LVar<StandardAllocator>("x");
+  auto f1 = make_v_op_z(var_x, LEQ, 1);
+  auto f2 = make_v_op_z(var_x, LEQ, 0);
+  auto f3 = F::make_binary(f1, AND, f2);
+  EXPECT_EQ(num_vars(f1), 1);
+  EXPECT_EQ(num_vars(f2), 1);
+  EXPECT_EQ(num_vars(f3), 2);
+}
