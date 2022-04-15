@@ -8,7 +8,6 @@
 #include <cmath>
 #include "thrust/optional.h"
 #include "utility.hpp"
-#include "darray.hpp"
 #include "ast.hpp"
 
 namespace lala {
@@ -64,7 +63,7 @@ struct ZDecUniverse {
       return ValueType{};
     }
     else {
-      return Limits<ValueType>::top();
+      return battery::Limits<ValueType>::top();
     }
   }
   static ValueType top() {
@@ -72,11 +71,11 @@ struct ZDecUniverse {
       return ValueType{};
     }
     else {
-      return Limits<ValueType>::bot();
+      return battery::Limits<ValueType>::bot();
     }
   }
-  static ValueType join(ValueType x, ValueType y) { return min(x, y); }
-  static ValueType meet(ValueType x, ValueType y) { return max(x, y); }
+  static ValueType join(ValueType x, ValueType y) { return battery::min(x, y); }
+  static ValueType meet(ValueType x, ValueType y) { return battery::max(x, y); }
   static bool order(ValueType x, ValueType y) { return x >= y; }
   static bool strict_order(ValueType x, ValueType y) { return x > y; }
   static Sig sig_order() { return LEQ; }
@@ -111,7 +110,7 @@ struct ZIncUniverse {
       return ValueType{};
     }
     else {
-      return Limits<ValueType>::bot();
+      return battery::Limits<ValueType>::bot();
     }
   }
   static ValueType top() {
@@ -119,11 +118,11 @@ struct ZIncUniverse {
       return ValueType{};
     }
     else {
-      return Limits<ValueType>::top();
+      return battery::Limits<ValueType>::top();
     }
   }
-  static ValueType join(ValueType x, ValueType y) { return max(x, y); }
-  static ValueType meet(ValueType x, ValueType y) { return min(x, y); }
+  static ValueType join(ValueType x, ValueType y) { return battery::max(x, y); }
+  static ValueType meet(ValueType x, ValueType y) { return battery::min(x, y); }
   static bool order(ValueType x, ValueType y) { return x <= y; }
   static bool strict_order(ValueType x, ValueType y) { return x < y; }
   static Sig sig_order() { return GEQ; }
@@ -351,10 +350,13 @@ public:
 
   CUDA ZTotalOrder(const this_type& other): val(other.val) {}
   CUDA ZTotalOrder(this_type&& other): val(std::move(other.val)) {}
+
+  CUDA void swap(this_type& other) {
+    ::battery::swap(val, other.val);
+  }
+
   CUDA this_type& operator=(this_type&& other) {
-    ValueType old = std::move(val);
-    val = std::move(other.val);
-    other.val = std::move(old);
+    this_type(std::move(other)).swap(*this);
     return *this;
   }
 
@@ -377,7 +379,7 @@ public:
       return top();
     }
     else if(f.is(Formula::E)) {
-      CType ty = get<1>(f.exists());
+      CType ty = battery::get<1>(f.exists());
       if(ty == Int) {
         return bot();
       }
@@ -457,12 +459,12 @@ public:
   }
 
   template<class Allocator>
-  CUDA DArray<this_type, Allocator> split(const Allocator& allocator = Allocator()) const {
+  CUDA battery::vector<this_type, Allocator> split(const Allocator& allocator = Allocator()) const {
     if(is_top().guard()) {
-      return DArray<this_type, Allocator>();
+      return battery::vector<this_type, Allocator>();
     }
     else {
-      return DArray<this_type, Allocator>(1, *this, allocator);
+      return battery::vector<this_type, Allocator>({*this}, allocator);
     }
   }
 

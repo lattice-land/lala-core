@@ -2,8 +2,10 @@
 
 #include <gtest/gtest.h>
 #include "ast.hpp"
+#include "allocator.hpp"
 
 using namespace lala;
+using namespace battery;
 
 TEST(VarTest, MakeVar) {
   int n = 6;

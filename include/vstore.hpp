@@ -23,28 +23,35 @@ public:
   using Universe = U;
   using Allocator = Alloc;
   using EnvAllocator = Allocator;
-  using DataAllocator = typename FasterAllocator<Allocator>::type;
+  using DataAllocator = typename battery::FasterAllocator<Allocator>::type;
   using this_type = VStore<U, Allocator>;
 
-  using TellType = DArray<battery::tuple<int, Universe>, EnvAllocator>;
+  using TellType = battery::vector<battery::tuple<int, Universe>, EnvAllocator>;
   using Env = VarEnv<EnvAllocator>;
 
 private:
-  using Array = DArray<Universe, DataAllocator>;
+  using Array = battery::vector<Universe, DataAllocator>;
 
+  Allocator allocator;
   Array data;
   Env env;
   BInc is_at_top;
 
 public:
   /** Initialize an empty store equivalent to \f$ \bot \f$ with memory reserved for `n` variables. */
-  CUDA VStore(AType uid, size_t n,
-    DataAllocator alloc = DataAllocator()): data(n, Universe::bot(), alloc), env(uid, n), is_at_top(BInc::bot()) {}
-  CUDA VStore(VStore&& other): data(std::move(other.data)), env(std::move(other.env)), is_at_top(other.is_at_top) {}
+  CUDA VStore(AType uid, size_t capacity, Allocator alloc = Allocator())
+   : allocator(alloc), data(battery::FasterAllocator<Allocator>::fast(allocator)), env(uid, capacity), is_at_top(BInc::bot())
+  {
+    data.reserve(capacity);
+  }
+
+  CUDA VStore(VStore&& other)
+   : data(std::move(other.data)), env(std::move(other.env)), is_at_top(std::move(other.is_at_top))
+  {}
 
   /** Returns the number of variables currently represented by this abstract element. */
   CUDA ZPInc<int> vars() const {
-    return env.size();
+    return data.size();
   }
 
   CUDA static this_type bot(AType uid = UNTYPED) {
@@ -69,12 +76,8 @@ public:
   }
 
 private:
-  CUDA void resize(int newsize) {
-    Array data2(newsize, Universe::bot(), data.get_allocator());
-    for(int i = 0; i < vars().value(); ++i) {
-      data2[i] = std::move(data[i]);
-    }
-    data = std::move(data2);
+  CUDA void reserve(int newsize) {
+    data.reserve(newsize);
     env.reserve(newsize);
   }
 
@@ -88,7 +91,7 @@ private:
       if(var.has_value()) { return true; }
       for(int j = 0; j < i; ++j) {
         if(seq[j].is(F::E)) {
-          if(get<0>(seq[i].exists()) == get<0>(seq[j].exists())) {
+          if(battery::get<0>(seq[i].exists()) == battery::get<0>(seq[j].exists())) {
             return true;
           }
         }
@@ -101,7 +104,7 @@ private:
         if(fv.is(F::LV)) {
           for(int j = 0; j < i; ++j) {
             if(seq[j].is(F::E)) {
-              if(fv.lv() == get<0>(seq[j].exists())) {
+              if(fv.lv() == battery::get<0>(seq[j].exists())) {
                 return false;
               }
             }
@@ -114,18 +117,19 @@ private:
   }
 
 public:
-  /** The store of variables lattice expects a conjunctive formula \f$ c_1 \land \ldots \land c_n \f$ in which all components \f$ c_i \f$ are formulas with a single variable that can be handled by the abstract universe `U`, or existential quantifiers.
+  /** The store of variables lattice expects a conjunctive formula \f$ c_1 \land \ldots \land c_n \f$ in which all components \f$ c_i \f$ are formulas with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
     Optionally, `declaration_errors` can be set to `false` to skip the check of redeclared and undeclared variables (which is done in \f$ \O(n^2)\f$ with \f$ n \f$ the number of variables).
 
     I. Approximation
     ================
 
-    Exact or under-approximation of \f$ \land \f$ is treated in the same way (nothing special is performed for under-approximation).
+    Exact and under-approximation of \f$ \land \f$ are treated in the same way (nothing special is performed for under-approximation).
     Over-approximation of \f$ \land \f$ allows the abstract domain to ignore components of the formula that cannot be interpreted in the underlying abstract universe.
 
     II. Existential quantifier
     ==========================
-    Variables must be existentially quantified before a formula containing such a variable can be interpreted.
+
+    Variables must be existentially quantified before a formula containing variables can be interpreted.
     Variables are immediately added to `VStore` and initialized to \f$ \bot_U \f$, hence existential quantifiers never need to be joined in this abstract domain.
     Shadowing/redeclaration of variables with existential quantifier is not supported.
     Variables are added to the current abstract element only if `interpret(f) != {}`.
@@ -133,7 +137,8 @@ public:
     III. Technical note on allocators
     =================================
 
-    PoolAllocator (for shared memory) does not support deallocation of memory, therefore you should call interpret once with all existential quantifiers first to avoid reallocating this array (and wasting shared memory space).
+    PoolAllocator (for shared memory) does not support deallocation of memory, therefore you should call interpret once with all existential quantifiers first to avoid reallocating the underlying data array when you call `tell` (and wasting shared memory space).
+    Of course, if you initialized `VStore` with the right capacity initially, the memory will not be reallocated.
   */
   template <class F>
   CUDA thrust::optional<TellType> interpret(const F& f, bool declaration_errors = true) {
@@ -158,19 +163,20 @@ public:
           return {};
         }
       }
-      if(vars().value() + newvars >= env.capacity()) {
-        resize(vars().value() + newvars);
+      if(vars().value() + newvars >= data.capacity()) {
+        reserve(vars().value() + newvars);
       }
       // 2. We extend the environment with new bindings.
       for(int i = 0; i < seq.size(); ++i) {
         if(seq[i].is(F::E)) {
-          const auto& var_name = get<0>(seq[i].exists());
+          const auto& var_name = battery::get<0>(seq[i].exists());
           env.add(var_name);
+          data.push_back(U::bot());
         }
       }
       // 3. We convert each subformula to its corresponding universe element.
       if(seq.size() > newvars) {
-        DArray<U, EnvAllocator> tell_data(vars().value(), Universe::bot());
+        battery::vector<U, EnvAllocator> tell_data(vars().value(), Universe::bot());
         for(int i = 0; i < seq.size(); ++i) {
           if(!seq[i].is(F::E)) {
             auto u = Universe::interpret(seq[i]);
@@ -188,11 +194,11 @@ public:
             ++tell_elements;
           }
         }
-        TellType res(tell_elements, make_tuple(0,tell_data[0]));
-        for(int i = 0, j = 0; i < tell_data.size(); ++i) {
+        TellType res;
+        res.reserve(tell_elements);
+        for(int i = 0; i < tell_data.size(); ++i) {
           if(lnot(tell_data[i].is_bot()).guard()) {
-            res[j] = make_tuple(i, tell_data[i]);
-            j++;
+            res.push_back(battery::make_tuple(i, tell_data[i]));
           }
         }
         return res;
@@ -209,9 +215,10 @@ public:
             return {}; // redeclaration
           }
           else {
-            resize(vars().value() + 1);
-            const auto& var_name = get<0>(f.exists());
+            reserve(vars().value() + 1);
+            const auto& var_name = battery::get<0>(f.exists());
             env.add(var_name);
+            data.push_back(U::bot());
             return TellType();
           }
         }
@@ -222,7 +229,7 @@ public:
               return TellType();
             }
             else {
-              return TellType(1, make_tuple(VID(*v), *u));
+              return TellType({battery::make_tuple(VID(*v), *u)});
             }
           }
         }
@@ -243,13 +250,12 @@ public:
 
   CUDA this_type& tell(const TellType& t, BInc& has_changed) {
     for(int i = 0; i < t.size(); ++i) {
-      tell(make_var(env.ad_uid(), get<0>(t[i])), get<1>(t[i]), has_changed);
+      tell(make_var(env.ad_uid(), battery::get<0>(t[i])), battery::get<1>(t[i]), has_changed);
     }
     return *this;
   }
 
   CUDA const Env& environment() const { return env; }
-
 };
 
 } // namespace lala

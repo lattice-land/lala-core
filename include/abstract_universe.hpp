@@ -4,7 +4,6 @@
 #define ABSTRACT_UNIVERSE_HPP
 
 #include "thrust/optional.h"
-#include "darray.hpp"
 #include "utility.hpp"
 
 namespace lala {
@@ -92,7 +91,7 @@ public:
 
   \return A list of abstract elements (possibly complementary, but not necessarily) that can be joined in an abstract element to further refine its state.
   */
-  CUDA virtual DArray<this_type, Allocator> split(const Alloc& allocator = Alloc()) const = 0;
+  CUDA virtual battery::vector<this_type, Allocator> split(const Alloc& allocator = Alloc()) const = 0;
 
   /** This method resets the current abstract element to an anterior state \f$b \f$.
       Therefore, this operation is similar to computing \f$ a \sqcap b \f$ where \f$ a \geq b \f$. */

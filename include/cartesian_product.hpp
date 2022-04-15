@@ -5,7 +5,7 @@
 
 #include "thrust/optional.h"
 #include "utility.hpp"
-#include "darray.hpp"
+#include "vector.hpp"
 #include "ast.hpp"
 #include "tuple.hpp"
 #include "variant.hpp"
@@ -53,7 +53,7 @@ public:
   }
 
   CUDA dual_type dual() const {
-    return dual_type(typename As::dual_type(get<As>(val).dual())...);
+    return dual_type(typename As::dual_type(battery::get<As>(val).dual())...);
   }
 
   template<size_t i, typename Formula>
@@ -61,7 +61,7 @@ public:
     auto one = TypeOf<i>::interpret(f);
     if(one.has_value()) {
       auto res = bot();
-      get<i>(res.val) = std::move(one).value();
+      battery::get<i>(res.val) = std::move(one).value();
       return res;
     }
     return {};
@@ -82,7 +82,7 @@ private:
       auto one = TypeOf<i>::interpret(f);
       if(one.has_value()) {
         empty = false;
-        get<i>(res.val) = std::move(one).value();
+        battery::get<i>(res.val) = std::move(one).value();
       }
       return interpret_all<i+1>(f, std::move(res), empty);
     }
@@ -99,7 +99,7 @@ private:
   // The non-const version must stay private, otherwise it violates the PCCP model since the caller might not check if the updated value is strictly greater w.r.t. lattice order.
   template<size_t i>
   CUDA TypeOf<i>& project() {
-    return get<i>(val);
+    return battery::get<i>(val);
   }
 
   template<size_t... I>
@@ -119,7 +119,7 @@ private:
 public:
   template<size_t i>
   CUDA const TypeOf<i>& project() const {
-    return get<i>(val);
+    return battery::get<i>(val);
   }
 
   CUDA ValueType value() const {
@@ -185,22 +185,25 @@ public:
 
   /** This is a non-commutative split, which splits on the first splittable abstract element (in the order of the template parameters). */
   template<class Alloc, size_t i = 0>
-  CUDA DArray<this_type, Alloc> split(const Alloc& allocator = Alloc()) const {
+  CUDA battery::vector<this_type, Alloc> split(const Alloc& allocator = Alloc()) const {
     if constexpr(i < n) {
       auto split_i = project<i>().split(allocator);
       switch (split_i.size()) {
-        case 0: return DArray<this_type, Alloc>();
+        case 0: return battery::vector<this_type, Alloc>();
         case 1: return split<Alloc, i+1>(allocator);
         default:
-          DArray<this_type, Alloc> res(split_i.size(), *this, allocator);
-          for(int j = 0; j < res.size(); ++j) {
-            get<i>(res[j].val) = std::move(split_i[j]);
+          battery::vector<this_type, Alloc> res(allocator);
+          res.reserve(split_i.size());
+          for(int j = 0; j < split_i.size(); ++j) {
+            this_type current(*this);
+            battery::get<i>(current.val) = std::move(split_i[j]);
+            res.push_back(std::move(current));
           }
           return std::move(res);
       }
     }
     else {
-      return DArray<this_type, Alloc>(1, *this, allocator);
+      return battery::vector<this_type, Alloc>({*this}, allocator);
     }
   }
 
@@ -240,7 +243,7 @@ public:
   template<class Allocator, size_t i = 0>
   CUDA void print(const LVar<Allocator>& x) const {
     if constexpr(i < n) {
-      ::print(project<i>());
+      ::battery::print(project<i>());
       if constexpr(i < n - 1) {
         printf("\n");
         print<i+1>();
@@ -288,7 +291,7 @@ namespace impl {
     const typename CartesianProduct<Ls...>::ValueType& a, const CartesianProduct<Ls...>& b,
     std::index_sequence<I...>)
   {
-    return land(leq<typename O::TypeOf<I>>(get<I>(a), project<I>(b))...);
+    return land(leq<typename O::TypeOf<I>>(battery::get<I>(a), project<I>(b))...);
   }
 
   template<class O, class... Ls, size_t... I>
@@ -296,7 +299,7 @@ namespace impl {
     const CartesianProduct<Ls...>& a, const typename CartesianProduct<Ls...>::ValueType& b,
     std::index_sequence<I...>)
   {
-    return land(leq<typename O::TypeOf<I>>(project<I>(a), get<I>(b))...);
+    return land(leq<typename O::TypeOf<I>>(project<I>(a), battery::get<I>(b))...);
   }
 
   template<class O, class... Ls, class... Ks, size_t... I>

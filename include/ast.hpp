@@ -4,13 +4,11 @@
 #define AST_HPP
 
 #include "utility.hpp"
-#include "darray.hpp"
+#include "vector.hpp"
 #include "string.hpp"
 #include "tuple.hpp"
 #include "variant.hpp"
 #include "thrust/optional.h"
-
-using namespace battery;
 
 namespace lala {
 
@@ -30,8 +28,8 @@ enum CType {
 };
 
 /** A "logical variable" is just the name of the variable. */
-template<typename Allocator>
-using LVar = String<Allocator>;
+template<class Allocator>
+using LVar = battery::String<Allocator>;
 
 /** We call an "abstract variable" the representation of a logical variable in an abstract domain.
 It is a pair of integers `(aid, vid)` where `aid` is the UID of the abstract element and `vid` is an internal identifier of the variable inside the abstract element.
@@ -58,17 +56,14 @@ static constexpr Approx dapprox(Approx appx) {
 /** A first-order signature is a triple \f$ (X, F, P) \f$ where \f$ X \f$ is the set of variables, \f$ F \f$ the set of function symbols and \f$ P \f$ the set of predicates.
   We represent \f$ X \f$ by strings (see `LVar`), while \f$ F \f$ and \f$ P \f$ are described in the following enumeration `Sig`.
   For programming conveniency, we suppose that logical connectors are included in the set of predicates and thus are in the signature as well.
-
-  Symbols are overloaded across different abstract domains.
-  Therefore, a logical formula can have different semantics depending on the abstract domain in which it is interpreted.
-  This is where the type of the formula becomes important in order to force the formula to be interpreted in the right abstract domain, as intended.
-
-  Another peculiarity of this signature is that the semantics of the predicates (from `JOIN` to `GT` below) are relative to a lattice order given to the universe of discourse.
-
   Finally, function symbols and predicates are at the "same level".
   Hence a predicate can occur as the argument of a function, which is convenient when modelling, consider for example a cardinality constraint: \f$ ((x > 4) + (y < 4) + (z = 3)) \neq 2 \f$.
 
+  Symbols are overloaded across different abstract universes.
+  Therefore, a logical formula can have different semantics depending on the abstract universe in which it is interpreted.
+  The semantics of the predicates (from `JOIN` to `GT` below) are relative to a lattice order given to the universe of discourse.
   In the following, we suppose \f$ L \f$ is a universe of discourse with a lattice structure.
+  Given a universe of discourse, we take its "natural increasing lattice order", e.g., for integers it is the lattice of increasing integers, and for set the lattice of increasing set (ordered by subset inclusion, i.e., \f$ X \leq Y \Leftrightarrow X \subseteq Y \f$).
  */
 enum Sig {
   ///@{
@@ -77,7 +72,7 @@ enum Sig {
   ///@}
   JOIN,   ///< The join operator \f$ x \sqcup y \f$ (function \f$\sqcup: L \times L \to L \f$). For instance, on the lattice of increasing integers it is the max function, on the lattice of increasing sets it is the union.
   MEET,   ///< The meet operator \f$ x \sqcap y \f$ (function \f$\sqcap: L \times L \to L \f$). For instance, on the lattice of increasing integers it is the min function, on the lattice of increasing sets it is the intersection.
-  COMPLEMENT, ///< The complement operator \f$ \lnot x \f$ (function \f$\lnot: L \to L \f$) such that \f$ x \sqcup \lnot x = \top \f$ and \f$ x \sqcap \lnot x = \bot \f$. For instance, the complement does not exist on the lattice of increasing integers, and it is the set complement on the lattice of increasing or decreasing sets.
+  COMPLEMENT, ///< The complement operator \f$ \lnot x \f$ (function \f$\lnot: L \to L \f$) such that \f$ x \sqcup \lnot x = \top \f$ and \f$ x \sqcap \lnot x = \bot \f$. For instance, the complement does not exist on the lattice of increasing integers, and it is the set complement on the lattice of increasing set.
   LEQ,   ///< The lattice order of the underlying universe of discourse (predicate \f$\leq: L \times L \f$).
   GEQ,   ///< \f$ x \geq y \Leftrightarrow y \leq x \f$ (predicate \f$\geq: L \times L \f$).
   EQ,    ///< \f$ x = y \Leftrightarrow x \leq y \land x \geq y \f$ (predicate \f$=: L \times L \f$).
@@ -107,18 +102,19 @@ This extended signature can also be used for representing exactly constant such 
 The AST of a formula is represented by a variant, where each alternative is described below.
 We represent everything at the same level (term, formula, predicate, variable, constant).
 This is generally convenient when modelling to avoid creating intermediate boolean variables when reifying.
-We can have `x + (x > y \/ y > x + 4)` and this expression is true if the value is != 0.
+We can have `x + (x > y \/ y > x + 4) >= 1`.
 
 Differently from first-order logic, the existential quantifier does not have a subformula, i.e., we write \f$ \exists{x:Int} \land \exists{y:Int} \land x < y\f$.
-This semantics comes from `dynamic predicate logic` where a formula is interpreted in a context (here the abstract element).
+This semantics comes from "dynamic predicate logic" where a formula is interpreted in a context (here the abstract element).
 (The exact connection of our framework to dynamic predicate logic is not yet perfectly clear.) */
-template<typename Allocator, typename ExtendedSig = String<Allocator>>
+template<class Allocator, class ExtendedSig = battery::String<Allocator>>
 class TFormula {
 public:
+  using allocator_type = Allocator;
   using this_type = TFormula<Allocator, ExtendedSig>;
-  using Sequence = DArray<this_type, Allocator>;
+  using Sequence = battery::vector<this_type, Allocator>;
   using Existential = battery::tuple<LVar<Allocator>, CType>;
-  using Formula = Variant<
+  using Formula = battery::variant<
     long long int, ///< Constant in the domain of discourse that can be represented exactly.
     battery::tuple<double, double>,    ///< A real represented as an interval \f$ [d[0]..d[1]] \f$. Indeed, we sometimes cannot use a single `double` because it cannot represent all real numbers, it is up to the abstract domain to under- or over-approximate it, or choose an exact representation such as rational.
     AVar,            ///< Abstract variable
@@ -157,23 +153,25 @@ private:
 public:
   /** By default, we initialize the formula to `true`. */
   CUDA TFormula(): type_(UNTYPED), appx(EXACT), formula(Formula::template create<Z>(1)) {}
-  CUDA TFormula(Formula&& formula): type_(UNTYPED), appx(EXACT), formula(std::forward<Formula>(formula)) {}
-  CUDA TFormula(AType uid, Approx appx, Formula&& formula): type_(uid), formula(std::forward<Formula>(formula)), appx(appx) {}
+  CUDA TFormula(Formula&& formula): type_(UNTYPED), appx(EXACT), formula(std::move(formula)) {}
+  CUDA TFormula(AType uid, Approx appx, Formula&& formula): type_(uid), formula(std::move(formula)), appx(appx) {}
 
   CUDA TFormula(const this_type& other): type_(other.type_), appx(other.appx), formula(other.formula) {}
   CUDA TFormula(this_type&& other): type_(other.type_), appx(other.appx), formula(std::move(other.formula)) {}
 
-  CUDA this_type& operator=(this_type& rhs) {
-    type_ = rhs.type_;
-    appx = rhs.appx;
-    formula = rhs.formula;
+  CUDA void swap(this_type& other) {
+    ::battery::swap(type_, other.type_);
+    ::battery::swap(appx, other.appx);
+    ::battery::swap(formula, other.formula);
+  }
+
+  CUDA this_type& operator=(const this_type& rhs) {
+    this_type(rhs).swap(*this);
     return *this;
   }
 
   CUDA this_type& operator=(this_type&& rhs) {
-    type_ = rhs.type_;
-    appx = rhs.appx;
-    formula = std::move(rhs.formula);
+    this_type(std::move(rhs)).swap(*this);
     return *this;
   }
 
@@ -230,16 +228,11 @@ public:
   }
 
   CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    Sequence children(1, allocator);
-    children[0] = std::move(child);
-    return make_nary(sig, std::move(children), atype, a, allocator);
+    return make_nary(sig, Sequence({std::move(child)}, allocator), atype, a, allocator);
   }
 
   CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    Sequence children(2, allocator);
-    children[0] = std::move(lhs);
-    children[1] = std::move(rhs);
-    return make_nary(sig, std::move(children), atype, a, allocator);
+    return make_nary(sig, Sequence({std::move(lhs), std::move(rhs)}, allocator), atype, a, allocator);
   }
 
   CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
@@ -263,35 +256,35 @@ public:
   }
 
   CUDA long long int z() const {
-    return get<Z>(formula);
+    return battery::get<Z>(formula);
   }
 
   CUDA const battery::tuple<double, double>& r() const {
-    return get<R>(formula);
+    return battery::get<R>(formula);
   }
 
   CUDA AVar v() const {
-    return get<V>(formula);
+    return battery::get<V>(formula);
   }
 
   CUDA const LVar<Allocator>& lv() const {
-    return get<LV>(formula);
+    return battery::get<LV>(formula);
   }
 
   CUDA const Existential& exists() const {
-    return get<E>(formula);
+    return battery::get<E>(formula);
   }
 
   CUDA Sig sig() const {
-    return battery::get<0>(get<Seq>(formula));
+    return battery::get<0>(battery::get<Seq>(formula));
   }
 
   CUDA const ExtendedSig& esig() const {
-    return battery::get<0>(get<ESeq>(formula));
+    return battery::get<0>(battery::get<ESeq>(formula));
   }
 
   CUDA const Sequence& seq() const {
-    return battery::get<1>(get<Seq>(formula));
+    return battery::get<1>(battery::get<Seq>(formula));
   }
 
   CUDA const this_type& seq(size_t i) const {
@@ -299,7 +292,7 @@ public:
   }
 
   CUDA const Sequence& eseq() const {
-    return battery::get<1>(get<ESeq>(formula));
+    return battery::get<1>(battery::get<ESeq>(formula));
   }
 
   CUDA const this_type& eseq(size_t i) const {
@@ -307,27 +300,27 @@ public:
   }
 
   CUDA long long int& z() {
-    return get<Z>(formula);
+    return battery::get<Z>(formula);
   }
 
   CUDA battery::tuple<double, double>& r() {
-    return get<R>(formula);
+    return battery::get<R>(formula);
   }
 
   CUDA AVar& v() {
-    return get<V>(formula);
+    return battery::get<V>(formula);
   }
 
   CUDA Sig& sig() {
-    return battery::get<0>(get<Seq>(formula));
+    return battery::get<0>(battery::get<Seq>(formula));
   }
 
   CUDA ExtendedSig& esig() {
-    return battery::get<0>(get<ESeq>(formula));
+    return battery::get<0>(battery::get<ESeq>(formula));
   }
 
   CUDA Sequence& seq() {
-    return battery::get<1>(get<Seq>(formula));
+    return battery::get<1>(battery::get<Seq>(formula));
   }
 
   CUDA this_type& seq(size_t i) {
@@ -335,7 +328,7 @@ public:
   }
 
   CUDA Sequence& eseq() {
-    return get<1>(get<ESeq>(formula));
+    return battery::get<1>(battery::get<ESeq>(formula));
   }
 
   CUDA this_type& eseq(size_t i) {
@@ -345,14 +338,14 @@ public:
 private:
   template<size_t n>
   CUDA void print_sequence(bool print_atype) const {
-    const auto& op = get<0>(get<n>(formula));
-    const auto& children = get<1>(get<n>(formula));
+    const auto& op = battery::get<0>(battery::get<n>(formula));
+    const auto& children = battery::get<1>(battery::get<n>(formula));
     assert(children.size() > 0);
     if constexpr(n == Seq) {
       if(children.size() == 1) {
         if(op == ABS) printf("|");
         else if(op == CARD) printf("#(");
-        else if(op != SQR) ::print(op);
+        else if(op != SQR) ::battery::print(op);
         children[0].print(print_atype);
         if(op == ABS) printf("|");
         else if(op == CARD) printf(")");
@@ -365,7 +358,7 @@ private:
       children[i].print(print_atype);
       if(i < children.size() - 1) {
         printf(" ");
-        ::print(op);
+        ::battery::print(op);
         printf(" ");
       }
     }
@@ -379,7 +372,7 @@ public:
         printf("%lld", z());
         break;
       case R:
-        printf("[%lf..%lf]", get<0>(r()), get<1>(r()));
+        printf("[%lf..%lf]", battery::get<0>(r()), battery::get<1>(r()));
         break;
       case V:
         printf("var(%d)", v());
@@ -391,8 +384,8 @@ public:
         if(print_atype) { printf("("); }
         const auto& e = exists();
         printf("var ");
-        get<0>(e).print();
-        switch(get<1>(e)) {
+        battery::get<0>(e).print();
+        switch(battery::get<1>(e)) {
           case Int: printf(":Z"); break;
           case Real: printf(":R"); break;
           default: printf("print: concrete type (CType) not handled.\n"); assert(false); break;
@@ -438,7 +431,7 @@ namespace impl {
 
   template<size_t n, typename Allocator, typename ExtendedSig>
   CUDA const TFormula<Allocator, ExtendedSig>& find_var_in_seq(const TFormula<Allocator, ExtendedSig>& f, bool& found) {
-    const auto& children = get<1>(get<n>(f.data()));
+    const auto& children = battery::get<1>(battery::get<n>(f.data()));
     for(int i = 0; i < children.size(); ++i) {
       const auto& subformula = var_in_impl(children[i], found);
       if(found) {
@@ -469,7 +462,7 @@ namespace impl {
 
   template<size_t n, class F>
   CUDA int num_vars_in_seq(const F& f) {
-    const auto& children = get<1>(get<n>(f.data()));
+    const auto& children = battery::get<1>(battery::get<n>(f.data()));
     int total = 0;
     for(int i = 0; i < children.size(); ++i) {
       total += num_vars(children[i]);
@@ -520,7 +513,7 @@ public:
 private:
   Mode mode_;
 
-  using ModeData = Variant<
+  using ModeData = battery::variant<
     LVar<Allocator>,  ///< The logical variable to optimize.
     AVar,   ///< The abstract variable to optimize. (We use this one after the variable has been added to an abstract element).
     size_t  ///< How many solutions should we compute (SATISFY mode).
@@ -548,12 +541,12 @@ public:
 
   const LVar<Allocator>& optimization_lvar() const {
     assert(mode_ != SATISFY);
-    return get<0>(mode_data);
+    return battery::get<0>(mode_data);
   }
 
   const AVar optimization_avar() const {
     assert(mode_ != SATISFY);
-    return get<1>(mode_data);
+    return battery::get<1>(mode_data);
   }
 
   const F& formula() const {
@@ -562,7 +555,7 @@ public:
 
   size_t num_sols() const {
     assert(mode_ == SATISFY);
-    return get<2>(mode_data);
+    return battery::get<2>(mode_data);
   }
 
   void convert_optimization_var(AVar a) {
@@ -572,43 +565,44 @@ public:
 
 /** A `VarEnv` is a variable environment mapping between logical variables and abstract variables.
 This class is supposed to be used inside an abstract domain, to help with the conversion. */
-template<typename Allocator>
+template<class Allocator>
 class VarEnv {
 public:
-  using LName = LVar<Allocator>;
+  using allocator_type = Allocator;
+  using LName = LVar<allocator_type>;
 
 private:
-  using EnvType = DArray<LName, Allocator>;
-
   AType uid;
   /** Given an abstract variable `v`, `avar2lvar[VID(v)]` is the name of the variable. */
-  EnvType avar2lvar;
-  /** This is the number of variables in the environment. */
-  size_t size_;
+  battery::vector<LName, allocator_type> avar2lvar;
 
 public:
-  CUDA VarEnv(AType uid, int capacity): uid(uid), avar2lvar(capacity), size_(0) {}
+  CUDA VarEnv(AType uid): uid(uid), avar2lvar() {}
+  CUDA VarEnv(AType uid, int capacity): uid(uid), avar2lvar() {
+    avar2lvar.reserve(capacity);
+  }
+  CUDA VarEnv(VarEnv&& other): uid(other.uid), avar2lvar(std::move(other.avar2lvar)) {}
 
   CUDA AType ad_uid() const {
     return uid;
   }
 
   CUDA size_t capacity() const {
-    return avar2lvar.size();
+    return avar2lvar.capacity();
   }
 
   CUDA size_t size() const {
-    return size_;
+    return avar2lvar.size();
   }
 
   CUDA const LName& to_lvar(AVar av) const {
-    assert(VID(av) < size_);
+    assert(VID(av) < size());
     return avar2lvar[VID(av)];
   }
 
   CUDA thrust::optional<AVar> to_avar(const LName& lv) const {
     AVar i = 0;
-    for(; i < size_; ++i) {
+    for(; i < size(); ++i) {
       if(avar2lvar[i] == lv) {
         return make_var(uid, i);
       }
@@ -617,19 +611,12 @@ public:
   }
 
   CUDA AVar add(LName lv) {
-    assert(size() < capacity());
-    avar2lvar[size_++] = std::move(lv);
-    return make_var(uid, size_ - 1);
+    avar2lvar.push_back(std::move(lv));
+    return make_var(uid, size() - 1);
   }
 
   CUDA void reserve(int new_cap) {
-    if(new_cap > capacity()) {
-      EnvType avar2lvar2 = EnvType(new_cap);
-      for(int i = 0; i < avar2lvar.size(); ++i) {
-        avar2lvar2[i] = std::move(avar2lvar[i]);
-      }
-      avar2lvar = avar2lvar2;
-    }
+    avar2lvar.reserve(new_cap);
   }
 };
 
@@ -641,7 +628,7 @@ CUDA thrust::optional<AVar> var_in(const F& f, const VarEnv<Allocator>& env) {
     case F::V:
       return g.v();
     case F::E:
-      return env.to_avar(get<0>(g.exists()));
+      return env.to_avar(battery::get<0>(g.exists()));
     case F::LV:
       return env.to_avar(g.lv());
     default:

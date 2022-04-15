@@ -146,9 +146,9 @@ class Interval: public arithmetic_projection<Interval<U>> {
 
     CUDA void print() const {
       printf("[");
-      ::print(lb());
+      ::battery::print(lb());
       printf("..");
-      ::print(ub());
+      ::battery::print(ub());
       printf("]");
     }
 };

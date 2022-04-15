@@ -4,7 +4,6 @@
 #define ABSTRACT_DOMAIN_HPP
 
 #include "thrust/optional.h"
-#include "darray.hpp"
 #include "utility.hpp"
 
 namespace lala {
@@ -82,7 +81,7 @@ public:
   CUDA virtual void embed(AVar x, const Universe& dom) = 0;
 
   /** See `AbstractUniverse.split`. */
-  CUDA virtual DArray<TellElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
+  CUDA virtual battery::vector<TellElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
 
   /** See `AbstractUniverse.reset`. */
   CUDA virtual void reset(const this_type& b) = 0;

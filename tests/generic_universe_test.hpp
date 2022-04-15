@@ -12,6 +12,7 @@
 #include "arithmetic.hpp"
 
 using namespace lala;
+using namespace battery;
 
 using F = TFormula<StandardAllocator>;
 
@@ -94,7 +95,7 @@ void generic_order_test(A element) {
 }
 
 template<class A>
-using SplitSeq = DArray<A, StandardAllocator>;
+using SplitSeq = vector<A, StandardAllocator>;
 
 template<class A>
 SplitSeq<A> make_singleton(A x) {
@@ -107,7 +108,7 @@ SplitSeq<A> make_empty() {
 }
 
 template<class A>
-DArray<A, StandardAllocator> split(const A& a) {
+SplitSeq<A> split(const A& a) {
   return a.template split<StandardAllocator>();
 }
 
