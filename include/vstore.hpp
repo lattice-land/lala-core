@@ -259,7 +259,7 @@ public:
     for(int i = 0; i < t.size(); ++i) {
       const auto& var = battery::get<0>(t[i]);
       const auto& dom = battery::get<1>(t[i]);
-      if(geq(data[var], dom).guard()) {
+      if(geq<U>(data[var], dom.value()).guard()) {
         return BInc::bot();
       }
     }
