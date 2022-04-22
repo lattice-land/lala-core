@@ -255,6 +255,17 @@ public:
     return *this;
   }
 
+  CUDA BInc ask(const TellType& t) const {
+    for(int i = 0; i < t.size(); ++i) {
+      const auto& var = battery::get<0>(t[i]);
+      const auto& dom = battery::get<1>(t[i]);
+      if(geq(data[var], dom).guard()) {
+        return BInc::bot();
+      }
+    }
+    return BInc::top();
+  }
+
   CUDA const Env& environment() const { return env; }
 };
 

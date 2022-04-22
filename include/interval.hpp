@@ -129,6 +129,7 @@ class Interval: public arithmetic_projection<Interval<U>> {
       cp.dtell(other.cp, has_changed);
       return *this;
     }
+
     CUDA this_type clone() const { return this_type(cp.clone()); }
 
     template<class Allocator>
