@@ -67,3 +67,25 @@ TEST(AST, NumVars) {
   EXPECT_EQ(num_vars(f2), 1);
   EXPECT_EQ(num_vars(f3), 2);
 }
+
+TEST(AST, ExtractTy) {
+  using F = TFormula<StandardAllocator>;
+  auto var_x = LVar<StandardAllocator>("x");
+  auto var_y = LVar<StandardAllocator>("y");
+  auto f1 = F::make_binary(F::make_lvar(0, var_x), LEQ, F::make_z(10), 0);
+  auto f2 = F::make_binary(F::make_lvar(0, var_x), LEQ, F::make_lvar(0, var_y), 1);
+  auto f3 = F::make_binary(F::make_lvar(0, var_x), GEQ, F::make_z(0), 0);
+  auto f4 = F::make_binary(F::make_lvar(0, var_x), GEQ, F::make_lvar(0, var_y), 1);
+  auto f = F::make_binary(f1, AND,
+    F::make_binary(f2, AND,
+      F::make_binary(f3, AND, f4, 1), 1), 1);
+  auto fg = extract_ty(f, 1);
+  auto fty1 = battery::get<0>(fg);
+  auto fty0 = battery::get<1>(fg);
+  EXPECT_EQ(fty1.seq().size(), 2);
+  EXPECT_EQ(fty0.seq().size(), 2);
+  EXPECT_EQ(fty0.seq(0), f1);
+  EXPECT_EQ(fty0.seq(1), f3);
+  EXPECT_EQ(fty1.seq(0), f2);
+  EXPECT_EQ(fty1.seq(1), f4);
+}

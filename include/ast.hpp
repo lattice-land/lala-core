@@ -498,6 +498,56 @@ CUDA int num_vars(const F& f)
   }
 }
 
+template<class F>
+CUDA AType type_of_conjunction(const typename F::Sequence& seq) {
+  AType ty = UNTYPED;
+  for(int i = 0; i < seq.size(); ++i) {
+    if(seq[i].type() == UNTYPED) {
+      return UNTYPED;
+    }
+    else if(ty == UNTYPED) {
+      ty = seq[i].type();
+    }
+    else if(ty != seq[i].type()) {
+      return UNTYPED;
+    }
+  }
+  return ty;
+}
+
+/** Given a conjunctive formula `f` of the form \f$ c_1 \land ... \land c_n \f$, it returns a pair \f$ \langle c_i \land .. \land c_j, c_k \land ... \land c_l \rangle \f$ such that the first component contains all formulas with the type `ty`, and the second component, all other formulas. */
+template<class F>
+CUDA battery::tuple<F,F> extract_ty(const F& f, AType ty) {
+  assert(f.is(F::Seq));
+  const auto& seq = f.seq();
+  typename F::Sequence fty;
+  typename F::Sequence other;
+  for(int i = 0; i < seq.size(); ++i) {
+    // In case of nested conjunction.
+    if(seq[i].is(F::Seq) && seq[i].sig() == AND) {
+      auto r = extract_ty(seq[i], ty);
+      auto& fty_ = battery::get<0>(r).seq();
+      auto& other_ = battery::get<1>(r).seq();
+      for(int i = 0; i < fty_.size(); ++i) {
+        fty.push_back(std::move(fty_[i]));
+      }
+      for(int i = 0; i < other_.size(); ++i) {
+        other.push_back(std::move(other_[i]));
+      }
+    }
+    else if(seq[i].type() == ty) {
+      fty.push_back(seq[i]);
+    }
+    else {
+      other.push_back(seq[i]);
+    }
+  }
+  AType other_ty = type_of_conjunction<F>(other);
+  return battery::make_tuple(
+    F::make_nary(AND, std::move(fty), ty, f.approx()),
+    F::make_nary(AND, std::move(other), other_ty, f.approx()));
+}
+
 /** `SFormula` is a formula to be solved with a possible optimisation mode (MINIMIZE or MAXIMIZE), otherwise it will enumerate `n` satisfiable solutions, if any. */
 template<typename Allocator>
 class SFormula {
