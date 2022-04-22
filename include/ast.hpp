@@ -595,7 +595,7 @@ public:
     return avar2lvar.size();
   }
 
-  CUDA const LName& operator[](size_t i) {
+  CUDA const LName& operator[](size_t i) const {
     assert(i < size());
     return avar2lvar[i];
   }
