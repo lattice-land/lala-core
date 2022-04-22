@@ -42,6 +42,9 @@ TEST(AST, VarEnv) {
   EXPECT_EQ(env.to_lvar(make_var(uid, 1)), S("y"));
   EXPECT_EQ(env.to_lvar(make_var(uid, 2)), S("z"));
   ASSERT_DEATH(env.to_lvar(make_var(uid, 3)), "");
+  EXPECT_EQ(env[0], S("x"));
+  EXPECT_EQ(env[1], S("y"));
+  EXPECT_EQ(env[2], S("z"));
 }
 
 TEST(AST, SFormula) {

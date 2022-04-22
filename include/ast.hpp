@@ -595,6 +595,11 @@ public:
     return avar2lvar.size();
   }
 
+  CUDA const LName& operator[](size_t i) {
+    assert(i < size());
+    return avar2lvar[i];
+  }
+
   CUDA const LName& to_lvar(AVar av) const {
     assert(VID(av) < size());
     return avar2lvar[VID(av)];
