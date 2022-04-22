@@ -553,6 +553,10 @@ public:
     return f;
   }
 
+  F& formula() {
+    return f;
+  }
+
   size_t num_sols() const {
     assert(mode_ == SATISFY);
     return battery::get<2>(mode_data);
