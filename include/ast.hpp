@@ -5,6 +5,7 @@
 
 #include "utility.hpp"
 #include "vector.hpp"
+#include "shared_ptr.hpp"
 #include "string.hpp"
 #include "tuple.hpp"
 #include "variant.hpp"
@@ -16,6 +17,11 @@ namespace lala {
     We call it an _abstract type_.
     Each formula (and recursively, its subformulas) is assigned to an abstract type indicating in what abstract domain this formula should be interpreted. */
 using AType = int;
+
+/** The dependencies list of the abstract domains DAG when copying abstract domains.
+ * It should probably be somewhere else than AST, but for a lack of better place it is here now... */
+template<class Alloc = battery::StandardAllocator>
+using AbstractDeps = battery::vector<battery::shared_ptr<void*, Alloc>, Alloc>;
 
 /** This value means a formula is not typed in a particular abstract domain and its type should be inferred. */
 #define UNTYPED (-1)
@@ -594,7 +600,7 @@ public:
     return battery::get<0>(mode_data);
   }
 
-  const AVar optimization_avar() const {
+  AVar optimization_avar() const {
     assert(mode_ != SATISFY);
     return battery::get<1>(mode_data);
   }
@@ -631,11 +637,18 @@ private:
   battery::vector<LName, allocator_type> avar2lvar;
 
 public:
-  CUDA VarEnv(AType uid): uid(uid), avar2lvar() {}
-  CUDA VarEnv(AType uid, int capacity): uid(uid), avar2lvar() {
+  CUDA VarEnv(AType uid, const Allocator& allocator = Allocator())
+   : uid(uid), avar2lvar(allocator) {}
+
+  CUDA VarEnv(AType uid, int capacity, const Allocator& allocator = Allocator()): uid(uid), avar2lvar(allocator) {
     avar2lvar.reserve(capacity);
   }
+
   CUDA VarEnv(VarEnv&& other): uid(other.uid), avar2lvar(std::move(other.avar2lvar)) {}
+
+  template<class Alloc2>
+  CUDA VarEnv(const VarEnv<Alloc2>& other, const Allocator& allocator = Allocator())
+   : uid(other.uid), avar2lvar(other.avar2lvar, allocator) {}
 
   CUDA AType ad_uid() const {
     return uid;

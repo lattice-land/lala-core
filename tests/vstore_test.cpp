@@ -62,6 +62,17 @@ TEST(VStoreTest, TopBot) {
   // bot_top_test<CPStore>(bools);
 }
 
+TEST(VStoreTest, CopyConstructor) {
+  ZStore ones(ty, 10);
+  populate_zstore_10_vars(ones, 1);
+  ZStore copy(ones, AbstractDeps<>());
+  EXPECT_EQ2(ones.vars(), copy.vars());
+  for(int i = 0; i < ones.vars().value(); ++i) {
+    auto av = make_var(ty, i);
+    EXPECT_EQ2(ones.project(av), copy.project(av));
+  }
+}
+
 // // I. With integer variables and exact interpretation.
 
 template <typename A>

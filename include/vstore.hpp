@@ -49,6 +49,15 @@ public:
    : data(std::move(other.data)), env(std::move(other.env)), is_at_top(std::move(other.is_at_top))
   {}
 
+  /** Completely copy the vstore `other` in the current element.
+   *  `deps` can be empty and is not used (since this abstract domain does not have dependencies). */
+  template<class Alloc2, class Alloc3>
+  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Alloc3>&, Allocator alloc = Allocator())
+   : allocator(alloc)
+   , data(other.data, battery::FasterAllocator<Allocator>::fast(allocator))
+   , env(other.env, allocator)
+   , is_at_top(other.is_at_top) {}
+
   /** Returns the number of variables currently represented by this abstract element. */
   CUDA ZPInc<int> vars() const {
     return data.size();
