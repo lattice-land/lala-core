@@ -67,7 +67,8 @@ public:
       Alloc to_alloc = deps.get_allocator();
       deps[a->uid()] = battery::unique_ptr<dep_erasure, Alloc>(
         new(to_alloc) battery::shared_ptr<A, Alloc>(
-          new(to_alloc) A(*a, deps), to_alloc), to_alloc);
+          new(to_alloc) A(*a, *this), to_alloc), to_alloc);
+      // NOTE: Since we are copying a DAG, `A(*a, *this)` or one of its dependency cannot create `deps[a->uid()]`.
     }
     return extract(a->uid());
   }
