@@ -39,7 +39,7 @@ private:
 
 public:
   /** Initialize an empty store equivalent to \f$ \bot \f$ with memory reserved for `n` variables. */
-  CUDA VStore(AType uid, size_t capacity, Allocator alloc = Allocator())
+  CUDA VStore(AType uid, size_t capacity, const Allocator& alloc = Allocator())
    : allocator(alloc), data(battery::FasterAllocator<Allocator>::fast(allocator)), env(uid, capacity), is_at_top(BInc::bot())
   {
     data.reserve(capacity);
@@ -52,11 +52,19 @@ public:
   /** Completely copy the vstore `other` in the current element.
    *  `deps` can be empty and is not used (since this abstract domain does not have dependencies). */
   template<class Alloc2, class Alloc3>
-  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Alloc3>&, Allocator alloc = Allocator())
+  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Alloc3>&, const Allocator& alloc = Allocator())
    : allocator(alloc)
    , data(other.data, battery::FasterAllocator<Allocator>::fast(allocator))
    , env(other.env, allocator)
    , is_at_top(other.is_at_top) {}
+
+  CUDA Allocator get_allocator() const {
+    return allocator;
+  }
+
+  CUDA AType uid() const {
+    return env.uid();
+  }
 
   /** Returns the number of variables currently represented by this abstract element. */
   CUDA ZPInc<int> vars() const {
@@ -151,7 +159,7 @@ public:
   */
   template <class F>
   CUDA thrust::optional<TellType> interpret(const F& f, bool declaration_errors = true) {
-    if((f.type() == UNTYPED || f.type() == env.ad_uid())
+    if((f.type() == UNTYPED || f.type() == uid())
      && f.is(F::Seq) && f.sig() == AND)
     {
       const typename F::Sequence& seq = f.seq();
@@ -259,7 +267,7 @@ public:
 
   CUDA this_type& tell(const TellType& t, BInc& has_changed) {
     for(int i = 0; i < t.size(); ++i) {
-      tell(make_var(env.ad_uid(), battery::get<0>(t[i])), battery::get<1>(t[i]), has_changed);
+      tell(make_var(uid(), battery::get<0>(t[i])), battery::get<1>(t[i]), has_changed);
     }
     return *this;
   }

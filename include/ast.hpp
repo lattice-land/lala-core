@@ -5,10 +5,11 @@
 
 #include "utility.hpp"
 #include "vector.hpp"
-#include "shared_ptr.hpp"
 #include "string.hpp"
 #include "tuple.hpp"
 #include "variant.hpp"
+#include "shared_ptr.hpp"
+#include "unique_ptr.hpp"
 #include "thrust/optional.h"
 
 namespace lala {
@@ -18,13 +19,55 @@ namespace lala {
     Each formula (and recursively, its subformulas) is assigned to an abstract type indicating in what abstract domain this formula should be interpreted. */
 using AType = int;
 
-/** The dependencies list of the abstract domains DAG when copying abstract domains.
- * It should probably be somewhere else than AST, but for a lack of better place it is here now... */
-template<class Alloc = battery::StandardAllocator>
-using AbstractDeps = battery::vector<battery::shared_ptr<void*, Alloc>, Alloc>;
-
 /** This value means a formula is not typed in a particular abstract domain and its type should be inferred. */
 #define UNTYPED (-1)
+
+/** The dependencies list of the abstract domains DAG when copying abstract domains.
+ * It should probably be somewhere else than in AST, but for a lack of better place it is here now... */
+template<class Alloc = battery::StandardAllocator>
+class AbstractDeps
+{
+  struct dep_erasure {
+    virtual ~dep_erasure() {}
+  };
+
+  template <class A>
+  struct dep_holder : dep_erasure {
+    battery::shared_ptr<A, Alloc> a;
+    dep_holder(A* ptr, const Alloc& alloc): a(a, alloc) {}
+    ~dep_holder() {}
+  };
+
+  battery::vector<battery::unique_ptr<dep_erasure, Alloc>, Alloc> deps;
+
+public:
+  using allocator_type = Alloc;
+
+  CUDA AbstractDeps(const Alloc& alloc = Alloc()): deps(alloc) {}
+
+  template<class A>
+  CUDA battery::shared_ptr<A, Alloc> extract(AType uid) {
+    assert(uid != UNTYPED);
+    assert(deps.size() > uid);
+    assert(deps[uid]);
+    return static_cast<dep_holder<A>*>(deps[uid].get())->a;
+  }
+
+  template<class A, class FromAlloc>
+  CUDA battery::shared_ptr<A, Alloc> clone(const battery::shared_ptr<A, FromAlloc>& a)
+  {
+    assert(a->uid() != UNTYPED); // Abstract domain must all have a unique identifier to be copied.
+    // If the dependency is not in the list, we copy it and add it.
+    if(deps.size() <= a->uid() || !static_cast<bool>(deps[a->uid()])) {
+      deps.resize(a->uid()+1);
+      Alloc to_alloc = deps.get_allocator();
+      deps[a->uid()] = battery::unique_ptr<dep_erasure, Alloc>(
+        new(to_alloc) battery::shared_ptr<A, Alloc>(
+          new(to_alloc) A(*a, deps, to_alloc), to_alloc), to_alloc);
+    }
+    return extract(a->uid(), deps);
+  }
+};
 
 /** The concrete type of variables introduced by existential quantification.
     More concrete types could be added later. */
@@ -242,7 +285,7 @@ public:
   }
 
   CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    return this_type(atype, a, Formula::create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
+    return this_type(atype, a, Formula::template create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
   }
 
   CUDA int index() const {
@@ -632,26 +675,26 @@ public:
   using LName = LVar<allocator_type>;
 
 private:
-  AType uid;
+  AType uid_;
   /** Given an abstract variable `v`, `avar2lvar[VID(v)]` is the name of the variable. */
   battery::vector<LName, allocator_type> avar2lvar;
 
 public:
   CUDA VarEnv(AType uid, const Allocator& allocator = Allocator())
-   : uid(uid), avar2lvar(allocator) {}
+   : uid_(uid), avar2lvar(allocator) {}
 
-  CUDA VarEnv(AType uid, int capacity, const Allocator& allocator = Allocator()): uid(uid), avar2lvar(allocator) {
+  CUDA VarEnv(AType uid, int capacity, const Allocator& allocator = Allocator()): uid_(uid), avar2lvar(allocator) {
     avar2lvar.reserve(capacity);
   }
 
-  CUDA VarEnv(VarEnv&& other): uid(other.uid), avar2lvar(std::move(other.avar2lvar)) {}
+  CUDA VarEnv(VarEnv&& other): uid_(other.uid_), avar2lvar(std::move(other.avar2lvar)) {}
 
   template<class Alloc2>
   CUDA VarEnv(const VarEnv<Alloc2>& other, const Allocator& allocator = Allocator())
-   : uid(other.uid), avar2lvar(other.avar2lvar, allocator) {}
+   : uid_(other.uid_), avar2lvar(other.avar2lvar, allocator) {}
 
-  CUDA AType ad_uid() const {
-    return uid;
+  CUDA AType uid() const {
+    return uid_;
   }
 
   CUDA size_t capacity() const {
@@ -676,7 +719,7 @@ public:
     AVar i = 0;
     for(; i < size(); ++i) {
       if(avar2lvar[i] == lv) {
-        return make_var(uid, i);
+        return make_var(uid(), i);
       }
     }
     return {};
@@ -684,7 +727,7 @@ public:
 
   CUDA AVar add(LName lv) {
     avar2lvar.push_back(std::move(lv));
-    return make_var(uid, size() - 1);
+    return make_var(uid(), size() - 1);
   }
 
   CUDA void reserve(int new_cap) {

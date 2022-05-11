@@ -89,3 +89,7 @@ TEST(AST, ExtractTy) {
   EXPECT_EQ(fty1.seq(0), f2);
   EXPECT_EQ(fty1.seq(1), f4);
 }
+
+TEST(AST, AbstractDeps) {
+  AbstractDeps deps;
+}
