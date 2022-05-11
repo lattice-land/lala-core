@@ -34,7 +34,7 @@ class AbstractDeps
   template <class A>
   struct dep_holder : dep_erasure {
     battery::shared_ptr<A, Alloc> a;
-    dep_holder(A* ptr, const Alloc& alloc): a(a, alloc) {}
+    dep_holder(A* ptr, const Alloc& alloc): a(ptr, alloc) {}
     ~dep_holder() {}
   };
 
@@ -72,7 +72,7 @@ public:
         to_alloc);
       // NOTE: Since we are copying a DAG, `A(*a, *this)` or one of its dependency cannot create `deps[a->uid()]`.
     }
-    return extract(a->uid());
+    return extract<A>(a->uid());
   }
 
   CUDA allocator_type get_allocator() const {
