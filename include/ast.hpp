@@ -67,9 +67,9 @@ public:
       Alloc to_alloc = deps.get_allocator();
       deps[a->uid()] = battery::unique_ptr<dep_erasure, Alloc>(
         new(to_alloc) battery::shared_ptr<A, Alloc>(
-          new(to_alloc) A(*a, deps, to_alloc), to_alloc), to_alloc);
+          new(to_alloc) A(*a, deps), to_alloc), to_alloc);
     }
-    return extract(a->uid(), deps);
+    return extract(a->uid());
   }
 
   CUDA allocator_type get_allocator() const {
