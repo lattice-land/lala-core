@@ -45,6 +45,10 @@ public:
 
   CUDA AbstractDeps(const Alloc& alloc = Alloc()): deps(alloc) {}
 
+  CUDA size_t size() const {
+    return deps.size();
+  }
+
   template<class A>
   CUDA battery::shared_ptr<A, Alloc> extract(AType uid) {
     assert(uid != UNTYPED);
@@ -66,6 +70,10 @@ public:
           new(to_alloc) A(*a, deps, to_alloc), to_alloc), to_alloc);
     }
     return extract(a->uid(), deps);
+  }
+
+  CUDA allocator_type get_allocator() const {
+    return deps.get_allocator();
   }
 };
 

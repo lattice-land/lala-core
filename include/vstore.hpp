@@ -51,9 +51,9 @@ public:
 
   /** Completely copy the vstore `other` in the current element.
    *  `deps` can be empty and is not used (since this abstract domain does not have dependencies). */
-  template<class Alloc2, class Alloc3>
-  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Alloc3>&, const Allocator& alloc = Allocator())
-   : allocator(alloc)
+  template<class Alloc2>
+  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Allocator>& deps)
+   : allocator(deps.get_allocator())
    , data(other.data, battery::FasterAllocator<Allocator>::fast(allocator))
    , env(other.env, allocator)
    , is_at_top(other.is_at_top) {}
