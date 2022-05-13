@@ -468,9 +468,6 @@ public:
     }
   }
 
-  /** \return A copy of the current abstract element. */
-  CUDA this_type clone() const { return *this; }
-
   /** Print the current element. */
   CUDA void print() const {
     if(is_bot().value()) {

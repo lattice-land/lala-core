@@ -72,10 +72,12 @@ public:
   /** Similar to `join`, but in addition set `has_changed` to `true` if \f$ a \sqcup b \neq a \f$, that is, `this` has changed.
   Also it only performs a write operation into `this` if \f$ a \sqcup b \neq a \f$, which is an important property for convergence. */
   CUDA virtual this_type& tell(const this_type& b, bool& has_changed) = 0;
+  CUDA virtual this_type& tell(const this_type& b) = 0;
 
   /** Similar to `meet`, but in addition set `has_changed` to `true` if \f$ a \sqcap b \neq a \f$, that is, `this` has changed.
    * `dtell` stands for _dual tell_. */
   CUDA virtual this_type& dtell(const this_type& b, bool& has_changed) = 0;
+  CUDA virtual this_type& dtell(const this_type& b) = 0;
 
   /** \return `true` if \f$ a \leq b \f$, and `false` otherwise. */
   CUDA virtual bool order(const this_type& b) const = 0;
@@ -92,13 +94,6 @@ public:
   \return A list of abstract elements (possibly complementary, but not necessarily) that can be joined in an abstract element to further refine its state.
   */
   CUDA virtual battery::vector<this_type, Allocator> split(const Alloc& allocator = Alloc()) const = 0;
-
-  /** This method resets the current abstract element to an anterior state \f$b \f$.
-      Therefore, this operation is similar to computing \f$ a \sqcap b \f$ where \f$ a \geq b \f$. */
-  CUDA virtual void reset(const this_type& b) = 0;
-
-  /** \return A copy of the current abstract element. */
-  CUDA virtual this_type* clone() const = 0;
 
   /** This function is the inverse of `interpret`, and directly maps to a `Formula`.
       Let \f$ a = [\![\varphi]\!]_A \f$, then we must have \f$ \gamma(a) = [\![[\![a]\!]^{-1}]\!]^\flat \f$.

@@ -124,7 +124,7 @@ TEST(CPTest, CPClone) {
   Itv top_itv = Itv::top();
   Itv itv2 = Itv(1,2);
   Itv itv3 = top_itv;
-  EXPECT_TRUE2(bot_itv.clone().is_bot());
-  EXPECT_TRUE2(top_itv.clone().is_top());
-  EXPECT_EQ2(itv2.clone(), itv2);
+  EXPECT_TRUE2(Itv(bot_itv).is_bot());
+  EXPECT_TRUE2(Itv(top_itv).is_top());
+  EXPECT_EQ2(Itv(itv2), itv2);
 }

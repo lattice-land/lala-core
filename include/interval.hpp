@@ -130,8 +130,6 @@ class Interval: public arithmetic_projection<Interval<U>> {
       return *this;
     }
 
-    CUDA this_type clone() const { return this_type(cp.clone()); }
-
     template<class Allocator>
     CUDA TFormula<Allocator> deinterpret(const LVar<Allocator>& x, const Allocator& allocator = Allocator()) const {
       if(is_top().guard()) {

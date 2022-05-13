@@ -83,12 +83,6 @@ public:
   /** See `AbstractUniverse.split`. */
   CUDA virtual battery::vector<TellElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
 
-  /** See `AbstractUniverse.reset`. */
-  CUDA virtual void reset(const this_type& b) = 0;
-
-  /** See `AbstractUniverse.clone`. */
-  CUDA virtual this_type* clone() const = 0;
-
   /** This function is the inverse of `interpret`, but directly maps to a general `Formula`.
       Let \f$ a = [\![\varphi]\!]_A \f$, then we must have \f$ \gamma(a) = [\![[\![a]\!]^{-1}]\!]^\flat \f$. */
   CUDA virtual Formula deinterpret() const = 0;

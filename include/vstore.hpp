@@ -29,6 +29,8 @@ public:
   using TellType = battery::vector<battery::tuple<int, Universe>, EnvAllocator>;
   using Env = VarEnv<EnvAllocator>;
 
+  using Snapshot = battery::vector<Universe, EnvAllocator>;
+
 private:
   using Array = battery::vector<Universe, DataAllocator>;
 
@@ -90,6 +92,22 @@ public:
   /** Bottom is represented by the empty variable store. */
   CUDA BDec is_bot() const {
     return land(is_at_top.is_bot(), vars().is_bot());
+  }
+
+  CUDA Snapshot snapshot() const {
+    return Snapshot(data);
+  }
+
+  CUDA void restore(const Snapshot& snap) {
+    assert(snap.size() <= data.size());
+    int i = 0;
+    for(; i < snap.size(); ++i) {
+      data[i].dtell(snap[i]);
+      is_at_top.tell(data[i].is_top());
+    }
+    for(; i < data.size(); ++i) {
+      data.pop_back();
+    }
   }
 
 private:

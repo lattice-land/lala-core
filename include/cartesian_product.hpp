@@ -208,18 +208,6 @@ public:
   }
 
 private:
-  template<size_t... I>
-  CUDA this_type clone_(std::index_sequence<I...>) const {
-    return CartesianProduct(project<I>().clone()...);
-  }
-public:
-
-  /** \return A copy of the current abstract element. */
-  CUDA this_type clone() const {
-    return clone_(std::index_sequence_for<As...>{});
-  }
-
-private:
   template<size_t i, class Allocator>
   CUDA TFormula<Allocator> deinterpret_(const LVar<Allocator>& x, TFormula<Allocator>::Sequence&& seq, const Allocator& allocator) const {
     if constexpr(i < n) {
