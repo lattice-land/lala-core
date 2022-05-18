@@ -5,6 +5,7 @@
 
 #include "ast.hpp"
 #include "z.hpp"
+#include "arithmetic.hpp"
 
 namespace lala {
 
@@ -101,8 +102,9 @@ public:
   CUDA void restore(const Snapshot& snap) {
     assert(snap.size() <= data.size());
     int i = 0;
+    BInc has_changed = BInc::bot();
     for(; i < snap.size(); ++i) {
-      data[i].dtell(snap[i]);
+      data[i].dtell(snap[i], has_changed);
       is_at_top.tell(data[i].is_top());
     }
     for(; i < data.size(); ++i) {

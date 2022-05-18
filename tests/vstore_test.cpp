@@ -1,9 +1,8 @@
 // Copyright 2021 Pierre Talbot
 
-#include "z.hpp"
+#include "vstore.hpp"
 #include "cartesian_product.hpp"
 #include "interval.hpp"
-#include "vstore.hpp"
 #include "generic_universe_test.hpp"
 
 using zi = ZInc<int>;
