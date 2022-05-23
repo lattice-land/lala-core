@@ -88,6 +88,22 @@ TEST(VStoreTest, SnapshotRestore) {
   }
 }
 
+TEST(VStoreTest, Extract) {
+  ZStore ones(ty, 10);
+  populate_zstore_10_vars(ones, 1);
+  ZStore copy(ones, AbstractDeps<>());
+  BInc has_changed = BInc::bot();
+  copy
+    .tell(make_var(ty, 0), zi(2), has_changed)
+    .tell(make_var(ty, 1), zi::top(), has_changed);
+  EXPECT_TRUE(ones.extract(copy));
+  for(int i = 0; i < 10; ++i) {
+    auto v = make_var(ty, i);
+    EXPECT_EQ2(copy.project(v), ones.project(v));
+  }
+}
+
+
 // // I. With integer variables and exact interpretation.
 
 template <typename A>

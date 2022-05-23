@@ -281,7 +281,7 @@ public:
 
   CUDA this_type& tell(AVar x, const Universe& dom, BInc& has_changed) {
     data[VID(x)].tell(dom, has_changed);
-    is_at_top.tell(data[VID(x)].is_top(), has_changed);
+    is_at_top.tell(data[VID(x)].is_top());
     return *this;
   }
 
@@ -301,6 +301,19 @@ public:
       }
     }
     return BInc::top();
+  }
+
+  /** Whenever `this` is different from `top`, we extract its data into `ua`.
+   * For now, we suppose VStore is only used to store under-approximation, I'm not sure yet how we would interact with over-approximation.
+   * The variable environment of `ua` is supposed to be already initialized. */
+  template<class Alloc2>
+  CUDA bool extract(VStore<U, Alloc2>& ua) const {
+    if(is_top().guard()) {
+      return false;
+    }
+    ua.data = data;
+    ua.is_at_top = BInc::bot();
+    return true;
   }
 
   CUDA const Env& environment() const { return env; }

@@ -83,6 +83,11 @@ public:
   /** See `AbstractUniverse.split`. */
   CUDA virtual battery::vector<TellElement, Allocator> split(/*const SearchStrategy& strat*/) const = 0;
 
+  /** Extract an under-approximation from the current element in `ua`.
+   * Returns `true` if it successfully extracted an under-approximation different from top, returns `false` otherwise.
+   * If it returns `false`, `ua` is left unchanged. */
+  CUDA virtual bool extract(this_type& ua) const = 0;
+
   /** This function is the inverse of `interpret`, but directly maps to a general `Formula`.
       Let \f$ a = [\![\varphi]\!]_A \f$, then we must have \f$ \gamma(a) = [\![[\![a]\!]^{-1}]\!]^\flat \f$. */
   CUDA virtual Formula deinterpret() const = 0;
