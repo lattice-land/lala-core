@@ -311,6 +311,9 @@ public:
     if(is_top().guard()) {
       return false;
     }
+    if(ua.env.size() != env.size()) {
+      ua.env = env;
+    }
     ua.data = data;
     ua.is_at_top = BInc::bot();
     return true;

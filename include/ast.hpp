@@ -684,6 +684,7 @@ class VarEnv {
 public:
   using allocator_type = Allocator;
   using LName = LVar<allocator_type>;
+  using this_type = VarEnv<Allocator>;
 
 private:
   AType uid_;
@@ -703,6 +704,12 @@ public:
   template<class Alloc2>
   CUDA VarEnv(const VarEnv<Alloc2>& other, const Allocator& allocator = Allocator())
    : uid_(other.uid_), avar2lvar(other.avar2lvar, allocator) {}
+
+  CUDA this_type& operator=(const this_type& other) {
+    uid_ = other.uid_;
+    avar2lvar = other.avar2lvar;
+    return *this;
+  }
 
   CUDA AType uid() const {
     return uid_;
