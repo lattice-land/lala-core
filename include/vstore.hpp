@@ -74,13 +74,13 @@ public:
     return data.size();
   }
 
-  CUDA static this_type bot(AType uid = UNTYPED) {
-    return VStore(uid, 0);
+  CUDA static this_type bot(AType uid = UNTYPED, const Allocator& alloc = Allocator()) {
+    return VStore(uid, 0, alloc);
   }
 
   /** A special symbolic element representing top. */
-  CUDA static this_type top(AType uid = UNTYPED) {
-    VStore s(uid, 0);
+  CUDA static this_type top(AType uid = UNTYPED, const Allocator& alloc = Allocator()) {
+    VStore s(uid, 0, alloc);
     s.is_at_top = BInc::top();
     return std::move(s);
   }
@@ -107,7 +107,7 @@ public:
       data[i].dtell(snap[i], has_changed);
       is_at_top.tell(data[i].is_top());
     }
-    for(; i < data.size(); ++i) {
+    while(data.size() > snap.size()) {
       data.pop_back();
     }
   }
