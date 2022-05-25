@@ -276,6 +276,8 @@ public:
   }
 
   CUDA const Universe& project(AVar x) const {
+    assert(AID(x) == uid());
+    assert(VID(x) < data.size());
     return data[VID(x)];
   }
 
