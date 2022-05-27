@@ -66,7 +66,7 @@ public:
     assert(a->uid() != UNTYPED); // Abstract domain must all have a unique identifier to be copied.
     // If the dependency is not in the list, we copy it and add it.
     if(deps.size() <= a->uid() || !static_cast<bool>(deps[a->uid()])) {
-      deps.resize(a->uid()+1);
+      deps.resize(battery::max((int)deps.size(), a->uid()+1));
       Alloc to_alloc = deps.get_allocator();
       deps[a->uid()] = battery::unique_ptr<dep_erasure, Alloc>(
         new(to_alloc) dep_holder<A>(
@@ -698,7 +698,9 @@ public:
   CUDA VarEnv(AType uid, const Allocator& allocator = Allocator())
    : uid_(uid), avar2lvar(allocator) {}
 
-  CUDA VarEnv(AType uid, int capacity, const Allocator& allocator = Allocator()): uid_(uid), avar2lvar(allocator) {
+  CUDA VarEnv(AType uid, int capacity, const Allocator& allocator = Allocator())
+   : uid_(uid), avar2lvar(allocator)
+  {
     avar2lvar.reserve(capacity);
   }
 
@@ -737,8 +739,7 @@ public:
   }
 
   CUDA thrust::optional<AVar> to_avar(const LName& lv) const {
-    AVar i = 0;
-    for(; i < size(); ++i) {
+    for(int i = 0; i < size(); ++i) {
       if(avar2lvar[i] == lv) {
         return make_var(uid(), i);
       }
