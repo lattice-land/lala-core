@@ -245,28 +245,38 @@ public:
       }
     }
     else {
-      auto u = U::interpret(f);
-      if(u.has_value()) {
-        if(f.is(F::E)) {
-          if(var_in(f, env).has_value()) {
-            return {}; // redeclaration
-          }
-          else {
-            reserve(vars().value() + 1);
-            const auto& var_name = battery::get<0>(f.exists());
-            env.add(var_name);
-            data.push_back(U::bot());
-            return TellType();
-          }
+      int num_variables = num_vars(f);
+      if(num_variables == 0) {
+        auto u = U::interpret(f);
+        if(u.has_value() && u->is_bot().value()) {
+          return TellType();
         }
-        else {
-          thrust::optional<AVar> v = var_in(f, env);
-          if(v.has_value()) {
-            if(u->is_bot().value()) {
-              return TellType();
+      }
+      else if(num_variables == 1) {
+        auto u = U::interpret(f);
+        if(u.has_value()) {
+          // Existential quantifier
+          if(f.is(F::E)) {
+            if(var_in(f, env).has_value()) {
+              return {}; // redeclaration
             }
             else {
-              return TellType({battery::make_tuple(VID(*v), *u)});
+              reserve(vars().value() + 1);
+              const auto& var_name = battery::get<0>(f.exists());
+              env.add(var_name);
+              data.push_back(U::bot());
+              return TellType();
+            }
+          }
+          else {
+            thrust::optional<AVar> v = var_in(f, env);
+            if(v.has_value()) {
+              if(u->is_bot().value()) {
+                return TellType();
+              }
+              else {
+                return TellType({battery::make_tuple(VID(*v), *u)});
+              }
             }
           }
         }

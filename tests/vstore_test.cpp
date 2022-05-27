@@ -61,6 +61,17 @@ TEST(VStoreTest, TopBot) {
   // bot_top_test<CPStore>(bools);
 }
 
+
+TEST(VStoreTest, InterpretTrueFalse) {
+  ZStore store = ZStore::bot();
+  auto x = store.interpret(F::make_true());
+  EXPECT_TRUE(x.has_value());
+  BInc has_changed = BInc::bot();
+  store.tell(*x, has_changed);
+  EXPECT_TRUE2(store.is_bot());
+  EXPECT_FALSE2(has_changed);
+}
+
 TEST(VStoreTest, CopyConstructor) {
   ZStore ones(ty, 10);
   populate_zstore_10_vars(ones, 1);

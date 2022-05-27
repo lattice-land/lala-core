@@ -12,6 +12,13 @@ using Itv = Interval<zi>;
 using zpi = ZPInc<int>;
 using PItv = Interval<zpi>;
 
+TEST(IntervalTest, InterpretTrueFalse) {
+  EXPECT_TRUE(Itv::interpret(F::make_true()).has_value());
+  EXPECT_TRUE(Itv::interpret(F::make_false()).has_value());
+  EXPECT_EQ2(*(Itv::interpret(F::make_true())), Itv::bot());
+  EXPECT_EQ2(*(Itv::interpret(F::make_false())), Itv::top());
+}
+
 TEST(IntervalTest, AddTest) {
   Itv top(0, -1);
   Itv i1_4(1,4);

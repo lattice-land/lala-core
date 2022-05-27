@@ -60,6 +60,9 @@ public:
   template<class A, class FromAlloc>
   CUDA battery::shared_ptr<A, Alloc> clone(const battery::shared_ptr<A, FromAlloc>& a)
   {
+    if(!a) {
+      return nullptr;
+    }
     assert(a->uid() != UNTYPED); // Abstract domain must all have a unique identifier to be copied.
     // If the dependency is not in the list, we copy it and add it.
     if(deps.size() <= a->uid() || !static_cast<bool>(deps[a->uid()])) {
