@@ -103,6 +103,7 @@ public:
     assert(snap.size() <= data.size());
     int i = 0;
     BInc has_changed = BInc::bot();
+    is_at_top = BInc::bot();
     for(; i < snap.size(); ++i) {
       data[i].dtell(snap[i], has_changed);
       is_at_top.tell(data[i].is_top());

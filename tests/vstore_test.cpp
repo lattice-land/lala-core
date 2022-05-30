@@ -97,6 +97,17 @@ TEST(VStoreTest, SnapshotRestore) {
     ones.restore(snap);
     EXPECT_EQ2(ones.project(v), zi(1));
   }
+  // Test restore after reaching top.
+  BInc has_changed = BInc::bot();
+  EXPECT_EQ2(ones.is_top(), false);
+  ones.tell(v, zi::top(), has_changed);
+  EXPECT_EQ2(ones.is_top(), true);
+  EXPECT_EQ2(ones.project(v), zi::top());
+  EXPECT_TRUE2(has_changed);
+  ones.restore(snap);
+  EXPECT_EQ2(ones.project(v), zi(1));
+  EXPECT_EQ2(ones.is_top(), false);
+
 }
 
 TEST(VStoreTest, Extract) {
