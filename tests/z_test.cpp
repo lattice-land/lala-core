@@ -93,21 +93,21 @@ TEST(ZTest, Split) {
 }
 
 TEST(ZTest, Deinterpret) {
-  F f10 = make_v_op_z(var_x, GEQ, 10, EXACT, standard_allocator);
+  F f10 = make_v_op_z(var_x, GEQ, 10, UNTYPED, EXACT, standard_allocator);
   zi z10 = zi::interpret(f10).value();
   F f10_bis = z10.deinterpret(var_x);
   EXPECT_EQ(f10, f10_bis);
-  F f9 = make_v_op_z(var_x, GT, 9, EXACT, standard_allocator);
+  F f9 = make_v_op_z(var_x, GT, 9, UNTYPED, EXACT, standard_allocator);
   zi z9 = zi::interpret(f9).value();
   F f9_bis = z9.deinterpret(var_x);
   EXPECT_EQ(f10, f9_bis);
   generic_deinterpret_test<zi>();
   // Dual
-  F f10_d = make_v_op_z(var_x, LEQ, 10, EXACT, standard_allocator);
+  F f10_d = make_v_op_z(var_x, LEQ, 10, UNTYPED, EXACT, standard_allocator);
   zd z10_d = zd::interpret(f10_d).value();
   F f10_bis_d = z10_d.deinterpret(var_x);
   EXPECT_EQ(f10_d, f10_bis_d);
-  F f11_d = make_v_op_z(var_x, LT, 11, EXACT, standard_allocator);
+  F f11_d = make_v_op_z(var_x, LT, 11, UNTYPED, EXACT, standard_allocator);
   zd z11_d = zd::interpret(f11_d).value();
   F f11_bis_d = z11_d.deinterpret(var_x);
   EXPECT_EQ(f10_d, f11_bis_d);

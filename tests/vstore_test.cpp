@@ -229,7 +229,7 @@ TEST(VStoreTest, Interpret8) {
 TEST(VStoreTest, Interpret9) {
   ZStore zstore = ZStore::bot(ty);
   auto exists_x = F::make_exists(ty, var_x, Int);
-  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNDER);
+  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNTYPED, UNDER);
   auto tell = zstore.interpret(F::make_binary(exists_x, AND, x_eq_4, ty, OVER));
   EXPECT_TRUE(tell.has_value());
   EXPECT_EQ2(zstore.vars(), 1);
@@ -240,7 +240,7 @@ TEST(VStoreTest, Interpret9) {
 TEST(VStoreTest, Interpret10) {
   ZStore zstore = ZStore::bot(ty);
   auto exists_x = F::make_exists(ty, var_x, Int);
-  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, OVER);
+  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNTYPED, OVER);
   auto f = F::make_binary(exists_x, AND, x_eq_4, ty, OVER);
   tell_store(zstore, f, var_x, zi(4));
   EXPECT_EQ2(zstore.vars(), 1);
@@ -250,7 +250,7 @@ TEST(VStoreTest, Interpret10) {
 TEST(VStoreTest, Interpret11) {
   CPStore cpstore = CPStore::bot(ty);
   auto exists_x = F::make_exists(ty, var_x, Int);
-  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNDER);
+  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNTYPED, UNDER);
   auto tell = cpstore.interpret(F::make_binary(exists_x, AND, x_eq_4, ty, EXACT));
   check_failed_interpret(tell, cpstore);
 }
@@ -261,7 +261,7 @@ TEST(VStoreTest, Interpret12) {
   F::Sequence conjunction(5);
   conjunction[0] = F::make_exists(ty, var_x, Int);
   conjunction[1] = F::make_exists(ty, var_y, Int);
-  conjunction[2] = make_v_op_z(var_x, EQ, 4, UNDER);
+  conjunction[2] = make_v_op_z(var_x, EQ, 4, UNTYPED, UNDER);
   conjunction[3] = make_v_op_z(var_y, GT, 1);
   conjunction[4] = make_v_op_z(var_y, LT, 10);
   auto f = F::make_nary(AND, conjunction, ty, OVER);
@@ -275,7 +275,7 @@ TEST(VStoreTest, Interpret13) {
   F::Sequence conjunction(5);
   conjunction[0] = F::make_exists(ty, var_x, Int);
   conjunction[1] = F::make_exists(ty, var_y, Int);
-  conjunction[2] = make_v_op_z(var_x, EQ, 4, UNDER);
+  conjunction[2] = make_v_op_z(var_x, EQ, 4, UNTYPED, UNDER);
   conjunction[3] = make_v_op_z(var_y, GT, 1);
   conjunction[4] = make_v_op_z(var_y, LT, 10);
   auto f = F::make_nary(AND, conjunction, ty, OVER);
@@ -324,7 +324,7 @@ TEST(VStoreTest, Interpret15) {
 TEST(VStoreTest, Interpret16) {
   IStore istore = IStore::bot(ty);
   auto exists_x = F::make_exists(ty, var_x, Int);
-  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNDER);
+  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNTYPED, UNDER);
   auto f = F::make_binary(exists_x, AND, x_eq_4, ty);
   tell_store(istore, f, var_x, Itv(zi(4), zd(4)));
   EXPECT_EQ2(istore.vars(), 1);
@@ -334,7 +334,7 @@ TEST(VStoreTest, Interpret16) {
 TEST(VStoreTest, Interpret17) {
   IStore istore = IStore::bot(ty);
   auto exists_x = F::make_exists(ty, var_x, Int);
-  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, OVER);
+  auto x_eq_4 = make_v_op_z(var_x, EQ, 4, UNTYPED, OVER);
   auto f = F::make_binary(exists_x, AND, x_eq_4, ty);
   tell_store(istore, f, var_x, Itv(zi(4), zd(4)));
   EXPECT_EQ2(istore.vars(), 1);
@@ -344,7 +344,7 @@ TEST(VStoreTest, Interpret17) {
 TEST(VStoreTest, Interpret18) {
   IStore istore = IStore::bot(ty);
   auto exists_x = F::make_exists(ty, var_x, Int);
-  auto x_neq_4 = make_v_op_z(var_x, NEQ, 4, UNDER);
+  auto x_neq_4 = make_v_op_z(var_x, NEQ, 4, UNTYPED, UNDER);
   auto f = F::make_binary(exists_x, AND, x_neq_4, ty);
   tell_store(istore, f, var_x, Itv(zi(5), zd::bot()));
   EXPECT_EQ2(istore.vars(), 1);

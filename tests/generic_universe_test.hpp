@@ -139,7 +139,7 @@ void test_formula(const F& f, thrust::optional<Universe> expect) {
 template<class Universe, class K>
 void test_interpret(Sig sig, Approx appx, K elem, thrust::optional<Universe> expect) {
   test_formula<Universe>(
-    make_v_op_z(var_x, sig, elem, appx, standard_allocator),
+    make_v_op_z(var_x, sig, elem, UNTYPED, appx, standard_allocator),
     expect);
 }
 

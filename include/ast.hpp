@@ -483,7 +483,7 @@ CUDA bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
 }
 
 template<typename Allocator>
-CUDA TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, long long int z, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+CUDA TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, long long int z, AType aty = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), UNTYPED, a, allocator);
 }

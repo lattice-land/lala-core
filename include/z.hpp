@@ -455,7 +455,7 @@ public:
     else if(is_bot().value()) {
       return TFormula<Allocator>::make_true();
     }
-    return make_v_op_z(x, U::sig_order(), val, EXACT, allocator);
+    return make_v_op_z(x, U::sig_order(), val, UNTYPED, EXACT, allocator);
   }
 
   template<class Allocator>
