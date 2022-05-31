@@ -5,6 +5,7 @@ include(CMakePrintHelpers)
 
 project(lala-core LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
+option(LALACORE_BUILD_TESTS "LALACORE_BUILD_TESTS" OFF)
 
 if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 20)
@@ -28,22 +29,13 @@ endif()
 
 # Cuda-battery dependency
 
+set(BUILD_TESTS OFF)
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
   GIT_TAG        main
 )
 FetchContent_MakeAvailable(cuda_battery)
-
-# Google Test dependency
-
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
-)
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
 
 # Thrust dependency
 
@@ -82,6 +74,18 @@ target_compile_options(lala_core PRIVATE
     $<$<CONFIG:LDebug>:-g -DTRACE>
 )
 
+if(LALACORE_BUILD_TESTS)
+
+# Google Test dependency
+
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
 enable_testing()
 include(GoogleTest)
 
@@ -114,6 +118,8 @@ add_executable(vstore_test tests/vstore_test.cpp)
 target_link_libraries(vstore_test cuda_battery lala_core gtest_main)
 target_include_directories(vstore_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 gtest_discover_tests(vstore_test)
+
+endif()
 
 # Documentation
 
