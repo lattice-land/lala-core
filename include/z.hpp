@@ -25,7 +25,7 @@ struct value_type<T, std::void_t<typename T::ValueType>> {
 };
 
 template <typename L>
-typename value_type<L>::type unwrap(L x) {
+CUDA typename value_type<L>::type unwrap(L x) {
   if constexpr(value_type<L>::value) {
     return x.value();
   }
@@ -50,7 +50,7 @@ struct ZDecUniverse {
   constexpr static bool decreasing = true;
   using dual_type = ZIncUniverse<VT, sign>;
   using ValueType = VT;
-  static ValueType next(ValueType i) {
+  CUDA static ValueType next(ValueType i) {
     if(i == top() || (i == bot() && (sign == SIGNED || sign == SPOS))) {
       return i;
     }
@@ -58,7 +58,7 @@ struct ZDecUniverse {
       return i - 1;
     }
   }
-  static ValueType bot() {
+  CUDA static ValueType bot() {
     if constexpr (sign == SNEG) {
       return ValueType{};
     }
@@ -66,7 +66,7 @@ struct ZDecUniverse {
       return battery::Limits<ValueType>::top();
     }
   }
-  static ValueType top() {
+  CUDA static ValueType top() {
     if constexpr (sign == SPOS) {
       return ValueType{};
     }
@@ -74,13 +74,13 @@ struct ZDecUniverse {
       return battery::Limits<ValueType>::bot();
     }
   }
-  static ValueType join(ValueType x, ValueType y) { return battery::min(x, y); }
-  static ValueType meet(ValueType x, ValueType y) { return battery::max(x, y); }
-  static bool order(ValueType x, ValueType y) { return x >= y; }
-  static bool strict_order(ValueType x, ValueType y) { return x > y; }
-  static Sig sig_order() { return LEQ; }
-  static Sig sig_strict_order() { return LT; }
-  static void check(ValueType i) {
+  CUDA static ValueType join(ValueType x, ValueType y) { return battery::min(x, y); }
+  CUDA static ValueType meet(ValueType x, ValueType y) { return battery::max(x, y); }
+  CUDA static bool order(ValueType x, ValueType y) { return x >= y; }
+  CUDA static bool strict_order(ValueType x, ValueType y) { return x > y; }
+  CUDA static Sig sig_order() { return LEQ; }
+  CUDA static Sig sig_strict_order() { return LT; }
+  CUDA static void check(ValueType i) {
     if constexpr(sign == SIGNED) {
       assert(strict_order(bot(), i) && strict_order(i, top()));
     }
@@ -99,13 +99,13 @@ struct ZIncUniverse {
   constexpr static bool decreasing = false;
   using dual_type = ZDecUniverse<VT, sign>;
   using ValueType = VT;
-  static ValueType next(ValueType i) {
+  CUDA static ValueType next(ValueType i) {
     if(i == top() || (i == bot() && (sign == SIGNED || sign == SNEG))) {
       return i;
     }
     return i + 1;
   }
-  static ValueType bot() {
+  CUDA static ValueType bot() {
     if constexpr (sign == SPOS) {
       return ValueType{};
     }
@@ -113,7 +113,7 @@ struct ZIncUniverse {
       return battery::Limits<ValueType>::bot();
     }
   }
-  static ValueType top() {
+  CUDA static ValueType top() {
     if constexpr (sign == SNEG) {
       return ValueType{};
     }
@@ -121,13 +121,13 @@ struct ZIncUniverse {
       return battery::Limits<ValueType>::top();
     }
   }
-  static ValueType join(ValueType x, ValueType y) { return battery::max(x, y); }
-  static ValueType meet(ValueType x, ValueType y) { return battery::min(x, y); }
-  static bool order(ValueType x, ValueType y) { return x <= y; }
-  static bool strict_order(ValueType x, ValueType y) { return x < y; }
-  static Sig sig_order() { return GEQ; }
-  static Sig sig_strict_order() { return GT; }
-  static void check(ValueType i) {
+  CUDA static ValueType join(ValueType x, ValueType y) { return battery::max(x, y); }
+  CUDA static ValueType meet(ValueType x, ValueType y) { return battery::min(x, y); }
+  CUDA static bool order(ValueType x, ValueType y) { return x <= y; }
+  CUDA static bool strict_order(ValueType x, ValueType y) { return x < y; }
+  CUDA static Sig sig_order() { return GEQ; }
+  CUDA static Sig sig_strict_order() { return GT; }
+  CUDA static void check(ValueType i) {
     if constexpr(sign == SIGNED) {
       assert(strict_order(bot(), i) && strict_order(i, top()));
     }
@@ -492,9 +492,9 @@ class spos {
     U v;
   public:
     using ValueType = U;
-    spos(U v): v(v) { assert(v >= 0); }
-    operator U() const { return v; }
-    U value() const { return v; }
+    CUDA spos(U v): v(v) { assert(v >= 0); }
+    CUDA operator U() const { return v; }
+    CUDA U value() const { return v; }
 };
 
 template<class U>
@@ -503,9 +503,9 @@ class sneg {
     U v;
   public:
     using ValueType = U;
-    sneg(U v): v(v) { assert(v <= 0); }
-    operator U() const { return v; }
-    U value() const { return v; }
+    CUDA sneg(U v): v(v) { assert(v <= 0); }
+    CUDA operator U() const { return v; }
+    CUDA U value() const { return v; }
 };
 
 #include "monotone_analysis.hpp"

@@ -638,44 +638,44 @@ private:
 
 public:
   /** Create a formula for which we want to find one or more solutions. */
-  SFormula(F f, size_t num_sols = 1):
+  CUDA SFormula(F f, size_t num_sols = 1):
     mode_(SATISFY), f(std::move(f)), mode_data(ModeData::template create<2>(num_sols)) {}
 
   /** Create a formula for which we want to find the best solution minimizing or maximizing an objective variable. */
-  SFormula(F f, Mode mode, LVar<Allocator> to_optimize):
+  CUDA SFormula(F f, Mode mode, LVar<Allocator> to_optimize):
     mode_(mode), f(std::move(f)), mode_data(ModeData::template create<0>(std::move(to_optimize)))
   {
     assert(mode_ != SATISFY);
   }
 
-  Mode mode() const {
+  CUDA Mode mode() const {
     return mode_;
   }
 
-  const LVar<Allocator>& optimization_lvar() const {
+  CUDA const LVar<Allocator>& optimization_lvar() const {
     assert(mode_ != SATISFY);
     return battery::get<0>(mode_data);
   }
 
-  AVar optimization_avar() const {
+  CUDA AVar optimization_avar() const {
     assert(mode_ != SATISFY);
     return battery::get<1>(mode_data);
   }
 
-  const F& formula() const {
+  CUDA const F& formula() const {
     return f;
   }
 
-  F& formula() {
+  CUDA F& formula() {
     return f;
   }
 
-  size_t num_sols() const {
+  CUDA size_t num_sols() const {
     assert(mode_ == SATISFY);
     return battery::get<2>(mode_data);
   }
 
-  void convert_optimization_var(AVar a) {
+  CUDA void convert_optimization_var(AVar a) {
     mode_data = ModeData::template create<1>(a);
   }
 };
