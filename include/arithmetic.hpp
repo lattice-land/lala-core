@@ -150,7 +150,8 @@ struct select_non_void { using type = A; };
 template <class B>
 struct select_non_void<void, B> { using type = B; };
 
-template<Approx appx = EXACT, class R = void, class L, class K, class R2 = select_non_void<R, typename div_z<L, K>::type>::type, std::enable_if_t<R2::increasing, bool> = true>
+template<Approx appx = EXACT, class R = void, class L, class K,
+  class R2 = typename select_non_void<R, typename div_z<L, K>::type>::type, std::enable_if_t<R2::increasing, bool> = true>
 CUDA typename div_z<L, K>::type div(L a, K b) {
   using R3 = typename div_z<L, K>::type;
   BOT_TOP_BINARY(L, K, R3)
@@ -165,7 +166,8 @@ CUDA typename div_z<L, K>::type div(L a, K b) {
 }
 
 /** Rounding down the result a / b (towards negative infinity). */
-template<Approx appx, class R = void, class L, class K, class R2 = select_non_void<R, typename div_z<L, K>::type>::type, std::enable_if_t<R2::decreasing, bool> = true>
+template<Approx appx, class R = void, class L, class K,
+  class R2 = typename select_non_void<R, typename div_z<L, K>::type>::type, std::enable_if_t<R2::decreasing, bool> = true>
 CUDA typename div_z<L, K>::type div(L a, K b) {
   using R3 = typename div_z<L, K>::type;
   BOT_TOP_BINARY(L, K, R3)

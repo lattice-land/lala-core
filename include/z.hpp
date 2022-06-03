@@ -21,7 +21,7 @@ struct value_type {
 template <typename T>
 struct value_type<T, std::void_t<typename T::ValueType>> {
   static constexpr bool value = true;
-  using type = T::ValueType;
+  using type = typename T::ValueType;
 };
 
 template <typename L>

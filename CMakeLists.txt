@@ -29,7 +29,6 @@ endif()
 
 # Cuda-battery dependency
 
-set(BUILD_TESTS OFF)
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"

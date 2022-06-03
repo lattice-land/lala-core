@@ -28,14 +28,14 @@ template<class Alloc = battery::StandardAllocator>
 class AbstractDeps
 {
   struct dep_erasure {
-    virtual ~dep_erasure() {}
+    CUDA virtual ~dep_erasure() {}
   };
 
   template <class A>
   struct dep_holder : dep_erasure {
     battery::shared_ptr<A, Alloc> a;
-    dep_holder(A* ptr, const Alloc& alloc): a(ptr, alloc) {}
-    ~dep_holder() {}
+    CUDA dep_holder(A* ptr, const Alloc& alloc): a(ptr, alloc) {}
+    CUDA virtual ~dep_holder() {}
   };
 
   battery::vector<battery::unique_ptr<dep_erasure, Alloc>, Alloc> deps;

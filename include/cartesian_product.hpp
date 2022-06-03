@@ -209,7 +209,9 @@ public:
 
 private:
   template<size_t i, class Allocator>
-  CUDA TFormula<Allocator> deinterpret_(const LVar<Allocator>& x, TFormula<Allocator>::Sequence&& seq, const Allocator& allocator) const {
+  CUDA TFormula<Allocator> deinterpret_(const LVar<Allocator>& x,
+    typename TFormula<Allocator>::Sequence&& seq, const Allocator& allocator) const
+  {
     if constexpr(i < n) {
       seq[i] = project<i>().deinterpret(x, allocator);
       return deinterpret_<i+1, Allocator>(x, std::move(seq), allocator);
