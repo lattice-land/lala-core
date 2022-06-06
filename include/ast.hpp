@@ -678,16 +678,16 @@ CUDA battery::tuple<F,F> extract_ty(const F& f, AType ty) {
     F::make_nary(AND, std::move(other), other_ty, f.approx()));
 }
 
+enum Mode {
+  MINIMIZE,
+  MAXIMIZE,
+  SATISFY
+};
+
 /** `SFormula` is a formula to be solved with a possible optimisation mode (MINIMIZE or MAXIMIZE), otherwise it will enumerate `n` satisfiable solutions, if any. */
 template<class Allocator>
 class SFormula {
 public:
-  enum Mode {
-    MINIMIZE,
-    MAXIMIZE,
-    SATISFY
-  };
-
   using F = TFormula<Allocator>;
 
 private:

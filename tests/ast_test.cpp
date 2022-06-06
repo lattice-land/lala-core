@@ -50,10 +50,10 @@ TEST(AST, VarEnv) {
 TEST(AST, SFormula) {
   using SF = SFormula<StandardAllocator>;
   SF satisfy(SF::F::make_true(), 2);
-  SF maximize(SF::F::make_true(), SF::MAXIMIZE, LVar<StandardAllocator>("x"));
-  EXPECT_EQ(satisfy.mode(), SF::SATISFY);
+  SF maximize(SF::F::make_true(), MAXIMIZE, LVar<StandardAllocator>("x"));
+  EXPECT_EQ(satisfy.mode(), SATISFY);
   EXPECT_EQ(satisfy.num_sols(), 2);
-  EXPECT_EQ(maximize.mode(), SF::MAXIMIZE);
+  EXPECT_EQ(maximize.mode(), MAXIMIZE);
   EXPECT_EQ(maximize.optimization_lvar(), LVar<StandardAllocator>("x"));
 }
 
