@@ -256,6 +256,39 @@ public:
   CUDA TFormula(const this_type& other): type_(other.type_), appx(other.appx), formula(other.formula) {}
   CUDA TFormula(this_type&& other): type_(other.type_), appx(other.appx), formula(std::move(other.formula)) {}
 
+  template <class Alloc2, class ExtendedSig2>
+  friend class TFormula;
+
+  template <class Alloc2, class ExtendedSig2>
+  CUDA TFormula(const TFormula<Alloc2, ExtendedSig2>& other, const Allocator& allocator = Allocator())
+    : type_(other.type_), appx(other.appx), formula(Formula::template create<Z>(1))
+  {
+    switch(other.formula.index()) {
+      case Z: formula = Formula::template create<Z>(other.z()); break;
+      case R: formula = Formula::template create<R>(other.r()); break;
+      case V: formula = Formula::template create<V>(other.v()); break;
+      case LV: formula = Formula::template create<LV>(LVar<Allocator>(other.lv(), allocator)); break;
+      case E: formula = Formula::template create<E>(
+        battery::make_tuple(
+          LVar<Allocator>(battery::get<0>(other.exists()), allocator),
+          battery::get<1>(other.exists())));
+        break;
+      case Seq:
+        formula = Formula::template create<Seq>(
+          battery::make_tuple(
+            other.sig(),
+            Sequence(other.seq(), allocator)));
+          break;
+      case ESeq:
+        formula = Formula::template create<ESeq>(
+          battery::make_tuple(
+            ExtendedSig2(other.esig(), allocator),
+            Sequence(other.eseq(), allocator)));
+          break;
+      default: printf("print: formula not handled.\n"); assert(false); break;
+    }
+  }
+
   CUDA void swap(this_type& other) {
     ::battery::swap(type_, other.type_);
     ::battery::swap(appx, other.appx);
@@ -646,7 +679,7 @@ CUDA battery::tuple<F,F> extract_ty(const F& f, AType ty) {
 }
 
 /** `SFormula` is a formula to be solved with a possible optimisation mode (MINIMIZE or MAXIMIZE), otherwise it will enumerate `n` satisfiable solutions, if any. */
-template<typename Allocator>
+template<class Allocator>
 class SFormula {
 public:
   enum Mode {
@@ -680,6 +713,19 @@ public:
     mode_(mode), f(std::move(f)), mode_data(ModeData::template create<0>(std::move(to_optimize)))
   {
     assert(mode_ != SATISFY);
+  }
+
+  template <class Alloc2>
+  CUDA SFormula(const SFormula<Alloc2>& other, const Allocator& allocator = Allocator()):
+    mode_(other.mode_), mode_data(ModeData::template create<2>(0)), f(other.f, allocator)
+  {
+    switch(other.mode_data.index()) {
+      case 0: formula = ModeData::template create<0>(
+        LVar<Allocator>(battery::get<0>(other.formula), allocator)); break;
+      case 1: formula = ModeData::template create<1>(battery::get<1>(other.formula)); break;
+      case 2: formula = ModeData::template create<2>(battery::get<2>(other.formula)); break;
+      default: assert(0);
+    }
   }
 
   CUDA Mode mode() const {
