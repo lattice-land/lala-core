@@ -50,22 +50,15 @@ endif()
 
 # Preparing the library
 
-if(GPU)
-    set_source_files_properties(
-        src/ast.cpp
-        PROPERTIES LANGUAGE CUDA)
-endif()
-
-add_library(lala_core src/ast.cpp)
-target_include_directories(lala_core PUBLIC include)
-target_include_directories(lala_core PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+add_library(lala_core INTERFACE)
+target_include_directories(lala_core INTERFACE include)
 
 if(GPU)
     set_property(TARGET lala_core PROPERTY CUDA_ARCHITECTURES 75)
     set_property(TARGET lala_core APPEND PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
-target_compile_options(lala_core PRIVATE
+target_compile_options(lala_core INTERFACE
     $<$<COMPILE_LANGUAGE:CUDA>:
         --expt-relaxed-constexpr
         -rdc=true>
