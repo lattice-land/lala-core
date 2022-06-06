@@ -723,10 +723,10 @@ public:
     mode_(other.mode_), mode_data(ModeData::template create<2>(0)), f(other.f, allocator)
   {
     switch(other.mode_data.index()) {
-      case 0: formula = ModeData::template create<0>(
-        LVar<Allocator>(battery::get<0>(other.formula), allocator)); break;
-      case 1: formula = ModeData::template create<1>(battery::get<1>(other.formula)); break;
-      case 2: formula = ModeData::template create<2>(battery::get<2>(other.formula)); break;
+      case 0: mode_data = ModeData::template create<0>(
+        LVar<Allocator>(battery::get<0>(other.mode_data), allocator)); break;
+      case 1: mode_data = ModeData::template create<1>(battery::get<1>(other.mode_data)); break;
+      case 2: mode_data = ModeData::template create<2>(battery::get<2>(other.mode_data)); break;
       default: assert(0);
     }
   }
