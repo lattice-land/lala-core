@@ -716,6 +716,9 @@ public:
   }
 
   template <class Alloc2>
+  friend class SFormula;
+
+  template <class Alloc2>
   CUDA SFormula(const SFormula<Alloc2>& other, const Allocator& allocator = Allocator()):
     mode_(other.mode_), mode_data(ModeData::template create<2>(0)), f(other.f, allocator)
   {
