@@ -31,6 +31,7 @@ TEST(CPTest, ValidInterpret) {
 }
 
 TEST(CPTest, InterpretTwo) {
+  StandardAllocator standard_allocator;
   auto geq_1 = make_v_op_z(var_x, GEQ, 1, UNTYPED, EXACT, standard_allocator);
   auto leq_2 = make_v_op_z(var_x, LEQ, 2, UNTYPED, EXACT, standard_allocator);
   auto geq_1_leq_2 = F::make_binary(geq_1, AND, leq_2);

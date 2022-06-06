@@ -93,6 +93,7 @@ TEST(ZTest, Split) {
 }
 
 TEST(ZTest, Deinterpret) {
+  StandardAllocator standard_allocator;
   F f10 = make_v_op_z(var_x, GEQ, 10, UNTYPED, EXACT, standard_allocator);
   zi z10 = zi::interpret(f10).value();
   F f10_bis = z10.deinterpret(var_x);
