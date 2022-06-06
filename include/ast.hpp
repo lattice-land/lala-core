@@ -282,7 +282,7 @@ public:
       case ESeq:
         formula = Formula::template create<ESeq>(
           battery::make_tuple(
-            ExtendedSig2(other.esig(), allocator),
+            ExtendedSig(other.esig(), allocator),
             Sequence(other.eseq(), allocator)));
           break;
       default: printf("print: formula not handled.\n"); assert(false); break;
