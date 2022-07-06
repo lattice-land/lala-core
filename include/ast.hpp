@@ -83,13 +83,6 @@ public:
   }
 };
 
-/** The concrete type of variables introduced by existential quantification.
-    More concrete types could be added later. */
-enum CType {
-  Int,
-  Real
-};
-
 /** A "logical variable" is just the name of the variable. */
 template<class Allocator>
 using LVar = battery::String<Allocator>;
@@ -190,10 +183,61 @@ namespace battery {
 
 namespace lala {
 
+/** The concrete type of variables introduced by existential quantification.
+    More concrete types could be added later. */
+struct CType {
+  enum Tag {
+    Int,
+    Real,
+    Set
+  };
+
+  Tag tag;
+  thrust::optional<CType> sub;
+
+  CType(Tag tag): tag(tag) {
+    assert(tag != Set);
+  }
+
+  CType(Tag tag, CType sub): tag(tag), sub(sub) {
+    assert(tag == Set);
+    assert(sub.has_value());
+  }
+
+  CType(const CType&) = default;
+  CType(CType&&) = default;
+
+  void print() const {
+    switch(tag) {
+      case Int: printf("Z"); break;
+      case Real: printf("R"); break;
+      case Set: printf("S("); sub.print(); print(")"); break;
+    }
+  }
+};
+
+/** The type of integers used in logic formulas.
+    Integers are represented by the set \f$ \{-\infty, \infty\} \cup Z (\text{ with} Z \subset \mathbb{Z}) \f$.
+    The minimal and maximal values of `logic_int` represents \f$ -\infty \f$ and \f$ \infty \f$ respectively. */
+using logic_int = long long int;
+
+/** The type of real numbers used in logic formulas.
+    Real numbers are approximated by the set \f$ \mathbb{F} \times \mathbb{F} \f$.
+    When a real number \f$ r \in \mathbb{R} \f$ is also a floating-point number, then it is represented by \f$ (r, r) \f$, otherwise it is represented by \f$ (\lfloor r \rfloor, \lceil r \rceil) \f$ such that \f$ \lfloor r \rfloor < r < \lceil r \rceil \f$ and there is no floating-point number \f$ f \f$ such that \f$ \lfloor r \rfloor < f < \lceil r \rceil \f$. */
+using logic_real = battery::tuple<double, double>;
+
+/** A set is parametric in a universe of discourse.
+    For instance, `logic_set<logic_int>` is a set of integers.
+    Sets are defined in extension: we explicitly list the values belonging to the set.
+    To avoid using too much memory with large sets, we use an interval representation, e.g., \f$ \{1..3, 5..5, 10..12\} = \{1, 2, 3, 5, 10, 11, 12\} \f$.
+    When sets occur in intervals, they are ordered by set inclusion, e.g., \f$ \{\{1..2\}..\{1..4\}\} = \{\{1,2\}, \{1,2,3\}, \{1,2,4\}, \{1,2,3,4\}\} \f$. */
+template<class F, class Allocator>
+using logic_set = battery::vector<battery::tuple<F, F>, Allocator>;
+
 /** `TFormula` represents the AST of a typed first-order logical formula.
 In our context, the type of a formula is an integer representing the UID of an abstract domain in which the formula should to be interpreted.
-This integer can take the value `UNTYPED` if the formula is not (yet) typed.
-By default, the types of integer and real number are supported, but constants are bounded.
+It defaults to the value `UNTYPED` if the formula is not (yet) typed.
+By default, the types of integer and real number are supported.
 The supported symbols can be extended with the template parameter `ExtendedSig`.
 This extended signature can also be used for representing exactly constant such as real numbers using a string.
 The AST of a formula is represented by a variant, where each alternative is described below.
@@ -211,36 +255,41 @@ public:
   using this_type = TFormula<Allocator, ExtendedSig>;
   using Sequence = battery::vector<this_type, Allocator>;
   using Existential = battery::tuple<LVar<Allocator>, CType>;
+  using LogicSet = logic_set<this_type, allocator_type>;
   using Formula = battery::variant<
-    long long int, ///< Constant in the domain of discourse that can be represented exactly.
-    battery::tuple<double, double>,    ///< A real represented as an interval \f$ [d[0]..d[1]] \f$. Indeed, we sometimes cannot use a single `double` because it cannot represent all real numbers, it is up to the abstract domain to under- or over-approximate it, or choose an exact representation such as rational.
+    logic_int, ///< Representation of integers. See above.
+    logic_real, ///< Approximation of real numbers. See above.
+    LogicSet, ///< Set of integers, reals or sets.
     AVar,            ///< Abstract variable
     LVar<Allocator>, ///< Logical variable
     Existential,     ///< Existential quantifier
-    battery::tuple<Sig, Sequence>,              ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
-    battery::tuple<ExtendedSig, Sequence>       ///< see above
+    battery::tuple<Sig, Sequence>,  ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
+    battery::tuple<ExtendedSig, Sequence>  ///< see above
   >;
 
   /** Index of integers in the variant type `Formula` (called kind below). */
   static constexpr int Z = 0;
 
   /** Index of real numbers in the variant type `Formula` (called kind below). */
-  static constexpr int R = 1;
+  static constexpr int R = Z + 1;
+
+  /** Index of sets in the variant type `Formula` (called kind below). */
+  static constexpr int S = R + 1;
 
   /** Index of abstract variables in the variant type `Formula` (called kind below). */
-  static constexpr int V = 2;
+  static constexpr int V = S + 1;
 
   /** Index of logical variables in the variant type `Formula` (called kind below). */
-  static constexpr int LV = 3;
+  static constexpr int LV = V + 1;
 
   /** Index of existential quantifier in the variant type `Formula` (called kind below). */
-  static constexpr int E = 4;
+  static constexpr int E = LV + 1;
 
   /** Index of n-ary operators in the variant type `Formula` (called kind below). */
-  static constexpr int Seq = 5;
+  static constexpr int Seq = E + 1;
 
   /** Index of n-ary operators where the operator is an extended signature in the variant type `Formula` (called kind below). */
-  static constexpr int ESeq = 6;
+  static constexpr int ESeq = Seq + 1;
 
 private:
   AType type_;
@@ -266,6 +315,8 @@ public:
     switch(other.formula.index()) {
       case Z: formula = Formula::template create<Z>(other.z()); break;
       case R: formula = Formula::template create<R>(other.r()); break;
+      case S: formula = Formula::template create<S>(LogicSet(other.s(), allocator));
+        break;
       case V: formula = Formula::template create<V>(other.v()); break;
       case LV: formula = Formula::template create<LV>(LVar<Allocator>(other.lv(), allocator)); break;
       case E: formula = Formula::template create<E>(
@@ -326,14 +377,18 @@ public:
   /** The formula `false` is represented by the integer constant `0`. */
   CUDA static this_type make_false() { return TFormula(Formula::template create<Z>(0)); }
 
-  CUDA static this_type make_z(long long int i, AType atype = UNTYPED) {
+  CUDA static this_type make_z(logic_int i, AType atype = UNTYPED) {
     return this_type(atype, EXACT, Formula::template create<Z>(i));
   }
 
   /** Create a term representing a real number which is approximated by interval [lb..ub].
       By default the real number is supposedly over-approximated. */
-  CUDA static this_type make_real(double lb, double ub, AType atype = UNTYPED, Approx a = OVER) {
+  CUDA static this_type make_real(logic_real lb, logic_real ub, AType atype = UNTYPED, Approx a = OVER) {
     return this_type(atype, a, Formula::template create<R>(battery::make_tuple(lb, ub)));
+  }
+
+  CUDA static this_type make_set(LogicSet set, AType atype = UNTYPED, Approx a = OVER) {
+    return this_type(atype, a, Formula::template create<S>(std::move(set)));
   }
 
   /** The type of the formula is embedded in `v`. */
@@ -350,7 +405,7 @@ public:
   }
 
   CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, CType ctype, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    return this_type(ty, a, Formula::template create<E>(battery::make_tuple(std::move(lvar), ctype)));
+    return this_type(ty, a, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
   CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
@@ -385,12 +440,16 @@ public:
     return is(Z) && z() == 0;
   }
 
-  CUDA long long int z() const {
+  CUDA logic_int z() const {
     return battery::get<Z>(formula);
   }
 
-  CUDA const battery::tuple<double, double>& r() const {
+  CUDA const logic_real& r() const {
     return battery::get<R>(formula);
+  }
+
+  CUDA const LogicSet& s() const {
+    return battery::get<S>(formula);
   }
 
   CUDA AVar v() const {
@@ -429,12 +488,16 @@ public:
     return eseq()[i];
   }
 
-  CUDA long long int& z() {
+  CUDA logic_int& z() {
     return battery::get<Z>(formula);
   }
 
-  CUDA battery::tuple<double, double>& r() {
+  CUDA logic_real& r() {
     return battery::get<R>(formula);
+  }
+
+  CUDA LogicSet& s() {
+    return battery::get<S>(formula);
   }
 
   CUDA AVar& v() {
@@ -504,6 +567,27 @@ public:
       case R:
         printf("[%lf..%lf]", battery::get<0>(r()), battery::get<1>(r()));
         break;
+      case S:
+        printf("{");
+        for(int i = 0; i < s().size(); ++i) {
+          const auto& lb = battery::get<0>(s()[i]);
+          const auto& ub = battery::get<1>(s()[i]);
+          if(lb == ub) {
+            lb.print(print_atype);
+          }
+          else {
+            printf("[");
+            lb.print(print_atype);
+            printf("..");
+            ub.print(print_atype);
+            printf("]");
+          }
+          if(i < s().size() - 1) {
+            printf(", ");
+          }
+        }
+        printf("}");
+        break;
       case V:
         printf("var(%d)", v());
         break;
@@ -515,11 +599,8 @@ public:
         const auto& e = exists();
         printf("var ");
         battery::get<0>(e).print();
-        switch(battery::get<1>(e)) {
-          case Int: printf(":Z"); break;
-          case Real: printf(":R"); break;
-          default: printf("print: concrete type (CType) not handled.\n"); assert(false); break;
-        }
+        printf(":");
+        battery::get<1>(e).print();
         if(print_atype) { printf(")"); }
         else { printf(", "); }
         break;
@@ -550,7 +631,7 @@ CUDA bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
 }
 
 template<typename Allocator>
-CUDA TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, long long int z, AType aty = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+CUDA TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z, AType aty = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), UNTYPED, a, allocator);
 }
@@ -609,7 +690,7 @@ CUDA const TFormula<Allocator, ExtendedSig>& var_in(const TFormula<Allocator, Ex
   return impl::var_in_impl(f, found);
 }
 
-/** \return The number of variables occuring in the formula `F` including existential quantifier, logical variables and abstract variables.
+/** \return The number of variables occurring in the formula `F` including existential quantifier, logical variables and abstract variables.
  * Each occurrence of a variable is added up (duplicates are counted). */
 template<class F>
 CUDA int num_vars(const F& f)

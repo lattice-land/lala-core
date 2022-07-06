@@ -82,13 +82,13 @@ inline constexpr bool has_inf_bot_v = has_inf_bot<T>::value;
 
 #define TOP_UNARY(x, L, R) \
   if constexpr(is_lattice_v<L> && has_inf_top_v<L>) { \
-    if(x.is_top().guard()) return R::top();           \
+    if(x.is_top()) return R::top(); \
   }
 
 // `value()` is allowed in a fully functional context.
 #define BOT_UNARY(x, L, R) \
  if constexpr(is_lattice_v<L> && has_inf_bot_v<L>) { \
-    if(x.is_bot().value()) return R::bot();          \
+    if(x.is_bot()) return R::bot(); \
   }
 
 #define BOT_TOP_UNARY(L, R) \
@@ -105,7 +105,7 @@ template<Approx appx = EXACT, class L>
 CUDA typename neg_z<L>::type neg(L a) {
   using R = typename neg_z<L>::type;
   BOT_TOP_UNARY(L, R)
-  return R(-unwrap(a));
+  return -a;
 }
 
 template<Approx appx = EXACT, class L>

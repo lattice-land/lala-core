@@ -1,4 +1,0 @@
-a->b B  BI  BD
-B    B  BI  BD
-BI   BI -   BD
-BD   BD BI  -

@@ -1,7 +1,0 @@
-a^b z+  z-  zi+   zi-   zd+   zd-
-z+  z+  z   zi+   zi+   zd+   zd+
-z-  z   z   -     -     -     -
-zi+ zi+ zd+ zi+   -     -     zd+
-zi- -   -   -     -     -     -
-zd+ zd+ zi+ -     zi+   zd+   -
-zd- -   -   -     -     -     -

@@ -12,32 +12,10 @@
 
 namespace lala {
 
-template <typename T, typename = void>
-struct value_type {
-  static constexpr bool value = false;
-  using type = T;
-};
-
-template <typename T>
-struct value_type<T, std::void_t<typename T::ValueType>> {
-  static constexpr bool value = true;
-  using type = typename T::ValueType;
-};
-
-template <typename L>
-CUDA typename value_type<L>::type unwrap(L x) {
-  if constexpr(value_type<L>::value) {
-    return x.value();
-  }
-  else {
-    return x;
-  }
-}
-
-enum Sign {
-  SNEG,
-  SPOS,
-  SIGNED,
+enum class Sign {
+  NEG,
+  POS,
+  BOTH,
   BOUNDED
 };
 
@@ -49,8 +27,9 @@ struct ZDecUniverse {
   constexpr static bool increasing = false;
   constexpr static bool decreasing = true;
   using dual_type = ZIncUniverse<VT, sign>;
-  using ValueType = VT;
-  CUDA static ValueType next(ValueType i) {
+  using value_type = VT;
+
+  CUDA static value_type next(value_type i) {
     if(i == top() || (i == bot() && (sign == SIGNED || sign == SPOS))) {
       return i;
     }
@@ -58,29 +37,29 @@ struct ZDecUniverse {
       return i - 1;
     }
   }
-  CUDA static ValueType bot() {
+  CUDA static value_type bot() {
     if constexpr (sign == SNEG) {
-      return ValueType{};
+      return value_type{};
     }
     else {
-      return battery::Limits<ValueType>::top();
+      return battery::Limits<value_type>::top();
     }
   }
-  CUDA static ValueType top() {
+  CUDA static value_type top() {
     if constexpr (sign == SPOS) {
-      return ValueType{};
+      return value_type{};
     }
     else {
-      return battery::Limits<ValueType>::bot();
+      return battery::Limits<value_type>::bot();
     }
   }
-  CUDA static ValueType join(ValueType x, ValueType y) { return battery::min(x, y); }
-  CUDA static ValueType meet(ValueType x, ValueType y) { return battery::max(x, y); }
-  CUDA static bool order(ValueType x, ValueType y) { return x >= y; }
-  CUDA static bool strict_order(ValueType x, ValueType y) { return x > y; }
+  CUDA static value_type join(value_type x, value_type y) { return battery::min(x, y); }
+  CUDA static value_type meet(value_type x, value_type y) { return battery::max(x, y); }
+  CUDA static bool order(value_type x, value_type y) { return x >= y; }
+  CUDA static bool strict_order(value_type x, value_type y) { return x > y; }
   CUDA static Sig sig_order() { return LEQ; }
   CUDA static Sig sig_strict_order() { return LT; }
-  CUDA static void check(ValueType i) {
+  CUDA static void check(value_type i) {
     if constexpr(sign == SIGNED) {
       assert(strict_order(bot(), i) && strict_order(i, top()));
     }
@@ -98,36 +77,36 @@ struct ZIncUniverse {
   constexpr static bool increasing = true;
   constexpr static bool decreasing = false;
   using dual_type = ZDecUniverse<VT, sign>;
-  using ValueType = VT;
-  CUDA static ValueType next(ValueType i) {
+  using value_type = VT;
+  CUDA static value_type next(value_type i) {
     if(i == top() || (i == bot() && (sign == SIGNED || sign == SNEG))) {
       return i;
     }
     return i + 1;
   }
-  CUDA static ValueType bot() {
+  CUDA static value_type bot() {
     if constexpr (sign == SPOS) {
-      return ValueType{};
+      return value_type{};
     }
     else {
-      return battery::Limits<ValueType>::bot();
+      return battery::Limits<value_type>::bot();
     }
   }
-  CUDA static ValueType top() {
+  CUDA static value_type top() {
     if constexpr (sign == SNEG) {
-      return ValueType{};
+      return value_type{};
     }
     else {
-      return battery::Limits<ValueType>::top();
+      return battery::Limits<value_type>::top();
     }
   }
-  CUDA static ValueType join(ValueType x, ValueType y) { return battery::max(x, y); }
-  CUDA static ValueType meet(ValueType x, ValueType y) { return battery::min(x, y); }
-  CUDA static bool order(ValueType x, ValueType y) { return x <= y; }
-  CUDA static bool strict_order(ValueType x, ValueType y) { return x < y; }
+  CUDA static value_type join(value_type x, value_type y) { return battery::max(x, y); }
+  CUDA static value_type meet(value_type x, value_type y) { return battery::min(x, y); }
+  CUDA static bool order(value_type x, value_type y) { return x <= y; }
+  CUDA static bool strict_order(value_type x, value_type y) { return x < y; }
   CUDA static Sig sig_order() { return GEQ; }
   CUDA static Sig sig_strict_order() { return GT; }
-  CUDA static void check(ValueType i) {
+  CUDA static void check(value_type i) {
     if constexpr(sign == SIGNED) {
       assert(strict_order(bot(), i) && strict_order(i, top()));
     }
@@ -140,56 +119,49 @@ struct ZIncUniverse {
   }
 };
 
-template<class ZUniverse>
+template<class ZUniverse, class Mem>
 class ZTotalOrder;
 
 /** Lattice of increasing integers.
 Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \leq y\} \f$. */
-template<class VT>
-using ZInc = ZTotalOrder<ZIncUniverse<VT>>;
+template<class VT, class Mem>
+using ZInc = ZTotalOrder<ZIncUniverse<VT>, Mem>;
 
 /** Lattice of decreasing integers.
 Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \geq y\} \f$. */
-template<class VT>
-using ZDec = ZTotalOrder<ZDecUniverse<VT>>;
+template<class VT, class Mem>
+using ZDec = ZTotalOrder<ZDecUniverse<VT>, Mem>;
 
 /** Lattice of increasing positive integer numbers (0 is included) \f$ \mathbb{Z}^+ \f$ (aka. natural numbers \f$ \mathbb{N} \f$).
 The concretization is the same than for `ZInc`. */
-template<class VT>
-using ZPInc = ZTotalOrder<ZIncUniverse<VT, SPOS>>;
+template<class VT, class Mem>
+using ZPInc = ZTotalOrder<ZIncUniverse<VT, SPOS>, Mem>;
 
 /** Lattice of decreasing positive integer numbers (0 is included) \f$ \mathbb{Z}^+ \f$ (aka. natural numbers \f$ \mathbb{N} \f$).
 The concretization is the same than for `ZDec`. */
-template<class VT>
-using ZPDec = ZTotalOrder<ZDecUniverse<VT, SPOS>>;
+template<class VT, class Mem>
+using ZPDec = ZTotalOrder<ZDecUniverse<VT, SPOS>, Mem>;
 
 /** Lattice of increasing negative integer numbers (0 is included) \f$ \mathbb{Z}^- \f$.
 The concretization is the same than for `ZInc`. */
-template<class VT>
-using ZNInc = ZTotalOrder<ZIncUniverse<VT, SNEG>>;
+template<class VT, class Mem>
+using ZNInc = ZTotalOrder<ZIncUniverse<VT, SNEG>, Mem>;
 
 /** Lattice of decreasing negative integer numbers (0 is included) \f$ \mathbb{Z}^- \f$.
 The concretization is the same than for `ZDec`. */
-template<class VT>
-using ZNDec = ZTotalOrder<ZDecUniverse<VT, SNEG>>;
+template<class VT, class Mem>
+using ZNDec = ZTotalOrder<ZDecUniverse<VT, SNEG>, Mem>;
 
 /** Lattice of increasing Boolean where \f$ \mathit{false} \leq \mathit{true} \f$. */
-using BInc = ZTotalOrder<ZIncUniverse<bool, BOUNDED>>;
+template<class Mem>
+using BInc = ZTotalOrder<ZIncUniverse<bool, BOUNDED>, Mem>;
 
 /** Lattice of decreasing Boolean where \f$ \mathit{true} \leq \mathit{false} \f$. */
-using BDec = ZTotalOrder<ZDecUniverse<bool, BOUNDED>>;
+template<class Mem>
+using BDec = ZTotalOrder<ZDecUniverse<bool, BOUNDED>, Mem>;
 
 template<class L, class K> struct join_t;
 template<class L, class K> struct meet_t;
-
-template<class TotalOrder>
-struct guarded_if {};
-
-template <template <class> class T>   // This template shenanigans because specializing with `BInc` leads to an incomplete type error...
-struct guarded_if<T<ZIncUniverse<bool, BOUNDED>>> {
-  CUDA bool guard() const { return static_cast<const T<ZIncUniverse<bool, BOUNDED>>*>(this)->value(); }
-};
-
 
 /** We equip totally ordered arithmetic lattice with projection functions.
     It enables us to move from one lattice to the other, such as ZInc to ZPInc.
@@ -197,20 +169,27 @@ struct guarded_if<T<ZIncUniverse<bool, BOUNDED>>> {
     Under-approximations arise when a value cannot be represented in the requested lattice.
     For instance, `ZInc(-1)` cannot be represented in `ZPInc` and thus will be under-approximated to `ZPInc(0)` (i.e., `ZPInc::bot()`).
     We note that `ZInc(1)` cannot be represented in `ZNInc`, but representing it by `ZNInc(0)` does not lead to an under- or over-approximation and thus we forbid it.  */
-template<class TotalOrder>
+template<class TotalOrder, class Mem>
 struct pn_projection {};
 
-template <class V>
-struct pn_projection<ZInc<V>> {
-  using pos_t = ZPInc<V>;
-  using neg_t = ZNInc<V>;
-  CUDA ZPInc<V> pos() const {
-    V val = static_cast<const ZInc<V>*>(this)->val;
+/** We project to a local variable, so it is useful to wrap it into an atomic.
+ * The allocator is never used so it does not matter. */
+template <class A>
+using ProjectionMemory = battery::Memory<A>;
+
+template <class V, class Mem>
+struct pn_projection<ZInc<V, Mem>> {
+  using M = battery::Memory<typename Mem::allocator_type>;
+  using Z = ZInc<V, Mem>;
+  using pos_t = ZPInc<V, M>;
+  using neg_t = ZNInc<V, M>;
+  CUDA pos_t pos() const {
+    V val = static_cast<const Z*>(this)->val;
     if(val < 0) {
-      return ZPInc<V>::bot();
+      return pos_t::bot();
     }
     else {
-      return ZPInc<V>(val, typename ZPInc<V>::no_check_t{});
+      return pos_t(val, typename ZPInc<V>::no_check_t{});
     }
   }
 
@@ -226,24 +205,24 @@ struct pn_projection<ZInc<V>> {
   }
 };
 
-template <class V>
-struct pn_projection<ZPInc<V>> {
+template <class V, class Mem>
+struct pn_projection<ZPInc<V, Mem>> {
   using pos_t = ZPInc<V>;
   using neg_t = ZNInc<V>;
   CUDA ZPInc<V> pos() const { return *static_cast<const ZPInc<V>*>(this); }
   CUDA ZNInc<V> neg() const { assert(false); return ZNInc<V>::top(); }
 };
 
-template <class V>
-struct pn_projection<ZNInc<V>> {
+template <class V, class Mem>
+struct pn_projection<ZNInc<V, Mem>> {
   using pos_t = ZPInc<V>;
   using neg_t = ZNInc<V>;
   CUDA ZPInc<V> pos() const { assert(false); return ZPInc<V>::bot(); }
   CUDA ZNInc<V> neg() const { return *static_cast<const ZNInc<V>*>(this); }
 };
 
-template <class V>
-struct pn_projection<ZDec<V>> {
+template <class V, class Mem>
+struct pn_projection<ZDec<V, Mem>> {
   using pos_t = ZPDec<V>;
   using neg_t = ZNDec<V>;
   CUDA ZPDec<V> pos() const {
@@ -268,35 +247,36 @@ struct pn_projection<ZDec<V>> {
   }
 };
 
-template <class V>
-struct pn_projection<ZPDec<V>> {
+template <class V, class Mem>
+struct pn_projection<ZPDec<V, Mem>> {
   using pos_t = ZPDec<V>;
   using neg_t = ZNDec<V>;
   CUDA ZPDec<V> pos() const { return *static_cast<const ZPDec<V>*>(this); }
   CUDA ZNDec<V> neg() const { assert(false); return ZNDec<V>::bot(); }
 };
 
-template <class V>
-struct pn_projection<ZNDec<V>> {
+template <class V, class Mem>
+struct pn_projection<ZNDec<V, Mem>> {
   using pos_t = ZPDec<V>;
   using neg_t = ZNDec<V>;
   CUDA ZPDec<V> pos() const { assert(false); return ZPDec<V>::top(); }
   CUDA ZNDec<V> neg() const { return *static_cast<const ZNDec<V>*>(this); }
 };
 
-template<class ZUniverse>
+template<class ZUniverse, class Mem>
 class ZTotalOrder :
-  public guarded_if<ZTotalOrder<ZUniverse>>,
-  public pn_projection<ZTotalOrder<ZUniverse>>
+  public pn_projection<ZTotalOrder<ZUniverse, Mem>>
 {
 public:
   constexpr static bool increasing = ZUniverse::increasing;
   constexpr static bool decreasing = ZUniverse::decreasing;
-  using ValueType = typename ZUniverse::ValueType;
-  using this_type = ZTotalOrder<ZUniverse>;
-  using dual_type = ZTotalOrder<typename ZUniverse::dual_type>;
+  using U = ZUniverse;
+  using value_type = typename U::value_type;
+  using Memory = Mem;
+  using this_type = ZTotalOrder<ZUniverse, Memory>;
+  using dual_type = ZTotalOrder<typename ZUniverse::dual_type, Memory>;
 
-  template<class ZU>
+  template<class ZU, class M>
   friend class ZTotalOrder;
 
   template<class L>
@@ -308,24 +288,22 @@ public:
   template<class L, class K>
   friend typename meet_t<L, K>::type meet(L a, K b);
 
-  using U = ZUniverse;
-
   template<typename T>
   using IsConvertible = std::enable_if_t<
-       std::is_convertible_v<T, ValueType>
+       std::is_convertible_v<T, value_type>
     // Allow conversion from ZPInc and ZNInc to ZInc.
-    || (std::is_same_v<this_type, ZInc<ValueType>> && (std::is_same_v<T, ZPInc<ValueType>> || std::is_same_v<T, ZNInc<ValueType>>))
+    || (std::is_same_v<this_type, ZInc<value_type>> && (std::is_same_v<T, ZPInc<value_type>> || std::is_same_v<T, ZNInc<value_type>>))
     // Allow conversion from ZPDec and ZNDec to ZDec.
-    || (std::is_same_v<this_type, ZDec<ValueType>> && (std::is_same_v<T, ZPDec<ValueType>> || std::is_same_v<T, ZNDec<ValueType>>))
+    || (std::is_same_v<this_type, ZDec<value_type>> && (std::is_same_v<T, ZPDec<value_type>> || std::is_same_v<T, ZNDec<value_type>>))
    , bool>;
 
 private:
   struct no_check_t{};
 
-  ValueType val;
+  value_type val;
 
   template<typename VT2, IsConvertible<VT2> = true>
-  CUDA explicit ZTotalOrder(VT2 i, no_check_t): val(static_cast<ValueType>(unwrap(i))) {}
+  CUDA explicit ZTotalOrder(VT2 i, no_check_t): val(static_cast<value_type>(unwrap(i))) {}
 
 public:
   /** Similar to \f$[\![\mathit{true}]\!]\f$. */
@@ -342,9 +320,14 @@ public:
     return dual_type(val, typename dual_type::no_check_t{});
   }
 
+  template <class V, class M, std::is_convertible_v<V, value_type> = true>
+  CUDA ZTotalOrder(const ZInc<V, M>& other) {
+
+  }
+
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
   template<typename VT2, IsConvertible<VT2> = true>
-  CUDA ZTotalOrder(VT2 i): val(static_cast<ValueType>(unwrap(i))) {
+  CUDA ZTotalOrder(VT2 i): val(static_cast<value_type>(unwrap(i))) {
     ZUniverse::check(unwrap(i));
   }
 
@@ -360,7 +343,7 @@ public:
     return *this;
   }
 
-  CUDA const ValueType& value() const { return val; }
+  CUDA const value_type& value() const { return val; }
 
   /** Expects a predicate of the form `x <op> i` where `x` is any variable's name, and `i` an integer.
     - If `f.approx()` is EXACT: `op` can be `U::sig_order()` or `U::sig_strict_order()`.
@@ -485,24 +468,27 @@ public:
   }
 };
 
-
+/** This wrapper indicates the underlying value is constant and positive (>= 0).
+ * It is useful to ensure monotonicity of some operations. */
 template<class U>
 class spos {
   private:
     U v;
   public:
-    using ValueType = U;
+    using value_type = U;
     CUDA spos(U v): v(v) { assert(v >= 0); }
     CUDA operator U() const { return v; }
     CUDA U value() const { return v; }
 };
 
+/** This wrapper indicates the underlying value is constant and negative (<= 0).
+ * It is useful to ensure monotonicity of some operations. */
 template<class U>
 class sneg {
   private:
     U v;
   public:
-    using ValueType = U;
+    using value_type = U;
     CUDA sneg(U v): v(v) { assert(v <= 0); }
     CUDA operator U() const { return v; }
     CUDA U value() const { return v; }
@@ -510,34 +496,34 @@ class sneg {
 
 #include "monotone_analysis.hpp"
 
-template<class L> struct leq_t<L, typename L::ValueType, typename L::dual_type> {
-  using type = typename geq_t<typename L::dual_type, typename L::ValueType, typename L::dual_type>::type;
+template<class L> struct leq_t<L, typename L::value_type, typename L::dual_type> {
+  using type = typename geq_t<typename L::dual_type, typename L::value_type, typename L::dual_type>::type;
 };
-template<class L> struct leq_t<L, typename L::dual_type, typename L::ValueType> {
-  using type = typename geq_t<typename L::dual_type, typename L::dual_type, typename L::ValueType>::type;
-};
-
-template<class L> struct geq_t<L, typename L::ValueType, typename L::dual_type> {
-  using type = typename leq_t<typename L::dual_type, typename L::ValueType, typename L::dual_type>::type;
+template<class L> struct leq_t<L, typename L::dual_type, typename L::value_type> {
+  using type = typename geq_t<typename L::dual_type, typename L::dual_type, typename L::value_type>::type;
 };
 
-template<class L> struct geq_t<L, typename L::dual_type, typename L::ValueType> {
-  using type = typename leq_t<typename L::dual_type, typename L::dual_type, typename L::ValueType>::type;
+template<class L> struct geq_t<L, typename L::value_type, typename L::dual_type> {
+  using type = typename leq_t<typename L::dual_type, typename L::value_type, typename L::dual_type>::type;
 };
 
-template<class L> struct lt_t<L, typename L::ValueType, typename L::dual_type> {
-  using type = typename gt_t<typename L::dual_type, typename L::ValueType, typename L::dual_type>::type;
-};
-template<class L> struct lt_t<L, typename L::dual_type, typename L::ValueType> {
-  using type = typename gt_t<typename L::dual_type, typename L::dual_type, typename L::ValueType>::type;
+template<class L> struct geq_t<L, typename L::dual_type, typename L::value_type> {
+  using type = typename leq_t<typename L::dual_type, typename L::dual_type, typename L::value_type>::type;
 };
 
-template<class L> struct gt_t<L, typename L::ValueType, typename L::dual_type> {
-  using type = typename lt_t<typename L::dual_type, typename L::ValueType, typename L::dual_type>::type;
+template<class L> struct lt_t<L, typename L::value_type, typename L::dual_type> {
+  using type = typename gt_t<typename L::dual_type, typename L::value_type, typename L::dual_type>::type;
+};
+template<class L> struct lt_t<L, typename L::dual_type, typename L::value_type> {
+  using type = typename gt_t<typename L::dual_type, typename L::dual_type, typename L::value_type>::type;
 };
 
-template<class L> struct gt_t<L, typename L::dual_type, typename L::ValueType> {
-  using type = typename lt_t<typename L::dual_type, typename L::dual_type, typename L::ValueType>::type;
+template<class L> struct gt_t<L, typename L::value_type, typename L::dual_type> {
+  using type = typename lt_t<typename L::dual_type, typename L::value_type, typename L::dual_type>::type;
+};
+
+template<class L> struct gt_t<L, typename L::dual_type, typename L::value_type> {
+  using type = typename lt_t<typename L::dual_type, typename L::dual_type, typename L::value_type>::type;
 };
 
 template<class L, class K>

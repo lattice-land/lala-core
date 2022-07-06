@@ -1,2 +1,0 @@
-|a| z+  z-  zi+   zi-   zd+   zd-
--   z+  z+  zi+   zd+   zd+   zi+

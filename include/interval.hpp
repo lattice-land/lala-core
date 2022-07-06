@@ -22,7 +22,7 @@ struct arithmetic_projection<Interval<ZTotalOrder<U>>> {
   CUDA const typename ZTotalOrder<U>::dual_type::neg_t ubn() const { return static_cast<const sub_type*>(this)->ub().neg(); }
 };
 
-template <typename U>
+template <class U>
 class Interval: public arithmetic_projection<Interval<U>> {
   public:
     using LB = U;

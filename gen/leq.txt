@@ -1,4 +1,0 @@
-a<=b  U  L  LD
-U     -  BI -
-L     BD -  BD
-LD    -  BI -
