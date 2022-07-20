@@ -216,6 +216,56 @@ struct CType {
   }
 };
 
+struct error_tag {};
+struct warning_tag {};
+
+/** This class is used in abstract domains to represent the result of an interpretation.
+    If the abstract domain cannot interpret the formula, it must explain why.
+    This is similar to compilation errors in compiler. */
+template <class T, class Alloc>
+struct IResult {
+  using vector_type = battery::vector<battery::string<Alloc>, Alloc>;
+  T data;
+  vector_type errors;
+  vector_type warnings;
+
+  CUDA void print_array(const vector_type& array, const char* name) {
+    for(int i = 0; i < array.size(); ++i) {
+      printf("%s", name);
+      array[i].print();
+      printf("\n");
+    }
+  }
+
+public:
+  CUDA IResult(T&& data): data(std::move(data)) {}
+
+  CUDA IResult(error_tag, T&& data, battery::string<Alloc>&& error): data(std::move(data)) {
+    errors.push_back(std::move(error));
+  }
+
+  CUDA IResult(warning_tag, T&& data, battery::string<Alloc>&& warning): data(std::move(data)) {
+    warnings.push_back(std::move(warning));
+  }
+
+  CUDA bool is_ok() const {
+    return errors.size() == 0;
+  }
+
+  CUDA const T& value() const {
+    return data;
+  }
+
+  CUDA T& value() {
+    return data;
+  }
+
+  CUDA void print_diagnostics() const {
+    print_array(errors, "[error]");
+    print_array(warnings, "[warning]");
+  }
+}
+
 /** The type of integers used in logic formulas.
     Integers are represented by the set \f$ \{-\infty, \infty\} \cup Z (\text{ with} Z \subset \mathbb{Z}) \f$.
     The minimal and maximal values of `logic_int` represents \f$ -\infty \f$ and \f$ \infty \f$ respectively. */
