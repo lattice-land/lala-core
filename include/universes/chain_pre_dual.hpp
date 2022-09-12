@@ -5,17 +5,22 @@
 
 namespace lala {
 
-/** The dual of a pre-universe, called "predual", dualizes lattice and non-lattice operations.
-    In addition to the dual lattice, we must reverse the approximation direction (UNDER to OVER, and OVER to UNDER) when interpreting a formula in `interpret`. */
+/** The dual of a pre-universe, called "chain predual", dualizes lattice and non-lattice operations when the underlying lattice is a chain.
+    In addition to the dual lattice, we must reverse the approximation direction (UNDER to OVER, and OVER to UNDER) when interpreting a formula in `interpret` (that only works because `L` is a chain). */
 template<class L>
-struct PreDual {
+struct ChainPreDual {
+  static_assert(L::is_totally_ordered, "This dual construction only works over lattices that are totally ordered (chain).");
+
   using reverse_type = L;
   using value_type = typename L::value_type;
-  constexpr static bool preverse_bot = L::preverse_top;
-  constexpr static bool preverse_top = L::preverse_bot;
+  constexpr static bool is_totally_ordered = true;
+  constexpr static bool preserve_bot = L::preserve_top;
+  constexpr static bool preserve_top = L::preserve_bot;
   constexpr static bool injective_concretization = L::injective_concretization;
   constexpr static bool preserve_inner_covers = L::preserve_inner_covers;
   constexpr static bool complemented = L::complemented;
+  constexpr static const char* name = L::dual_name;
+  constexpr static const char* dual_name = L::name;
 
   template<class F>
   using iresult = typename L::iresult<F>;
@@ -40,6 +45,12 @@ struct PreDual {
   CUDA static constexpr bool has_unique_prev(value_type x) { return has_unique_next(x); }
   CUDA static value_type next(value_type i) { return L::prev(i); }
   CUDA static value_type prev(value_type i) { return L::next(i); }
+  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) { return L::is_supported_fun(appx, sig); }
+
+  template<Approx appx, Sig sig, class... Args>
+  CUDA static constexpr auto fun(Args... args) {
+    return L::template fun<dapprox(appx), sig>(args);
+  }
 };
 
 } // namespace lala
