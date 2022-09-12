@@ -12,18 +12,21 @@ namespace lala {
 template<class VT>
 struct PreFInc {
   using this_type = PreFInc<VT>;
-  using reverse_type = PreDual<this_type>;
+  using reverse_type = ChainPreDual<this_type>;
   using value_type = VT;
 
-  constexpr static bool preverse_bot = true;
-  constexpr static bool preverse_top = true;
+  constexpr static bool is_totally_ordered = true;
+  constexpr static bool preserve_bot = true;
+  constexpr static bool preserve_top = true;
   /** Note that -0 and +0 are treated as the same element. */
   constexpr static bool injective_concretization = true;
-  constexpr static bool preverse_inner_covers = false;
+  constexpr static bool preserve_inner_covers = false;
   constexpr static bool complemented = false;
+  constexpr static const char* name = "FInc";
+  constexpr static const char* dual_name = "FDec";
 
   template<class F>
-  using iresult = IResult<value_type, typename F::allocator_type>;
+  using iresult = IResult<value_type, F>;
 
   /** Interpret a constant in the lattice of increasing floating-point numbers `FInc` according to the upset semantics (see universe.hpp for explanation).
       Interpretations:
@@ -38,7 +41,7 @@ struct PreFInc {
     if(f.is(F::Z)) {
       auto z = f.z();
       if(z == bot() || z == top()) {
-        return iresult<F>(error_tag, value_type{}, "Constant of type `CType::Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.");
+        return iresult<F>(IError<F>(true, name, "Constant of type `CType::Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.", f));
       }
       auto lb = rd_cast<value_type>(z);
       auto ub = ru_cast<value_type>(z);
@@ -46,11 +49,11 @@ struct PreFInc {
         return iresult<F>(lb);
       }
       switch(appx) {
-        case UNDER: return iresult<F>(warning_tag, ub, "Constant of type `CType::Int` under-approximated as floating-point number.");
-        case OVER: return iresult<F>(warning_tag, lb, "Constant of type `CType::Int` over-approximated as floating-point number.");
+        case UNDER: return iresult<F>(IError<F>(false, name, "Constant of type `CType::Int` under-approximated as floating-point number.", f));
+        case OVER: return iresult<F>(IError<F>(false, name, "Constant of type `CType::Int` over-approximated as floating-point number.", f));
         default:
           assert(appx == EXACT);
-          return iresult<F>(error_tag, value_type{}, "Constant of type `CType::Int` cannot be interpreted exactly because it does not have an exact representation as a floating-point number (it is probably too large).");
+          return iresult<F>(IError<F>(true, name, "Constant of type `CType::Int` cannot be interpreted exactly because it does not have an exact representation as a floating-point number (it is probably too large).", f));
       }
     }
     else if(f.is(F::R)) {
@@ -65,11 +68,11 @@ struct PreFInc {
           case OVER: return iresult<F>(lb);
           default:
             assert(appx == EXACT);
-            return iresult<F>(error_tag, lb, "Constant of type `CType::Real` cannot be exactly interpreted by a floating-point number because the approximation of the constant is imprecise.");
+            return iresult<F>(IError<F>(true, name, "Constant of type `CType::Real` cannot be exactly interpreted by a floating-point number because the approximation of the constant is imprecise.", f));
         }
       }
     }
-    return iresult<F>(error_tag, 0, "Only constant of types `CType::Int` and `CType::Real` can be interpreted by an integer-type.");
+    return iresult<F>(IError<F>(true, name, "Only constant of types `CType::Int` and `CType::Real` can be interpreted by an integer-type.", f));
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
@@ -85,7 +88,7 @@ struct PreFInc {
       return iresult<F>(bot());
     }
     else {
-      return iresult<F>(error_tag, bot(), "Variable `" + vname + "` can only be of type CType::Int or CType::Real and be over-approximated in a floating-point universe.");
+      return iresult<F>(IError<F>(true, name, "Variable `" + vname + "` can only be of type CType::Int or CType::Real and be over-approximated in a floating-point universe.", f));
     }
   }
 
@@ -152,6 +155,59 @@ struct PreFInc {
       return battery::nextafter(value_type{-0.0}, bot());
     }
     return battery::nextafter(x, bot());
+  }
+
+  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
+    switch(sig) {
+      case NEG:
+      case ABS:
+      case MIN:
+      case MAX:
+      case EQ:
+      case NEQ:
+      case LEQ:
+      case GEQ:
+      case LT:
+      case GT:
+        return true;
+      case ADD:
+      case SUB:
+      case MUL:
+      case DIV:
+        return appx != EXACT;
+      default: return false;
+    }
+  }
+
+  template<Approx appx, Sig sig>
+  CUDA static constexpr value_type fun(value_type x) {
+    static_assert(is_supported_fun(appx, sig), "Unsupported unary function.");
+    // Negation and absolute function are exact functions in floating-point arithmetic.
+    switch(sig) {
+      case NEG: return -x;
+      case ABS: return abs(x);
+      default: assert(0); return x;
+    }
+  }
+
+  template<Approx appx, Sig sig>
+  CUDA static constexpr value_type fun(value_type x, value_type y) {
+    static_assert(is_supported_fun(appx, sig), "Unsupported binary function.");
+    switch(sig) {
+      case ADD: return appx == UNDER ? battery::add_up(x, y) : battery::add_down(x, y);
+      case SUB: return appx == UNDER ? battery::sub_up(x, y) : battery::sub_down(x, y);
+      case MUL: return appx == UNDER ? battery::mul_up(x, y) : battery::mul_down(x, y);
+      case DIV: return appx == UNDER ? battery::div_up(x, y) : battery::div_down(x, y);
+      case MIN: return battery::min(x, y);
+      case MAX: return battery::max(x, y);
+      case EQ: return x == y;
+      case NEQ: return x != y;
+      case LEQ: return x <= y;
+      case GEQ: return x >= y;
+      case LT: return x < y;
+      case GT: return x >= y;
+      default: assert(0); return x;
+    }
   }
 };
 

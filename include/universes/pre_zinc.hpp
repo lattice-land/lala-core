@@ -11,14 +11,18 @@ namespace lala {
 template<class VT>
 struct PreZInc {
   using this_type = PreZInc<VT>;
-  using reverse_type = PreDual<this_type>;
+  using reverse_type = ChainPreDual<this_type>;
   using value_type = VT;
 
+  static_assert(std::is_integral_v<value_type>, "PreZInc only works over integer types.");
+
+  constexpr static bool is_totally_ordered = true;
+
   /** `true` if \f$ \gamma(\bot) = \bot^\flat \f$. */
-  constexpr static bool preverse_bot = true;
+  constexpr static bool preserve_bot = true;
 
   /** `true` if \f$ \gamma(\top) = \top^\flat \f$. */
-  constexpr static bool preverse_top = true;
+  constexpr static bool preserve_top = true;
 
   /** The concretization is injective when each abstract element maps to a distinct concrete element.
       This is important for the correctness of `prev` and `next` because we suppose \f$ \gamma(x) != \gamma(\mathit{next}(x)) \f$ when \f$ x \neq \bot \land x \neq \top \f$. */
@@ -26,13 +30,16 @@ struct PreZInc {
 
   /** `true` if inner covers are preserved in the concrete domain, \emph{i.e.}, \f$ \gamma(\mathit{next}(x)) \f$ is a cover of \f$ \gamma(x) \f$.
       An inner cover is a cover where bottom and top are not considered. */
-  constexpr static bool preverse_inner_covers = true;
+  constexpr static bool preserve_inner_covers = true;
 
   /** `true` if for all element \f$ x \in A \f$, there exists an element \f$ \lnot x \in A \f$ such that \f$ x \sqcup \lnot x = \top \f$ and \f$ x \sqcap \lnot x = \bot \f$. */
   constexpr static bool complemented = false;
 
+  constexpr static const char* name = "ZInc";
+  constexpr static const char* dual_name = "ZDec";
+
   template<class F>
-  using iresult = IResult<value_type, typename F::allocator_type>;
+  using iresult = IResult<value_type, F>;
 
   /** Interpret a constant in the lattice of increasing integers according to the upset semantics (see universe.hpp for explanation).
       Overflows are not verified (issue #1).
@@ -88,14 +95,14 @@ struct PreZInc {
       case Int: return iresult<F>(bot());
       case Real:
         switch(appx) {
-          case UNDER: return iresult<F>(warning_tag, bot(), "Real variable `" + vname + "` under-approximated by an integer.");
-          case OVER: return iresult<F>(error_tag, bot(), "Real variable `" + vname + "` cannot be over-approximated by an integer.");
+          case UNDER: return iresult<F>(IError<F>(false, name, "Real variable `" + vname + "` under-approximated by an integer.", f));
+          case OVER: return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be over-approximated by an integer.", f));
           default:
             assert(appx == EXACT);
-            return iresult<F>(error_tag, bot(), "Real variable `" + vname + "` cannot be exactly represented by an integer.");
+            return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be exactly represented by an integer.", f));
         }
       default:
-        return iresult<F>(error_tag, bot(), "The type of `" + vname + "` can only be `CType::Int` or `CType::Real` when under-approximated.");
+        return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `CType::Int` or `CType::Real` when under-approximated.", f));
     }
   }
 
@@ -149,8 +156,80 @@ struct PreZInc {
   /** From a lattice perspective, this function returns an element \f$ y \f$ such that \f$ x \f$ is a cover of \f$ y \f$.
 
    \return The previous value of \f$ x \f$ in the discrete increasing chain \f$ -\infty, \ldots, -2, -1, 0, 1, \ldots \infty \f$ is \f$ x - 1 \f$ when \f$ x \not\in \{\infty, -\infty\} \f$ and \f$ x \f$ otherwise. */
-  CUDA static constexpr value_type prev(value_type x, Approx appx) {
+  CUDA static constexpr value_type prev(value_type x) {
     return x - (x != top() && x != bot());
+  }
+
+  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
+    switch(sig) {
+      case NEG:
+      case ABS:
+      case ADD:
+      case SUB:
+      case MUL:
+      case TDIV:
+      case TMOD:
+      case FDIV:
+      case FMOD:
+      case CDIV:
+      case CMOD:
+      case EDIV:
+      case EMOD:
+      case POW:
+      case MIN:
+      case MAX:
+      case EQ:
+      case NEQ:
+      case LEQ:
+      case GEQ:
+      case LT:
+      case GT: return true;
+      default: return false;
+    }
+  }
+
+  template<Approx appx, Sig sig>
+  CUDA static constexpr value_type fun(value_type x) {
+    static_assert(sig == NEG || sig == ABS, "Unsupported unary function.");
+    switch(sig) {
+      case NEG: return -x;
+      case ABS: return abs(x);
+      default: assert(0); return x;
+    }
+  }
+
+  template<Approx appx, Sig sig>
+  CUDA static constexpr value_type fun(value_type x, value_type y) {
+    static_assert(
+      sig == ADD || sig == SUB || sig == MUL || sig == TDIV || sig == TMOD || sig == FDIV || sig == FMOD || sig == CDIV || sig == CMOD || sig == EDIV || sig == EMOD || sig == POW || sig == MIN || sig == MAX || sig == EQ || sig == NEQ || sig == LEQ || sig == GEQ || sig == LT || sig == GT,
+      "Unsupported binary function.");
+    switch(sig) {
+      case ADD: return x + y;
+      case SUB: return x - y;
+      case MUL: return x * y;
+      // Truncated division and modulus, by default in C++.
+      case TDIV: return x / y;
+      case TMOD: return x % y;
+      // Floor division and modulus, see (Leijend D. (2003). Division and Modulus for Computer Scientists).
+      case FDIV: return x / y - (battery::signum(x % y) == -battery::signum(y));
+      case FMOD: return x % y + y * (battery::signum(x % y) == -battery::signum(y));
+      // Ceil division and modulus.
+      case CDIV: return x / y + (battery::signum(x % y) == battery::signum(y));
+      case CMOD: return x % y - y * (battery::signum(x % y) == battery::signum(y));
+      // Euclidean division and modulus, see (Leijend D. (2003). Division and Modulus for Computer Scientists).
+      case EDIV: return x / y - ((x % y >= 0) ? 0 : battery::signum(y));
+      case EMOD: return x % y + y * ((x % y >= 0) ? 0 : battery::signum(y));
+      case POW: return battery::ipow(x, y);
+      case MIN: return battery::min(x, y);
+      case MAX: return battery::max(x, y);
+      case EQ: return x == y;
+      case NEQ: return x != y;
+      case LEQ: return x <= y;
+      case GEQ: return x >= y;
+      case LT: return x < y;
+      case GT: return x >= y
+      default: assert(0); return x;
+    }
   }
 };
 
