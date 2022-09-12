@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
 #include <gtest/gtest.h>
-#include "ast.hpp"
+#include "logic/logic.hpp"
 #include "allocator.hpp"
 
 using namespace lala;

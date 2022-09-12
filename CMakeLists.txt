@@ -86,6 +86,11 @@ target_link_libraries(ast_test cuda_battery lala_core gtest_main)
 target_include_directories(ast_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 gtest_discover_tests(ast_test)
 
+add_executable(copy_dag_test tests/copy_dag_test.cpp)
+target_link_libraries(copy_dag_test cuda_battery lala_core gtest_main)
+target_include_directories(copy_dag_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+gtest_discover_tests(copy_dag_test)
+
 add_executable(z_test tests/z_test.cpp)
 target_link_libraries(z_test cuda_battery lala_core gtest_main)
 target_include_directories(z_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})

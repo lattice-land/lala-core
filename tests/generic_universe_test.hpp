@@ -6,7 +6,7 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include "thrust/optional.h"
-#include "ast.hpp"
+#include "logic.hpp"
 #include "allocator.hpp"
 #include "utility.hpp"
 #include "arithmetic.hpp"
