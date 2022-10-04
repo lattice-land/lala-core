@@ -13,14 +13,17 @@ struct ChainPreDual {
 
   using reverse_type = L;
   using value_type = typename L::value_type;
-  constexpr static bool is_totally_ordered = true;
-  constexpr static bool preserve_bot = L::preserve_top;
-  constexpr static bool preserve_top = L::preserve_bot;
-  constexpr static bool injective_concretization = L::injective_concretization;
-  constexpr static bool preserve_inner_covers = L::preserve_inner_covers;
-  constexpr static bool complemented = L::complemented;
+  constexpr static const bool is_totally_ordered = true;
+  constexpr static const bool preserve_bot = L::preserve_top;
+  constexpr static const bool preserve_top = L::preserve_bot;
+  constexpr static const bool injective_concretization = L::injective_concretization;
+  constexpr static const bool preserve_inner_covers = L::preserve_inner_covers;
+  constexpr static const bool complemented = L::complemented;
+  constexpr static const bool increasing = !L::increasing;
   constexpr static const char* name = L::dual_name;
   constexpr static const char* dual_name = L::name;
+  constexpr static const value_type zero = L::zero;
+  constexpr static const value_type one = L::one;
 
   template<class F>
   using iresult = typename L::iresult<F>;

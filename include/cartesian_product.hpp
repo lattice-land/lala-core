@@ -9,136 +9,188 @@
 #include "ast.hpp"
 #include "tuple.hpp"
 #include "variant.hpp"
-#include "z.hpp"
+#include "universes/upset_universe.hpp"
 
 namespace lala {
 
+template<class... As>
+class CartesianProduct;
+
+namespace impl {
+  template<class... As>
+  auto index_sequence_of(const CartesianProduct<As...>&) {
+    return std::index_sequence_for<As...>{};
+  }
+
+  template<class... As>
+  auto index_sequence_of(const battery::tuple<As...>&) {
+    return std::index_sequence_for<As...>{};
+  }
+
+  template <class A, class B>
+  auto index_sequence_of(const A& a, const B& b) {
+    static_assert(impl::index_sequence_of(a)::size() == impl::index_sequence_of(b)::size());
+    return impl::index_sequence_of(a);
+  }
+
+  template<class... Os>
+  CUDA CartesianProduct<Os...> make_cp(Os... os) {
+    return CartesianProduct<Os...>(os...);
+  }
+
+  template<class A>
+  struct is_product {
+    static constexpr bool value = false;
+  };
+
+  template<class... As>
+  struct is_product<CartesianProduct<As...>> {
+    static constexpr bool value = true;
+  };
+
+  template<class... As>
+  struct is_product<battery::tuple<As...>> {
+    static constexpr bool value = true;
+  };
+
+  template<class A>
+  inline static constexpr bool is_product_v = is_product<A>::value;
+}
+
 /** The Cartesian product abstract domain is a _domain transformer_ combining several abstract domains.
 Concretization function: \f$ \gamma((a_1, \ldots, a_n)) \sqcap_{i \leq n} \gamma_i(a_i) \f$. */
-template<class...As>
+template<class... As>
 class CartesianProduct {
 public:
   template<size_t i>
-  using TypeOf = typename battery::tuple_element<i, battery::tuple<As...>>::type;
+  using type_of = typename battery::tuple_element<i, battery::tuple<As...>>::type;
   constexpr static size_t n = battery::tuple_size<battery::tuple<As...>>{};
   using this_type = CartesianProduct<As...>;
-  using dual_type = CartesianProduct<typename As::dual_type...>;
 
   template<class...Bs> friend class CartesianProduct;
 
-  using ValueType = battery::tuple<typename As::ValueType...>;
+  template<class F>
+  using iresult = IResult<this_type, F>;
+
+  using value_type = battery::tuple<typename As::value_type...>;
+
+  constexpr static const char* name = "CartesianProduct";
+
 private:
   battery::tuple<As...> val;
 
 public:
   CUDA CartesianProduct(const As&... as): val(battery::make_tuple(as...)) {}
   CUDA CartesianProduct(As&&... as): val(battery::make_tuple(std::forward<As>(as)...)) {}
-  CUDA CartesianProduct(typename As::ValueType... vs): val(battery::make_tuple(As(vs)...)) {}
-  CUDA CartesianProduct(const this_type& other): val(other.val) {}
-  CUDA this_type& operator=(this_type&& other) {
-    battery::tuple<As...> old = std::move(val);
-    val = std::move(other.val);
-    other.val = std::move(old);
-    return *this;
-  }
+  CUDA CartesianProduct(typename As::value_type... vs): val(battery::make_tuple(As(vs)...)) {}
 
-  /** Similar to \f$[\![\mathit{true}]\!]\f$. */
+  template<class... Bs>
+  CUDA CartesianProduct(const CartesianProduct<Bs...>& other): val(other.val) {}
+
+  /** Cartesian product initialized to \f$ (\bot_1, \ldots, \bot_n) \f$. */
   CUDA static this_type bot() {
     return CartesianProduct(As::bot()...);
   }
 
-  /** Similar to \f$[\![\mathit{false}]\!]\f$. */
+  /** Cartesian product initialized to \f$ (\top_1, \ldots, \top_n) \f$. */
   CUDA static this_type top() {
     return CartesianProduct(As::top()...);
   }
 
-  CUDA dual_type dual() const {
-    return dual_type(typename As::dual_type(battery::get<As>(val).dual())...);
-  }
-
-  template<size_t i, typename Formula>
-  CUDA static thrust::optional<this_type> interpret_one(const Formula& f) {
-    auto one = TypeOf<i>::interpret(f);
-    if(one.has_value()) {
+  /** Interpret the formula in the component `i`. */
+  template<size_t i, class F>
+  CUDA static iresult<F> interpret_one(const F& f) {
+    auto one = type_of<i>::interpret(f);
+    if(one.is_ok()) {
       auto res = bot();
-      battery::get<i>(res.val) = std::move(one).value();
-      return res;
+      project<i>(res).tell(one.value());
+      return one.map(res);
     }
-    return {};
+    else {
+      auto res = iresult<F>(IError<F>(true, name, "The requested component of this Cartesian product cannot interpret this formula.", f));
+      return res.join_errors(std::move(one));
+    }
   }
 
 private:
-  template<size_t i = 0, typename Formula>
-  CUDA static thrust::optional<this_type> interpret_all(const Formula& f, this_type res, bool empty) {
+  template<size_t i = 0, class F>
+  CUDA static iresult<F> interpret_all(const F& f, this_type res, bool empty) {
     if constexpr(i == n) {
       if(empty) {
-        return {};
+        return iresult<F>(IError<F>(true, name, "No component of this Cartesian product can interpret this formula.", f));
       }
       else {
-        return thrust::optional(std::move(res));
+        return iresult<F>(std::move(res));
       }
     }
     else {
-      auto one = TypeOf<i>::interpret(f);
-      if(one.has_value()) {
-        empty = false;
-        battery::get<i>(res.val) = std::move(one).value();
+      auto one = type_of<i>::interpret(f);
+      if(one.is_ok()) {
+        project<i>(res).tell(one.value());
+        return interpret_all<i+1>(f, std::move(res), false).join_warnings(one);
       }
-      return interpret_all<i+1>(f, std::move(res), empty);
+      else {
+        auto r = interpret_all<i+1>(f, std::move(res), empty);
+        if(!r.is_ok()) {
+          r.join_errors(std::move(one));
+        }
+        return std::move(r);
+      }
     }
   }
 
 public:
   /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
-  template<typename Formula>
-  CUDA static thrust::optional<this_type> interpret(const Formula& f) {
+  template<class F>
+  CUDA static iresult<F> interpret(const F& f) {
     return interpret_all(f, bot(), true);
   }
 
 private:
   // The non-const version must stay private, otherwise it violates the PCCP model since the caller might not check if the updated value is strictly greater w.r.t. lattice order.
   template<size_t i>
-  CUDA TypeOf<i>& project() {
+  CUDA type_of<i>& project() {
     return battery::get<i>(val);
   }
 
   template<size_t... I>
-  CUDA ValueType value_(std::index_sequence<I...>) const {
-    return ValueType(project<I>().value()...);
+  CUDA value_type value_(std::index_sequence<I...>) const {
+    return value_type(project<I>().value()...);
   }
 
   template<size_t... I>
-  CUDA BInc is_top_(std::index_sequence<I...>) const {
-    return lor(project<I>().is_top()...);
+  CUDA local::BInc is_top_(std::index_sequence<I...>) const {
+    return ... || project<I>().is_top();
   }
 
   template<size_t... I>
-  CUDA BDec is_bot_(std::index_sequence<I...>) const {
-    return land(project<I>().is_bot()...);
+  CUDA local::BDec is_bot_(std::index_sequence<I...>) const {
+    return ... && project<I>().is_bot();
   }
+
 public:
   template<size_t i>
-  CUDA const TypeOf<i>& project() const {
+  CUDA const type_of<i>& project() const {
     return battery::get<i>(val);
   }
 
-  CUDA ValueType value() const {
+  CUDA value_type value() const {
     return value_(std::index_sequence_for<As...>{});
   }
 
   /** `true` if \f$ \exists{j \geq i},~\gamma(a_j) = \top^\flat \f$, `false` otherwise. */
-  CUDA BInc is_top() const {
+  CUDA local::BInc is_top() const {
     return is_top_(std::index_sequence_for<As...>{});
   }
 
   /** `true` if \f$ \forall{j \geq i},~\gamma(a_j) = \bot^\flat \f$, `false` otherwise. */
-  CUDA BDec is_bot() const {
+  CUDA local::BDec is_bot() const {
     return is_bot_(std::index_sequence_for<As...>{});
   }
 
 private:
-  template<size_t i = 0>
-  CUDA this_type& tell_(const this_type& other, BInc& has_changed) {
+  template<size_t i = 0, class M, class... Bs>
+  CUDA this_type& tell_(const CartesianProduct<Bs...>& other, BInc<M>& has_changed) {
     if constexpr (i < n) {
       project<i>().tell(other.project<i>(), has_changed);
       return tell_<i+1>(other, has_changed);
@@ -148,8 +200,19 @@ private:
     }
   }
 
-  template<size_t i = 0>
-  CUDA this_type& dtell_(const this_type& other, BInc& has_changed) {
+  template<size_t i = 0, class... Bs>
+  CUDA this_type& tell_(const CartesianProduct<Bs...>& other) {
+    if constexpr (i < n) {
+      project<i>().tell(other.project<i>());
+      return tell_<i+1>(other);
+    }
+    else {
+      return *this;
+    }
+  }
+
+  template<size_t i = 0, class M, class... Bs>
+  CUDA this_type& dtell_(const CartesianProduct<Bs...>& other, BInc<M>& has_changed) {
     if constexpr (i < n) {
       project<i>().dtell(other.project<i>(), has_changed);
       return dtell_<i+1>(other, has_changed);
@@ -159,51 +222,159 @@ private:
     }
   }
 
+  template<size_t i = 0, class... Bs>
+  CUDA this_type& dtell_(const CartesianProduct<Bs...>& other) {
+    if constexpr (i < n) {
+      project<i>().dtell(other.project<i>());
+      return dtell_<i+1>(other);
+    }
+    else {
+      return *this;
+    }
+  }
+
+  template<size_t i = 0>
+  CUDA this_type& dtell_bot_() {
+    if constexpr (i < n) {
+      project<i>().dtell_bot();
+      return dtell_bot_<i+1>(other, has_changed);
+    }
+    else {
+      return *this;
+    }
+  }
+
+  template<size_t i = 0, class... Bs>
+  CUDA bool extract_(CartesianProduct<Bs...>& ua) {
+    if constexpr (i < n) {
+      bool is_under = project<i>().extract(ua.project<i>());
+      return is_under && extract_<i+1>(ua);
+    }
+    else {
+      return true;
+    }
+  }
+
 public:
-  CUDA this_type& tell(const this_type& other, BInc& has_changed) { return tell_(other, has_changed); }
-  CUDA this_type& dtell(const this_type& other, BInc& has_changed) { return dtell_(other, has_changed); }
-  template<size_t i>
-  CUDA this_type& tell(TypeOf<i>&& b, BInc& has_changed) {
-    project<i>().tell(std::forward<TypeOf<i>>(b), has_changed);
-    return *this;
-  }
-  template<size_t i>
-  CUDA this_type& dtell(TypeOf<i>&& b, BInc& has_changed) {
-    project<i>().dtell(std::forward<TypeOf<i>>(b), has_changed);
-    return *this;
-  }
-  template<size_t i>
-  CUDA this_type& tell(const TypeOf<i>& b, BInc& has_changed) {
-    project<i>().tell(b, has_changed);
-    return *this;
-  }
-  template<size_t i>
-  CUDA this_type& dtell(const TypeOf<i>& b, BInc& has_changed) {
-    project<i>().dtell(b, has_changed);
+  /** \f$ \top \f$ is only told in the first component (since it is sufficient for the whole Cartesian product to become top as well).  */
+  CUDA this_type& tell_top() {
+    project<0>().tell_top();
     return *this;
   }
 
-  /** This is a non-commutative split, which splits on the first splittable abstract element (in the order of the template parameters). */
-  template<class Alloc, size_t i = 0>
-  CUDA battery::vector<this_type, Alloc> split(const Alloc& allocator = Alloc()) const {
-    if constexpr(i < n) {
-      auto split_i = project<i>().split(allocator);
-      switch (split_i.size()) {
-        case 0: return battery::vector<this_type, Alloc>();
-        case 1: return split<Alloc, i+1>(allocator);
-        default:
-          battery::vector<this_type, Alloc> res(allocator);
-          res.reserve(split_i.size());
-          for(int j = 0; j < split_i.size(); ++j) {
-            this_type current(*this);
-            battery::get<i>(current.val) = std::move(split_i[j]);
-            res.push_back(std::move(current));
-          }
-          return std::move(res);
-      }
+  template <class M, class Bs...>
+  CUDA this_type& tell(const CartesianProduct<Bs...>& other, BInc<M>& has_changed) {
+    return tell_(other, has_changed);
+  }
+
+  template<size_t i, class Ai, class M>
+  CUDA this_type& tell(const Ai& a, BInc<M>& has_changed) {
+    project<i>().tell(a, has_changed);
+    return *this;
+  }
+
+  template <class Bs...>
+  CUDA this_type& tell(const CartesianProduct<Bs...>& other) {
+    return tell_(other);
+  }
+
+  template<size_t i, class Ai>
+  CUDA this_type& tell(const Ai& a) {
+    project<i>().tell(a);
+    return *this;
+  }
+
+  CUDA this_type& dtell_bot() {
+    dtell_bot_();
+    return *this;
+  }
+
+  template <class M, class Bs...>
+  CUDA this_type& dtell(const CartesianProduct<Bs...>& other, BInc<M>& has_changed) {
+    return dtell_(other, has_changed);
+  }
+
+  template<size_t i, class Ai, class M>
+  CUDA this_type& dtell(const Ai& a, BInc<M>& has_changed) {
+    project<i>().dtell(a, has_changed);
+    return *this;
+  }
+
+  template <class Bs...>
+  CUDA this_type& dtell(const CartesianProduct<Bs...>& other) {
+    return dtell_(other);
+  }
+
+  template<size_t i, class Ai>
+  CUDA this_type& dtell(const Ai& a) {
+    project<i>().dtell(a);
+    return *this;
+  }
+
+  /** For correctness, the parameter `ua` must be stored in a local memory. */
+  template <class... Bs>
+  CUDA bool extract(CartesianProduct<Bs...>& ua) const {
+    return extract_(ua);
+  }
+
+// Implementation of the logical signature.
+
+private:
+  template<Approx appx, Sig sig, class A, size_t... I>
+  CUDA static constexpr auto fun_(const A& a, std::index_sequence<I...>)
+  {
+    return make_cp(fun<appx, sig>(project<I>(a))...);
+  }
+
+  template<Approx appx, Sig sig, class A, class B, size_t... I>
+  CUDA static constexpr auto fun_(const A& a, const B& b, std::index_sequence<I...>)
+  {
+    return make_cp(fun<appx, sig>(project<I>(a), project<I>(b))...);
+  }
+
+  template<Approx appx, Sig sig, class A, class B, size_t... I>
+  CUDA static constexpr auto fun_left(const A& a, const B& b, std::index_sequence<I...>)
+  {
+    return make_cp(fun<appx, sig>(project<I>(a), b)...);
+  }
+
+  template<Approx appx, Sig sig, class A, class B, size_t... I>
+  CUDA static constexpr auto fun_right(const A& a, const B& b, std::index_sequence<I...>)
+  {
+    return make_cp(fun<appx, sig>(a, project<I>(b))...);
+  }
+
+public:
+  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
+    return ... && As::is_supported_fun(appx, sig);
+  }
+
+  /** Given a product \f$ (x_1, \ldots, x_n) \f$, returns \f$ (f(x_1), \ldots, f(x_n)) \f$. */
+  template<Approx appx, Sig sig, class A>
+  CUDA static constexpr auto fun(const A& a) {
+    if constexpr(impl::is_product_v<A>) {
+      return impl::fun_<appx, sig>(a, impl::index_sequence_of(a));
     }
     else {
-      return battery::vector<this_type, Alloc>({*this}, allocator);
+      static_assert(impl::is_product_v<A>, "The argument of a unary function on Cartesian product must be a product.");
+    }
+  }
+
+  /** Given two product \f$ (x_1, \ldots, x_n) \f$ and \f$ (y_1, \ldots, y_n) \f$, returns \f$ (f(x_1, y_1), \ldots, f(x_n, y_n)) \f$.
+      If either the left or right operand is not a product, returns \f$ (f(x_1, c), \ldots, f(x_n, c)) \f$ or  \f$ (f(c, y_1), \ldots, f(c, y_n)) \f$. */
+  template<Approx appx, Sig sig, class A, class B>
+  CUDA static constexpr auto fun(const A& a, const B& b) {
+    if constexpr(impl::is_product_v<A> && impl::is_product_v<B>) {
+      return impl::fun_<appx, sig>(a, b, impl::index_sequence_of(a, b));
+    }
+    else if constexpr(impl::is_product_v<A> && !impl::is_product_v<B>) {
+      return impl::fun_left<appx, sig>(a, b, impl::index_sequence_of(a));
+    }
+    else if constexpr(!impl::is_product_v<A> && impl::is_product_v<B>) {
+      return impl::fun_right<appx, sig>(a, b, impl::index_sequence_of(b));
+    }
+    else {
+      static_assert(impl::is_product_v<A> || impl::is_product_v<B>, "At least one argument of a binary function on Cartesian product must be a product.");
     }
   }
 
@@ -219,7 +390,7 @@ private:
     else {
       return TFormula<Allocator>::make_nary(
         AND,
-        std::forward<typename TFormula<Allocator>::Sequence>(seq),
+        std::move(seq),
         UNTYPED, EXACT, allocator);
     }
   }
@@ -227,152 +398,139 @@ private:
 public:
   template<class Allocator>
   CUDA TFormula<Allocator> deinterpret(const LVar<Allocator>& x, const Allocator& allocator = Allocator()) const {
-    return deinterpret_<0, Allocator>(x, typename TFormula<Allocator>::Sequence(n), allocator);
+    return deinterpret_<0, Allocator>(x, typename TFormula<Allocator>::Sequence(n, allocator), allocator);
   }
 
-  template<class Allocator, size_t i = 0>
-  CUDA void print(const LVar<Allocator>& x) const {
+private:
+  template<size_t i = 0>
+  CUDA void print_() const {
     if constexpr(i < n) {
-      ::battery::print(project<i>());
+      project<i>().print();
       if constexpr(i < n - 1) {
         printf("\n");
         print<i+1>();
       }
     }
   }
+
+public:
+  CUDA void print() const {
+    print_();
+  }
 };
 
 /// Similar to `cp.template project<i>()`, just to avoid the ".template" syntax.
 template<size_t i, class... As>
-CUDA const typename CartesianProduct<As...>::TypeOf<i>&
+CUDA const typename CartesianProduct<As...>::type_of<i>&
 project(const CartesianProduct<As...>& cp) {
   return cp.template project<i>();
 }
 
+template<size_t i, class... As>
+CUDA const battery::tuple<As...>& project(const battery::tuple<As...>& t) {
+  return battery::get<i>(t);
+}
+
+// Lattice operators
 namespace impl {
-  template<class... Ls, class... Ks, size_t... I>
-  CUDA CartesianProduct<typename join_t<Ls, Ks>::type...> join_(
-    const CartesianProduct<Ls...>& a, const CartesianProduct<Ks...>& b,
-    std::index_sequence<I...>)
+  template<class A, class B, size_t... I>
+  CUDA auto join_(const A& a, const B& b, std::index_sequence<I...>)
   {
-    using R = CartesianProduct<typename join_t<Ls, Ks>::type...>;
-    return R(join(project<I>(a), project<I>(b))...);
+    return make_cp(join(project<I>(a), project<I>(b))...);
   }
 
-  template<class... Ls, class... Ks, size_t... I>
-  CUDA CartesianProduct<typename meet_t<Ls, Ks>::type...> meet_(
-    const CartesianProduct<Ls...>& a, const CartesianProduct<Ks...>& b,
-    std::index_sequence<I...>)
+  template<class A, class B, size_t... I>
+  CUDA auto meet_(const A& a, const B& b, std::index_sequence<I...>)
   {
-    using R = CartesianProduct<typename meet_t<Ls, Ks>::type...>;
-    return R(meet(project<I>(a), project<I>(b))...);
+    return make_cp(meet(project<I>(a), project<I>(b))...);
   }
 
-  template<class O, class... Ls, class... Ks, size_t... I>
-  CUDA typename leq_t<O, CartesianProduct<Ls...>, CartesianProduct<Ks...>>::type leq_(
-    const CartesianProduct<Ls...>& a, const CartesianProduct<Ks...>& b,
-    std::index_sequence<I...>)
+  template<class A, class B, size_t... I>
+  CUDA bool leq_(const A& a, const B& b, std::index_sequence<I...>)
   {
-    return land(leq<typename O::TypeOf<I>>(project<I>(a), project<I>(b))...);
+    return ... && (project<I>(a) <= project<I>(b));
   }
 
-  template<class O, class... Ls, size_t... I>
-  CUDA typename leq_t<O, typename CartesianProduct<Ls...>::ValueType, CartesianProduct<Ls...>>::type leq_(
-    const typename CartesianProduct<Ls...>::ValueType& a, const CartesianProduct<Ls...>& b,
-    std::index_sequence<I...>)
+  template<class A, class B, size_t... I>
+  CUDA bool lt_(const A& a, const B& b, std::index_sequence<I...>)
   {
-    return land(leq<typename O::TypeOf<I>>(battery::get<I>(a), project<I>(b))...);
+    return ... && (project<I>(a) < project<I>(b));
   }
 
-  template<class O, class... Ls, size_t... I>
-  CUDA typename leq_t<O, CartesianProduct<Ls...>, typename CartesianProduct<Ls...>::ValueType>::type leq_(
-    const CartesianProduct<Ls...>& a, const typename CartesianProduct<Ls...>::ValueType& b,
-    std::index_sequence<I...>)
+  template<class A, class B, size_t... I>
+  CUDA bool geq_(const A& a, const B& b, std::index_sequence<I...>)
   {
-    return land(leq<typename O::TypeOf<I>>(project<I>(a), battery::get<I>(b))...);
+    return ... && (project<I>(a) >= project<I>(b));
   }
 
-  template<class O, class... Ls, class... Ks, size_t... I>
-  CUDA typename lt_t<O, CartesianProduct<Ls...>, CartesianProduct<Ks...>>::type lt_(
-    const CartesianProduct<Ls...>& a, const CartesianProduct<Ks...>& b,
-    std::index_sequence<I...>)
+  template<class A, class B, size_t... I>
+  CUDA bool gt_(const A& a, const B& b, std::index_sequence<I...>)
   {
-    return land(lt<typename O::TypeOf<I>>(project<I>(a), project<I>(b))...);
+    return ... && (project<I>(a) > project<I>(b));
+  }
+
+  template<class A, class B, size_t... I>
+  CUDA bool eq_(const A& a, const B& b, std::index_sequence<I...>)
+  {
+    return ... && (project<I>(a) == project<I>(b));
+  }
+
+  template<class A, class B, size_t... I>
+  CUDA bool neq_(const A& a, const B& b, std::index_sequence<I...>)
+  {
+    return ... || (project<I>(a) != project<I>(b));
   }
 }
 
 /** \f$ (a_1, \ldots, a_n) \sqcup (b_1, \ldots, b_n) = (a_1 \sqcup_1 b_1, \ldots, a_n \sqcup_n b_n) \f$ */
-template<class... Ls, class... Ks>
-CUDA CartesianProduct<typename join_t<Ls, Ks>::type...> join(
-  const CartesianProduct<Ls...>& a, const CartesianProduct<Ks...>& b)
+template<class A, class B>
+CUDA auto join(const A& a, const B& b)
 {
-  return impl::join_(a, b, std::index_sequence_for<Ls...>{});
+  return impl::join_(a, b, impl::index_sequence_of(a, b));
 }
 
 /** \f$ (a_1, \ldots, a_n) \sqcap (b_1, \ldots, b_n) = (a_1 \sqcap_1 b_1, \ldots, a_n \sqcap_n b_n) \f$ */
-template<class... Ls, class... Ks>
-CUDA CartesianProduct<typename meet_t<Ls, Ks>::type...> meet(
-  const CartesianProduct<Ls...>& a, const CartesianProduct<Ks...>& b)
+template<class A, class B>
+CUDA auto meet(const A& a, const B& b)
 {
-  return impl::meet_(a, b, std::index_sequence_for<Ls...>{});
-}
-
-/** \f$ (a_1, \ldots, a_n) \sqcup (\bot_1, \ldots, b_i, \ldots, \bot_n) = (a_1, \ldots, a_i \sqcup_i b_i, \ldots, a_n) \f$ */
-template<size_t i, class... Ls>
-CUDA CartesianProduct<Ls...> join(const CartesianProduct<Ls...>& a,
-  const typename CartesianProduct<Ls...>::TypeOf<i>& b)
-{
-  CartesianProduct<Ls...> r(a);
-  BInc unused_ = BInc::bot();
-  r.template tell<i>(b, unused_);
-  return std::move(r);
-}
-
-/** \f$ (a_1, \ldots, a_n) \sqcap (\bot_1, \ldots, b_i, \ldots, \bot_n) = (a_1, \ldots, a_i \sqcap_i b_i, \ldots, a_n) \f$ */
-template<size_t i, class... Ls>
-CUDA CartesianProduct<Ls...> meet(const CartesianProduct<Ls...>& a,
-  const typename CartesianProduct<Ls...>::TypeOf<i>& b)
-{
-  CartesianProduct<Ls...> r(a);
-  BInc unused_ = BInc::bot();
-  r.template dtell<i>(b, unused_);
-  return std::move(r);
+  return impl::meet_(a, b, impl::index_sequence_of(a, b));
 }
 
 /** \f$ (a_1, \ldots, a_n) \leq (b_1, \ldots, b_n) \f$ holds when \f$ \forall{i \leq n},~a_i \leq_i b_i \f$. */
-template<class O, class... Ls, class... Ks>
-CUDA typename leq_t<O, CartesianProduct<Ls...>, CartesianProduct<Ks...>>::type leq(
-  const CartesianProduct<Ls...>& a,
-  const CartesianProduct<Ks...>& b)
+template<class A, class B>
+CUDA bool operator<=(const A& a, const B& b)
 {
-  return impl::leq_<O>(a, b, std::index_sequence_for<Ls...>{});
+  return impl::leq_(a, b, impl::index_sequence_of(a, b));
 }
 
-/** Similar to `leq(CartesianProduct, CartesianProduct)`, but with the left side constant. */
-template<class O, class... Ls>
-CUDA typename leq_t<O, typename CartesianProduct<Ls...>::ValueType, CartesianProduct<Ls...>>::type leq(
-  const typename CartesianProduct<Ls...>::ValueType& a,
-  const CartesianProduct<Ls...>& b)
+template<class A, class B>
+CUDA bool operator<(const A& a, const B& b)
 {
-  return impl::leq_<O>(a, b, std::index_sequence_for<Ls...>{});
+  return impl::lt_(a, b, impl::index_sequence_of(a, b));
 }
 
-/** Similar to `leq(CartesianProduct, CartesianProduct)`, but with the right side constant. */
-template<class O, class... Ls>
-CUDA typename leq_t<O, CartesianProduct<Ls...>, typename CartesianProduct<Ls...>::ValueType>::type leq(
-  const CartesianProduct<Ls...>& a,
-  const typename CartesianProduct<Ls...>::ValueType& b)
+template<class A, class B>
+CUDA bool operator>=(const A& a, const B& b)
 {
-  return impl::leq_<O>(a, b, std::index_sequence_for<Ls...>{});
+  return impl::geq_(a, b, impl::index_sequence_of(a, b));
 }
 
-
-template<class O, class... Ls, class... Ks>
-CUDA typename lt_t<O, CartesianProduct<Ls...>, CartesianProduct<Ks...>>::type lt(
-  const CartesianProduct<Ls...>& a,
-  const CartesianProduct<Ks...>& b)
+template<class A, class B>
+CUDA bool operator>(const A& a, const B& b)
 {
-  return impl::lt_<O>(a, b, std::index_sequence_for<Ls...>{});
+  return impl::gt_(a, b, impl::index_sequence_of(a, b));
+}
+
+template<class A, class B>
+CUDA bool operator==(const A& a, const B& b)
+{
+  return impl::eq_(a, b, impl::index_sequence_of(a, b));
+}
+
+template<class A, class B>
+CUDA bool operator!=(const A& a, const B& b)
+{
+  return impl::neq_(a, b, impl::index_sequence_of(a, b));
 }
 
 } // namespace lala

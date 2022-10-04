@@ -7,8 +7,11 @@
 #include <utility>
 #include <cmath>
 #include "thrust/optional.h"
-#include "utility.hpp"
-#include "ast.hpp"
+#include "../logic/logic.hpp"
+#include "chain_pre_dual.hpp"
+#include "pre_binc.hpp"
+#include "pre_finc.hpp"
+#include "pre_zinc.hpp"
 
 /** A pre-abstract universe is a lattice (with usual operations join, order, ...) equipped with a simple logical interpretation function and a next/prev functions.
     We consider pre-abstract universes with an upset semantics.
@@ -94,13 +97,16 @@ public:
   template<class F>
   using iresult = IResult<this_type, F>;
 
-  constexpr static bool is_totally_ordered = pre_universe::is_totally_ordered;
-  constexpr static bool preserve_bot = pre_universe::preserve_bot;
-  constexpr static bool preserve_top = pre_universe::preserve_top;
-  constexpr static bool injective_concretization = pre_universe::injective_concretization;
-  constexpr static bool preserve_inner_covers = pre_universe::preserve_inner_covers;
-  constexpr static bool complemented = pre_universe::complemented;
+  constexpr static const bool is_totally_ordered = pre_universe::is_totally_ordered;
+  constexpr static const bool preserve_bot = pre_universe::preserve_bot;
+  constexpr static const bool preserve_top = pre_universe::preserve_top;
+  constexpr static const bool injective_concretization = pre_universe::injective_concretization;
+  constexpr static const bool preserve_inner_covers = pre_universe::preserve_inner_covers;
+  constexpr static const bool complemented = pre_universe::complemented;
+  constexpr static const bool increasing = pre_universe::increasing;
   constexpr static const char* name = pre_universe::name;
+  constexpr static const value_type zero = pre_universe::zero;
+  constexpr static const value_type one = pre_universe::one;
 
 private:
   using atomic_type = typename memory_type::atomic_type<value_type>;
@@ -130,7 +136,7 @@ public:
 
   CUDA value_type value() const { return memory_type::load(val); }
 
-  CUDA value_type operator value_type() const { return value(); }
+  CUDA operator value_type() const { return value(); }
 
   /** `true` whenever \f$ a = \top \f$, `false` otherwise. */
   CUDA local::BInc is_top() const {
@@ -351,22 +357,46 @@ private:
   template <class T>
   inline constexpr bool preserve_top_v = has_preserve_top<T>::value;
 
+  template<class T>
+  struct is_upset_universe {
+    static constexpr bool value = false;
+  }
+
+  template<class PreUniverse, class Mem>
+  struct is_upset_universe<UpsetUniverse<PreUniverse, Mem>> {
+    static constexpr bool value = true;
+  }
+
+  template <class T>
+  inline constexpr bool is_upset_universe_v = is_upset_universe<T>::value;
+
 public:
   template<Approx appx, Sig sig, class A>
-  CUDA static constexpr this_type2<battery::LocalMemory> fun(A a) {
+  CUDA static constexpr this_type2<battery::LocalMemory> fun(const A& a) {
     if constexpr(preserve_top_v<A>) {
-      if(a == A::top())
+      if(a.is_top())
         return this_type2<battery::LocalMemory>::top();
     }
     if constexpr(preserve_bot_v<A>) {
-      if(a == A::bot())
+      if(a.is_bot())
         return this_type2<battery::LocalMemory>::bot();
     }
     return pre_universe::template fun<appx, sig>(a);
   }
 
   template<Approx appx, Sig sig, class A, class B>
-  CUDA static constexpr this_type2<battery::LocalMemory> fun(A a, B b) {
+  CUDA static constexpr this_type2<battery::LocalMemory> div_per_zero(const A& a, const B&) {
+    if constexpr(A::increasing && B::increasing == increasing) {
+      if(a >= A::zero) return zero;
+    }
+    else if(!A::increasing && B::increasing != increasing) {
+      if(a <= A::zero) return zero;
+    }
+    return this_type2<battery::LocalMemory>::bot();
+  }
+
+  template<Approx appx, Sig sig, class A, class B>
+  CUDA static constexpr this_type2<battery::LocalMemory> fun(const A& a, const B& b) {
     if constexpr(preserve_top_v<A>) {
       if(a.is_top())
         return this_type2<battery::LocalMemory>::top();
@@ -383,7 +413,17 @@ public:
       if(b.is_bot())
         return this_type2<battery::LocalMemory>::bot();
     }
-    return pre_universe::template fun<appx, sig>(arg);
+    if constexpr(is_division(sig) && is_upset_universe_v<A> && is_upset_universe_v<B>) {
+      if(b == B::zero) {
+        if(B::preserve_inner_covers && B::pre_universe::has_unique_next(b)) {
+          return pre_universe::template fun<appx, sig>(a, B::pre_universe::next(b));
+        }
+        else {
+          return div_per_zero<appx, sig>(a, b);
+        }
+      }
+    }
+    return pre_universe::template fun<appx, sig>(a, b);
   }
 
   // Lattice operators

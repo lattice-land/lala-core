@@ -1,9 +1,9 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef PRE_ZINC_HPP
-#define PRE_ZINC_HPP
+#ifndef PRE_BINC_HPP
+#define PRE_BINC_HPP
 
-#include "logic.hpp"
+#include "../logic/logic.hpp"
 #include "chain_pre_dual.hpp"
 
 namespace lala {
@@ -18,14 +18,17 @@ struct PreBInc {
   using reverse_type = ChainPreDual<this_type>;
   using value_type = bool;
 
-  constexpr static bool is_totally_ordered = true;
-  constexpr static bool preserve_bot = true;
-  constexpr static bool preserve_top = false;
-  constexpr static bool injective_concretization = true;
-  constexpr static bool preserve_inner_covers = true;
-  constexpr static bool complemented = false;
+  constexpr static const bool is_totally_ordered = true;
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_top = false;
+  constexpr static const bool injective_concretization = true;
+  constexpr static const bool preserve_inner_covers = true;
+  constexpr static const bool complemented = false;
+  constexpr static const bool increasing = true;
   constexpr static const char* name = "BInc";
   constexpr static const char* dual_name = "BDec";
+  constexpr static const value_type zero = false;
+  constexpr static const value_type one = true;
 
   template<class F>
   using iresult = IResult<value_type, F>;

@@ -3,6 +3,9 @@
 #ifndef PRE_ZINC_HPP
 #define PRE_ZINC_HPP
 
+#include "../logic/logic.hpp"
+#include "chain_pre_dual.hpp"
+
 namespace lala {
 
 /** `PreZInc` is a pre-abstract universe \f$ \langle \{-\infty, \ldots, -2, -1, 0, 1, 2, \ldots, \infty\}, \leq \rangle \f$ totally ordered by the natural arithmetic comparison operator.
@@ -16,27 +19,33 @@ struct PreZInc {
 
   static_assert(std::is_integral_v<value_type>, "PreZInc only works over integer types.");
 
-  constexpr static bool is_totally_ordered = true;
+  constexpr static const bool is_totally_ordered = true;
 
   /** `true` if \f$ \gamma(\bot) = \bot^\flat \f$. */
-  constexpr static bool preserve_bot = true;
+  constexpr static const bool preserve_bot = true;
 
   /** `true` if \f$ \gamma(\top) = \top^\flat \f$. */
-  constexpr static bool preserve_top = true;
+  constexpr static const bool preserve_top = true;
 
   /** The concretization is injective when each abstract element maps to a distinct concrete element.
       This is important for the correctness of `prev` and `next` because we suppose \f$ \gamma(x) != \gamma(\mathit{next}(x)) \f$ when \f$ x \neq \bot \land x \neq \top \f$. */
-  constexpr static bool injective_concretization = true;
+  constexpr static const bool injective_concretization = true;
 
   /** `true` if inner covers are preserved in the concrete domain, \emph{i.e.}, \f$ \gamma(\mathit{next}(x)) \f$ is a cover of \f$ \gamma(x) \f$.
       An inner cover is a cover where bottom and top are not considered. */
-  constexpr static bool preserve_inner_covers = true;
+  constexpr static const bool preserve_inner_covers = true;
 
   /** `true` if for all element \f$ x \in A \f$, there exists an element \f$ \lnot x \in A \f$ such that \f$ x \sqcup \lnot x = \top \f$ and \f$ x \sqcap \lnot x = \bot \f$. */
-  constexpr static bool complemented = false;
+  constexpr static const bool complemented = false;
+
+  /** `true` if the natural order of the universe of discourse coincides with the lattice order of this pre-universe, `false` if it is reversed. */
+  constexpr static const bool increasing = true;
 
   constexpr static const char* name = "ZInc";
   constexpr static const char* dual_name = "ZDec";
+
+  constexpr static const value_type zero = 0;
+  constexpr static const value_type one = 1;
 
   template<class F>
   using iresult = IResult<value_type, F>;

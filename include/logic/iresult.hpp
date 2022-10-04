@@ -140,7 +140,21 @@ public:
   CUDA IResult<U, F> map(U&& data2) && {
     auto r = IResult<U, F>(data2);
     r.warnings = std::move(warnings);
-    return r;
+    return std::move(r);
+  }
+
+  template<class U>
+  CUDA this_type& join_warnings(IResult<U, F>&& other) {
+    for(int i = 0; i < other.warnings.size(); ++i) {
+      warnings.push_back(std::move(other.warnings[i]));
+    }
+    return *this;
+  }
+
+  template<class U>
+  CUDA this_type& join_errors(IResult<U, F>&& other) {
+    error().add_suberror(std::move(other.error()));
+    return join_warnings(other);
   }
 
   CUDA T& value() {
@@ -151,10 +165,9 @@ public:
     return battery::get<1>(result);
   }
 
-  // CUDA this_type& map_value(T&& new_data) {
-  //   data = new_data;
-  //   return *this;
-  // }
+  CUDA error_type& error() {
+    return battery::get<1>(result);
+  }
 
   CUDA void print_diagnostics() const {
     if(is_ok()) {

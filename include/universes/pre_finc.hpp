@@ -1,7 +1,10 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef PRE_ZINC_HPP
-#define PRE_ZINC_HPP
+#ifndef PRE_FINC_HPP
+#define PRE_FINC_HPP
+
+#include "../logic/logic.hpp"
+#include "chain_pre_dual.hpp"
 
 namespace lala {
 
@@ -15,15 +18,18 @@ struct PreFInc {
   using reverse_type = ChainPreDual<this_type>;
   using value_type = VT;
 
-  constexpr static bool is_totally_ordered = true;
-  constexpr static bool preserve_bot = true;
-  constexpr static bool preserve_top = true;
+  constexpr static const bool is_totally_ordered = true;
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_top = true;
   /** Note that -0 and +0 are treated as the same element. */
-  constexpr static bool injective_concretization = true;
-  constexpr static bool preserve_inner_covers = false;
-  constexpr static bool complemented = false;
+  constexpr static const bool injective_concretization = true;
+  constexpr static const bool preserve_inner_covers = false;
+  constexpr static const bool complemented = false;
+  constexpr static const bool increasing = true;
   constexpr static const char* name = "FInc";
   constexpr static const char* dual_name = "FDec";
+  constexpr static const value_type zero = 0.0;
+  constexpr static const value_type one = 1.0;
 
   template<class F>
   using iresult = IResult<value_type, F>;

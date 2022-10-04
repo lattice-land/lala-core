@@ -141,6 +141,14 @@ CUDA inline const char* string_of_sig(Sig sig) {
   }
 }
 
+CUDA inline is_division(Sig sig) {
+  return sig == DIV || sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
+}
+
+CUDA inline is_modulo(Sig sig) {
+  return sig == MOD || sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
+}
+
 namespace battery {
   template<>
   CUDA inline void print(const lala::Sig& sig) {
