@@ -18,7 +18,7 @@ namespace impl {
 }
 
 /** An interval is a Cartesian product of a lower and upper bounds, themselves represented as lattices.
-    One difference, is that the \f$ \top \f$ can be represented by multiple interval elements, whenever \f$ l > u \f$, therefore some operations are different then on the Cartesian product, e.g., \f$ [3..2] = [4..1] \f$ in the interval lattice. */
+    One difference, is that the \f$ \top \f$ can be represented by multiple interval elements, whenever \f$ l > u \f$, therefore some operations are different than on the Cartesian product, e.g., \f$ [3..2] \equiv [4..1] \f$ in the interval lattice. */
 template <class U>
 class Interval {
 public:
@@ -31,9 +31,13 @@ public:
   template <class A>
   friend class Interval;
 
+  template<class F>
+  using iresult = IResult<this_type, F>;
+
+  constexpr static const char* name = "Interval";
+
 private:
   CP cp;
-  CUDA Interval(CP&& cp): cp(cp) {}
   CUDA Interval(const CP& cp): cp(cp) {}
 
 public:
@@ -54,33 +58,26 @@ public:
   CUDA const CP& as_product() const { return cp; }
   CUDA value_type value() const { return cp.value(); }
 
+  /** Same as the Cartesian product interpretation but for equality:
+   *    * Exact interpretation of equality is attempted by over-approximating both bounds and checking they are equal. */
   template<class F>
-  CUDA static iresult<this_type> interpret(const F& f) {
-    // In interval, we can handle the equality predicate exactly if the bounds can be represented exactly.
+  CUDA static iresult<F> interpret(const F& f) {
+    // In interval, we can handle the equality predicate exactly or by over-approximation.
+    // Under-approximation does not make sense since it would give an empty interval.
+    // The equality is interpreted in both bounds by over-approximation, therefore the equal element must be in \f$ \gamma(lb) \cap \gamma(ub) \f$.
+    // If an exact equality is asked, we verify the interpretations in LB and UB are equal.
     if(f.is_binary() && f.sig() == EQ) {
-
-    }
-    if(is_v_op_z(f, EQ)) {
-      auto lb = CP::template interpret_one<0>(F::make_binary(f.seq(0), GEQ, f.seq(1), UNTYPED, f.approx()));
-      if(lb.has_value()) {
-        auto ub = CP::template interpret_one<1>(F::make_binary(f.seq(0), LEQ, f.seq(1), UNTYPED, f.approx()));
-        if(ub.has_value()) {
-          return Interval(join(*lb,*ub));
-        }
+      if(f.approx() == UNDER) {
+        return iresult<F>(IError<F>(true, name, "Equality cannot be interpreted by under-approximation (it would always give an empty interval).", f));
       }
-    }
-    // If NEQ is under-approximated in both bounds, we risk to approximate to top while it would be correct to under-approximate only in one of the bounds.
-    else if(is_v_op_z(f, NEQ) && f.approx() == UNDER) {
-      auto x = CP::interpret(f);
-      if(x.has_value()) {
-        auto itv = Interval(*x);
-        if(!itv.is_top().value()) {
-          return itv;
+      auto cp_res = CP::interpret(f.map_approx(OVER));
+      if(cp_res.has_value()) {
+        this_type itv(cp_res.value());
+        if(f.is_exact() && lb().value() != ub().value()) {
+          return iresult<F>(IError<F>(true, name, "Equality cannot be interpreted exactly because LB over-approximates the equality to a different value than UB.", f));
         }
-      }
-      auto lb = CP::template interpret_one<0>(f);
-      if(lb.has_value()) {
-        return Interval(*lb);
+        return iresult<F>(std::move(itv))
+          .join_warnings(std::move(cp_res));
       }
     }
     // Forward to CP in case the formula `f` did not fit the cases above.
@@ -470,7 +467,7 @@ public:
   template<Approx appx, Sig sig, class A, class B>
   CUDA static constexpr this_type fun(const A& x, const B& y) {
     static_assert(
-      sig == ADD || sig == SUB || sig == MUL || sig == TDIV || sig == TMOD || sig == FDIV || sig == FMOD || sig == CDIV || sig == CMOD || sig == EDIV || sig == EMOD || sig == POW || sig == MIN || sig == MAX || sig == EQ || sig == NEQ || sig == LEQ || sig == GEQ || sig == LT || sig == GT,
+      sig == ADD || sig == SUB || sig == MUL || sig == TDIV || sig == TMOD || sig == FDIV || sig == FMOD || sig == CDIV || sig == CMOD || sig == EDIV || sig == EMOD || sig == POW || sig == MIN || sig == MAX,
       "Unsupported binary function.");
     switch(sig) {
       case ADD: return this_type::add<appx>(x, y);

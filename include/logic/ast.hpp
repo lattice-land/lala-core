@@ -467,6 +467,19 @@ public:
     return eseq()[i];
   }
 
+  CUDA this_type map_sig(Sig sig) const {
+    assert(is(Seq));
+    this_type f = *this;
+    f.sig() = sig;
+    return std::move(f);
+  }
+
+  CUDA this_type map_approx(Approx appx) const {
+    this_type f = *this;
+    f.approx_as(appx);
+    return std::move(f);
+  }
+
 private:
   template<size_t n>
   CUDA void print_sequence(bool print_atype) const {
