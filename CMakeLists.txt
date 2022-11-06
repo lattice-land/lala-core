@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.20)
 include(FetchContent)
 include(CMakePrintHelpers)
 
+# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24:
+# Fix found at https://github.com/ethereum/solidity/pull/13429
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
 project(lala-core LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
 option(LALACORE_BUILD_TESTS "LALACORE_BUILD_TESTS" OFF)
@@ -32,7 +38,7 @@ endif()
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        main
+  GIT_TAG        develop
 )
 FetchContent_MakeAvailable(cuda_battery)
 
@@ -91,30 +97,20 @@ target_link_libraries(copy_dag_test cuda_battery lala_core gtest_main)
 target_include_directories(copy_dag_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 gtest_discover_tests(copy_dag_test)
 
-add_executable(z_test tests/z_test.cpp)
-target_link_libraries(z_test cuda_battery lala_core gtest_main)
-target_include_directories(z_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-gtest_discover_tests(z_test)
+#add_executable(cartesian_product_test tests/cartesian_product_test.cpp)
+#target_link_libraries(cartesian_product_test cuda_battery lala_core gtest_main)
+#target_include_directories(cartesian_product_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+#gtest_discover_tests(cartesian_product_test)
 
-add_executable(arithmetic_test tests/arithmetic_test.cpp)
-target_link_libraries(arithmetic_test cuda_battery lala_core gtest_main)
-target_include_directories(arithmetic_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-gtest_discover_tests(arithmetic_test)
+#add_executable(interval_test tests/interval_test.cpp)
+#target_link_libraries(interval_test cuda_battery lala_core gtest_main)
+#target_include_directories(interval_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+#gtest_discover_tests(interval_test)
 
-add_executable(cartesian_product_test tests/cartesian_product_test.cpp)
-target_link_libraries(cartesian_product_test cuda_battery lala_core gtest_main)
-target_include_directories(cartesian_product_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-gtest_discover_tests(cartesian_product_test)
-
-add_executable(interval_test tests/interval_test.cpp)
-target_link_libraries(interval_test cuda_battery lala_core gtest_main)
-target_include_directories(interval_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-gtest_discover_tests(interval_test)
-
-add_executable(vstore_test tests/vstore_test.cpp)
-target_link_libraries(vstore_test cuda_battery lala_core gtest_main)
-target_include_directories(vstore_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-gtest_discover_tests(vstore_test)
+#add_executable(vstore_test tests/vstore_test.cpp)
+#target_link_libraries(vstore_test cuda_battery lala_core gtest_main)
+#target_include_directories(vstore_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+#gtest_discover_tests(vstore_test)
 
 endif()
 

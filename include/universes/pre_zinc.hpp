@@ -31,7 +31,7 @@ struct PreZInc {
       This is important for the correctness of `prev` and `next` because we suppose \f$ \gamma(x) != \gamma(\mathit{next}(x)) \f$ when \f$ x \neq \bot \land x \neq \top \f$. */
   constexpr static const bool injective_concretization = true;
 
-  /** `true` if inner covers are preserved in the concrete domain, \emph{i.e.}, \f$ \gamma(\mathit{next}(x)) \f$ is a cover of \f$ \gamma(x) \f$.
+  /** `true` if inner covers are preserved in the concrete domain, i.e., \f$ \gamma(\mathit{next}(x)) \f$ is a cover of \f$ \gamma(x) \f$.
       An inner cover is a cover where bottom and top are not considered. */
   constexpr static const bool preserve_inner_covers = true;
 
@@ -127,12 +127,12 @@ struct PreZInc {
   CUDA static constexpr Sig sig_strict_order() { return LT; }
   CUDA static constexpr Sig dual_sig_strict_order() { return GT; }
 
-  /** \$f \bot \f$ is represented by the minimal representable value of the underlying value type. */
+  /** \f$ \bot \f$ is represented by the minimal representable value of the underlying value type. */
   CUDA static constexpr value_type bot() {
     return battery::Limits<value_type>::bot();
   }
 
-  /** \$f \top \f$ is represented by the maximal representable value of the underlying value type. */
+  /** \f$ \top \f$ is represented by the maximal representable value of the underlying value type. */
   CUDA static constexpr value_type top() {
     return battery::Limits<value_type>::top();
   }

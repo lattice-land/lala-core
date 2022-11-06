@@ -110,12 +110,12 @@ struct PreFInc {
   CUDA static constexpr Sig sig_strict_order() { return LT; }
   CUDA static constexpr Sig dual_sig_strict_order() { return GT; }
 
-  /** \$f \bot \f$ is represented by the floating-point negative infinity value. */
+  /** \f$ \bot \f$ is represented by the floating-point negative infinity value. */
   CUDA static constexpr value_type bot() {
     return battery::Limits<value_type>::bot();
   }
 
-  /** \$f \top \f$  is represented by the floating-point positive infinity value. */
+  /** \f$ \top \f$  is represented by the floating-point positive infinity value. */
   CUDA static constexpr value_type top() {
     return battery::Limits<value_type>::top();
   }

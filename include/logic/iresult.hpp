@@ -26,6 +26,7 @@ private:
   F uninterpretable_formula;
   AType aty;
   battery::vector<IError<F>, allocator_type> suberrors;
+  bool fatal;
 
   CUDA void print_indent(int indent) {
     for(int i = 0; i < indent; ++i) {
@@ -47,7 +48,8 @@ public:
    : ad_name(std::move(ad_name)),
      description(std::move(description)),
      uninterpretable_formula(std::move(uninterpretable_formula)),
-     aty(aty)
+     aty(aty),
+     fatal(fatal)
   {}
 
   CUDA this_type& add_suberror(IError<F>&& suberror) {
@@ -82,7 +84,7 @@ public:
       printf("\n");
     }
   }
-}
+};
 
 /** This class is used in abstract domains to represent the result of an interpretation.
     If the abstract domain cannot interpret the formula, it must explain why.
@@ -92,6 +94,7 @@ class IResult {
 public:
   using allocator_type = typename F::allocator_type;
   using error_type = IError<F>;
+  using this_type = IResult<T, F>;
 
 private:
   using warnings_type = battery::vector<error_type, allocator_type>;
@@ -128,8 +131,17 @@ public:
   CUDA IResult(IResult<U, F>&& map): result(map_result(std::move(map.result))),
     warnings(std::move(map.warnings)) {}
 
+  CUDA this_type& operator=(this_type&& other) {
+    result = std::move(other.result);
+    warnings = std::move(other.warnings);
+  }
+
   CUDA bool is_ok() const {
     return result.index() == 0;
+  }
+
+  CUDA bool has_value() const {
+    return is_ok();
   }
 
   CUDA const T& value() const {

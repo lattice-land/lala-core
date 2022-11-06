@@ -17,7 +17,7 @@ namespace lala {
 
 /** A "logical variable" is just the name of the variable. */
 template<class Allocator>
-using LVar = battery::String<Allocator>;
+using LVar = battery::string<Allocator>;
 
 /** We call an "abstract variable" the representation of a logical variable in an abstract domain.
 It is a pair of integers `(aid, vid)` where `aid` is the UID of the abstract element and `vid` is an internal identifier of the variable inside the abstract element.
@@ -72,14 +72,13 @@ enum Sig {
   FDIV, FMOD, ///< Floor division (Knuth D. (1972). The Art of Computer Programming, Vol 1, Fundamental Algorithms), is defined as \f$ a\,\mathbf{fdiv}\,b = \lfloor a/b \rfloor \f$, i.e., it rounds towards negative infinity. Modulus is defined as \f$ a\,\mathbf{fmod}\,b = a - b * (a\,\mathbf{fdiv}\,b) \f$.
   CDIV, CMOD, ///< Ceil division is defined as \f$ a\,\mathbf{cdiv}\,b = \lceil a/b \rceil \f$. Modulus is defined as \f$ a\,\mathbf{cmod}\,b = a - b * (a\,\mathbf{cdiv}\,b) \f$.
   EDIV, EMOD, ///< Euclidean division (Boute T. R. (1992). The Euclidean definition of the functions div and mod). The properties satisfy by this division are: (1) \f$ a\,\mathbf{ediv}\,b \in \mathbb{Z} \f$, (2) \f$ a = b * (a\,\mathbf{ediv}\,b) + (a\,\mathbf{emod}\,b) \f$ and (3) \f$ 0 \leq a\,\mathbf{emod}\,b < |b|\f$. Further, note that Euclidean division satisfies \f$ a\,\mathbf{ediv}\,(-b) = -(a\,\mathbf{ediv}\,b) \f$ and \f$ a\,\mathbf{emod}\,(-b) = a\,\mathbf{emod}\,b \f$.
-  ///@}
   UNION, INTERSECTION, COMPLEMENT, ///< Set functions.
   SUBSET, SUBSETEQ, SUPSET, SUPSETEQ, ///< Set inclusion predicates.
   IN, ///< Set membership predicate.
   CARD, ///< Cardinality function from set to integer.
   EQ, NEQ, ///< Equality relations.
   LEQ, GEQ, LT, GT, ///< Arithmetic comparison predicates.
-  AND, OR, IMPLY, EQUIV, NOT, XOR,    ///< Logical connector.
+  AND, OR, IMPLY, EQUIV, NOT, XOR, ///< Logical connector.
   ITE ///< If-then-else
   ///@}
 };
@@ -139,14 +138,14 @@ CUDA inline const char* string_of_sig(Sig sig) {
       return "<bug! unknown sig>";
     }
   }
-}
 
-CUDA inline is_division(Sig sig) {
-  return sig == DIV || sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
-}
+  CUDA inline bool is_division(Sig sig) {
+    return sig == DIV || sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
+  }
 
-CUDA inline is_modulo(Sig sig) {
-  return sig == MOD || sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
+  CUDA inline bool is_modulo(Sig sig) {
+    return sig == MOD || sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
+  }
 }
 
 namespace battery {
@@ -172,13 +171,13 @@ We can have `x + (x > y \/ y > x + 4) >= 1`.
 Differently from first-order logic, the existential quantifier does not have a subformula, i.e., we write \f$ \exists{x:Int} \land \exists{y:Int} \land x < y\f$.
 This semantics comes from "dynamic predicate logic" where a formula is interpreted in a context (here the abstract element).
 (The exact connection of our framework to dynamic predicate logic is not yet perfectly clear.) */
-template<class Allocator, class ExtendedSig = battery::String<Allocator>>
+template<class Allocator, class ExtendedSig = battery::string<Allocator>>
 class TFormula {
 public:
   using allocator_type = Allocator;
   using this_type = TFormula<Allocator, ExtendedSig>;
   using Sequence = battery::vector<this_type, Allocator>;
-  using Existential = battery::tuple<LVar<Allocator>, CType>;
+  using Existential = battery::tuple<LVar<Allocator>, CType<Allocator>>;
   using LogicSet = logic_set<this_type, allocator_type>;
   using Formula = battery::variant<
     logic_int, ///< Representation of integers. See above.
@@ -284,9 +283,9 @@ public:
   CUDA const Formula& data() const { return formula; }
   CUDA AType type() const { return type_; }
   CUDA Approx approx() const { return appx; }
-  CUDA Approx is_under() const { return appx == UNDER; }
-  CUDA Approx is_over() const { return appx == OVER; }
-  CUDA Approx is_exact() const { return appx == EXACT; }
+  CUDA bool is_under() const { return appx == UNDER; }
+  CUDA bool is_over() const { return appx == OVER; }
+  CUDA bool is_exact() const { return appx == EXACT; }
   CUDA void type_as(AType ty) {
     type_ = ty;
     if(is(V)) {
@@ -331,7 +330,7 @@ public:
     return this_type(ty, a, Formula::template create<LV>(std::move(lvar)));
   }
 
-  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, CType ctype, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, CType<Allocator> ctype, Approx a = EXACT, const Allocator& allocator = Allocator()) {
     return this_type(ty, a, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
@@ -490,11 +489,9 @@ private:
       if(children.size() == 1) {
         if(op == ABS) printf("|");
         else if(op == CARD) printf("#(");
-        else if(op != SQR) ::battery::print(op);
         children[0].print(print_atype);
         if(op == ABS) printf("|");
         else if(op == CARD) printf(")");
-        else if(op == SQR) printf("^2");
         return;
       }
     }

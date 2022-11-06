@@ -56,6 +56,7 @@ namespace impl {
     switch(f.index()) {
       case F::Z:
       case F::R:
+      case F::S:
         return f;
       case F::V:
       case F::E:
@@ -95,6 +96,7 @@ CUDA int num_vars(const F& f)
   switch(f.index()) {
     case F::Z:
     case F::R:
+    case F::S:
       return 0;
     case F::V:
     case F::E:

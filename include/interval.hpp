@@ -27,6 +27,7 @@ public:
   using this_type = Interval<LB>;
   using CP = CartesianProduct<LB, UB>;
   using value_type = typename CP::value_type;
+  using memory_type = typename CP::memory_type;
 
   template <class A>
   friend class Interval;

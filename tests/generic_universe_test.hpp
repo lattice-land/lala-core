@@ -6,10 +6,8 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include "thrust/optional.h"
-#include "logic.hpp"
-#include "allocator.hpp"
-#include "utility.hpp"
-#include "arithmetic.hpp"
+#include "logic/logic.hpp"
+#include "universes/upset_universe.hpp"
 
 using namespace lala;
 using namespace battery;

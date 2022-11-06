@@ -14,9 +14,14 @@
 namespace lala {
 
 /** The dependencies list of the abstract domains DAG when copying abstract domains. */
-template<class Alloc = battery::StandardAllocator>
+template<class Alloc = battery::StandardAllocator, class FastAlloc = Alloc>
 class AbstractDeps
 {
+public:
+  using allocator_type = Alloc;
+  using fast_allocator_type = FastAlloc;
+
+private:
   struct dep_erasure {
     CUDA virtual ~dep_erasure() {}
   };
@@ -28,12 +33,13 @@ class AbstractDeps
     CUDA virtual ~dep_holder() {}
   };
 
-  battery::vector<battery::unique_ptr<dep_erasure, Alloc>, Alloc> deps;
+  fast_allocator_type falloc;
+  battery::vector<battery::unique_ptr<dep_erasure, allocator_type>, allocator_type> deps;
 
 public:
-  using allocator_type = Alloc;
-
-  CUDA AbstractDeps(const Alloc& alloc = Alloc()): deps(alloc) {}
+  CUDA AbstractDeps(const allocator_type& alloc = allocator_type(),
+    const fast_allocator_type& falloc = fast_allocator_type())
+  : deps(alloc), falloc(falloc) {}
 
   CUDA size_t size() const {
     return deps.size();
@@ -70,6 +76,10 @@ public:
 
   CUDA allocator_type get_allocator() const {
     return deps.get_allocator();
+  }
+
+  CUDA fast_allocator_type get_fast_allocator() const {
+    return falloc;
   }
 };
 

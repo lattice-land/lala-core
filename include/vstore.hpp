@@ -15,54 +15,78 @@ The top element is smashed and the equality between two stores is represented by
 \f$ S \equiv T \Leftrightarrow \forall{x \in \mathit{Vars}},~S(x) = T(x) \lor \exists{x \in \mathit{dom}(S)},\exists{y \in \mathit{dom}(T)},~S(x) = \top \land T(x) = \top \f$.
 Intuitively, it means that either all elements are equal or both stores have a top element, in which case they "collapse" to the top element, and are considered equal.
 
-  `DataAllocator` is the allocator of the underlying array of universes.
-  `EnvAllocator` is the allocator of the mapping between names (LVar) and indices in the store (AVar).
+Limitation:
+  - The capacity of the variable store is fixed at initialization and cannot be modified afterwards.
+
+Template parameters:
+  - `U` is the type of the abstract universe.
+  - `EnvAllocator` is the allocator of the mapping between names (LVar) and indices in the store (AVar).
+  - `DataAllocator` is the allocator of the underlying array of universes.
 On some architecture, such as GPU, it is better to store the data in the shared memory whenever possible, while the environment can stay in the global memory because it is usually not queried during solving (but before or after). */
-template<class U, class Alloc>
+template<class U, class EnvAllocator, class DataAllocator = EnvAllocator>
 class VStore {
 public:
-  using Universe = U;
-  using Allocator = Alloc;
-  using EnvAllocator = Allocator;
-  using DataAllocator = typename battery::FasterAllocator<Allocator>::type;
-  using this_type = VStore<U, Allocator>;
+  using universe_type = U;
+  using allocator_type = EnvAllocator;
+  using fast_allocator_type = DataAllocator;
+  using this_type = VStore<U, DataAllocator, EnvAllocator>;
 
-  using TellType = battery::vector<battery::tuple<int, Universe>, EnvAllocator>;
-  using Env = VarEnv<EnvAllocator>;
+  struct var_dom {
+    AVar avar;
+    universe_type dom;
+    var_dom(AVar avar, const universe_type& dom): avar(avar), dom(dom) {}
+  };
+  using tell_type = battery::vector<var_dom, allocator_type>;
+  using env_type = VarEnv<allocator_type>;
 
-  using Snapshot = battery::vector<Universe, EnvAllocator>;
+  using snapshot_type = battery::vector<universe_type, allocator_type>;
+
+
+  template<class F>
+  using iresult = IResult<tell_type, F>;
+
+  constexpr static const char* name = "VStore";
 
 private:
-  using Array = battery::vector<Universe, DataAllocator>;
+  using store_type = battery::vector<universe_type, fast_allocator_type>;
+  using memory_type = typename universe_type::memory_type;
 
-  Allocator allocator;
-  Array data;
-  Env env;
-  BInc is_at_top;
+  store_type data;
+  env_type env;
+  BInc<memory_type> is_at_top;
 
 public:
-  /** Initialize an empty store equivalent to \f$ \bot \f$ with memory reserved for `n` variables. */
-  CUDA VStore(AType uid, size_t capacity, const Allocator& alloc = Allocator())
-   : allocator(alloc), data(battery::FasterAllocator<Allocator>::fast(allocator)), env(uid, capacity), is_at_top(BInc::bot())
+  /** Initialize an empty store of size `capacity`. The capacity cannot be changed later on. */
+  CUDA VStore(AType uid, size_t capacity, const fast_allocator_type& falloc, const allocator_type& alloc = allocator_type())
+   : data(falloc), env(uid, capacity), is_at_top(false)
   {
+    // We want the size of `data` to be 0 initially.
+    // New variables are added using push_back in interpret.
     data.reserve(capacity);
   }
 
-  CUDA VStore(VStore&& other)
-   : data(std::move(other.data)), env(std::move(other.env)), is_at_top(std::move(other.is_at_top))
+  template<class R>
+  CUDA VStore(const VStore<R, allocator_type, fast_allocator_type>& other)
+    : data(other.data), env(other), is_at_top(other.is_at_top)
+  {}
+
+  template<class R, class EA, class DA>
+  CUDA VStore(const VStore<R, EA, DA>& other, const fast_allocator_type& falloc, const allocator_type& alloc = allocator_type())
+    : data(other.data, falloc), env(other, alloc), is_at_top(other.is_at_top)
   {}
 
   /** Completely copy the vstore `other` in the current element.
    *  `deps` can be empty and is not used (since this abstract domain does not have dependencies). */
   template<class Alloc2>
-  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Allocator>& deps)
-   : allocator(deps.get_allocator())
-   , data(other.data, battery::FasterAllocator<Allocator>::fast(allocator))
-   , env(other.env, allocator)
-   , is_at_top(other.is_at_top) {}
+  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Allocator, FAllocator>& deps)
+   : VStore(other, deps.get_fast_allocator(), deps.get_allocator()) {}
 
-  CUDA Allocator get_allocator() const {
-    return allocator;
+  CUDA allocator_type get_allocator() const {
+    return env.get_allocator();
+  }
+
+  CUDA fast_allocator_type get_fast_allocator() const {
+    return data.get_allocator();
   }
 
   CUDA AType uid() const {
@@ -70,94 +94,157 @@ public:
   }
 
   /** Returns the number of variables currently represented by this abstract element. */
-  CUDA ZPInc<int> vars() const {
+  CUDA local::ZInc vars() const {
     return data.size();
   }
 
-  CUDA static this_type bot(AType uid = UNTYPED, const Allocator& alloc = Allocator()) {
-    return VStore(uid, 0, alloc);
+  CUDA static this_type bot(AType uid = UNTYPED,
+    size_t capacity = 0,
+    const fast_allocator_type& falloc = fast_allocator_type(),
+    const allocator_type& alloc = allocator_type())
+  {
+    return VStore(uid, capacity, falloc, alloc);
   }
 
   /** A special symbolic element representing top. */
-  CUDA static this_type top(AType uid = UNTYPED, const Allocator& alloc = Allocator()) {
-    VStore s(uid, 0, alloc);
-    s.is_at_top = BInc::top();
-    return std::move(s);
+  CUDA static this_type top(AType uid = UNTYPED,
+    const fast_allocator_type& falloc = fast_allocator_type(),
+    const allocator_type& alloc = allocator_type())
+  {
+    return VStore(uid, 0, falloc, alloc).tell_top();
+  }
+
+  CUDA this_type& tell_top() {
+    is_at_top.tell_top();
+    return *this;
   }
 
   /** `true` if at least one element is equal to top in the store, `false` otherwise. */
-  CUDA BInc is_top() const {
+  CUDA local::BInc is_top() const {
     return is_at_top;
   }
 
-  /** Bottom is represented by the empty variable store. */
-  CUDA BDec is_bot() const {
-    return land(is_at_top.is_bot(), vars().is_bot());
+  /** The bottom element of a store of `n` variables, is when all variables are at bottom, or the store is empty.
+   * We do not expect to use this operation a lot, so its complexity is linear in the number of variables. */
+  CUDA local::BDec is_bot() const {
+    if(is_at_top) { return false; }
+    for(int i = 0; i < data.size(); ++i) {
+      if(!data[i].is_bot()) {
+        return false;
+      }
+    }
+    return true;
   }
 
-  CUDA Snapshot snapshot() const {
-    return Snapshot(data);
+  /** Take a snapshot of the current variable store.
+   * Precondition: `!is_top()`. */
+  CUDA snapshot_type snapshot() const {
+    assert(!is_top());
+    return snapshot_type(data);
   }
 
-  CUDA void restore(const Snapshot& snap) {
-    assert(snap.size() <= data.size());
-    int i = 0;
-    BInc has_changed = BInc::bot();
-    is_at_top = BInc::bot();
-    for(; i < snap.size(); ++i) {
-      data[i].dtell(snap[i], has_changed);
-      is_at_top.tell(data[i].is_top());
+  CUDA this_type& restore(const snapshot_type& snap) {
+    assert(snap.size() == data.size());
+    is_at_top.tell_bot();
+    for(int i = 0; i < snap.size(); ++i) {
+      data[i].dtell(snap[i]);
     }
     while(data.size() > snap.size()) {
       data.pop_back();
+      env.pop_back();
     }
+    return *this;
   }
 
 private:
-  CUDA void reserve(int newsize) {
-    data.reserve(newsize);
-    env.reserve(newsize);
-  }
-
-  // Redeclaration of variable is not supported.
-  // That does not depend on the approximation because ignoring it might lead to some subformulas to rely on the preexisting variable instead of the one we just ignored, which might eventually lead to unsound results.
   template <class F>
-  CUDA bool check_declaration_errors(const typename F::Sequence& seq, int i) const {
-    auto var = var_in(seq[i], env);
-    if(seq[i].is(F::E)) {
-      // check for redeclaration error either in the environment or in the sequence [0..i-1].
-      if(var.has_value()) { return true; }
-      for(int j = 0; j < i; ++j) {
-        if(seq[j].is(F::E)) {
-          if(battery::get<0>(seq[i].exists()) == battery::get<0>(seq[j].exists())) {
-            return true;
-          }
-        }
+  CUDA iresult<F> interpret_existential(const F& f) {
+    assert(f.is(F::E));
+    auto u = universe_type::interpret(f);
+    if(u.has_value()) {
+      const auto& vname = battery::get<0>(f.exists());
+      if(env.contains(vname)) {
+        return iresult<F>(IError<F>(true, name, "Invalid redeclaration: variable `" + vname + "` has already been declared.", f)).join_warnings(std::move(u));
+      }
+      else {
+        env.add(vname);
+        data.push_back(u.value());
+        return iresult<F>(tell_type()).join_warnings(std::move(u));
       }
     }
     else {
-      // check that the variable used by the formula `seq[i]` has been declared in env or in the sequence [0..i-1].
-      if(!var.has_value()) {
-        const auto& fv = var_in(seq[i]);
-        if(fv.is(F::LV)) {
-          for(int j = 0; j < i; ++j) {
-            if(seq[j].is(F::E)) {
-              if(fv.lv() == battery::get<0>(seq[j].exists())) {
-                return false;
-              }
-            }
-          }
-          return true;
-        }
+      return iresult<F>(IError<F>(true, name, "Invalid redeclaration: variable `" + vname + "` has already been declared.", f)).join_errors(std::move(u));
+    }
+  }
+
+  /** Interpret a predicate without variables. */
+  template <class F>
+  CUDA iresult<F> interpret_zero_predicate(const F& f) const {
+    auto u = universe_type::interpret(f);
+    if(u.is_ok()) {
+      if(!u.value().is_bot()) {
+        return iresult<F>(IError<F>(true, name, "Only `true` can be interpreted in the store without being named.", f)).join_warnings(std::move(u));
+      }
+      else {
+        return iresult<F>(tell_type()).join_warnings(std::move(u));
       }
     }
-    return false;
+    else {
+      return iresult<F>(IError<F>(true, name, "Could not interpret a predicate without variable in the underlying abstract universe.", f)).join_errors(std::move(u));
+    }
+  }
+
+  /** Interpret a predicate with a single variable occurrence. */
+  template <class F>
+  CUDA iresult<F> interpret_unary_predicate(const F& f) const {
+    auto u = universe_type::interpret(f);
+    if(u.is_ok()) {
+      tell_type res;
+      if(!u.value().is_bot()) {
+        auto fv = var_in(f, env);
+        AVar v;
+        if(fv.is(F::V)) {
+          v = fv.v();
+          if(AID(v) != uid() && AID(v) != UNTYPED) {
+            return iresult<F>(IError<F>(true, name, "An abstract variable was encountered with a wrong abstract type for the current VStore.", f)).join_warnings(std::move(u));
+          }
+        }
+        else if(fv.is(F::LV)) {
+          auto av = env.to_avar(fv.lv());
+          if(!av.has_value()) {
+            return iresult<F>(IError<F>(true, name, "The variable `" + vname + "` is undeclared.", f)).join_warnings(std::move(u));
+          }
+          avar = *av;
+        }
+        else {
+          return iresult<F>(IError<F>(true, name, "Existential quantifier must be interpreted in VStore and not in the underlying universe.", f)).join_warnings(std::move(u));
+        }
+        res.push_back(var_dom(v, u.value()));
+      }
+      return iresult<F>(std::move(res)).join_warnings(std::move(u));
+    }
+    else {
+      return iresult<F>(IError<F>(true, name, "Could not interpret a unary predicate in the underlying abstract universe.", f)).join_errors(std::move(u));
+    }
+  }
+
+  template <class F>
+  CUDA iresult<F> interpret_predicate(const F& f) const {
+    if(f.is(F::E)) {
+      return interpret_existential(f);
+    }
+    else {
+      switch(num_vars(f)) {
+        case 0: return interpret_zero_predicate(f);
+        case 1: return interpret_unary_predicate(f);
+        default: return iresult<F>(IError<F>(true, name, "Interpretation of n-ary predicate is not supported in VStore.", f));
+      }
+    }
   }
 
 public:
   /** The store of variables lattice expects a conjunctive formula \f$ c_1 \land \ldots \land c_n \f$ in which all components \f$ c_i \f$ are formulas with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
-    Optionally, `declaration_errors` can be set to `false` to skip the check of redeclared and undeclared variables (which is done in \f$ \O(n^2)\f$ with \f$ n \f$ the number of variables).
-
+   *
     I. Approximation
     ================
 
@@ -170,150 +257,61 @@ public:
     Variables must be existentially quantified before a formula containing variables can be interpreted.
     Variables are immediately added to `VStore` and initialized to \f$ \bot_U \f$, hence existential quantifiers never need to be joined in this abstract domain.
     Shadowing/redeclaration of variables with existential quantifier is not supported.
-    Variables are added to the current abstract element only if `interpret(f) != {}`.
-
-    III. Technical note on allocators
-    =================================
-
-    PoolAllocator (for shared memory) does not support deallocation of memory, therefore you should call interpret once with all existential quantifiers first to avoid reallocating the underlying data array when you call `tell` (and wasting shared memory space).
-    Of course, if you initialized `VStore` with the right capacity initially, the memory will not be reallocated.
+    Variables are added to the current abstract element only if `interpret(f).is_ok()`.
   */
   template <class F>
-  CUDA thrust::optional<TellType> interpret(const F& f, bool declaration_errors = true) {
+  CUDA iresult<F> interpret(const F& f) {
     if((f.type() == UNTYPED || f.type() == uid())
      && f.is(F::Seq) && f.sig() == AND)
     {
+      int current_vars = vars();
       const typename F::Sequence& seq = f.seq();
-      // 1. We collect all existential quantifiers to resize `data` and `env` if needed.
-      //    We also check that all subformulas are interpretable in `U`.
-      int newvars = 0;
+      auto res = iresult<F>(tell_type());
       for(int i = 0; i < seq.size(); ++i) {
-        if(U::interpret(seq[i]).has_value()) {
-          if(seq[i].is(F::E)) {
-            newvars++;
+        auto r = interpret_predicate(seq[i]);
+        if(r.has_value()) {
+          for(int j = 0; j < r.value().size(); ++j) {
+            res.value().push_back(r.value()[j]);
           }
-          if(declaration_errors && check_declaration_errors<F>(seq, i)) {
-            return {};
-          }
+          res.join_warnings(std::move(r));
         }
-        else if(f.approx() != OVER) {
-          // If a formula is not interpretable in `U`, and that we do not allow over-approximation, we cannot interpret the formula.
-          return {};
+        else if(f.approx() == OVER) {
+          auto warning = IError<F>(false, name, "A component of the conjunction was ignored (allowed by over-approximation)", f);
+          warning.add_suberror(std::move(r.error()));
+          res.push_warning(std::move(warning));
+        }
+        else {
+          res = iresult<F>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
+            .join_errors(std::move(r))
+            .join_warnings(std::move(res));
         }
       }
-      if(vars().value() + newvars >= data.capacity()) {
-        reserve(vars().value() + newvars);
-      }
-      // 2. We extend the environment with new bindings.
-      for(int i = 0; i < seq.size(); ++i) {
-        if(seq[i].is(F::E)) {
-          const auto& var_name = battery::get<0>(seq[i].exists());
-          env.add(var_name);
-          data.push_back(U::bot());
-        }
-      }
-      // 3. We convert each subformula to its corresponding universe element.
-      if(seq.size() > newvars) {
-        battery::vector<U, EnvAllocator> tell_data(vars().value(), Universe::bot());
-        for(int i = 0; i < seq.size(); ++i) {
-          if(!seq[i].is(F::E)) {
-            auto u = Universe::interpret(seq[i]);
-            if(u.has_value()) {
-              thrust::optional<AVar> v = var_in(seq[i], env);
-              BInc has_changed_ = BInc::bot();
-              tell_data[VID(*v)].tell(*u, has_changed_);
-            }
-          }
-        }
-        // 4. We compress the resulting `tell_data`.
-        int tell_elements = 0;
-        for(int i = 0; i < tell_data.size(); ++i) {
-          if(lnot(tell_data[i].is_bot()).guard()) {
-            ++tell_elements;
-          }
-        }
-        TellType res;
-        res.reserve(tell_elements);
-        for(int i = 0; i < tell_data.size(); ++i) {
-          if(lnot(tell_data[i].is_bot()).guard()) {
-            res.push_back(battery::make_tuple(i, tell_data[i]));
-          }
-        }
-        return res;
-      }
-      else {
-        return TellType();
-      }
+      return res;
     }
     else {
-      int num_variables = num_vars(f);
-      if(num_variables == 0) {
-        auto u = U::interpret(f);
-        if(u.has_value() && u->is_bot().value()) {
-          return TellType();
-        }
-      }
-      else if(num_variables == 1) {
-        auto u = U::interpret(f);
-        if(u.has_value()) {
-          // Existential quantifier
-          if(f.is(F::E)) {
-            if(var_in(f, env).has_value()) {
-              return {}; // redeclaration
-            }
-            else {
-              reserve(vars().value() + 1);
-              const auto& var_name = battery::get<0>(f.exists());
-              env.add(var_name);
-              data.push_back(U::bot());
-              return TellType();
-            }
-          }
-          else {
-            thrust::optional<AVar> v = var_in(f, env);
-            if(v.has_value()) {
-              if(u->is_bot().value()) {
-                return TellType();
-              }
-              else {
-                return TellType({battery::make_tuple(VID(*v), *u)});
-              }
-            }
-          }
-        }
-      }
+      return interpret_predicate(f);
     }
-    return {};
   }
 
-  CUDA const Universe& project(AVar x) const {
+  CUDA const universe_type& project(AVar x) const {
     assert(AID(x) == uid());
     assert(VID(x) < data.size());
     return data[VID(x)];
   }
 
-  CUDA this_type& tell(AVar x, const Universe& dom, BInc& has_changed) {
+  template <class Mem>
+  CUDA this_type& tell(AVar x, const universe_type& dom, BInc<Mem>& has_changed) {
     data[VID(x)].tell(dom, has_changed);
     is_at_top.tell(data[VID(x)].is_top());
     return *this;
   }
 
-  CUDA this_type& tell(const TellType& t, BInc& has_changed) {
+  template <class Mem>
+  CUDA this_type& tell(const tell_type& t, BInc<Mem>& has_changed) {
     for(int i = 0; i < t.size(); ++i) {
-      tell(make_var(uid(), battery::get<0>(t[i])), battery::get<1>(t[i]), has_changed);
+      tell(t[i].avar, t[i].dom, has_changed);
     }
     return *this;
-  }
-
-  CUDA BInc ask(const TellType& t) const {
-    for(int i = 0; i < t.size(); ++i) {
-      const auto& var = battery::get<0>(t[i]);
-      const auto& dom = battery::get<1>(t[i]);
-      if(geq<U>(data[var], dom.value()).guard()) {
-        return BInc::bot();
-      }
-    }
-    return BInc::top();
   }
 
   /** Whenever `this` is different from `top`, we extract its data into `ua`.
@@ -321,14 +319,16 @@ public:
    * The variable environment of `ua` is supposed to be already initialized. */
   template<class Alloc2>
   CUDA bool extract(VStore<U, Alloc2>& ua) const {
-    if(is_top().guard()) {
+    if(is_top()) {
       return false;
     }
-    if(ua.env.size() != env.size()) {
-      ua.env = env;
+    if(&ua != this) {
+      if(ua.env.size() != env.size()) {
+        ua.env = env;
+      }
+      ua.data = data;
+      ua.is_at_top = false;
     }
-    ua.data = data;
-    ua.is_at_top = BInc::bot();
     return true;
   }
 

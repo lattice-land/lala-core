@@ -38,6 +38,7 @@ public:
   }
 
   CUDA VarEnv(VarEnv&& other): uid_(other.uid_), avar2lvar(std::move(other.avar2lvar)) {}
+  CUDA VarEnv(const this_type& other): uid_(other.uid_), avar2lvar(other.avar2lvar) {}
 
   template<class Alloc2>
   CUDA VarEnv(const VarEnv<Alloc2>& other, const Allocator& allocator = Allocator())
@@ -59,6 +60,10 @@ public:
 
   CUDA size_t size() const {
     return avar2lvar.size();
+  }
+
+  CUDA bool contains(const LName& lv) const {
+    return to_avar(lv).has_value();
   }
 
   CUDA const LName& operator[](size_t i) const {
@@ -83,6 +88,11 @@ public:
   CUDA AVar add(LName lv) {
     avar2lvar.push_back(std::move(lv));
     return make_var(uid(), size() - 1);
+  }
+
+  CUDA void pop_back() {
+    assert(size() > 0);
+    avar2lvar.pop_back();
   }
 
   CUDA void reserve(int new_cap) {

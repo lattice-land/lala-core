@@ -4,8 +4,8 @@
 #include "cartesian_product.hpp"
 #include "generic_universe_test.hpp"
 
-using zi = ZInc<int>;
-using zd = ZDec<int>;
+using zi = local::ZInc;
+using zd = local::ZDec;
 using Itv = CartesianProduct<zi, zd>;
 
 TEST(CPTest, BotTopTests) {

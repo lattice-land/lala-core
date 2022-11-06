@@ -85,12 +85,12 @@ struct PreBInc {
   CUDA static constexpr Sig sig_strict_order() { return LT; }
   CUDA static constexpr Sig dual_sig_strict_order() { return GT; }
 
-  /** \$f \bot \f$ is represented by `false`. */
+  /** \f$ \bot \f$ is represented by `false`. */
   CUDA static constexpr value_type bot() {
     return false;
   }
 
-  /** \$f \top \f$ is represented by `true`. */
+  /** \f$ \top \f$ is represented by `true`. */
   CUDA static constexpr value_type top() {
     return true;
   }

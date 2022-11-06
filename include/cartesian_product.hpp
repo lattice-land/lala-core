@@ -66,6 +66,7 @@ public:
   using type_of = typename battery::tuple_element<i, battery::tuple<As...>>::type;
   constexpr static size_t n = battery::tuple_size<battery::tuple<As...>>{};
   using this_type = CartesianProduct<As...>;
+  using memory_type = typename type_of<0>::memory_type;
 
   template<class...Bs> friend class CartesianProduct;
 

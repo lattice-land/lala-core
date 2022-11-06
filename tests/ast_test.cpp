@@ -21,7 +21,7 @@ TEST(VarTest, MakeVar) {
 }
 
 TEST(AST, VarEnv) {
-  using S = String<StandardAllocator>;
+  using S = string<StandardAllocator>;
   AType uid = 3;
   VarEnv<StandardAllocator> env(uid, 3);
   EXPECT_EQ(env.add("x"), make_var(uid, 0));
@@ -88,19 +88,4 @@ TEST(AST, ExtractTy) {
   EXPECT_EQ(fty0.seq(1), f3);
   EXPECT_EQ(fty1.seq(0), f2);
   EXPECT_EQ(fty1.seq(1), f4);
-}
-
-TEST(AST, AbstractDeps) {
-  struct FakeAD {
-    int uid_;
-    FakeAD(): uid_(0) {}
-    FakeAD(const FakeAD&, AbstractDeps<>&): uid_(0) {}
-    int uid() const { return uid_; }
-  };
-  StandardAllocator alloc;
-  shared_ptr<FakeAD> a(new(alloc) FakeAD, alloc);
-  AbstractDeps deps;
-  EXPECT_EQ(deps.size(), 0);
-  shared_ptr<FakeAD> b = deps.clone(a);
-  EXPECT_EQ(deps.size(), 1);
 }

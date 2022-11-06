@@ -9,7 +9,7 @@
 #include "string.hpp"
 #include "tuple.hpp"
 #include "variant.hpp"
-#include "thrust/optional.h"
+#include "unique_ptr.hpp"
 
 namespace lala {
 
@@ -23,6 +23,7 @@ using AType = int;
 
 /** The concrete type of variables introduced by existential quantification.
     More concrete types could be added later. */
+template <class Allocator>
 struct CType {
   enum Tag {
     Int,
@@ -30,29 +31,55 @@ struct CType {
     Set
   };
 
-  Tag tag;
-  thrust::optional<CType> sub;
+  using allocator_type = Allocator;
+  using this_type = CType<allocator_type>;
 
-  CType(Tag tag): tag(tag) {
+  Tag tag;
+  battery::unique_ptr<this_type, allocator_type> sub;
+
+  CUDA CType(Tag tag): tag(tag) {
     assert(tag != Set);
   }
 
-  CType(Tag tag, CType sub): tag(tag), sub(sub) {
+  CUDA CType(Tag tag, CType&& sub_ty, const allocator_type& alloc = allocator_type())
+   : tag(tag), sub(battery::allocate_unique(alloc, std::move(sub_ty)))
+  {
     assert(tag == Set);
-    assert(sub.has_value());
   }
 
-  CType(const CType&) = default;
-  CType(CType&&) = default;
+  template<class Alloc2>
+  CUDA CType(const CType<Alloc2>& other, const allocator_type& alloc = allocator_type())
+   : tag(other.tag)
+  {
+    if(other.sub) {
+      this_type s = this_type(*other.sub, alloc);
+      sub = battery::allocate_unique<this_type>(alloc, std::move(s));
+    }
+  }
 
-  void print() const {
+  CUDA CType(const this_type& other): CType(other, other.sub.get_allocator()) {}
+
+  CUDA CType(CType&&) = default;
+
+  CUDA void print() const {
     switch(tag) {
       case Int: printf("Z"); break;
       case Real: printf("R"); break;
-      case Set: printf("S("); sub.print(); print(")"); break;
+      case Set: printf("S("); sub->print(); printf(")"); break;
     }
   }
 };
+
+template <class Alloc1, class Alloc2>
+inline bool operator==(const CType<Alloc1>& lhs, const CType<Alloc2>& rhs) {
+  if(lhs.tag == rhs.tag) {
+    if(lhs.tag == CType<Alloc1>::Set) {
+      return *(lhs.sub) == *(rhs.sub);
+    }
+    return true;
+  }
+  return false;
+}
 
 /** The type of integers used in logic formulas.
     Integers are represented by the set \f$ \{-\infty, \infty\} \cup Z (\text{ with} Z \subset \mathbb{Z}) \f$.
