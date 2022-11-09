@@ -21,6 +21,17 @@ using AType = int;
 /** This value means a formula is not typed in a particular abstract domain and its type should be inferred. */
 #define UNTYPED (-1)
 
+/** The approximation of a formula in an abstract domain w.r.t. the concrete domain. */
+enum Approx {
+  UNDER, ///< An under-approximating element contains only solutions but not necessarily all.
+  OVER, ///< An over-approximating element contains all solutions but not necessarily only solutions.
+  EXACT ///< An exact element is both under- and over-approximating; it exactly represents the set of solutions.
+};
+
+static constexpr Approx dapprox(Approx appx) {
+  return appx == EXACT ? EXACT : (appx == UNDER ? OVER : UNDER);
+}
+
 /** The concrete type of variables introduced by existential quantification.
     More concrete types could be added later. */
 template <class Allocator>
@@ -61,11 +72,21 @@ struct CType {
 
   CUDA CType(CType&&) = default;
 
+  CUDA Approx default_approx() const {
+    switch(tag) {
+      case Int: return EXACT;
+      case Real: return OVER;
+      case Set: return sub->default_approx();
+      default: assert(false); // "CType: Unknown type".
+    }
+  }
+
   CUDA void print() const {
     switch(tag) {
       case Int: printf("Z"); break;
       case Real: printf("R"); break;
       case Set: printf("S("); sub->print(); printf(")"); break;
+      default: assert(false); // "CType: Unknown type".
     }
   }
 };

@@ -36,17 +36,6 @@ CUDA inline AVar make_var(AType atype, int var_id) {
   return (var_id << 8) | atype;
 }
 
-/** The approximation of a formula in an abstract domain w.r.t. the concrete domain. */
-enum Approx {
-  UNDER, ///< An under-approximating element contains only solutions but not necessarily all.
-  OVER, ///< An over-approximating element contains all solutions but not necessarily only solutions.
-  EXACT ///< An exact element is both under- and over-approximating; it exactly represents the set of solutions.
-};
-
-static constexpr Approx dapprox(Approx appx) {
-  return appx == EXACT ? EXACT : (appx == UNDER ? OVER : UNDER);
-}
-
 /** A first-order signature is a triple \f$ (X, F, P) \f$ where \f$ X \f$ is the set of variables, \f$ F \f$ the set of function symbols and \f$ P \f$ the set of predicates.
   We represent \f$ X \f$ by strings (see `LVar`), while \f$ F \f$ and \f$ P \f$ are described in the following enumeration `Sig`.
   For programming conveniency, we suppose that logical connectors are included in the set of predicates and thus are in the signature as well.
@@ -309,8 +298,12 @@ public:
 
   /** Create a term representing a real number which is approximated by interval [lb..ub].
       By default the real number is supposedly over-approximated. */
-  CUDA static this_type make_real(logic_real lb, logic_real ub, AType atype = UNTYPED, Approx a = OVER) {
+  CUDA static this_type make_real(double lb, double ub, AType atype = UNTYPED, Approx a = OVER) {
     return this_type(atype, a, Formula::template create<R>(battery::make_tuple(lb, ub)));
+  }
+
+  CUDA static this_type make_real(logic_real r, AType atype = UNTYPED, Approx a = OVER) {
+    return this_type(atype, a, Formula::template create<R>(r));
   }
 
   CUDA static this_type make_set(LogicSet set, AType atype = UNTYPED, Approx a = OVER) {
