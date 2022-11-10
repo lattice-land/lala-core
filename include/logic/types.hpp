@@ -53,7 +53,7 @@ struct CType {
   }
 
   CUDA CType(Tag tag, CType&& sub_ty, const allocator_type& alloc = allocator_type())
-   : tag(tag), sub(battery::allocate_unique(alloc, std::move(sub_ty)))
+   : tag(tag), sub(battery::allocate_unique<this_type>(alloc, std::move(sub_ty)))
   {
     assert(tag == Set);
   }

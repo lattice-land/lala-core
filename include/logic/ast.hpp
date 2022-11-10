@@ -507,7 +507,7 @@ public:
         printf("%lld", z());
         break;
       case R:
-        printf("[%lf..%lf]", battery::get<0>(r()), battery::get<1>(r()));
+        printf("[%.50lf..%.50lf]", battery::get<0>(r()), battery::get<1>(r()));
         break;
       case S:
         printf("{");
