@@ -474,7 +474,7 @@ public:
 
 private:
   CUDA void print_approx_(bool print_appx) const {
-    if(print_appx) {
+    if(print_appx && appx != EXACT) {
       printf("::");
       print_approx(appx);
     }
@@ -506,7 +506,6 @@ private:
       }
     }
     printf(")");
-    print_approx_(print_appx);
   }
 
 public:
