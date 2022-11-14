@@ -28,6 +28,14 @@ enum Approx {
   EXACT ///< An exact element is both under- and over-approximating; it exactly represents the set of solutions.
 };
 
+static inline void print_approx(Approx appx) {
+  switch(appx) {
+    case UNDER: printf("under"); break;
+    case OVER: printf("over"); break;
+    case EXACT: printf("exact"); break;
+  }
+}
+
 static constexpr Approx dapprox(Approx appx) {
   return appx == EXACT ? EXACT : (appx == UNDER ? OVER : UNDER);
 }

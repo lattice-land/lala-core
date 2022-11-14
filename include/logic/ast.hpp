@@ -473,8 +473,15 @@ public:
   }
 
 private:
+  CUDA void print_approx_(bool print_appx) const {
+    if(print_appx) {
+      printf("::");
+      print_approx(appx);
+    }
+  }
+
   template<size_t n>
-  CUDA void print_sequence(bool print_atype) const {
+  CUDA void print_sequence(bool print_atype, bool print_appx) const {
     const auto& op = battery::get<0>(battery::get<n>(formula));
     const auto& children = battery::get<1>(battery::get<n>(formula));
     assert(children.size() > 0);
@@ -482,15 +489,16 @@ private:
       if(children.size() == 1) {
         if(op == ABS) printf("|");
         else if(op == CARD) printf("#(");
-        children[0].print(print_atype);
+        children[0].print(print_atype, print_appx);
         if(op == ABS) printf("|");
         else if(op == CARD) printf(")");
+        print_approx_(print_appx);
         return;
       }
     }
     printf("(");
     for(int i = 0; i < children.size(); ++i) {
-      children[i].print(print_atype);
+      children[i].print(print_atype, print_appx);
       if(i < children.size() - 1) {
         printf(" ");
         ::battery::print(op);
@@ -498,10 +506,11 @@ private:
       }
     }
     printf(")");
+    print_approx_(print_appx);
   }
 
 public:
-  CUDA void print(bool print_atype = true) const {
+  CUDA void print(bool print_atype = true, bool print_appx = false) const {
     switch(formula.index()) {
       case Z:
         printf("%lld", z());
@@ -537,23 +546,23 @@ public:
         lv().print();
         break;
       case E: {
-        if(print_atype) { printf("("); }
+        if(print_atype || print_appx) { printf("("); }
         const auto& e = exists();
         printf("var ");
         battery::get<0>(e).print();
         printf(":");
         battery::get<1>(e).print();
-        if(print_atype) { printf(")"); }
-        else { printf(", "); }
+        if(print_atype || print_appx) { printf(")"); }
         break;
       }
-      case Seq: print_sequence<Seq>(print_atype); break;
-      case ESeq: print_sequence<ESeq>(print_atype); break;
+      case Seq: print_sequence<Seq>(print_atype, print_appx); break;
+      case ESeq: print_sequence<ESeq>(print_atype, print_appx); break;
       default: printf("print: formula not handled.\n"); assert(false); break;
     }
     if(print_atype) {
       printf(":%d", type_);
     }
+    print_approx_(print_appx);
   }
 };
 
