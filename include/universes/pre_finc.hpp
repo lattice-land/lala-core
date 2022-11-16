@@ -52,7 +52,7 @@ struct PreFInc {
       auto lb = rd_cast<value_type>(z);
       auto ub = ru_cast<value_type>(z);
       if(lb == ub) {
-        return iresult<F>(lb);
+        return iresult<F>(std::move(lb));
       }
       switch(appx) {
         case UNDER: return iresult<F>(IError<F>(false, name, "Constant of type `CType::Int` under-approximated as floating-point number.", f));
@@ -66,12 +66,12 @@ struct PreFInc {
       auto lb = rd_cast<value_type>(battery::get<0>(f.r()));
       auto ub = ru_cast<value_type>(battery::get<1>(f.r()));
       if(lb == ub) {
-        return iresult<F>(lb);
+        return iresult<F>(std::move(lb));
       }
       else {
         switch(appx) {
-          case UNDER: return iresult<F>(ub);
-          case OVER: return iresult<F>(lb);
+          case UNDER: return iresult<F>(std::move(ub));
+          case OVER: return iresult<F>(std::move(lb));
           default:
             assert(appx == EXACT);
             return iresult<F>(IError<F>(true, name, "Constant of type `CType::Real` cannot be exactly interpreted by a floating-point number because the approximation of the constant is imprecise.", f));
@@ -90,7 +90,7 @@ struct PreFInc {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
-    if((cty.tag == CType::Int || cty.tag == CType::Real) && f.approx() == OVER) {
+    if((cty.is_int() || cty.is_real()) && f.approx() == OVER) {
       return iresult<F>(bot());
     }
     else {

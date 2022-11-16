@@ -12,6 +12,7 @@
 #include "pre_binc.hpp"
 #include "pre_finc.hpp"
 #include "pre_zinc.hpp"
+#include "memory.hpp"
 
 /** A pre-abstract universe is a lattice (with usual operations join, order, ...) equipped with a simple logical interpretation function and a next/prev functions.
     We consider pre-abstract universes with an upset semantics.
@@ -80,6 +81,48 @@ namespace local {
   using BDec = ::lala::BDec<battery::LocalMemory>;
 }
 
+namespace impl {
+  template <class T, class = int>
+  struct has_preserve_bot {
+    static constexpr bool value = false;
+  };
+
+  template <class T>
+  struct has_preserve_bot<T, decltype(T::preserve_bot)> {
+    static constexpr bool value = T::preserve_bot;
+  };
+
+  template <class T>
+  inline constexpr bool preserve_bot_v = has_preserve_bot<T>::value;
+
+  template <class T, class = int>
+  struct has_preserve_top {
+    static constexpr bool value = false;
+  };
+
+  template <class T>
+  struct has_preserve_top<T, decltype(T::preserve_top)> {
+    static constexpr bool value = T::preserve_top;
+  };
+
+  template <class T>
+  inline constexpr bool preserve_top_v = has_preserve_top<T>::value;
+
+  template<class T>
+  struct is_upset_universe {
+    static constexpr bool value = false;
+  };
+
+  template<class PreUniverse, class Mem>
+  struct is_upset_universe<UpsetUniverse<PreUniverse, Mem>> {
+    static constexpr bool value = true;
+  };
+
+  template <class T>
+  inline constexpr bool is_upset_universe_v = is_upset_universe<T>::value;
+
+}
+
 template<class PreUniverse, class Mem>
 class UpsetUniverse
 {
@@ -121,10 +164,6 @@ public:
   /** Similar to \f$[\![\mathit{false}]\!]\f$ if `preserve_top` is true. */
   CUDA static this_type top() {
     return this_type(U::top());
-  }
-
-  CUDA dual_type dual() const {
-    return dual_type(value());
   }
 
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
@@ -224,10 +263,10 @@ public:
   /** Print the current element. */
   CUDA void print() const {
     if(is_bot()) {
-      printf("%c", 0x22A5);
+      printf("\u22A5");
     }
     else if(is_top()) {
-      printf("%c", 0x22A4);
+      printf("\u22A4");
     }
     else {
       ::battery::print(value());
@@ -250,31 +289,31 @@ private:
       if(f.is_under() ||
          (preserve_inner_covers && pre_universe::has_unique_next(r.value())))
       {
-        return r.map(pre_universe::next(r.value()));
+        return std::move(r).map(pre_universe::next(r.value()));
       }
       else if(f.is_exact()) {
-        auto r = IError<F>(true, name, "Exactly interpreting a strict relation, i.e. `x < k`, not supported.", f);
+        auto err = IError<F>(true, name, "Exactly interpreting a strict relation, i.e. `x < k`, not supported.", f);
         if constexpr(!preserve_inner_covers) {
-          r.add_suberror(true, name, "Inner covers are not preserved: there might be elements between k and next(k).", F::make_false());
+          err.add_suberror(IError<F>(true, name, "Inner covers are not preserved: there might be elements between k and next(k).", f));
         }
         if(!pre_universe::has_unique_next(r.value())) {
-          r.add_suberror(true, name, "The cover is not unique: there are several incomparable elements satisfying next(k).", F::make_false());
+          err.add_suberror(IError<F>(true, name, "The cover is not unique: there are several incomparable elements satisfying next(k).", f));
         }
-        return iresult<F>(r);
+        return iresult<F>(std::move(err));
       }
       // In case of over-approximation, interpreting using `U::sig_order` is a correct option.
       return r;
     }
     // Under-approximation of `x != k` as `next(k)`.
     else if(f.is_under() && sig == NEQ) {
-      return r.map(pre_universe::next(r.value()));
+      return std::move(r).map(pre_universe::next(r.value()));
     }
     // Over-approximation of `x == k` as `k`.
     else if(f.is_over() && sig == EQ) {
       return r;
     }
     else {
-      return iresult<F>(IError<F>(true, name, "The signature of the symbol `" + string_of_sig(sig) + "` is not supported: either the symbol is unknown, approximation kind is not supported or the type of the arguments of the symbols are not supported.", f));
+      return iresult<F>(IError<F>(true, name, "The signature of the symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported: either the symbol is unknown, approximation kind is not supported or the type of the arguments of the symbols are not supported.", f));
     }
   }
 
@@ -287,8 +326,8 @@ public:
     Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom).
     - The interpretation depends on the abstract pre-universe.
     */
-  template<class Formula>
-  CUDA static iresult<this_type> interpret(const Formula& f) {
+  template<class F>
+  CUDA static iresult<F> interpret(const F& f) {
     if(f.is_true()) {
       if(preserve_bot || f.is_under()) {
         return bot();
@@ -305,7 +344,7 @@ public:
         return iresult<F>(IError<F>(true, name, "Top is not preserved, hence it cannot exactly interpret or under-approximate the formula `false`.", f));
       }
     }
-    else if(f.is(Formula::E)) {
+    else if(f.is(F::E)) {
       return pre_universe::interpret_type(f);
     }
     else {
@@ -330,54 +369,14 @@ public:
     return pre_universe::is_supported_fun(appx, sig);
   }
 
-private:
-  template <class T, class = int>
-  struct has_preserve_bot {
-    static constexpr bool value = false;
-  };
-
-  template <class T>
-  struct has_preserve_bot<T, decltype(T::preserve_bot, int)> {
-    static constexpr bool value = T::preserve_bot;
-  };
-
-  template <class T>
-  inline constexpr bool preserve_bot_v = has_preserve_bot<T>::value;
-
-  template <class T, class = int>
-  struct has_preserve_top {
-    static constexpr bool value = false;
-  };
-
-  template <class T>
-  struct has_preserve_top<T, decltype(T::preserve_top, int)> {
-    static constexpr bool value = T::preserve_top;
-  };
-
-  template <class T>
-  inline constexpr bool preserve_top_v = has_preserve_top<T>::value;
-
-  template<class T>
-  struct is_upset_universe {
-    static constexpr bool value = false;
-  }
-
-  template<class PreUniverse, class Mem>
-  struct is_upset_universe<UpsetUniverse<PreUniverse, Mem>> {
-    static constexpr bool value = true;
-  }
-
-  template <class T>
-  inline constexpr bool is_upset_universe_v = is_upset_universe<T>::value;
-
 public:
   template<Approx appx, Sig sig, class A>
   CUDA static constexpr this_type2<battery::LocalMemory> fun(const A& a) {
-    if constexpr(preserve_top_v<A>) {
+    if constexpr(impl::preserve_top_v<A>) {
       if(a.is_top())
         return this_type2<battery::LocalMemory>::top();
     }
-    if constexpr(preserve_bot_v<A>) {
+    if constexpr(impl::preserve_bot_v<A>) {
       if(a.is_bot())
         return this_type2<battery::LocalMemory>::bot();
     }
@@ -397,23 +396,23 @@ public:
 
   template<Approx appx, Sig sig, class A, class B>
   CUDA static constexpr this_type2<battery::LocalMemory> fun(const A& a, const B& b) {
-    if constexpr(preserve_top_v<A>) {
+    if constexpr(impl::preserve_top_v<A>) {
       if(a.is_top())
         return this_type2<battery::LocalMemory>::top();
     }
-    if constexpr(preserve_top_v<B>) {
+    if constexpr(impl::preserve_top_v<B>) {
       if(b.is_top())
         return this_type2<battery::LocalMemory>::top();
     }
-    if constexpr(preserve_bot_v<A>) {
+    if constexpr(impl::preserve_bot_v<A>) {
       if(a.is_bot())
         return this_type2<battery::LocalMemory>::bot();
     }
-    if constexpr(preserve_bot_v<B>) {
+    if constexpr(impl::preserve_bot_v<B>) {
       if(b.is_bot())
         return this_type2<battery::LocalMemory>::bot();
     }
-    if constexpr(is_division(sig) && is_upset_universe_v<A> && is_upset_universe_v<B>) {
+    if constexpr(is_division(sig) && impl::is_upset_universe_v<A> && impl::is_upset_universe_v<B>) {
       if(b == B::zero) {
         if(B::preserve_inner_covers && B::pre_universe::has_unique_next(b)) {
           return pre_universe::template fun<appx, sig>(a, B::pre_universe::next(b));
@@ -433,42 +432,42 @@ public:
 
   template<class M1, class M2>
   CUDA friend this_type2<battery::LocalMemory> join(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return Pre::join(a, b);
+    return U::join(a, b);
   }
 
   template<class M1, class M2>
   CUDA friend this_type2<battery::LocalMemory> meet(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return Pre::meet(a, b);
+    return U::meet(a, b);
   }
 
   template<class M1, class M2>
   CUDA friend bool operator<=(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return Pre::order(a, b);
+    return U::order(a, b);
   }
 
   template<class M1, class M2>
   CUDA friend bool operator<(const this_type2<M1>& a, const this_type2<M1>& b) {
-    return Pre::strict_order(a, b);
+    return U::strict_order(a, b);
   }
 
   template<class M1, class M2>
   CUDA friend bool operator>=(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return Pre::order(b, a);
+    return U::order(b, a);
   }
 
   template<class M1, class M2>
   CUDA friend bool operator>(const this_type2<M1>& a, const this_type2<M1>& b) {
-    return Pre::strict_order(b, a);
+    return U::strict_order(b, a);
   }
 
   template<class M1, class M2>
   CUDA friend bool operator==(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return a == b;
+    return a.value() == b.value();
   }
 
   template<class M1, class M2>
   CUDA friend bool operator!=(const this_type2<M1>& a, const this_type2<M1>& b) {
-    return a != b;
+    return a.value() != b.value();
   }
 };
 

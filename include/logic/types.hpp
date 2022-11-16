@@ -45,6 +45,7 @@ static constexpr Approx dapprox(Approx appx) {
 template <class Allocator>
 struct CType {
   enum Tag {
+    Bool,
     Int,
     Real,
     Set
@@ -82,6 +83,7 @@ struct CType {
 
   CUDA Approx default_approx() const {
     switch(tag) {
+      case Bool: return EXACT;
       case Int: return EXACT;
       case Real: return OVER;
       case Set: return sub->default_approx();
@@ -89,8 +91,14 @@ struct CType {
     }
   }
 
+  CUDA bool is_bool() const { return tag == Bool; }
+  CUDA bool is_int() const { return tag == Int; }
+  CUDA bool is_real() const { return tag == Real; }
+  CUDA bool is_set() const { return tag == Set; }
+
   CUDA void print() const {
     switch(tag) {
+      case Bool: printf("B"); break;
       case Int: printf("Z"); break;
       case Real: printf("R"); break;
       case Set: printf("S("); sub->print(); printf(")"); break;
@@ -109,6 +117,9 @@ inline bool operator==(const CType<Alloc1>& lhs, const CType<Alloc2>& rhs) {
   }
   return false;
 }
+
+/** The type of Boolean used in logic formulas. */
+using logic_bool = bool;
 
 /** The type of integers used in logic formulas.
     Integers are represented by the set \f$ \{-\infty, \infty\} \cup Z (\text{ with} Z \subset \mathbb{Z}) \f$.

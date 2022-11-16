@@ -52,7 +52,7 @@ struct ChainPreDual {
 
   template<Approx appx, Sig sig, class... Args>
   CUDA static constexpr auto fun(Args... args) {
-    return L::template fun<dapprox(appx), sig>(args);
+    return L::template fun<dapprox(appx), sig>(args...);
   }
 };
 

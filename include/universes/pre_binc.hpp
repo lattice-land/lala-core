@@ -14,7 +14,7 @@ namespace lala {
     To obtain such a domain, you should use `Interval<BInc>`.
 */
 struct PreBInc {
-  using this_type = PreBInc<bool>;
+  using this_type = PreBInc;
   using reverse_type = ChainPreDual<this_type>;
   using value_type = bool;
 
@@ -66,10 +66,11 @@ struct PreBInc {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
-    switch(cty.tag) {
-      case Int: return iresult<F>(bot());
-      default:
-        return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `CType::Int`.", f));
+    if(cty.is_int()) {
+      return iresult<F>(bot());
+    }
+    else {
+      return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `CType::Int`.", f));
     }
   }
 

@@ -68,7 +68,9 @@ enum Sig {
   EQ, NEQ, ///< Equality relations.
   LEQ, GEQ, LT, GT, ///< Arithmetic comparison predicates.
   AND, OR, IMPLY, EQUIV, NOT, XOR, ///< Logical connector.
-  ITE ///< If-then-else
+  ITE, ///< If-then-else
+  MAXIMIZE, ///< Unary "meta-predicate" indicating that its argument must be maximized, according to the increasing ordering of the underlying universe of discourse. This is not a predicate because it is defined on the solution space of the whole formulas.
+  MINIMIZE ///< Same as MAXIMIZE, but for minimization.
   ///@}
 };
 
@@ -122,6 +124,8 @@ CUDA inline const char* string_of_sig(Sig sig) {
     case NOT: return "\u00AC";
     case XOR: return "\u2295";
     case ITE: return "ite";
+    case MAXIMIZE: return "maximize";
+    case MINIMIZE: return "minimize";
     default:
       assert(false);
       return "<bug! unknown sig>";
@@ -169,9 +173,10 @@ public:
   using Existential = battery::tuple<LVar<Allocator>, CType<Allocator>>;
   using LogicSet = logic_set<this_type, allocator_type>;
   using Formula = battery::variant<
-    logic_int, ///< Representation of integers. See above.
-    logic_real, ///< Approximation of real numbers. See above.
-    LogicSet, ///< Set of integers, reals or sets.
+    logic_bool, ///< Representation of Booleans.
+    logic_int, ///< Representation of integers.
+    logic_real, ///< Approximation of real numbers.
+    LogicSet, ///< Set of Booleans, integers, reals or sets.
     AVar,            ///< Abstract variable
     LVar<Allocator>, ///< Logical variable
     Existential,     ///< Existential quantifier
@@ -179,8 +184,11 @@ public:
     battery::tuple<ExtendedSig, Sequence>  ///< see above
   >;
 
+  /** Index of Booleans in the variant type `Formula` (called kind below). */
+  static constexpr int B = 0;
+
   /** Index of integers in the variant type `Formula` (called kind below). */
-  static constexpr int Z = 0;
+  static constexpr int Z = B + 1;
 
   /** Index of real numbers in the variant type `Formula` (called kind below). */
   static constexpr int R = Z + 1;
@@ -210,7 +218,7 @@ private:
 
 public:
   /** By default, we initialize the formula to `true`. */
-  CUDA TFormula(): type_(UNTYPED), appx(EXACT), formula(Formula::template create<Z>(1)) {}
+  CUDA TFormula(): type_(UNTYPED), appx(EXACT), formula(Formula::template create<B>(true)) {}
   CUDA TFormula(Formula&& formula): type_(UNTYPED), appx(EXACT), formula(std::move(formula)) {}
   CUDA TFormula(AType uid, Approx appx, Formula&& formula): type_(uid), formula(std::move(formula)), appx(appx) {}
 
@@ -222,9 +230,10 @@ public:
 
   template <class Alloc2, class ExtendedSig2>
   CUDA TFormula(const TFormula<Alloc2, ExtendedSig2>& other, const Allocator& allocator = Allocator())
-    : type_(other.type_), appx(other.appx), formula(Formula::template create<Z>(1))
+    : type_(other.type_), appx(other.appx), formula(Formula::template create<B>(true))
   {
     switch(other.formula.index()) {
+      case B: formula = Formula::template create<B>(other.b()); break;
       case Z: formula = Formula::template create<Z>(other.z()); break;
       case R: formula = Formula::template create<R>(other.r()); break;
       case S: formula = Formula::template create<S>(LogicSet(other.s(), allocator));
@@ -286,11 +295,8 @@ public:
     appx = a;
   }
 
-  /** The formula `true` is represented by the integer constant `1`. */
   CUDA static this_type make_true() { return TFormula(); }
-
-  /** The formula `false` is represented by the integer constant `0`. */
-  CUDA static this_type make_false() { return TFormula(Formula::template create<Z>(0)); }
+  CUDA static this_type make_false() { return TFormula(Formula::template create<B>(false)); }
 
   CUDA static this_type make_z(logic_int i, AType atype = UNTYPED) {
     return this_type(atype, EXACT, Formula::template create<Z>(i));
@@ -352,15 +358,15 @@ public:
   }
 
   CUDA bool is_true() const {
-    return is(Z) && z() != 0;
+    return (is(B) && b()) || (is(Z) && z() != 0);
   }
 
   CUDA bool is_false() const {
-    return is(Z) && z() == 0;
+    return (is(B) && !b()) || (is(Z) && z() == 0);
   }
 
   CUDA bool is_constant() const {
-    return is(Z) || is(R) || is(S);
+    return is(B) || is(Z) || is(R) || is(S);
   }
 
   CUDA bool is_variable() const {
@@ -369,6 +375,10 @@ public:
 
   CUDA bool is_binary() const {
     return is(Seq) && seq().size() == 2;
+  }
+
+  CUDA logic_bool b() const {
+    return battery::get<B>(formula);
   }
 
   CUDA logic_int z() const {
@@ -417,6 +427,10 @@ public:
 
   CUDA const this_type& eseq(size_t i) const {
     return eseq()[i];
+  }
+
+  CUDA logic_bool& b() {
+    return battery::get<B>(formula);
   }
 
   CUDA logic_int& z() {
@@ -511,6 +525,9 @@ private:
 public:
   CUDA void print(bool print_atype = true, bool print_appx = false) const {
     switch(formula.index()) {
+      case B:
+        printf("%s", b() ? "true" : "false");
+        break;
       case Z:
         printf("%lld", z());
         break;
@@ -569,91 +586,6 @@ template<typename Allocator, typename ExtendedSig>
 CUDA bool operator==(const TFormula<Allocator, ExtendedSig>& lhs, const TFormula<Allocator, ExtendedSig>& rhs) {
   return lhs.type() == rhs.type() && lhs.approx() == rhs.approx() && lhs.data() == rhs.data();
 }
-
-enum Mode {
-  MINIMIZE,
-  MAXIMIZE,
-  SATISFY
-};
-
-/** `SFormula` is a formula to be solved with a possible optimisation mode (MINIMIZE or MAXIMIZE), otherwise it will enumerate `n` satisfiable solutions, if any. */
-template<class Allocator>
-class SFormula {
-public:
-  using F = TFormula<Allocator>;
-
-private:
-  Mode mode_;
-
-  using ModeData = battery::variant<
-    LVar<Allocator>,  ///< The logical variable to optimize.
-    AVar,   ///< The abstract variable to optimize. (We use this one after the variable has been added to an abstract element).
-    size_t  ///< How many solutions should we compute (SATISFY mode).
-  >;
-
-  ModeData mode_data;
-
-  F f;
-
-public:
-  /** Create a formula for which we want to find one or more solutions. */
-  CUDA SFormula(F f, size_t num_sols = 1):
-    mode_(SATISFY), f(std::move(f)), mode_data(ModeData::template create<2>(num_sols)) {}
-
-  /** Create a formula for which we want to find the best solution minimizing or maximizing an objective variable. */
-  CUDA SFormula(F f, Mode mode, LVar<Allocator> to_optimize):
-    mode_(mode), f(std::move(f)), mode_data(ModeData::template create<0>(std::move(to_optimize)))
-  {
-    assert(mode_ != SATISFY);
-  }
-
-  template <class Alloc2>
-  friend class SFormula;
-
-  template <class Alloc2>
-  CUDA SFormula(const SFormula<Alloc2>& other, const Allocator& allocator = Allocator()):
-    mode_(other.mode_), mode_data(ModeData::template create<2>(0)), f(other.f, allocator)
-  {
-    switch(other.mode_data.index()) {
-      case 0: mode_data = ModeData::template create<0>(
-        LVar<Allocator>(battery::get<0>(other.mode_data), allocator)); break;
-      case 1: mode_data = ModeData::template create<1>(battery::get<1>(other.mode_data)); break;
-      case 2: mode_data = ModeData::template create<2>(battery::get<2>(other.mode_data)); break;
-      default: assert(0);
-    }
-  }
-
-  CUDA Mode mode() const {
-    return mode_;
-  }
-
-  CUDA const LVar<Allocator>& optimization_lvar() const {
-    assert(mode_ != SATISFY);
-    return battery::get<0>(mode_data);
-  }
-
-  CUDA AVar optimization_avar() const {
-    assert(mode_ != SATISFY);
-    return battery::get<1>(mode_data);
-  }
-
-  CUDA const F& formula() const {
-    return f;
-  }
-
-  CUDA F& formula() {
-    return f;
-  }
-
-  CUDA size_t num_sols() const {
-    assert(mode_ == SATISFY);
-    return battery::get<2>(mode_data);
-  }
-
-  CUDA void convert_optimization_var(AVar a) {
-    mode_data = ModeData::template create<1>(a);
-  }
-};
 
 } // namespace lala
 #endif

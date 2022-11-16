@@ -66,7 +66,7 @@ struct PreZInc {
     if(f.is(F::Z)) {
       auto z = f.z();
       if(z == bot() || z == top()) {
-        return iresult<F>(error_tag, z, "Constant of type `CType::Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.");
+        return iresult<F>(IError<F>(true, name, "Constant of type `CType::Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.", f));
       }
       return iresult<F>(z);
     }
@@ -74,21 +74,19 @@ struct PreZInc {
       auto lb = rd_cast<value_type>(battery::get<0>(f.r()));
       auto ub = ru_cast<value_type>(battery::get<1>(f.r()));
       if(lb == ub) {
-        return iresult<F>(lb);
+        return iresult<F>(std::move(lb));
       }
       else {
         switch(appx) {
-          case UNDER:
-            return iresult<F>(warning_tag, ub, "Constant of type `CType::Real` under-approximated by an integer.");
-          case OVER:
-            return iresult<F>(warning_tag, lb, "Constant of type `CType::Real` over-approximated by an integer.");
+          case UNDER: return iresult<F>(std::move(ub), IError<F>(false, name, "Constant of type `CType::Real` under-approximated by an integer.", f));
+          case OVER: return iresult<F>(std::move(lb), IError<F>(false, name, "Constant of type `CType::Real` over-approximated by an integer.", f));
           default:
             assert(appx == EXACT);
-            return iresult<F>(error_tag, 0, "Non-integer constant of type `CType::Real` cannot be exactly interpreted by an integer.");
+            return iresult<F>(IError<F>(true, name, "Non-integer constant of type `CType::Real` cannot be exactly interpreted by an integer.", f));
         }
       }
     }
-    return iresult<F>(error_tag, 0, "Only constant of types `CType::Int` and `CType::Real` can be interpreted by an integer-type.");
+    return iresult<F>(IError<F>(true, name, "Only constant of types `CType::Int` and `CType::Real` can be interpreted by an integer-type.", f));
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
@@ -100,18 +98,21 @@ struct PreZInc {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
-    switch(cty.tag) {
-      case Int: return iresult<F>(bot());
-      case Real:
-        switch(appx) {
-          case UNDER: return iresult<F>(IError<F>(false, name, "Real variable `" + vname + "` under-approximated by an integer.", f));
-          case OVER: return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be over-approximated by an integer.", f));
-          default:
-            assert(appx == EXACT);
-            return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be exactly represented by an integer.", f));
-        }
-      default:
-        return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `CType::Int` or `CType::Real` when under-approximated.", f));
+    if(cty.is_int()) {
+      return iresult<F>(bot());
+    }
+    else if(cty.is_real()) {
+      switch(f.approx()) {
+        case UNDER:
+          return iresult<F>(bot(), IError<F>(false, name, "Real variable `" + vname + "` under-approximated by an integer.", f));
+        case OVER: return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be over-approximated by an integer.", f));
+        default:
+          assert(f.approx() == EXACT);
+          return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be exactly represented by an integer.", f));
+      }
+    }
+    else {
+      return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `CType::Int` or `CType::Real` when under-approximated.", f));
     }
   }
 
@@ -236,7 +237,7 @@ struct PreZInc {
       case LEQ: return x <= y;
       case GEQ: return x >= y;
       case LT: return x < y;
-      case GT: return x >= y
+      case GT: return x >= y;
       default: assert(0); return x;
     }
   }

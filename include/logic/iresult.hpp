@@ -28,15 +28,15 @@ private:
   battery::vector<IError<F>, allocator_type> suberrors;
   bool fatal;
 
-  CUDA void print_indent(int indent) {
+  CUDA void print_indent(int indent) const {
     for(int i = 0; i < indent; ++i) {
       printf(" ");
     }
   }
 
-  CUDA void print_line(const char* line, int indent) {
+  CUDA void print_line(const char* line, int indent) const {
     print_indent(indent);
-    printf(line);
+    printf("%s", line);
   }
 
 public:
@@ -74,7 +74,7 @@ public:
     else {
       printf("%d\n", aty);
     }
-    print_line("  Formula: ");
+    print_line("  Formula: ", indent);
     uninterpretable_formula.print(true);
     printf("\n");
     print_indent(indent);
@@ -84,6 +84,8 @@ public:
       printf("\n");
     }
   }
+
+  CUDA bool is_fatal() const { return fatal; }
 };
 
 /** This class is used in abstract domains to represent the result of an interpretation.
@@ -117,11 +119,22 @@ private:
   }
 
 public:
+  template <class U, class F2>
+  friend class IResult;
+
   CUDA IResult(T&& data):
     result(result_type::template create<0>(std::move(data))) {}
 
+  CUDA IResult(T&& data, error_type&& warning):
+    result(result_type::template create<0>(std::move(data)))
+  {
+    assert(!warning.is_fatal());
+    push_warning(std::move(warning));
+  }
+
   CUDA this_type& push_warning(error_type&& warning) {
     warnings.push_back(std::move(warning));
+    return *this;
   }
 
   CUDA IResult(error_type&& error):
@@ -134,6 +147,7 @@ public:
   CUDA this_type& operator=(this_type&& other) {
     result = std::move(other.result);
     warnings = std::move(other.warnings);
+    return *this;
   }
 
   CUDA bool is_ok() const {
@@ -150,7 +164,7 @@ public:
 
   template<class U>
   CUDA IResult<U, F> map(U&& data2) && {
-    auto r = IResult<U, F>(data2);
+    auto r = IResult<U, F>(std::move(data2));
     r.warnings = std::move(warnings);
     return std::move(r);
   }
@@ -179,6 +193,10 @@ public:
 
   CUDA error_type& error() {
     return battery::get<1>(result);
+  }
+
+  CUDA bool has_warning() const {
+    return warnings.size() > 0;
   }
 
   CUDA void print_diagnostics() const {

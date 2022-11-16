@@ -11,7 +11,6 @@ endif()
 
 project(lala-core LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
-option(LALACORE_BUILD_TESTS "LALACORE_BUILD_TESTS" OFF)
 
 if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 20)
@@ -71,48 +70,6 @@ target_compile_options(lala_core INTERFACE
     $<$<CONFIG:Debug>:-g -DDEBUG>
     $<$<CONFIG:LDebug>:-g -DTRACE>
 )
-
-if(LALACORE_BUILD_TESTS)
-
-# Google Test dependency
-
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
-)
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
-
-enable_testing()
-include(GoogleTest)
-
-add_executable(ast_test tests/ast_test.cpp)
-target_link_libraries(ast_test cuda_battery lala_core gtest_main)
-target_include_directories(ast_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-gtest_discover_tests(ast_test)
-
-add_executable(copy_dag_test tests/copy_dag_test.cpp)
-target_link_libraries(copy_dag_test cuda_battery lala_core gtest_main)
-target_include_directories(copy_dag_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-gtest_discover_tests(copy_dag_test)
-
-#add_executable(cartesian_product_test tests/cartesian_product_test.cpp)
-#target_link_libraries(cartesian_product_test cuda_battery lala_core gtest_main)
-#target_include_directories(cartesian_product_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-#gtest_discover_tests(cartesian_product_test)
-
-#add_executable(interval_test tests/interval_test.cpp)
-#target_link_libraries(interval_test cuda_battery lala_core gtest_main)
-#target_include_directories(interval_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-#gtest_discover_tests(interval_test)
-
-#add_executable(vstore_test tests/vstore_test.cpp)
-#target_link_libraries(vstore_test cuda_battery lala_core gtest_main)
-#target_include_directories(vstore_test PRIVATE ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-#gtest_discover_tests(vstore_test)
-
-endif()
 
 # Documentation
 
