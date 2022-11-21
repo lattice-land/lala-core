@@ -71,7 +71,7 @@ enum Sig {
   HULL, ///< Unary function performing the convex hull of a set, e.g., \f$ \mathit{hull}(s) = \{x \;|\; \mathit{min}(s) \leq x \leq \mathit{max}(s) \} \f$.
   CONVEX, ///< Unary predicate, requiring \f$ s = \mathit{hull}(s) \f$.
   EQ, NEQ, ///< Equality relations.
-  LEQ, GEQ, LT, GT, ///< Arithmetic comparison predicates.
+  LEQ, GEQ, LT, GT, ///< Arithmetic comparison predicates. When applied to set, it corresponds to the lexicographic ordering of the sorted set according the underlying natural ordering of the elements in the set.
   AND, OR, IMPLY, EQUIV, NOT, XOR, ///< Logical connector.
   ITE, ///< If-then-else
   MAXIMIZE, ///< Unary "meta-predicate" indicating that its argument must be maximized, according to the increasing ordering of the underlying universe of discourse. This is not a predicate because it is defined on the solutions space of the whole formulas.
@@ -526,7 +526,7 @@ private:
 
   template<size_t n>
   CUDA void print_sequence(bool print_atype, bool print_appx) const {
-    const auto& op = battery::get<0>(battery::get<n>(formula));
+    Sig op = battery::get<0>(battery::get<n>(formula));
     const auto& children = battery::get<1>(battery::get<n>(formula));
     assert(children.size() > 0);
     if constexpr(n == Seq) {
