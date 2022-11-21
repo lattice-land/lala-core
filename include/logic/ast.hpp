@@ -47,29 +47,34 @@ CUDA inline AVar make_var(AType atype, int var_id) {
 
   Division and modulus are defined as usual over continuous domains such as rational and real numbers.
   However, it gets more tricky when defined over discrete domains such as integers and floating-point numbers, since there is not a single definition of division and modulus.
-  The various kinds of discrete divisions are explained in (Leijend D. (2003). Division and Modulus for Computer Scientists), and we add four definitions to the logical signature.
+  The various kinds of discrete divisions are explained in (Leijend D. (2003). Division and Modulus for Computer Scientists), and we add four of those definitions to the logical signature.
   There are several use-cases of modulus and division:
     * If you write a constraint model, you probably want to use euclidean division and modulus (EDIV, EMOD) as this is the most "mathematical" definition.
     * If you intend to model the semantics of a programming language, you should use the same kind of division as the one present in your programming language (most likely truncated division).
  */
 enum Sig {
   ///@{
-  NEG, ABS, ///< Unary arithmetic function symbol.
-  ADD, SUB, MUL, POW, MIN, MAX,  ///< Binary arithmetic function symbol.
+  NEG, ABS, ///< Unary arithmetic function symbols.
+  ADD, SUB, MUL, POW, MIN, MAX,  ///< Binary arithmetic function symbols.
+  SQRT, EXP, LN, ///< Square root, natural exponential and natural logarithm function symbols.
+  NROOT, LOG, ///< nth root and logarithm to base (both binary function symbols).
+  SIN, COS, TAN, ASIN, ACOS, ATAN, SINH, COSH, TANH, ASINH, ACOSH, ATANH, ///< Trigonometric unary function symbols.
   DIV, MOD, ///< Division and modulus over continuous domains (e.g., floating-point numbers and rational).
   TDIV, TMOD, ///< Truncated division, present in most programming languages, is defined as \f$ a\,\mathbf{tdiv}\,b = \mathit{trunc}(a/b) \f$, i.e., it rounds towards zero. Modulus is defined as \f$ a\,\mathbf{tmod}\,b = a - b * (a\,\mathbf{tdiv}\,b) \f$.
   FDIV, FMOD, ///< Floor division (Knuth D. (1972). The Art of Computer Programming, Vol 1, Fundamental Algorithms), is defined as \f$ a\,\mathbf{fdiv}\,b = \lfloor a/b \rfloor \f$, i.e., it rounds towards negative infinity. Modulus is defined as \f$ a\,\mathbf{fmod}\,b = a - b * (a\,\mathbf{fdiv}\,b) \f$.
   CDIV, CMOD, ///< Ceil division is defined as \f$ a\,\mathbf{cdiv}\,b = \lceil a/b \rceil \f$. Modulus is defined as \f$ a\,\mathbf{cmod}\,b = a - b * (a\,\mathbf{cdiv}\,b) \f$.
   EDIV, EMOD, ///< Euclidean division (Boute T. R. (1992). The Euclidean definition of the functions div and mod). The properties satisfy by this division are: (1) \f$ a\,\mathbf{ediv}\,b \in \mathbb{Z} \f$, (2) \f$ a = b * (a\,\mathbf{ediv}\,b) + (a\,\mathbf{emod}\,b) \f$ and (3) \f$ 0 \leq a\,\mathbf{emod}\,b < |b|\f$. Further, note that Euclidean division satisfies \f$ a\,\mathbf{ediv}\,(-b) = -(a\,\mathbf{ediv}\,b) \f$ and \f$ a\,\mathbf{emod}\,(-b) = a\,\mathbf{emod}\,b \f$.
-  UNION, INTERSECTION, COMPLEMENT, ///< Set functions.
+  UNION, INTERSECTION, DIFFERENCE, SYMMETRIC_DIFFERENCE, COMPLEMENT, ///< Set functions.
   SUBSET, SUBSETEQ, SUPSET, SUPSETEQ, ///< Set inclusion predicates.
   IN, ///< Set membership predicate.
   CARD, ///< Cardinality function from set to integer.
+  HULL, ///< Unary function performing the convex hull of a set, e.g., \f$ \mathit{hull}(s) = \{x \;|\; \mathit{min}(s) \leq x \leq \mathit{max}(s) \} \f$.
+  CONVEX, ///< Unary predicate, requiring \f$ s = \mathit{hull}(s) \f$.
   EQ, NEQ, ///< Equality relations.
   LEQ, GEQ, LT, GT, ///< Arithmetic comparison predicates.
   AND, OR, IMPLY, EQUIV, NOT, XOR, ///< Logical connector.
   ITE, ///< If-then-else
-  MAXIMIZE, ///< Unary "meta-predicate" indicating that its argument must be maximized, according to the increasing ordering of the underlying universe of discourse. This is not a predicate because it is defined on the solution space of the whole formulas.
+  MAXIMIZE, ///< Unary "meta-predicate" indicating that its argument must be maximized, according to the increasing ordering of the underlying universe of discourse. This is not a predicate because it is defined on the solutions space of the whole formulas.
   MINIMIZE ///< Same as MAXIMIZE, but for minimization.
   ///@}
 };
@@ -100,17 +105,38 @@ CUDA inline const char* string_of_sig(Sig sig) {
     case DIV: return "/";
     case MOD: return "%%";
     case POW: return "^";
+    case SQRT: return "sqrt";
+    case EXP: return "exp";
+    case LN: return "ln";
+    case NROOT: return "nroot";
+    case LOG: return "log";
+    case SIN: return "sin";
+    case COS: return "cos";
+    case TAN: return "tan";
+    case ASIN: return "asin";
+    case ACOS: return "acos";
+    case ATAN: return "atan";
+    case SINH: return "sinh";
+    case COSH: return "cosh";
+    case TANH: return "tanh";
+    case ASINH: return "asinh";
+    case ACOSH: return "acosh";
+    case ATANH: return "atanh";
     case MIN: return "min";
     case MAX: return "max";
     case UNION: return "\u222A";
     case INTERSECTION: return "\u2229";
-    case COMPLEMENT: return "\\";
+    case DIFFERENCE: return "\\";
+    case SYMMETRIC_DIFFERENCE: return "\u2296";
+    case COMPLEMENT: return "complement";
     case IN: return "\u2208";
     case SUBSET: return "\u2282";
     case SUBSETEQ: return "\u2286";
     case SUPSET: return "\u2283";
     case SUPSETEQ: return "\u2287";
     case CARD: return "card";
+    case HULL: return "hull";
+    case CONVEX: return "convex";
     case EQ: return "=";
     case NEQ: return "\u2260";
     case LEQ: return "\u2264";
@@ -130,6 +156,10 @@ CUDA inline const char* string_of_sig(Sig sig) {
       assert(false);
       return "<bug! unknown sig>";
     }
+  }
+
+  CUDA inline bool is_prefix(Sig sig) {
+    return sig == ABS || sig == SQRT || sig == EXP || sig == LN || sig == NROOT || sig == LOG || sig == SIN || sig == COS || sig == TAN || sig == ASIN || sig == ACOS || sig == ATAN || sig == SINH || sig == COSH || sig == TANH || sig == ASINH || sig == ACOSH || sig == ATANH || sig == MIN || sig == MAX || sig == COMPLEMENT || sig == CARD || sig == HULL || sig == CONVEX || sig == ITE || sig == MAXIMIZE || sig == MINIMIZE;
   }
 
   CUDA inline bool is_division(Sig sig) {
@@ -503,20 +533,30 @@ private:
       if(children.size() == 1) {
         if(op == ABS) printf("|");
         else if(op == CARD) printf("#(");
+        else printf("%s(", string_of_sig(op));
         children[0].print(print_atype, print_appx);
         if(op == ABS) printf("|");
         else if(op == CARD) printf(")");
+        else printf(")");
         print_approx_(print_appx);
         return;
       }
+    }
+    if(is_prefix(op)) {
+      printf("%s", string_of_sig(op));
     }
     printf("(");
     for(int i = 0; i < children.size(); ++i) {
       children[i].print(print_atype, print_appx);
       if(i < children.size() - 1) {
-        printf(" ");
-        ::battery::print(op);
-        printf(" ");
+        if(!is_prefix(op)) {
+          printf(" ");
+          ::battery::print(op);
+          printf(" ");
+        }
+        else {
+          printf(", ");
+        }
       }
     }
     printf(")");

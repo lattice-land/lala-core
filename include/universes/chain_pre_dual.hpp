@@ -31,8 +31,15 @@ struct ChainPreDual {
   template<class F>
   CUDA static iresult<F> interpret(const F& f, Approx appx) { return L::interpret(f, dapprox(appx)); }
 
+  /** We suppose `interpret_type` always maps to `bot` or an error. */
   template<class F>
-  CUDA static iresult<F> interpret_type(const F& f) { return L::interpret_type(f); }
+  CUDA static iresult<F> interpret_type(const F& f) {
+    auto r = L::interpret_type(f);
+    if(r.is_ok() && r.value() == L::bot()) {
+      return std::move(r).map(bot());
+    }
+    return r;
+  }
 
   CUDA static constexpr Sig sig_order() { return L::dual_sig_order(); }
   CUDA static constexpr Sig dual_sig_order() { return L::sig_order(); }

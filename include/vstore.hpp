@@ -41,7 +41,6 @@ public:
 
   using snapshot_type = battery::vector<universe_type, allocator_type>;
 
-
   template<class F>
   using iresult = IResult<tell_type, F>;
 

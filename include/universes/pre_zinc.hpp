@@ -86,13 +86,17 @@ struct PreZInc {
         }
       }
     }
-    return iresult<F>(IError<F>(true, name, "Only constant of types `CType::Int` and `CType::Real` can be interpreted by an integer-type.", f));
+    else if(f.is(F::B)) {
+      return iresult<F>(f.b() ? 1. : 0.);
+    }
+    return iresult<F>(IError<F>(true, name, "Only constant of types `CType::Bool`, `CType::Int` and `CType::Real` can be interpreted by an integer-type.", f));
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
       Interpretations:
-        * Variables of type `CType::Int` are interpreted exactly (under- and overflow are not considered).
-        * Variables of type `CType::Real` can be under-approximated as integers, but not over-approximated. */
+        * Variables of type `CType::Bool` are over-approximated (\f$ \mathbb{B} \subseteq \gamma(\bot) \f$).
+        * Variables of type `CType::Int` are interpreted exactly (\f$ \mathbb{Z} = \gamma(\bot) \f$).
+        * Variables of type `CType::Real` can only be under-approximated (\f$ \mathbb{R} \supseteq \gamma(\bot) \f$) */
   template<class F>
   CUDA static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
@@ -105,14 +109,18 @@ struct PreZInc {
       switch(f.approx()) {
         case UNDER:
           return iresult<F>(bot(), IError<F>(false, name, "Real variable `" + vname + "` under-approximated by an integer.", f));
-        case OVER: return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be over-approximated by an integer.", f));
+        case OVER:
+          return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be over-approximated by an integer.", f));
         default:
-          assert(f.approx() == EXACT);
+          assert(f.is_exact());
           return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be exactly represented by an integer.", f));
       }
     }
+    else if(cty.is_bool() && f.is_over()) {
+      return iresult<F>(bot(), IError<F>(false, name, "Boolean variable `" + vname + "` over-approximated by an integer.", f));
+    }
     else {
-      return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `CType::Int` or `CType::Real` when under-approximated.", f));
+      return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `CType::Int`, under-approximated `CType::Real`, or over-approximated `CType::Bool`.", f));
     }
   }
 

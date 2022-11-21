@@ -78,23 +78,33 @@ struct PreFInc {
         }
       }
     }
-    return iresult<F>(IError<F>(true, name, "Only constant of types `CType::Int` and `CType::Real` can be interpreted by an integer-type.", f));
+    else if(f.is(F::B)) {
+      return iresult<F>(f.b() ? 1 : 0);
+    }
+    return iresult<F>(IError<F>(true, name, "Only constant of types `CType::Bool`, `CType::Int` and `CType::Real` can be interpreted by an integer-type.", f));
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
       Interpretations:
-        * Variables of type `CType::Int` are always over-approximated.
-        * Variables of type `CType::Real` are always over-approximated. */
+        * Variables of type `CType::Bool` are always over-approximated (\f$ \mathbb{B} \subseteq \gamma(\bot) \f$).
+        * Variables of type `CType::Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\bot) \f$).
+        * Variables of type `CType::Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\bot) \f$. */
   template<class F>
   CUDA static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
-    if((cty.is_int() || cty.is_real()) && f.approx() == OVER) {
+    if(cty.is_bool() && f.is_over()) {
+      return iresult<F>(bot(), IError<F>(false, name, "Variable `" + vname + "` of type `CType::Bool` is over-approximated in a floating-point abstract universe.", f));
+    }
+    else if(cty.is_int() && f.is_over()) {
+      return iresult<F>(bot(), IError<F>(false, name, "Variable `" + vname + "` of type `CType::Int` is over-approximated in a floating-point abstract universe.", f));
+    }
+    else if(cty.is_real()) {
       return iresult<F>(bot());
     }
     else {
-      return iresult<F>(IError<F>(true, name, "Variable `" + vname + "` can only be of type CType::Int or CType::Real and be over-approximated in a floating-point universe.", f));
+      return iresult<F>(IError<F>(true, name, "Variable `" + vname + "` can only be of type `CType::Real`, or be over-approximated if the type is `CType::Bool` or `CType::Int`.", f));
     }
   }
 
