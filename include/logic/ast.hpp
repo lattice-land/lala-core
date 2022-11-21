@@ -526,7 +526,7 @@ private:
 
   template<size_t n>
   CUDA void print_sequence(bool print_atype, bool print_appx) const {
-    Sig op = battery::get<0>(battery::get<n>(formula));
+    const auto& op = battery::get<0>(battery::get<n>(formula));
     const auto& children = battery::get<1>(battery::get<n>(formula));
     assert(children.size() > 0);
     if constexpr(n == Seq) {
@@ -542,14 +542,18 @@ private:
         return;
       }
     }
-    if(is_prefix(op)) {
-      printf("%s", string_of_sig(op));
+    bool isprefix = true;
+    if constexpr(n == Seq) {
+      isprefix = is_prefix(op);
+    }
+    if(isprefix) {
+      ::battery::print(op);
     }
     printf("(");
     for(int i = 0; i < children.size(); ++i) {
       children[i].print(print_atype, print_appx);
       if(i < children.size() - 1) {
-        if(!is_prefix(op)) {
+        if(!isprefix) {
           printf(" ");
           ::battery::print(op);
           printf(" ");
