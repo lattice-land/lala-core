@@ -60,17 +60,42 @@ struct PreZInc {
               * UNDER: we consider \f$ x >= 4 \f$, we can't consider \f$ x >= 3 \f$ since the real number might be \f$ 3.01 \f$.
               * OVER: we consider \f$ x >= 3 \f$.
               * EXACT: we can't interpret the constraint exactly due to the approximated constant.
-        * Formulas of kind `F::S` are not supported. */
-  template<class F>
-  CUDA static iresult<F> interpret(const F& f, Approx appx) {
-    if(f.is(F::Z)) {
+        * Formulas of kind `F::S` are not supported.
+
+      We consider various cases of interpretation, depending on the initial sort of \f$ x \f$, the approximation kind and the constant on the right side.
+
+      I. The sort is \f$ \mathbb{Z} \f$.
+      ==================================
+
+        * \f$ [\![ x:\mathbb{Z} \geq k:\mathbb{Z} ]\!] = k \f$.
+        * \f$ [\![ x:\mathbb{Z} \geq false:\mathbb{B} ]\!] = 0 \f$.
+        * \f$ [\![ x:\mathbb{Z} \geq true:\mathbb{B} ]\!] = 1 \f$.
+        * \f$ [\![ x:\mathbb{Z} \geq [l..u]:\mathbb{R} ]\!]_o = \lceil l \rceil \f$. Note that all elements in \f$ [l..\lceil l \rceil[\f$ do not belong to \mathbb{Z}, so they can be safely ignored (even for an over-approximation).
+        * \f$ [\![ x:\mathbb{Z} \geq [l..u]:\mathbb{R} ]\!]_u = \lceil u \rceil \f$.
+        * \f$ [\![ x:\mathbb{Z} \geq [l..u]:\mathbb{R} ]\!]_e = l \f$ iff \f$ \lfloor l \rfloor = \lceil u \rceil \f$.
+
+      II. The sort is \f$ \mathbb{B} \f$.
+      ===================================
+
+        * \f$ [\![ x:\mathbb{B} \geq k:\mathbb{Z} ]\!] = 0 \f$ iff \f$ k \leq 0 \f$.
+        * \f$ [\![ x:\mathbb{B} \geq 1:\mathbb{Z} ]\!] = 1 \f$.
+        * \f$ [\![ x:\mathbb{B} \geq k:\mathbb{Z} ]\!] = \top \f$ iff \f$ k > 1 \f$.
+        * \f$ [\![ x:\mathbb{B} \geq false:\mathbb{B} ]\!] = 0 \f$.
+        * \f$ [\![ x:\mathbb{B} \geq true:\mathbb{B} ]\!] = 1 \f$.
+        * \f$ [\![ x:\mathbb{B} \geq [l..u]:\mathbb{R} ]\!]_o = \lceil l \rceil \f$. Note that all elements in \f$ [l..\lceil l \rceil[\f$ do not belong to \mathbb{Z}, so they can be safely ignored (even for an over-approximation).
+        * \f$ [\![ x:\mathbb{B} \geq [l..u]:\mathbb{R} ]\!]_u = \lceil u \rceil \f$.
+        * \f$ [\![ x:\mathbb{B} \geq [l..u]:\mathbb{R} ]\!]_e = l \f$ iff \f$ \lfloor l \rfloor = \lceil u \rceil \f$.
+      */
+  template<class F, class Sort, bool dualize = false>
+  CUDA static iresult<F> interpret(const F& f, const Sort& sort, Approx appx) {
+    if(f.is(F::Z) && sort.is_int()) {
       auto z = f.z();
       if(z == bot() || z == top()) {
-        return iresult<F>(IError<F>(true, name, "Constant of type `CType::Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.", f));
+        return iresult<F>(IError<F>(true, name, "Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.", f));
       }
       return iresult<F>(z);
     }
-    else if(f.is(F::R)) {
+    else if(f.is(F::R) && sort.is_int()) {
       auto lb = rd_cast<value_type>(battery::get<0>(f.r()));
       auto ub = ru_cast<value_type>(battery::get<1>(f.r()));
       if(lb == ub) {
@@ -78,18 +103,18 @@ struct PreZInc {
       }
       else {
         switch(appx) {
-          case UNDER: return iresult<F>(std::move(ub), IError<F>(false, name, "Constant of type `CType::Real` under-approximated by an integer.", f));
-          case OVER: return iresult<F>(std::move(lb), IError<F>(false, name, "Constant of type `CType::Real` over-approximated by an integer.", f));
+          case UNDER: return iresult<F>(std::move(ub), IError<F>(false, name, "Constant of sort `Real` under-approximated by an integer.", f));
+          case OVER: return iresult<F>(std::move(lb), IError<F>(false, name, "Constant of sort `Real` over-approximated by an integer.", f));
           default:
             assert(appx == EXACT);
-            return iresult<F>(IError<F>(true, name, "Non-integer constant of type `CType::Real` cannot be exactly interpreted by an integer.", f));
+            return iresult<F>(IError<F>(true, name, "Non-integer constant of sort `Real` cannot be exactly interpreted by an integer.", f));
         }
       }
     }
-    else if(f.is(F::B)) {
-      return iresult<F>(f.b() ? 1. : 0.);
+    else if(f.is(F::B) && sort.is_int()) {
+      return iresult<F>(value_type(f.b() ? one : zero));
     }
-    return iresult<F>(IError<F>(true, name, "Only constant of types `CType::Bool`, `CType::Int` and `CType::Real` can be interpreted by an integer-type.", f));
+    return iresult<F>(IError<F>(true, name, "Only constant of sorts `Bool`, `Int` and `Real` can be interpreted by an integer-type.", f));
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.

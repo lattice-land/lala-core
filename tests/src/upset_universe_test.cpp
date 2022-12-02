@@ -14,8 +14,13 @@ void must_interpret_to(const char* fzn, L expect, bool has_warning = false) {
   using F = TFormula<StandardAllocator>;
   auto f = parse_flatzinc_str<StandardAllocator>(fzn);
   EXPECT_TRUE(f);
+  f->print(true, true);
+  std::cout << std::endl;
   IResult<L, F> r = L::interpret(*f);
   std::cout << fzn << std::endl;
+  if(!r.is_ok()) {
+    r.print_diagnostics();
+  }
   EXPECT_TRUE(r.is_ok());
   EXPECT_EQ(r.has_warning(), has_warning);
   EXPECT_EQ(r.value(), expect);
@@ -101,7 +106,53 @@ TEST(UniverseTest, InterpretBoolType) {
   interpret_bool_type<local::ZDec, local::FDec, local::BDec>();
 }
 
+TEST(UniverseTest, ZIncInterpretation) {
+  using ZI = local::ZInc;
+  must_interpret_to("constraint true :: exact;", ZI::bot());
+  must_interpret_to("constraint true :: over;", ZI::bot());
+  must_interpret_to("constraint true :: under;", ZI::bot());
 
-// TEST(UniverseTest, IntegerInterpretation) {
-//   must_interpret_to("x >= 0 :: exact;")
-// }
+  must_interpret_to("constraint false :: exact;", ZI::top());
+  must_interpret_to("constraint false :: over;", ZI::top());
+  must_interpret_to("constraint false :: under;", ZI::top());
+
+  must_interpret_to("constraint int_ge(x, 0) :: exact;", ZI(0));
+  must_interpret_to("constraint int_ge(x, -10) :: over;", ZI(-10));
+  must_interpret_to("constraint int_ge(x, 10) :: under;", ZI(10));
+
+  must_interpret_to("constraint int_gt(x, 0) :: exact;", ZI(1));
+  must_interpret_to("constraint int_gt(x, -10) :: over;", ZI(-9));
+  must_interpret_to("constraint int_gt(x, 10) :: under;", ZI(11));
+
+  must_error<ZI>("constraint int_eq(x, 0) :: exact;");
+  must_interpret_to("constraint int_eq(x, 0) :: over;", ZI(0));
+  must_error<ZI>("constraint int_eq(x, 0) :: under;");
+
+  must_error<ZI>("constraint int_ne(x, 1) :: exact;");
+  must_error<ZI>("constraint int_ne(x, 1) :: over;");
+  must_interpret_to("constraint int_ne(x, 1) :: under;", ZI(2));
+
+  must_error<ZI>("constraint int_le(x, 10) :: exact;");
+  must_error<ZI>("constraint int_le(x, 10) :: under;");
+  must_error<ZI>("constraint int_le(x, 10) :: over;");
+  must_error<ZI>("constraint int_lt(x, 10) :: exact;");
+  must_error<ZI>("constraint int_lt(x, 10) :: under;");
+  must_error<ZI>("constraint int_lt(x, 10) :: over;");
+
+  // Under-approximating a floating-point constant in an integer.
+  must_interpret_to("constraint float_ge(x, 0.) :: exact;", ZI(0));
+  must_interpret_to("constraint float_ge(x, -10.) :: over;", ZI(-10));
+  must_interpret_to("constraint float_ge(x, 10.) :: under;", ZI(10));
+
+  must_interpret_to("constraint float_gt(x, 0.) :: exact;", ZI(1));
+  must_interpret_to("constraint float_gt(x, -10.) :: over;", ZI(-9));
+  must_interpret_to("constraint float_gt(x, 10.) :: under;", ZI(11));
+
+  must_error<ZI>("constraint float_eq(x, 0.) :: exact;");
+  must_interpret_to("constraint float_eq(x, 0.) :: over;", ZI(0));
+  must_error<ZI>("constraint float_eq(x, 0.) :: under;");
+
+  must_error<ZI>("constraint float_ne(x, 1.) :: exact;");
+  must_error<ZI>("constraint float_ne(x, 1.) :: over;");
+  must_interpret_to("constraint float_ne(x, 1.) :: under;", ZI(2));
+}

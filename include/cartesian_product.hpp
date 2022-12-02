@@ -58,7 +58,7 @@ namespace impl {
 }
 
 /** The Cartesian product abstract domain is a _domain transformer_ combining several abstract domains.
-Concretization function: \f$ \gamma((a_1, \ldots, a_n)) \sqcap_{i \leq n} \gamma_i(a_i) \f$. */
+Concretization function: \f$ \gamma((a_1, \ldots, a_n)) = \sqcap_{i \leq n} \gamma_i(a_i) \f$. */
 template<class... As>
 class CartesianProduct {
 public:
@@ -99,9 +99,9 @@ public:
   }
 
   /** Interpret the formula in the component `i`. */
-  template<size_t i, class F>
-  CUDA static iresult<F> interpret_one(const F& f) {
-    auto one = type_of<i>::interpret(f);
+  template<size_t i, class F, class Env>
+  CUDA static iresult<F> interpret_one(const F& f, const Env& env) {
+    auto one = type_of<i>::interpret(f, env);
     if(one.is_ok()) {
       auto res = bot();
       project<i>(res).tell(one.value());
@@ -114,8 +114,8 @@ public:
   }
 
 private:
-  template<size_t i = 0, class F>
-  CUDA static iresult<F> interpret_all(const F& f, this_type res, bool empty) {
+  template<size_t i = 0, class F, class Env>
+  CUDA static iresult<F> interpret_all(const F& f, this_type res, bool empty, const Env& env) {
     if constexpr(i == n) {
       if(empty) {
         return iresult<F>(IError<F>(true, name, "No component of this Cartesian product can interpret this formula.", f));
@@ -125,13 +125,13 @@ private:
       }
     }
     else {
-      auto one = type_of<i>::interpret(f);
+      auto one = type_of<i>::interpret(f, env);
       if(one.is_ok()) {
         project<i>(res).tell(one.value());
-        return interpret_all<i+1>(f, std::move(res), false).join_warnings(one);
+        return interpret_all<i+1>(f, std::move(res), false, env).join_warnings(one);
       }
       else {
-        auto r = interpret_all<i+1>(f, std::move(res), empty);
+        auto r = interpret_all<i+1>(f, std::move(res), empty, env);
         if(!r.is_ok()) {
           r.join_errors(std::move(one));
         }
@@ -142,9 +142,9 @@ private:
 
 public:
   /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
-  template<class F>
-  CUDA static iresult<F> interpret(const F& f) {
-    return interpret_all(f, bot(), true);
+  template<class F, class Env>
+  CUDA static iresult<F> interpret(const F& f, const Env& env) {
+    return interpret_all(f, bot(), true, env);
   }
 
 private:
@@ -380,26 +380,27 @@ public:
   }
 
 private:
-  template<size_t i, class Allocator>
-  CUDA TFormula<Allocator> deinterpret_(const LVar<Allocator>& x,
-    typename TFormula<Allocator>::Sequence&& seq, const Allocator& allocator) const
+  template<size_t i, class Env>
+  CUDA TFormula<Allocator> deinterpret_(AVar x,
+    typename TFormula<Allocator>::Sequence&& seq, const Env& env) const
   {
     if constexpr(i < n) {
-      seq[i] = project<i>().deinterpret(x, allocator);
-      return deinterpret_<i+1, Allocator>(x, std::move(seq), allocator);
+      seq[i] = project<i>().deinterpret(x, env);
+      return deinterpret_<i+1, Allocator>(x, std::move(seq), env);
     }
     else {
       return TFormula<Allocator>::make_nary(
         AND,
         std::move(seq),
-        UNTYPED, EXACT, allocator);
+        AID(x), EXACT, env.get_allocator());
     }
   }
 
 public:
-  template<class Allocator>
-  CUDA TFormula<Allocator> deinterpret(const LVar<Allocator>& x, const Allocator& allocator = Allocator()) const {
-    return deinterpret_<0, Allocator>(x, typename TFormula<Allocator>::Sequence(n, allocator), allocator);
+  template<class Env>
+  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
+    using allocator_t = typename Env::allocator_type;
+    return deinterpret_<0, Env>(x, typename TFormula<allocator_t>::Sequence(n, env.get_allocator()), env);
   }
 
 private:

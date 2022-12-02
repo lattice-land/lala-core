@@ -11,7 +11,7 @@
 #include "shared_ptr.hpp"
 #include "unique_ptr.hpp"
 #include "thrust/optional.h"
-#include "logic/types.hpp"
+#include "logic/sort.hpp"
 
 namespace lala {
 
@@ -200,7 +200,7 @@ public:
   using allocator_type = Allocator;
   using this_type = TFormula<Allocator, ExtendedSig>;
   using Sequence = battery::vector<this_type, Allocator>;
-  using Existential = battery::tuple<LVar<Allocator>, CType<Allocator>>;
+  using Existential = battery::tuple<LVar<Allocator>, Sort<Allocator>>;
   using LogicSet = logic_set<this_type, allocator_type>;
   using Formula = battery::variant<
     logic_bool, ///< Representation of Booleans.
@@ -359,7 +359,7 @@ public:
     return this_type(ty, a, Formula::template create<LV>(std::move(lvar)));
   }
 
-  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, CType<Allocator> ctype, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, Sort<Allocator> ctype, Approx a = EXACT, const Allocator& allocator = Allocator()) {
     return this_type(ty, a, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
@@ -516,6 +516,11 @@ public:
     return std::move(f);
   }
 
+  CUDA this_type map_atype(AType aty) const {
+    this_type f = *this;
+    f.type_as(aty);
+    return std::move(f);
+  }
 private:
   CUDA void print_approx_(bool print_appx) const {
     if(print_appx && appx != EXACT) {

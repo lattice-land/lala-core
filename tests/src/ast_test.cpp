@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 #include "logic/logic.hpp"
 #include "allocator.hpp"
+#include "flatzinc_parser.hpp"
 
 using namespace lala;
 using namespace battery;
@@ -20,31 +21,64 @@ TEST(VarTest, MakeVar) {
   ASSERT_DEATH(make_var(0, (1 << 23)), "");
 }
 
+template <class Env>
+auto interpret2(Env& env, const char* fzn) {
+  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
+  EXPECT_TRUE(f);
+  return env.interpret(*f);
+}
+
 TEST(AST, VarEnv) {
   using S = string<StandardAllocator>;
   AType uid = 3;
-  VarEnv<StandardAllocator> env(uid, 3);
-  EXPECT_EQ(env.add("x"), make_var(uid, 0));
-  EXPECT_EQ(env.add("y"), make_var(uid, 1));
-  EXPECT_EQ(env.size(), 2);
-  EXPECT_EQ(env.capacity(), 3);
-  EXPECT_EQ(env.add("z"), make_var(uid, 2));
-  EXPECT_EQ(env.size(), 3);
-  EXPECT_EQ(env.capacity(), 3);
-  EXPECT_TRUE(env.to_avar("x").has_value());
-  EXPECT_EQ(*(env.to_avar("x")), make_var(uid, 0));
-  EXPECT_TRUE(env.to_avar("y").has_value());
-  EXPECT_EQ(*(env.to_avar("y")), make_var(uid, 1));
-  EXPECT_TRUE(env.to_avar("z").has_value());
-  EXPECT_EQ(*(env.to_avar("z")), make_var(uid, 2));
-  EXPECT_EQ(env.to_avar("w"), thrust::optional<AVar>());
-  EXPECT_EQ(env.to_lvar(make_var(uid, 0)), S("x"));
-  EXPECT_EQ(env.to_lvar(make_var(uid, 1)), S("y"));
-  EXPECT_EQ(env.to_lvar(make_var(uid, 2)), S("z"));
-  ASSERT_DEATH(env.to_lvar(make_var(uid, 3)), "");
-  EXPECT_EQ(env[0], S("x"));
-  EXPECT_EQ(env[1], S("y"));
-  EXPECT_EQ(env[2], S("z"));
+  VarEnv<StandardAllocator> env;
+  EXPECT_EQ(env.num_abstract_doms(), 0);
+  EXPECT_FALSE(interpret2(env, "var int: x;").has_value()); // Not typed.
+  EXPECT_EQ(env.num_abstract_doms(), 1);
+  EXPECT_EQ(env.num_vars_in(0), 0);
+  auto x = interpret2(env, "var int: x :: abstract(0);");
+  EXPECT_TRUE(x.has_value());
+  EXPECT_EQ(x.value(), make_var(0, 0));
+  EXPECT_EQ(env.num_vars_in(0), 1);
+  EXPECT_TRUE(env.contains(make_var(0, 0)));
+  EXPECT_TRUE(env.contains("x"));
+  EXPECT_TRUE(env.variable_of("x").has_value());
+  EXPECT_EQ(*(env.variable_of("x")->avar_of(0)), make_var(0, 0));
+  EXPECT_FALSE(interpret2(env, "var int: x;").has_value());
+  EXPECT_FALSE(interpret2(env, "var int: x :: abstract(0);").has_value());
+  EXPECT_FALSE(interpret2(env, "var int: x :: abstract(1);").has_value());
+
+  auto y = interpret2(env, "var int: y :: abstract(0);");
+  EXPECT_TRUE(y.has_value());
+  EXPECT_EQ(env.num_abstract_doms(), 1);
+  EXPECT_EQ(y.value(), make_var(0, 1));
+  EXPECT_EQ(env.num_vars_in(0), 2);
+  EXPECT_TRUE(env.contains(make_var(0, 1)));
+  EXPECT_TRUE(env.contains("y"));
+  EXPECT_TRUE(env.variable_of("y").has_value());
+  EXPECT_EQ(*(env.variable_of("y")->avar_of(0)), make_var(0, 1));
+
+  auto z = interpret2(env, "var int: z :: abstract(1);");
+  EXPECT_TRUE(z.has_value());
+  EXPECT_EQ(env.num_abstract_doms(), 2);
+  EXPECT_EQ(z.value(), make_var(1, 0));
+  EXPECT_EQ(env.num_vars_in(1), 1);
+  EXPECT_TRUE(env.contains(make_var(1, 0)));
+  EXPECT_TRUE(env.contains("z"));
+  EXPECT_TRUE(env.variable_of("z").has_value());
+  EXPECT_FALSE(env.variable_of("z")->avar_of(0).has_value());
+  EXPECT_EQ(*(env.variable_of("z")->avar_of(1)), make_var(0, 1));
+
+  auto w = interpret2(env, "var bool: w :: abstract(10);");
+  EXPECT_TRUE(w.has_value());
+  EXPECT_EQ(env.num_abstract_doms(), 11);
+  EXPECT_EQ(w.value(), make_var(11, 0));
+  EXPECT_EQ(env.num_vars_in(2), 0);
+  EXPECT_EQ(env.num_vars_in(10), 0);
+  EXPECT_EQ(env.num_vars_in(11), 1);
+  EXPECT_TRUE(env.variable_of("w").has_value());
+  EXPECT_FALSE(env.variable_of("w")->avar_of(4).has_value());
+  EXPECT_EQ(*(env.variable_of("w")->avar_of(11)), make_var(11, 0));
 }
 
 TEST(AST, NumVars) {

@@ -28,8 +28,10 @@ struct ChainPreDual {
   template<class F>
   using iresult = typename L::iresult<F>;
 
-  template<class F>
-  CUDA static iresult<F> interpret(const F& f, Approx appx) { return L::interpret(f, dapprox(appx)); }
+  template<class F, class Sort, bool dualize = false>
+  CUDA static iresult<F> interpret(const F& f, const Sort& sort, Approx appx) {
+    return L::template interpret<F, Sort, !dualize>(f, sort, dapprox(appx));
+  }
 
   /** We suppose `interpret_type` always maps to `bot` or an error. */
   template<class F>

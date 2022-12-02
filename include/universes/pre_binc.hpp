@@ -35,9 +35,9 @@ struct PreBInc {
 
   /** Besides the type `CType::Bool`, Booleans can be over-approximated by arithmetic types in the logical formula, integer or floating-point numbers.
    * `false` is given by the constant 0 and `true` by any other number. */
-  template<class F>
-  CUDA static iresult<F> interpret(const F& f, Approx appx) {
-    if(f.is(F::B)) {
+  template<class F, class Sort, bool dualize = false>
+  CUDA static iresult<F> interpret(const F& f, const Sort& sort, Approx appx) {
+    if(f.is(F::B) && sort.is_bool()) {
       return iresult<F>(f.b());
     }
     else if(f.is(F::Z)) {
@@ -50,7 +50,7 @@ struct PreBInc {
         return iresult<F>(true, std::move(warning));
       }
     }
-    else if(f.is(F::R)) {
+    else if(f.is(F::R) && sort.is_bool()) {
       auto lb = rd_cast<value_type>(battery::get<0>(f.r()));
       auto ub = ru_cast<value_type>(battery::get<1>(f.r()));
       auto warning = IError<F>(false, name, "Real constant interpreted as a Boolean (0 is false, everything else is true).", f);

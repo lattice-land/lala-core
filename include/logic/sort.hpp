@@ -40,10 +40,10 @@ static constexpr Approx dapprox(Approx appx) {
   return appx == EXACT ? EXACT : (appx == UNDER ? OVER : UNDER);
 }
 
-/** The concrete type of variables introduced by existential quantification.
+/** The concrete type of variables, called `sort`, introduced by existential quantification.
     More concrete types could be added later. */
 template <class Allocator>
-struct CType {
+struct Sort {
   enum Tag {
     Bool,
     Int,
@@ -52,23 +52,23 @@ struct CType {
   };
 
   using allocator_type = Allocator;
-  using this_type = CType<allocator_type>;
+  using this_type = Sort<allocator_type>;
 
   Tag tag;
   battery::unique_ptr<this_type, allocator_type> sub;
 
-  CUDA CType(Tag tag): tag(tag) {
+  CUDA Sort(Tag tag): tag(tag) {
     assert(tag != Set);
   }
 
-  CUDA CType(Tag tag, CType&& sub_ty, const allocator_type& alloc = allocator_type())
+  CUDA Sort(Tag tag, Sort&& sub_ty, const allocator_type& alloc = allocator_type())
    : tag(tag), sub(battery::allocate_unique<this_type>(alloc, std::move(sub_ty)))
   {
     assert(tag == Set);
   }
 
   template<class Alloc2>
-  CUDA CType(const CType<Alloc2>& other, const allocator_type& alloc = allocator_type())
+  CUDA Sort(const Sort<Alloc2>& other, const allocator_type& alloc = allocator_type())
    : tag(other.tag)
   {
     if(other.sub) {
@@ -77,9 +77,9 @@ struct CType {
     }
   }
 
-  CUDA CType(const this_type& other): CType(other, other.sub.get_allocator()) {}
+  CUDA Sort(const this_type& other): Sort(other, other.sub.get_allocator()) {}
 
-  CUDA CType(CType&&) = default;
+  CUDA Sort(Sort&&) = default;
 
   CUDA Approx default_approx() const {
     switch(tag) {
@@ -87,7 +87,7 @@ struct CType {
       case Int: return EXACT;
       case Real: return OVER;
       case Set: return sub->default_approx();
-      default: assert(false); // "CType: Unknown type".
+      default: assert(false); // "Sort: Unknown type".
     }
   }
 
@@ -102,15 +102,15 @@ struct CType {
       case Int: printf("Z"); break;
       case Real: printf("R"); break;
       case Set: printf("S("); sub->print(); printf(")"); break;
-      default: assert(false); // "CType: Unknown type".
+      default: assert(false); // "Sort: Unknown type".
     }
   }
 };
 
 template <class Alloc1, class Alloc2>
-inline bool operator==(const CType<Alloc1>& lhs, const CType<Alloc2>& rhs) {
+inline bool operator==(const Sort<Alloc1>& lhs, const Sort<Alloc2>& rhs) {
   if(lhs.tag == rhs.tag) {
-    if(lhs.tag == CType<Alloc1>::Set) {
+    if(lhs.tag == Sort<Alloc1>::Set) {
       return *(lhs.sub) == *(rhs.sub);
     }
     return true;

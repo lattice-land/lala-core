@@ -3,7 +3,7 @@
 #ifndef LOGIC_HPP
 #define LOGIC_HPP
 
-#include "types.hpp"
+#include "sort.hpp"
 #include "ast.hpp"
 #include "env.hpp"
 #include "iresult.hpp"

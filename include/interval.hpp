@@ -61,8 +61,8 @@ public:
 
   /** Same as the Cartesian product interpretation but for equality:
    *    * Exact interpretation of equality is attempted by over-approximating both bounds and checking they are equal. */
-  template<class F>
-  CUDA static iresult<F> interpret(const F& f) {
+  template<class F, class Env>
+  CUDA static iresult<F> interpret(const F& f, const Env& env) {
     // In interval, we can handle the equality predicate exactly or by over-approximation.
     // Under-approximation does not make sense since it would give an empty interval.
     // The equality is interpreted in both bounds by over-approximation, therefore the equal element must be in \f$ \gamma(lb) \cap \gamma(ub) \f$.
@@ -71,7 +71,7 @@ public:
       if(f.approx() == UNDER) {
         return iresult<F>(IError<F>(true, name, "Equality cannot be interpreted by under-approximation (it would always give an empty interval).", f));
       }
-      auto cp_res = CP::interpret(f.map_approx(OVER));
+      auto cp_res = CP::interpret(f.map_approx(OVER), env);
       if(cp_res.has_value()) {
         this_type itv(cp_res.value());
         if(f.is_exact() && lb().value() != ub().value()) {
@@ -82,7 +82,7 @@ public:
       }
     }
     // Forward to CP in case the formula `f` did not fit the cases above.
-    auto cp_interpret = CP::interpret(f);
+    auto cp_interpret = CP::interpret(f, env);
     if(cp_interpret.has_value()) {
       return Interval(*cp_interpret);
     }
@@ -179,16 +179,17 @@ public:
     return cp.extract(ua.cp);
   }
 
-  template<class Allocator>
-  CUDA TFormula<Allocator> deinterpret(const LVar<Allocator>& x, const Allocator& allocator = Allocator()) const {
+  template<class Env>
+  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
+    using allocator_t = typename Env::allocator_type;
     if(is_top()) {
-      return TFormula<Allocator>::make_false();
+      return TFormula<allocator_t>::make_false();
     }
     else if(is_bot()) {
-      return TFormula<Allocator>::make_true();
+      return TFormula<allocator_t>::make_true();
     }
     else {
-      return cp.deinterpret(x, allocator);
+      return cp.deinterpret(x, env);
     }
   }
 

@@ -242,15 +242,16 @@ public:
   /** \return \f$ x \geq i \f$ where `x` is a variable's name and `i` the current value.
   If `U` preserves bottom `true` is returned whenever \f$ a = \bot \f$, if it preserves top `false` is returned whenever \f$ a = \top \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function. */
-  template<class Allocator>
-  CUDA TFormula<Allocator> deinterpret(const LVar<Allocator>& x, const Allocator& allocator = Allocator()) const {
+  template<class Env>
+  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
+    using allocator_t = typename Env::allocator_type;
     if(preserve_top && is_top()) {
-      return TFormula<Allocator>::make_false();
+      return TFormula<allocator_t>::make_false();
     }
     else if(preserve_bot && is_bot()) {
-      return TFormula<Allocator>::make_true();
+      return TFormula<allocator_t>::make_true();
     }
-    return make_v_op_z(x, U::sig_order(), value(), UNTYPED, EXACT, allocator);
+    return make_v_op_z(avar, U::sig_order(), value(), AID(avar), EXACT, env.get_allocator());
   }
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
@@ -275,10 +276,14 @@ public:
 
 private:
 
-  /** Interpret a formula of the form `x <sig> k`. */
-  template<class F>
-  CUDA static iresult<F> interpret_x_op_k(const F& f, const F& x, Sig sig, const F& k) {
-    auto r = pre_universe::interpret(k, f.approx());
+  /** Interpret a formula of the form `k <sig> x`. */
+  template<class F, class Env>
+  CUDA static iresult<F> interpret_k_op_x(const F& f, const F& k, Sig sig, const F& x, const Env& env) {
+    auto var = var_in(x, env);
+    if(!var.has_value()) {
+      return iresult<F>(IError<F>(true, name, "Undeclared variable.", f));
+    }
+    auto r = pre_universe::interpret(k, env.sort_of(x->sort), f.approx());
     if(!r.is_ok()) {
       return r;
     }
@@ -319,15 +324,15 @@ private:
 
 public:
 
-  /** Expects a predicate of the form `x <op> i` where `x` is any variable's name, and `i` an integer.
+  /** Expects a predicate of the form `x <op> i` or `i <op> x`, where `x` is any variable's name, and `i` an integer.
     - If `f.approx()` is EXACT: `op` can be `U::sig_order()` or `U::sig_strict_order()`.
     - If `f.approx()` is UNDER: `op` can be, in addition to exact, `!=`.
     - If `f.approx()` is OVER: `op` can be, in addition to exact, `==`.
     Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom).
     - The interpretation depends on the abstract pre-universe.
     */
-  template<class F>
-  CUDA static iresult<F> interpret(const F& f) {
+  template<class F, class Env>
+  CUDA static iresult<F> interpret(const F& f, const Env& env) {
     if(f.is_true()) {
       if(preserve_bot || f.is_under()) {
         return bot();
@@ -356,8 +361,8 @@ public:
         }
         const auto& k = f.seq(idx_constant);
         const auto& x = f.seq(idx_variable);
-        Sig sig = idx_constant == 0 ? converse_comparison(f.sig()) : f.sig();
-        return interpret_x_op_k(f, x, sig, k);
+        Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
+        return interpret_k_op_x(f, k, sig, x, env);
       }
       else {
         return iresult<F>(IError<F>(true, name, "Only binary constraints are supported.", f));

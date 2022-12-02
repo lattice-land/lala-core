@@ -20,44 +20,44 @@ Limitation:
 
 Template parameters:
   - `U` is the type of the abstract universe.
-  - `EnvAllocator` is the allocator of the mapping between names (LVar) and indices in the store (AVar).
-  - `DataAllocator` is the allocator of the underlying array of universes.
-On some architecture, such as GPU, it is better to store the data in the shared memory whenever possible, while the environment can stay in the global memory because it is usually not queried during solving (but before or after). */
-template<class U, class EnvAllocator, class DataAllocator = EnvAllocator>
+  - `Allocator` is the allocator of the underlying array of universes.
+On some architecture, such as GPU, it is better to store the data in the shared memory whenever possible. */
+template<class U, class Allocator>
 class VStore {
 public:
   using universe_type = U;
-  using allocator_type = EnvAllocator;
-  using fast_allocator_type = DataAllocator;
-  using this_type = VStore<U, DataAllocator, EnvAllocator>;
+  using allocator_type = Allocator;
+  using this_type = VStore<universe_type, allocator_type>;
 
   struct var_dom {
     AVar avar;
     universe_type dom;
     var_dom(AVar avar, const universe_type& dom): avar(avar), dom(dom) {}
   };
-  using tell_type = battery::vector<var_dom, allocator_type>;
-  using env_type = VarEnv<allocator_type>;
 
+  template <class Alloc>
+  using tell_type = battery::vector<var_dom, Alloc>;
+
+  template <class Alloc>
   using snapshot_type = battery::vector<universe_type, allocator_type>;
 
   template<class F>
-  using iresult = IResult<tell_type, F>;
+  using iresult = IResult<tell_type<typename F::allocator_type>, F>;
 
   constexpr static const char* name = "VStore";
 
 private:
-  using store_type = battery::vector<universe_type, fast_allocator_type>;
+  using store_type = battery::vector<universe_type, allocator_type>;
   using memory_type = typename universe_type::memory_type;
 
+  AType atype;
   store_type data;
-  env_type env;
   BInc<memory_type> is_at_top;
 
 public:
   /** Initialize an empty store of size `capacity`. The capacity cannot be changed later on. */
-  CUDA VStore(AType uid, size_t capacity, const fast_allocator_type& falloc, const allocator_type& alloc = allocator_type())
-   : data(falloc), env(uid, capacity), is_at_top(false)
+  CUDA VStore(AType atype, size_t capacity, const allocator_type& alloc = allocator_type())
+   : atype(atype), data(alloc), is_at_top(false)
   {
     // We want the size of `data` to be 0 initially.
     // New variables are added using push_back in interpret.
@@ -65,31 +65,27 @@ public:
   }
 
   template<class R>
-  CUDA VStore(const VStore<R, allocator_type, fast_allocator_type>& other)
-    : data(other.data), env(other), is_at_top(other.is_at_top)
+  CUDA VStore(const VStore<R, allocator_type>& other)
+    : atype(other.atype), data(other.data), is_at_top(other.is_at_top)
   {}
 
-  template<class R, class EA, class DA>
-  CUDA VStore(const VStore<R, EA, DA>& other, const fast_allocator_type& falloc, const allocator_type& alloc = allocator_type())
-    : data(other.data, falloc), env(other, alloc), is_at_top(other.is_at_top)
+  template<class R, class Alloc2>
+  CUDA VStore(const VStore<R, Alloc2>& other, const allocator_type& alloc = allocator_type())
+    : atype(other.atype), data(other.data, alloc), is_at_top(other.is_at_top)
   {}
 
-  /** Completely copy the vstore `other` in the current element.
+  /** Copy the vstore `other` in the current element.
    *  `deps` can be empty and is not used (since this abstract domain does not have dependencies). */
-  template<class Alloc2>
-  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Allocator, FAllocator>& deps)
-   : VStore(other, deps.get_fast_allocator(), deps.get_allocator()) {}
+  template<class Alloc2, class Alloc3>
+  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Alloc3, allocator_type>& deps)
+   : VStore(other, deps.get_fast_allocator()) {}
 
   CUDA allocator_type get_allocator() const {
     return env.get_allocator();
   }
 
-  CUDA fast_allocator_type get_fast_allocator() const {
-    return data.get_allocator();
-  }
-
   CUDA AType uid() const {
-    return env.uid();
+    return atype;
   }
 
   /** Returns the number of variables currently represented by this abstract element. */
@@ -99,18 +95,16 @@ public:
 
   CUDA static this_type bot(AType uid = UNTYPED,
     size_t capacity = 0,
-    const fast_allocator_type& falloc = fast_allocator_type(),
     const allocator_type& alloc = allocator_type())
   {
-    return VStore(uid, capacity, falloc, alloc);
+    return VStore(uid, capacity, alloc);
   }
 
   /** A special symbolic element representing top. */
   CUDA static this_type top(AType uid = UNTYPED,
-    const fast_allocator_type& falloc = fast_allocator_type(),
     const allocator_type& alloc = allocator_type())
   {
-    return VStore(uid, 0, falloc, alloc).tell_top();
+    return VStore(uid, 0, alloc).tell_top();
   }
 
   CUDA this_type& tell_top() {
@@ -137,12 +131,14 @@ public:
 
   /** Take a snapshot of the current variable store.
    * Precondition: `!is_top()`. */
-  CUDA snapshot_type snapshot() const {
+  template <class Alloc>
+  CUDA snapshot_type<Alloc> snapshot(const Alloc& alloc = Alloc()) const {
     assert(!is_top());
-    return snapshot_type(data);
+    return snapshot_type(data, alloc);
   }
 
-  CUDA this_type& restore(const snapshot_type& snap) {
+  template <class Alloc>
+  CUDA this_type& restore(const snapshot_type<Alloc>& snap) {
     assert(snap.size() == data.size());
     is_at_top.tell_bot();
     for(int i = 0; i < snap.size(); ++i) {
@@ -156,30 +152,29 @@ public:
   }
 
 private:
-  template <class F>
-  CUDA iresult<F> interpret_existential(const F& f) {
+  template <class F, class Env>
+  CUDA iresult<F> interpret_existential(const F& f, Env& env) {
     assert(f.is(F::E));
-    auto u = universe_type::interpret(f);
-    if(u.has_value()) {
-      const auto& vname = battery::get<0>(f.exists());
-      if(env.contains(vname)) {
-        return iresult<F>(IError<F>(true, name, "Invalid redeclaration: variable `" + vname + "` has already been declared.", f)).join_warnings(std::move(u));
-      }
-      else {
-        env.add(vname);
+    auto u = universe_type::interpret(f, env);
+    if(u.is_ok()) {
+      auto avar = env.interpret(f.map_atype(atype));
+      if(avar.is_ok()) {
         data.push_back(u.value());
         return iresult<F>(tell_type()).join_warnings(std::move(u));
       }
+      else {
+        return std::move(avar);
+      }
     }
     else {
-      return iresult<F>(IError<F>(true, name, "Invalid redeclaration: variable `" + vname + "` has already been declared.", f)).join_errors(std::move(u));
+      return std::move(u);
     }
   }
 
   /** Interpret a predicate without variables. */
-  template <class F>
-  CUDA iresult<F> interpret_zero_predicate(const F& f) const {
-    auto u = universe_type::interpret(f);
+  template <class F, class Env>
+  CUDA iresult<F> interpret_zero_predicate(const F& f, const Env& env) const {
+    auto u = universe_type::interpret(f, env);
     if(u.is_ok()) {
       if(!u.value().is_bot()) {
         return iresult<F>(IError<F>(true, name, "Only `true` can be interpreted in the store without being named.", f)).join_warnings(std::move(u));
@@ -194,31 +189,23 @@ private:
   }
 
   /** Interpret a predicate with a single variable occurrence. */
-  template <class F>
-  CUDA iresult<F> interpret_unary_predicate(const F& f) const {
-    auto u = universe_type::interpret(f);
+  template <class F, class Env>
+  CUDA iresult<F> interpret_unary_predicate(const F& f, const Env& env) const {
+    auto u = universe_type::interpret(f, env);
     if(u.is_ok()) {
       tell_type res;
       if(!u.value().is_bot()) {
-        auto fv = var_in(f, env);
-        AVar v;
-        if(fv.is(F::V)) {
-          v = fv.v();
-          if(AID(v) != uid() && AID(v) != UNTYPED) {
-            return iresult<F>(IError<F>(true, name, "An abstract variable was encountered with a wrong abstract type for the current VStore.", f)).join_warnings(std::move(u));
-          }
+        auto var = var_in(f, env);
+        if(!var.has_value()) {
+          return iresult<F>(IError<F>(true, name, "Undeclared variable.", f)).join_warnings(std::move(u));
         }
-        else if(fv.is(F::LV)) {
-          auto av = env.to_avar(fv.lv());
-          if(!av.has_value()) {
-            return iresult<F>(IError<F>(true, name, "The variable `" + vname + "` is undeclared.", f)).join_warnings(std::move(u));
-          }
-          avar = *av;
+        auto avar = var.avar_of(atype);
+        if(!avar.has_value()) {
+          return iresult<F>(IError<F>(true, name,
+              "The variable was not declared in the current abstract element (but exists in other abstract elements).", f))
+            .join_warnings(std::move(u));
         }
-        else {
-          return iresult<F>(IError<F>(true, name, "Existential quantifier must be interpreted in VStore and not in the underlying universe.", f)).join_warnings(std::move(u));
-        }
-        res.push_back(var_dom(v, u.value()));
+        res.push_back(var_dom(*avar, u.value()));
       }
       return iresult<F>(std::move(res)).join_warnings(std::move(u));
     }
@@ -227,15 +214,15 @@ private:
     }
   }
 
-  template <class F>
-  CUDA iresult<F> interpret_predicate(const F& f) const {
+  template <class F, class Env>
+  CUDA iresult<F> interpret_predicate(const F& f, const Env& env) const {
     if(f.is(F::E)) {
-      return interpret_existential(f);
+      return interpret_existential(f, env);
     }
     else {
       switch(num_vars(f)) {
-        case 0: return interpret_zero_predicate(f);
-        case 1: return interpret_unary_predicate(f);
+        case 0: return interpret_zero_predicate(f, env);
+        case 1: return interpret_unary_predicate(f, env);
         default: return iresult<F>(IError<F>(true, name, "Interpretation of n-ary predicate is not supported in VStore.", f));
       }
     }
@@ -258,16 +245,15 @@ public:
     Shadowing/redeclaration of variables with existential quantifier is not supported.
     Variables are added to the current abstract element only if `interpret(f).is_ok()`.
   */
-  template <class F>
-  CUDA iresult<F> interpret(const F& f) {
+  template <class F, class Env>
+  CUDA iresult<F> interpret(const F& f, const Env& env) {
     if((f.type() == UNTYPED || f.type() == uid())
      && f.is(F::Seq) && f.sig() == AND)
     {
-      int current_vars = vars();
       const typename F::Sequence& seq = f.seq();
       auto res = iresult<F>(tell_type());
       for(int i = 0; i < seq.size(); ++i) {
-        auto r = interpret_predicate(seq[i]);
+        auto r = interpret_predicate(seq[i], env);
         if(r.has_value()) {
           for(int j = 0; j < r.value().size(); ++j) {
             res.value().push_back(r.value()[j]);
@@ -288,7 +274,7 @@ public:
       return res;
     }
     else {
-      return interpret_predicate(f);
+      return interpret_predicate(f, env);
     }
   }
 
@@ -322,16 +308,11 @@ public:
       return false;
     }
     if(&ua != this) {
-      if(ua.env.size() != env.size()) {
-        ua.env = env;
-      }
       ua.data = data;
       ua.is_at_top = false;
     }
     return true;
   }
-
-  CUDA const Env& environment() const { return env; }
 };
 
 } // namespace lala

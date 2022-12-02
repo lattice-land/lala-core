@@ -42,12 +42,12 @@ struct PreFInc {
             2. OVER: \f$ x >= lb \f$.
             3. EXACT: Only possible if \f$ lb == ub \f$ and \f$ lb \f$ is representable in the type `value_type`.
         * Formulas of kind `F::S` are not supported. */
-  template<class F>
-  CUDA static iresult<F> interpret(const F& f, Approx appx) {
-    if(f.is(F::Z)) {
+  template<class F, class Sort, bool dualize = false>
+  CUDA static iresult<F> interpret(const F& f, const Sort& sort, Approx appx) {
+    if(f.is(F::Z) && sort.is_real()) {
       auto z = f.z();
       if(z == bot() || z == top()) {
-        return iresult<F>(IError<F>(true, name, "Constant of type `CType::Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.", f));
+        return iresult<F>(IError<F>(true, name, "Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.", f));
       }
       auto lb = rd_cast<value_type>(z);
       auto ub = ru_cast<value_type>(z);
@@ -55,14 +55,14 @@ struct PreFInc {
         return iresult<F>(std::move(lb));
       }
       switch(appx) {
-        case UNDER: return iresult<F>(IError<F>(false, name, "Constant of type `CType::Int` under-approximated as floating-point number.", f));
-        case OVER: return iresult<F>(IError<F>(false, name, "Constant of type `CType::Int` over-approximated as floating-point number.", f));
+        case UNDER: return iresult<F>(ub, IError<F>(false, name, "Constant of sort `Int` under-approximated as floating-point number.", f));
+        case OVER: return iresult<F>(lb, IError<F>(false, name, "Constant of sort `Int` over-approximated as floating-point number.", f));
         default:
           assert(appx == EXACT);
-          return iresult<F>(IError<F>(true, name, "Constant of type `CType::Int` cannot be interpreted exactly because it does not have an exact representation as a floating-point number (it is probably too large).", f));
+          return iresult<F>(IError<F>(true, name, "Constant of sort `Int` cannot be interpreted exactly because it does not have an exact representation as a floating-point number (it is probably too large).", f));
       }
     }
-    else if(f.is(F::R)) {
+    else if(f.is(F::R) && sort.is_real()) {
       auto lb = rd_cast<value_type>(battery::get<0>(f.r()));
       auto ub = ru_cast<value_type>(battery::get<1>(f.r()));
       if(lb == ub) {
@@ -74,14 +74,14 @@ struct PreFInc {
           case OVER: return iresult<F>(std::move(lb));
           default:
             assert(appx == EXACT);
-            return iresult<F>(IError<F>(true, name, "Constant of type `CType::Real` cannot be exactly interpreted by a floating-point number because the approximation of the constant is imprecise.", f));
+            return iresult<F>(IError<F>(true, name, "Constant of sort `Real` cannot be exactly interpreted by a floating-point number because the approximation of the constant is imprecise.", f));
         }
       }
     }
-    else if(f.is(F::B)) {
-      return iresult<F>(f.b() ? 1 : 0);
+    else if(f.is(F::B) && sort.is_real()) {
+      return iresult<F>(value_type(f.b() ? one : zero));
     }
-    return iresult<F>(IError<F>(true, name, "Only constant of types `CType::Bool`, `CType::Int` and `CType::Real` can be interpreted by an integer-type.", f));
+    return iresult<F>(IError<F>(true, name, "Only constant of sorts `Bool`, `Int` and `Real` can be interpreted by an integer-type.", f));
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
@@ -95,16 +95,16 @@ struct PreFInc {
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
     if(cty.is_bool() && f.is_over()) {
-      return iresult<F>(bot(), IError<F>(false, name, "Variable `" + vname + "` of type `CType::Bool` is over-approximated in a floating-point abstract universe.", f));
+      return iresult<F>(bot(), IError<F>(false, name, "Variable `" + vname + "` of sort `Bool` is over-approximated in a floating-point abstract universe.", f));
     }
     else if(cty.is_int() && f.is_over()) {
-      return iresult<F>(bot(), IError<F>(false, name, "Variable `" + vname + "` of type `CType::Int` is over-approximated in a floating-point abstract universe.", f));
+      return iresult<F>(bot(), IError<F>(false, name, "Variable `" + vname + "` of sort `Int` is over-approximated in a floating-point abstract universe.", f));
     }
     else if(cty.is_real()) {
       return iresult<F>(bot());
     }
     else {
-      return iresult<F>(IError<F>(true, name, "Variable `" + vname + "` can only be of type `CType::Real`, or be over-approximated if the type is `CType::Bool` or `CType::Int`.", f));
+      return iresult<F>(IError<F>(true, name, "Variable `" + vname + "` can only be of sort `Real`, or be over-approximated if the sort is `Bool` or `Int`.", f));
     }
   }
 
