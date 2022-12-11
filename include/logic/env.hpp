@@ -125,6 +125,10 @@ public:
     return avar2lvar.size();
   }
 
+  CUDA size_t num_vars() const {
+    return lvars.size();
+  }
+
   CUDA size_t num_vars_in(AType aty) const {
     return avar2lvar[aty].size();
   }
@@ -148,6 +152,9 @@ public:
       else {
         return iresult<F>(IError<F>(true, name, "Undeclared abstract variable `" + bstring::from_int(f.v()) + "`.", f));
       }
+    }
+    else {
+      return iresult<F>(IError<F>(true, name, "Unsupported formula: `VarEnv` can only interpret quantifiers and occurrences of variables.", f));
     }
   }
 

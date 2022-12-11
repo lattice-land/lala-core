@@ -1,6 +1,5 @@
 // Copyright 2021 Pierre Talbot
 
-#include "z.hpp"
 #include "cartesian_product.hpp"
 #include "generic_universe_test.hpp"
 
@@ -13,40 +12,17 @@ TEST(CPTest, BotTopTests) {
   bot_top_test(itv1_2);
 }
 
-TEST(CPTest, NoInterpret) {
-  test_exact_interpret<Itv>(NEQ, 10, {});
-  test_exact_interpret<Itv>(EQ, 10, {});
-}
+TEST(CPTest, CPOrder) {
+  Itv i1_ = Itv(zi(1), zd::bot());
+  Itv i_2 = Itv(zi::bot(), zd(2));
+  Itv i1_2 = Itv(1,2);
 
-TEST(CPTest, ValidInterpret) {
-  // First component.
-  test_all_interpret<Itv>(GEQ, 10, join<0>(Itv::bot(), zi(10)));
-  test_all_interpret<Itv>(GT, 10, join<0>(Itv::bot(), zi(11)));
-  // Second component.
-  test_all_interpret<Itv>(LEQ, 10, join<1>(Itv::bot(), zd(10)));
-  test_all_interpret<Itv>(LT, 10, join<1>(Itv::bot(), zd(9)));
-  // Both.
-  test_under_interpret<Itv>(NEQ, 10, Itv(11, 9));
-  test_over_interpret<Itv>(EQ, 10, Itv(10, 10));
-}
-
-TEST(CPTest, InterpretTwo) {
-  StandardAllocator standard_allocator;
-  auto geq_1 = make_v_op_z(var_x, GEQ, 1, UNTYPED, EXACT, standard_allocator);
-  auto leq_2 = make_v_op_z(var_x, LEQ, 2, UNTYPED, EXACT, standard_allocator);
-  auto geq_1_leq_2 = F::make_binary(geq_1, AND, leq_2);
-  auto f1_opt = Itv::interpret(geq_1);
-  EXPECT_TRUE(f1_opt.has_value());
-  auto f2_opt = Itv::interpret(leq_2);
-  EXPECT_TRUE(f2_opt.has_value());
-
-  auto f1 = f1_opt.value();
-  auto f2 = f2_opt.value();
-  EXPECT_EQ2(f1, join<0>(Itv::bot(), zi(1)));
-  EXPECT_EQ2(f2, join<1>(Itv::bot(), zd(2)));
-  Itv itv2 = join(f1, f2);
-  EXPECT_EQ2(itv2, Itv(1,2));
-  EXPECT_EQ2(itv2.deinterpret(var_x), geq_1_leq_2);
+  EXPECT_FALSE(i1_2 <= i1_);     // [1..2] <= [1..]
+  EXPECT_FALSE(i1_2 <= i_2);     // [1..2] <= [..2]
+  EXPECT_TRUE(i1_ <= i1_2);      // [1..] <= [1..2]
+  EXPECT_TRUE(i_2 <= i1_2);      // [..2] <= [1..2]
+  EXPECT_FALSE(i1_ <= i_2);      // [1..] <= [..2]
+  EXPECT_FALSE(i_2 <= i1_);      // [..2] <= [1..]
 }
 
 TEST(CPTest, JoinMeetTest) {
@@ -75,57 +51,58 @@ TEST(CPTest, JoinMeetTest) {
   meet_one_test(itv1_b, itv2_b, itv4_b, true);
 
   // Join/Meet a single component
-  BInc b = BInc::bot();
+  local::BInc b = local::BInc::bot();
   Itv itv5 = Itv(1,2);
   itv5.tell<0>(zi::top(), b);
-  EXPECT_EQ2(itv5, Itv(zi::top(), zd(2)));
+  EXPECT_EQ(itv5, Itv(zi::top(), zd(2)));
   itv5.tell<1>(zd::top(), b);
-  EXPECT_EQ2(itv5, Itv::top());
+  EXPECT_EQ(itv5, Itv::top());
 
   Itv itv6 = Itv(1,2);
-  BInc has_changed = BInc::bot();
+  local::BInc has_changed = local::BInc::bot();
   itv6.dtell<0>(zi::bot(), has_changed);
-  EXPECT_TRUE2(has_changed);
-  EXPECT_EQ2(itv6, Itv(zi::bot(),zd(2)));
-  BInc has_changed2 = BInc::bot();
+  EXPECT_TRUE(has_changed);
+  EXPECT_EQ(itv6, Itv(zi::bot(),zd(2)));
+  local::BInc has_changed2 = local::BInc::bot();
   itv6.dtell<1>(zd::bot(), has_changed2);
-  EXPECT_TRUE2(has_changed2);
-  EXPECT_EQ2(itv6, Itv::bot());
+  EXPECT_TRUE(has_changed2);
+  EXPECT_EQ(itv6, Itv::bot());
 }
 
-TEST(CPTest, CPOrder) {
-  generic_order_test(Itv(0,0));
-  generic_order_test(Itv(0,1));
-
-  Itv i1_ = join<0>(Itv::bot(), zi(1));
-  Itv i_2 = join<1>(Itv::bot(), zd(2));
-  Itv i1_2 = Itv(1,2);
-
-  EXPECT_FALSE2(leq<Itv>(i1_2, i1_.dual()));     // [1..2] <= [1..]
-  EXPECT_FALSE2(leq<Itv>(i1_2, i_2.dual()));     // [1..2] <= [..2]
-  EXPECT_TRUE2(leq<Itv>(i1_, i1_2.dual()));      // [1..] <= [1..2]
-  EXPECT_TRUE2(leq<Itv>(i_2, i1_2.dual()));      // [..2] <= [1..2]
-  EXPECT_FALSE2(leq<Itv>(i1_, i_2.dual()));      // [1..] <= [..2]
-  EXPECT_FALSE2(leq<Itv>(i_2, i1_.dual()));       // [..2] <= [1..]
+TEST(CPTest, NoInterpret) {
+  VarEnv<StandardAllocator> env = init_env();
+  must_error<Itv>(env, "constraint int_ne(x, 10);");
+  must_error<Itv>(env, "constraint int_ne(x, 10) :: over;");
+  must_error<Itv>(env, "constraint int_eq(x, 10);");
+  must_error<Itv>(env, "constraint int_eq(x, 10) :: under;");
 }
 
-TEST(CPTest, CPSplit) {
-  auto split_top = split(Itv::top());
-  auto split_bot = split(Itv::bot());
-  auto split1 = split(Itv(1,1));
-  auto split2 = split(Itv(1,2));
-  EXPECT_EQ(split_top.size(), 0);
-  EXPECT_EQ(split_bot.size(), 1);
-  EXPECT_EQ(split1.size(), 1);
-  EXPECT_EQ(split2.size(), 1);
-}
+TEST(CPTest, ValidInterpret) {
+  VarEnv<StandardAllocator> env = init_env();
+  must_interpret_to(env, "constraint int_ge(x, 10) :: exact;", Itv(zi(10), zd::bot()), false);
+  must_interpret_to(env, "constraint int_ge(x, 10) :: under;", Itv(zi(10), zd::bot()), false);
+  must_interpret_to(env, "constraint int_ge(x, 10) :: over;", Itv(zi(10), zd::bot()), false);
 
-TEST(CPTest, CPClone) {
-  Itv bot_itv = Itv::bot();
-  Itv top_itv = Itv::top();
-  Itv itv2 = Itv(1,2);
-  Itv itv3 = top_itv;
-  EXPECT_TRUE2(Itv(bot_itv).is_bot());
-  EXPECT_TRUE2(Itv(top_itv).is_top());
-  EXPECT_EQ2(Itv(itv2), itv2);
+  must_interpret_to(env, "constraint int_gt(x, 10) :: exact;", Itv(zi(11), zd::bot()), false);
+  must_interpret_to(env, "constraint int_gt(x, 10) :: under;", Itv(zi(11), zd::bot()), false);
+  must_interpret_to(env, "constraint int_gt(x, 10) :: over;", Itv(zi(11), zd::bot()), false);
+
+  must_interpret_to(env, "constraint int_le(x, 10) :: exact;", Itv(zi::bot(), zd(10)), false);
+  must_interpret_to(env, "constraint int_le(x, 10) :: under;", Itv(zi::bot(), zd(10)), false);
+  must_interpret_to(env, "constraint int_le(x, 10) :: over;", Itv(zi::bot(), zd(10)), false);
+
+  must_interpret_to(env, "constraint int_lt(x, 10) :: exact;", Itv(zi::bot(), zd(9)), false);
+  must_interpret_to(env, "constraint int_lt(x, 10) :: under;", Itv(zi::bot(), zd(9)), false);
+  must_interpret_to(env, "constraint int_lt(x, 10) :: over;", Itv(zi::bot(), zd(9)), false);
+
+  must_interpret_to(env, "constraint int_ge(x, 10) :: exact;\
+                          constraint int_le(x, 20) :: exact;", Itv(zi(10), zd(20)), false);
+
+  must_interpret_to(env, "constraint int_ge(x, 10) :: exact;\
+                          constraint int_le(x, 20) :: exact;\
+                          constraint int_le(x, 15) :: exact;\
+                          constraint int_ge(x, 5) :: exact;", Itv(zi(10), zd(15)), false);
+
+  must_interpret_to(env, "constraint int_ne(x, 10) :: under;", Itv(zi(11), zd(9)), false);
+  must_interpret_to(env, "constraint int_eq(x, 10) :: over;", Itv(zi(10), zd(10)), false);
 }

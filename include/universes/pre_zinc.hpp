@@ -126,11 +126,11 @@ struct PreZInc {
   CUDA static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
-    const auto& cty = battery::get<1>(f.exists());
-    if(cty.is_int()) {
+    const auto& sort = battery::get<1>(f.exists());
+    if(sort.is_int()) {
       return iresult<F>(bot());
     }
-    else if(cty.is_real()) {
+    else if(sort.is_real()) {
       switch(f.approx()) {
         case UNDER:
           return iresult<F>(bot(), IError<F>(false, name, "Real variable `" + vname + "` under-approximated by an integer.", f));
@@ -141,7 +141,7 @@ struct PreZInc {
           return iresult<F>(IError<F>(true, name, "Real variable `" + vname + "` cannot be exactly represented by an integer.", f));
       }
     }
-    else if(cty.is_bool() && f.is_over()) {
+    else if(sort.is_bool() && f.is_over()) {
       return iresult<F>(bot(), IError<F>(false, name, "Boolean variable `" + vname + "` over-approximated by an integer.", f));
     }
     else {

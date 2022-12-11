@@ -55,8 +55,8 @@ struct PreFInc {
         return iresult<F>(std::move(lb));
       }
       switch(appx) {
-        case UNDER: return iresult<F>(ub, IError<F>(false, name, "Constant of sort `Int` under-approximated as floating-point number.", f));
-        case OVER: return iresult<F>(lb, IError<F>(false, name, "Constant of sort `Int` over-approximated as floating-point number.", f));
+        case UNDER: return iresult<F>(std::move(ub), IError<F>(false, name, "Constant of sort `Int` under-approximated as floating-point number.", f));
+        case OVER: return iresult<F>(std::move(lb), IError<F>(false, name, "Constant of sort `Int` over-approximated as floating-point number.", f));
         default:
           assert(appx == EXACT);
           return iresult<F>(IError<F>(true, name, "Constant of sort `Int` cannot be interpreted exactly because it does not have an exact representation as a floating-point number (it is probably too large).", f));

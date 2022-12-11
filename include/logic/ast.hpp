@@ -103,7 +103,15 @@ CUDA inline const char* string_of_sig(Sig sig) {
     case SUB: return "-";
     case MUL: return "*";
     case DIV: return "/";
+    case TDIV: return "tdiv";
+    case FDIV: return "fdiv";
+    case CDIV: return "cdiv";
+    case EDIV: return "ediv";
     case MOD: return "%%";
+    case TMOD: return "tmod";
+    case FMOD: return "fmod";
+    case CMOD: return "cmod";
+    case EMOD: return "emod";
     case POW: return "^";
     case SQRT: return "sqrt";
     case EXP: return "exp";
@@ -158,15 +166,15 @@ CUDA inline const char* string_of_sig(Sig sig) {
     }
   }
 
-  CUDA inline bool is_prefix(Sig sig) {
+  CUDA inline constexpr bool is_prefix(Sig sig) {
     return sig == ABS || sig == SQRT || sig == EXP || sig == LN || sig == NROOT || sig == LOG || sig == SIN || sig == COS || sig == TAN || sig == ASIN || sig == ACOS || sig == ATAN || sig == SINH || sig == COSH || sig == TANH || sig == ASINH || sig == ACOSH || sig == ATANH || sig == MIN || sig == MAX || sig == COMPLEMENT || sig == CARD || sig == HULL || sig == CONVEX || sig == ITE || sig == MAXIMIZE || sig == MINIMIZE;
   }
 
-  CUDA inline bool is_division(Sig sig) {
+  CUDA inline constexpr bool is_division(Sig sig) {
     return sig == DIV || sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
   }
 
-  CUDA inline bool is_modulo(Sig sig) {
+  CUDA inline constexpr bool is_modulo(Sig sig) {
     return sig == MOD || sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
   }
 }

@@ -163,10 +163,22 @@ public:
   }
 
   template<class U>
-  CUDA IResult<U, F> map(U&& data2) && {
-    auto r = IResult<U, F>(std::move(data2));
+  CUDA IResult<U, F> map_error() && {
+    auto r = IResult<U, F>(std::move(error()));
     r.warnings = std::move(warnings);
     return std::move(r);
+  }
+
+  template<class U>
+  CUDA IResult<U, F> map(U&& data2) && {
+    if(is_ok()) {
+      auto r = IResult<U, F>(std::move(data2));
+      r.warnings = std::move(warnings);
+      return std::move(r);
+    }
+    else {
+      return std::move(*this).template map_error<U>();
+    }
   }
 
   template<class U>
@@ -180,7 +192,7 @@ public:
   template<class U>
   CUDA this_type& join_errors(IResult<U, F>&& other) {
     error().add_suberror(std::move(other.error()));
-    return join_warnings(other);
+    return join_warnings(std::move(other));
   }
 
   CUDA T& value() {

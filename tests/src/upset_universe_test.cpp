@@ -4,37 +4,44 @@
 #include "logic/logic.hpp"
 #include "universes/upset_universe.hpp"
 #include "allocator.hpp"
-#include "flatzinc_parser.hpp"
+#include "generic_universe_test.hpp"
 
 using namespace lala;
 using namespace battery;
 
-template<class L>
-void must_interpret_to(const char* fzn, L expect, bool has_warning = false) {
-  using F = TFormula<StandardAllocator>;
-  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
-  EXPECT_TRUE(f);
-  f->print(true, true);
-  std::cout << std::endl;
-  IResult<L, F> r = L::interpret(*f);
-  std::cout << fzn << std::endl;
-  if(!r.is_ok()) {
-    r.print_diagnostics();
-  }
-  EXPECT_TRUE(r.is_ok());
-  EXPECT_EQ(r.has_warning(), has_warning);
-  EXPECT_EQ(r.value(), expect);
+TEST(UniverseTest, BotTopTest) {
+  bot_top_test(local::ZInc(0));
+  bot_top_test(local::ZDec(0));
 }
 
-template<class L>
-void must_error(const char* fzn) {
-  using F = TFormula<StandardAllocator>;
-  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
-  EXPECT_TRUE(f);
-  f->print(true, true);
-  IResult<L, F> r = L::interpret(*f);
-  std::cout << fzn << std::endl;
-  EXPECT_FALSE(r.is_ok());
+TEST(UniverseTest, JoinMeetTest) {
+  join_meet_generic_test(local::ZInc::bot(), local::ZInc::top());
+  join_meet_generic_test(local::ZInc(0), local::ZInc(0));
+  join_meet_generic_test(local::ZInc(0), local::ZInc(5));
+  join_meet_generic_test(local::ZInc(-10), local::ZInc(-5));
+
+  join_meet_generic_test(local::ZDec::bot(), local::ZDec::top());
+  join_meet_generic_test(local::ZDec(0), local::ZDec(0));
+  join_meet_generic_test(local::ZDec(5), local::ZDec(0));
+  join_meet_generic_test(local::ZDec(-5), local::ZDec(-10));
+}
+
+template <class L>
+void test_z_arithmetic() {
+  generic_arithmetic_fun_test<EXACT>(L(0));
+  generic_arithmetic_fun_test<UNDER>(L(0));
+  generic_arithmetic_fun_test<OVER>(L(0));
+
+  EXPECT_EQ((L::template fun<EXACT, ADD>(L(0), L(1))), L(1));
+  EXPECT_EQ((L::template fun<EXACT, ADD>(L(-10), L(0))), L(-10));
+  EXPECT_EQ((L::template fun<EXACT, ADD>(L(-10), L(-5))), L(-15));
+  EXPECT_EQ((L::template fun<EXACT, ADD>(L(10), L(-5))), L(5));
+  EXPECT_EQ((L::template fun<EXACT, ADD>(L(10), L(5))), L(15));
+}
+
+TEST(UniverseTest, ArithmeticTest) {
+  test_z_arithmetic<local::ZInc>();
+  test_z_arithmetic<local::ZDec>();
 }
 
 template<class Z, class F, class B>
@@ -116,43 +123,86 @@ TEST(UniverseTest, ZIncInterpretation) {
   must_interpret_to("constraint false :: over;", ZI::top());
   must_interpret_to("constraint false :: under;", ZI::top());
 
-  must_interpret_to("constraint int_ge(x, 0) :: exact;", ZI(0));
-  must_interpret_to("constraint int_ge(x, -10) :: over;", ZI(-10));
-  must_interpret_to("constraint int_ge(x, 10) :: under;", ZI(10));
+  VarEnv<StandardAllocator> env;
+  auto f = parse_flatzinc_str<StandardAllocator>("var int: x :: abstract(0);");
+  EXPECT_TRUE(f);
+  env.interpret(*f);
+  must_interpret_to(env, "constraint int_ge(x, 0) :: exact;", ZI(0));
+  must_interpret_to(env, "constraint int_ge(x, -10) :: over;", ZI(-10));
+  must_interpret_to(env, "constraint int_ge(x, 10) :: under;", ZI(10));
 
-  must_interpret_to("constraint int_gt(x, 0) :: exact;", ZI(1));
-  must_interpret_to("constraint int_gt(x, -10) :: over;", ZI(-9));
-  must_interpret_to("constraint int_gt(x, 10) :: under;", ZI(11));
+  must_interpret_to(env, "constraint int_gt(x, 0) :: exact;", ZI(1));
+  must_interpret_to(env, "constraint int_gt(x, -10) :: over;", ZI(-9));
+  must_interpret_to(env, "constraint int_gt(x, 10) :: under;", ZI(11));
 
-  must_error<ZI>("constraint int_eq(x, 0) :: exact;");
-  must_interpret_to("constraint int_eq(x, 0) :: over;", ZI(0));
-  must_error<ZI>("constraint int_eq(x, 0) :: under;");
+  must_error<ZI>(env, "constraint int_eq(x, 0) :: exact;");
+  must_interpret_to(env, "constraint int_eq(x, 0) :: over;", ZI(0));
+  must_error<ZI>(env, "constraint int_eq(x, 0) :: under;");
 
-  must_error<ZI>("constraint int_ne(x, 1) :: exact;");
-  must_error<ZI>("constraint int_ne(x, 1) :: over;");
-  must_interpret_to("constraint int_ne(x, 1) :: under;", ZI(2));
+  must_error<ZI>(env, "constraint int_ne(x, 1) :: exact;");
+  must_error<ZI>(env, "constraint int_ne(x, 1) :: over;");
+  must_interpret_to(env, "constraint int_ne(x, 1) :: under;", ZI(2));
 
-  must_error<ZI>("constraint int_le(x, 10) :: exact;");
-  must_error<ZI>("constraint int_le(x, 10) :: under;");
-  must_error<ZI>("constraint int_le(x, 10) :: over;");
-  must_error<ZI>("constraint int_lt(x, 10) :: exact;");
-  must_error<ZI>("constraint int_lt(x, 10) :: under;");
-  must_error<ZI>("constraint int_lt(x, 10) :: over;");
+  must_error<ZI>(env, "constraint int_le(x, 10) :: exact;");
+  must_error<ZI>(env, "constraint int_le(x, 10) :: under;");
+  must_error<ZI>(env, "constraint int_le(x, 10) :: over;");
+  must_error<ZI>(env, "constraint int_lt(x, 10) :: exact;");
+  must_error<ZI>(env, "constraint int_lt(x, 10) :: under;");
+  must_error<ZI>(env, "constraint int_lt(x, 10) :: over;");
 
   // Under-approximating a floating-point constant in an integer.
-  must_interpret_to("constraint float_ge(x, 0.) :: exact;", ZI(0));
-  must_interpret_to("constraint float_ge(x, -10.) :: over;", ZI(-10));
-  must_interpret_to("constraint float_ge(x, 10.) :: under;", ZI(10));
+  // must_interpret_to("constraint float_ge(x, 0.) :: exact;", ZI(0));
+  // must_interpret_to("constraint float_ge(x, -10.) :: over;", ZI(-10));
+  // must_interpret_to("constraint float_ge(x, 10.) :: under;", ZI(10));
 
-  must_interpret_to("constraint float_gt(x, 0.) :: exact;", ZI(1));
-  must_interpret_to("constraint float_gt(x, -10.) :: over;", ZI(-9));
-  must_interpret_to("constraint float_gt(x, 10.) :: under;", ZI(11));
+  // must_interpret_to("constraint float_gt(x, 0.) :: exact;", ZI(1));
+  // must_interpret_to("constraint float_gt(x, -10.) :: over;", ZI(-9));
+  // must_interpret_to("constraint float_gt(x, 10.) :: under;", ZI(11));
 
-  must_error<ZI>("constraint float_eq(x, 0.) :: exact;");
-  must_interpret_to("constraint float_eq(x, 0.) :: over;", ZI(0));
-  must_error<ZI>("constraint float_eq(x, 0.) :: under;");
+  // must_error<ZI>("constraint float_eq(x, 0.) :: exact;");
+  // must_interpret_to("constraint float_eq(x, 0.) :: over;", ZI(0));
+  // must_error<ZI>("constraint float_eq(x, 0.) :: under;");
 
-  must_error<ZI>("constraint float_ne(x, 1.) :: exact;");
-  must_error<ZI>("constraint float_ne(x, 1.) :: over;");
-  must_interpret_to("constraint float_ne(x, 1.) :: under;", ZI(2));
+  // must_error<ZI>("constraint float_ne(x, 1.) :: exact;");
+  // must_error<ZI>("constraint float_ne(x, 1.) :: over;");
+  // must_interpret_to("constraint float_ne(x, 1.) :: under;", ZI(2));
+}
+
+
+TEST(UniverseTest, ZDecInterpretation) {
+  using ZD = local::ZDec;
+  must_interpret_to("constraint true :: exact;", ZD::bot());
+  must_interpret_to("constraint true :: over;", ZD::bot());
+  must_interpret_to("constraint true :: under;", ZD::bot());
+
+  must_interpret_to("constraint false :: exact;", ZD::top());
+  must_interpret_to("constraint false :: over;", ZD::top());
+  must_interpret_to("constraint false :: under;", ZD::top());
+
+  VarEnv<StandardAllocator> env;
+  auto f = parse_flatzinc_str<StandardAllocator>("var int: x :: abstract(0);");
+  EXPECT_TRUE(f);
+  env.interpret(*f);
+  must_interpret_to(env, "constraint int_le(x, 0) :: exact;", ZD(0));
+  must_interpret_to(env, "constraint int_le(x, -10) :: over;", ZD(-10));
+  must_interpret_to(env, "constraint int_le(x, 10) :: under;", ZD(10));
+
+  must_interpret_to(env, "constraint int_lt(x, 0) :: exact;", ZD(-1));
+  must_interpret_to(env, "constraint int_lt(x, -10) :: over;", ZD(-11));
+  must_interpret_to(env, "constraint int_lt(x, 10) :: under;", ZD(9));
+
+  must_error<ZD>(env, "constraint int_eq(x, 0) :: exact;");
+  must_interpret_to(env, "constraint int_eq(x, 0) :: over;", ZD(0));
+  must_error<ZD>(env, "constraint int_eq(x, 0) :: under;");
+
+  must_error<ZD>(env, "constraint int_ne(x, 1) :: exact;");
+  must_error<ZD>(env, "constraint int_ne(x, 1) :: over;");
+  must_interpret_to(env, "constraint int_ne(x, 1) :: under;", ZD(0));
+
+  must_error<ZD>(env, "constraint int_ge(x, 10) :: exact;");
+  must_error<ZD>(env, "constraint int_ge(x, 10) :: under;");
+  must_error<ZD>(env, "constraint int_ge(x, 10) :: over;");
+  must_error<ZD>(env, "constraint int_gt(x, 10) :: exact;");
+  must_error<ZD>(env, "constraint int_gt(x, 10) :: under;");
+  must_error<ZD>(env, "constraint int_gt(x, 10) :: over;");
 }

@@ -82,32 +82,6 @@ namespace local {
 }
 
 namespace impl {
-  template <class T, class = int>
-  struct has_preserve_bot {
-    static constexpr bool value = false;
-  };
-
-  template <class T>
-  struct has_preserve_bot<T, decltype(T::preserve_bot)> {
-    static constexpr bool value = T::preserve_bot;
-  };
-
-  template <class T>
-  inline constexpr bool preserve_bot_v = has_preserve_bot<T>::value;
-
-  template <class T, class = int>
-  struct has_preserve_top {
-    static constexpr bool value = false;
-  };
-
-  template <class T>
-  struct has_preserve_top<T, decltype(T::preserve_top)> {
-    static constexpr bool value = T::preserve_top;
-  };
-
-  template <class T>
-  inline constexpr bool preserve_top_v = has_preserve_top<T>::value;
-
   template<class T>
   struct is_upset_universe {
     static constexpr bool value = false;
@@ -121,6 +95,18 @@ namespace impl {
   template <class T>
   inline constexpr bool is_upset_universe_v = is_upset_universe<T>::value;
 
+}
+
+/** This function is useful when we need to convert a value to its dual.
+    The dual is the downset of the current element, therefore, if we have \f$ x >= 10 \f$, the dual is given by the formula \f$ x <= 10 \f$ interpreted in the dual lattice.
+    In that case, it just changes the type of the lattice without changing the value.
+    A difference occurs on the bottom and top element.
+    Indeed, by our representation of bot and top, the bottom value in a lattice L equals the top value in its dual, but we need them to remain the same, so the dual of `L::bot()` is `LDual::bot()`.*/
+template <class LDual, class L>
+CUDA LDual dual(L x) {
+  if(x.is_bot()) return LDual::bot();
+  if(x.is_top()) return LDual::top();
+  return LDual(x.value());
 }
 
 template<class PreUniverse, class Mem>
@@ -148,8 +134,8 @@ public:
   constexpr static const bool complemented = pre_universe::complemented;
   constexpr static const bool increasing = pre_universe::increasing;
   constexpr static const char* name = pre_universe::name;
-  constexpr static const value_type zero = pre_universe::zero;
-  constexpr static const value_type one = pre_universe::one;
+  inline static const value_type zero = this_type(pre_universe::zero);
+  inline static const value_type one = this_type(pre_universe::one);
 
 private:
   using atomic_type = typename memory_type::atomic_type<value_type>;
@@ -169,6 +155,7 @@ public:
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
   CUDA UpsetUniverse(value_type x): val(x) {}
   CUDA UpsetUniverse(const this_type& other): UpsetUniverse(other.value()) {}
+  CUDA UpsetUniverse(this_type&& other): val(std::move(other.val)) {}
 
   template <class M>
   CUDA UpsetUniverse(const this_type2<M>& other): UpsetUniverse(other.value()) {}
@@ -194,8 +181,8 @@ public:
 
   template<class M1, class M2>
   CUDA this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    U r1 = value();
-    U r2 = is_totally_ordered ? other.value() : U::join(r1, other.value());
+    value_type r1 = value();
+    value_type r2 = is_totally_ordered ? other.value() : U::join(r1, other.value());
     if(U::strict_order(r1, r2)) {
       memory_type::store(val, r2);
       has_changed.tell_top();
@@ -205,8 +192,8 @@ public:
 
   template<class M1>
   CUDA this_type& tell(const this_type2<M1>& other) {
-    U r1 = value();
-    U r2 = is_totally_ordered ? other.value() : U::join(r1, other.value());
+    value_type r1 = value();
+    value_type r2 = is_totally_ordered ? other.value() : U::join(r1, other.value());
     if(U::strict_order(r1, r2)) {
       memory_type::store(val, r2);
     }
@@ -220,8 +207,8 @@ public:
 
   template<class M1, class M2>
   CUDA this_type& dtell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    U r1 = value();
-    U r2 = is_totally_ordered ? other.value() : U::meet(r1, other.value());
+    value_type r1 = value();
+    value_type r2 = is_totally_ordered ? other.value() : U::meet(r1, other.value());
     if(U::strict_order(r2, r1)) {
       memory_type::store(val, r2);
       has_changed.tell_top();
@@ -231,8 +218,8 @@ public:
 
   template<class M1>
   CUDA this_type& dtell(const this_type2<M1>& other) {
-    U r1 = value();
-    U r2 = is_totally_ordered ? other.value() : U::meet(r1, other.value());
+    value_type r1 = value();
+    value_type r2 = is_totally_ordered ? other.value() : U::meet(r1, other.value());
     if(U::strict_order(r2, r1)) {
       memory_type::store(val, r2);
     }
@@ -283,7 +270,7 @@ private:
     if(!var.has_value()) {
       return iresult<F>(IError<F>(true, name, "Undeclared variable.", f));
     }
-    auto r = pre_universe::interpret(k, env.sort_of(x->sort), f.approx());
+    auto r = pre_universe::interpret(k, var->sort, f.approx());
     if(!r.is_ok()) {
       return r;
     }
@@ -371,23 +358,11 @@ public:
   }
 
   CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
+    if(sig == ABS && !increasing) { return false; } // The absolute function is linked to increasing abstract universe, and cannot be represented in a decreasing abstract domain (unless by mapping to `top` but that's uninteresting).
     return pre_universe::is_supported_fun(appx, sig);
   }
 
-public:
-  template<Approx appx, Sig sig, class A>
-  CUDA static constexpr this_type2<battery::LocalMemory> fun(const A& a) {
-    if constexpr(impl::preserve_top_v<A>) {
-      if(a.is_top())
-        return this_type2<battery::LocalMemory>::top();
-    }
-    if constexpr(impl::preserve_bot_v<A>) {
-      if(a.is_bot())
-        return this_type2<battery::LocalMemory>::bot();
-    }
-    return pre_universe::template fun<appx, sig>(a);
-  }
-
+private:
   template<Approx appx, Sig sig, class A, class B>
   CUDA static constexpr this_type2<battery::LocalMemory> div_per_zero(const A& a, const B&) {
     if constexpr(A::increasing && B::increasing == increasing) {
@@ -399,23 +374,57 @@ public:
     return this_type2<battery::LocalMemory>::bot();
   }
 
+public:
+  /** Unary function over `value_type`.
+   * Due to some complications, the function acts as if `a` was of the lattice type "Flat Lattice" instead of an upset.
+   * To obtain the upset semantics of the functions, you can rely on Interval, where you set one of the bounds to `bot`.  */
+  template<Approx appx, Sig sig, class A>
+  CUDA static constexpr this_type2<battery::LocalMemory> fun(const A& a) {
+    if constexpr(A::preserve_top) {
+      if(a.is_top()) {
+        return this_type2<battery::LocalMemory>::top();
+      }
+    }
+    if constexpr(sig == ABS) {
+      if(a < zero) {
+        return zero;
+      }
+      else {
+        return a;
+      }
+    }
+    else if constexpr(A::preserve_bot) {
+      if(a.is_bot()) {
+        return this_type2<battery::LocalMemory>::bot();
+      }
+    }
+    return pre_universe::template fun<appx, sig>(a);
+  }
+
+  /** Binary functions over `value_type`.
+   * Due to some complications, the function acts as if `a` and `b` were of the lattice type "Flat Lattice" instead of an upset.
+   * To obtain the upset semantics of these functions, you can rely on Interval, where you set one of the bounds of each `a` and `b` to `bot`. */
   template<Approx appx, Sig sig, class A, class B>
   CUDA static constexpr this_type2<battery::LocalMemory> fun(const A& a, const B& b) {
-    if constexpr(impl::preserve_top_v<A>) {
-      if(a.is_top())
+    if constexpr(A::preserve_top) {
+      if(a.is_top()) {
         return this_type2<battery::LocalMemory>::top();
+      }
     }
-    if constexpr(impl::preserve_top_v<B>) {
-      if(b.is_top())
+    if constexpr(B::preserve_top) {
+      if(b.is_top()) {
         return this_type2<battery::LocalMemory>::top();
+      }
     }
-    if constexpr(impl::preserve_bot_v<A>) {
-      if(a.is_bot())
+    if constexpr(A::preserve_bot) {
+      if(a.is_bot()) {
         return this_type2<battery::LocalMemory>::bot();
+      }
     }
-    if constexpr(impl::preserve_bot_v<B>) {
-      if(b.is_bot())
+    if constexpr(B::preserve_bot) {
+      if(b.is_bot()) {
         return this_type2<battery::LocalMemory>::bot();
+      }
     }
     if constexpr(is_division(sig) && impl::is_upset_universe_v<A> && impl::is_upset_universe_v<B>) {
       if(b == B::zero) {
@@ -430,51 +439,51 @@ public:
     return pre_universe::template fun<appx, sig>(a, b);
   }
 
-  // Lattice operators
-
   template<class Pre2, class Mem2>
   friend class UpsetUniverse;
-
-  template<class M1, class M2>
-  CUDA friend this_type2<battery::LocalMemory> join(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return U::join(a, b);
-  }
-
-  template<class M1, class M2>
-  CUDA friend this_type2<battery::LocalMemory> meet(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return U::meet(a, b);
-  }
-
-  template<class M1, class M2>
-  CUDA friend bool operator<=(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return U::order(a, b);
-  }
-
-  template<class M1, class M2>
-  CUDA friend bool operator<(const this_type2<M1>& a, const this_type2<M1>& b) {
-    return U::strict_order(a, b);
-  }
-
-  template<class M1, class M2>
-  CUDA friend bool operator>=(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return U::order(b, a);
-  }
-
-  template<class M1, class M2>
-  CUDA friend bool operator>(const this_type2<M1>& a, const this_type2<M1>& b) {
-    return U::strict_order(b, a);
-  }
-
-  template<class M1, class M2>
-  CUDA friend bool operator==(const this_type2<M1>& a, const this_type2<M2>& b) {
-    return a.value() == b.value();
-  }
-
-  template<class M1, class M2>
-  CUDA friend bool operator!=(const this_type2<M1>& a, const this_type2<M1>& b) {
-    return a.value() != b.value();
-  }
 };
+
+// Lattice operators
+
+template<class Pre, class M1, class M2>
+CUDA UpsetUniverse<Pre, battery::LocalMemory> join(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+  return Pre::join(a, b);
+}
+
+template<class Pre, class M1, class M2>
+CUDA UpsetUniverse<Pre, battery::LocalMemory> meet(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+  return Pre::meet(a, b);
+}
+
+template<class Pre, class M1, class M2>
+CUDA bool operator<=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+  return Pre::order(a, b);
+}
+
+template<class Pre, class M1, class M2>
+CUDA bool operator<(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+  return Pre::strict_order(a, b);
+}
+
+template<class Pre, class M1, class M2>
+CUDA bool operator>=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+  return Pre::order(b, a);
+}
+
+template<class Pre, class M1, class M2>
+CUDA bool operator>(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+  return Pre::strict_order(b, a);
+}
+
+template<class Pre, class M1, class M2>
+CUDA bool operator==(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+  return a.value() == b.value();
+}
+
+template<class Pre, class M1, class M2>
+CUDA bool operator!=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+  return a.value() != b.value();
+}
 
 
 } // namespace lala

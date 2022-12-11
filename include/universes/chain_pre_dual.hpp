@@ -53,11 +53,11 @@ struct ChainPreDual {
   CUDA static constexpr value_type meet(value_type x, value_type y) { return L::join(x, y); }
   CUDA static constexpr bool order(value_type x, value_type y) { return L::order(y, x); }
   CUDA static constexpr bool strict_order(value_type x, value_type y) { return L::strict_order(y, x); }
-  CUDA static constexpr bool has_unique_next(value_type x) { return has_unique_prev(x); }
-  CUDA static constexpr bool has_unique_prev(value_type x) { return has_unique_next(x); }
+  CUDA static constexpr bool has_unique_next(value_type x) { return L::has_unique_prev(x); }
+  CUDA static constexpr bool has_unique_prev(value_type x) { return L::has_unique_next(x); }
   CUDA static value_type next(value_type i) { return L::prev(i); }
   CUDA static value_type prev(value_type i) { return L::next(i); }
-  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) { return L::is_supported_fun(appx, sig); }
+  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) { return L::is_supported_fun(dapprox(appx), sig); }
 
   template<Approx appx, Sig sig, class... Args>
   CUDA static constexpr auto fun(Args... args) {

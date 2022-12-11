@@ -8,6 +8,7 @@
 #include "thrust/optional.h"
 #include "logic/logic.hpp"
 #include "universes/upset_universe.hpp"
+#include "flatzinc_parser.hpp"
 
 using namespace lala;
 using namespace battery;
@@ -17,41 +18,105 @@ using F = TFormula<StandardAllocator>;
 static LVar<StandardAllocator> var_x = "x";
 static LVar<StandardAllocator> var_y = "y";
 
-#define EXPECT_EQ2(a,b) EXPECT_EQ(unwrap(a), unwrap(b))
-#define EXPECT_TRUE2(a) EXPECT_TRUE(unwrap(a))
-#define EXPECT_FALSE2(a) EXPECT_FALSE(unwrap(a))
+
+inline VarEnv<StandardAllocator> init_env() {
+  VarEnv<StandardAllocator> env;
+  auto f = parse_flatzinc_str<StandardAllocator>("var int: x :: abstract(0);");
+  EXPECT_TRUE(f);
+  env.interpret(*f);
+  return std::move(env);
+}
+
+template <class L>
+L interpret_to(const char* fzn) {
+  using F = TFormula<StandardAllocator>;
+  VarEnv<StandardAllocator> env = init_env();
+  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
+  EXPECT_TRUE(f);
+  IResult<L, F> r = L::interpret(*f, env);
+  EXPECT_TRUE(r.is_ok());
+  return std::move(r.value());
+}
+
+template<class L>
+void must_interpret_to(VarEnv<StandardAllocator>& env, const char* fzn, L expect, bool has_warning = false) {
+  using F = TFormula<StandardAllocator>;
+  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
+  EXPECT_TRUE(f);
+  f->print(true, true);
+  std::cout << std::endl;
+  IResult<L, F> r = L::interpret(*f, env);
+  std::cout << fzn << std::endl;
+  if(!r.is_ok()) {
+    r.print_diagnostics();
+  }
+  EXPECT_TRUE(r.is_ok());
+  EXPECT_EQ(r.has_warning(), has_warning);
+  EXPECT_EQ(r.value(), expect);
+}
+
+template<class L>
+void must_interpret_to(const char* fzn, L expect, bool has_warning = false) {
+  VarEnv<StandardAllocator> env;
+  must_interpret_to(env, fzn, expect, has_warning);
+}
+
+template<class L>
+void must_error(VarEnv<StandardAllocator>& env, const char* fzn) {
+  using F = TFormula<StandardAllocator>;
+  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
+  EXPECT_TRUE(f);
+  f->print(true, true);
+  IResult<L, F> r = L::interpret(*f, env);
+  std::cout << fzn << std::endl;
+  EXPECT_FALSE(r.is_ok());
+}
+
+template<class L>
+void must_error(const char* fzn) {
+  VarEnv<StandardAllocator> env;
+  must_error<L>(env, fzn);
+}
+
 
 /** We must have `A::bot() < mid < A::top()`. */
 template <class A>
 void bot_top_test(A mid) {
   A bot = A::bot();
   A top = A::top();
-  EXPECT_TRUE2(bot.is_bot());
-  EXPECT_TRUE2(top.is_top());
-  EXPECT_FALSE2(top.is_bot());
-  EXPECT_FALSE2(bot.is_top());
-  EXPECT_TRUE2(gt<A>(top, bot.dual()));
+  EXPECT_TRUE(bot.is_bot());
+  EXPECT_TRUE(top.is_top());
+  EXPECT_FALSE(top.is_bot());
+  EXPECT_FALSE(bot.is_top());
+  EXPECT_TRUE(bot <= top);
+  EXPECT_TRUE(top >= bot);
+  EXPECT_TRUE(bot < top);
+  EXPECT_TRUE(top > bot);
+  EXPECT_TRUE(bot == bot);
+  EXPECT_TRUE(top == top);
+  EXPECT_TRUE(top != bot);
+  EXPECT_FALSE(top == bot);
 
-  EXPECT_FALSE2(mid.is_bot());
-  EXPECT_FALSE2(mid.is_top());
-  EXPECT_TRUE2(lt<A>(bot.dual(), mid));
-  EXPECT_TRUE2(gt<A>(top.dual(), mid));
+  EXPECT_FALSE(mid.is_bot());
+  EXPECT_FALSE(mid.is_top());
+  EXPECT_TRUE(bot < mid);
+  EXPECT_TRUE(mid < top);
 }
 
 template <class A>
 void join_one_test(A a, A b, A expect, bool has_changed_expect) {
-  BInc has_changed = BInc::bot();
-  EXPECT_EQ2(join(a, b), expect);
-  EXPECT_EQ2(a.tell(b, has_changed), expect);
-  EXPECT_EQ2(has_changed, has_changed_expect);
+  local::BInc has_changed = local::BInc::bot();
+  EXPECT_EQ(join(a, b), expect);
+  EXPECT_EQ(a.tell(b, has_changed), expect);
+  EXPECT_EQ(has_changed, has_changed_expect);
 }
 
 template <class A>
 void meet_one_test(A a, A b, A expect, bool has_changed_expect) {
-  BInc has_changed = BInc::bot();
-  EXPECT_EQ2(meet(a, b), expect);
-  EXPECT_EQ2(a.dtell(b, has_changed), expect);
-  EXPECT_EQ2(has_changed, has_changed_expect);
+  local::BInc has_changed = local::BInc::bot();
+  EXPECT_EQ(meet(a, b), expect);
+  EXPECT_EQ(a.dtell(b, has_changed), expect);
+  EXPECT_EQ(has_changed, has_changed_expect);
 }
 
 // `a` and `b` are supposed ordered and `a <= b`.
@@ -63,105 +128,90 @@ void join_meet_generic_test(A a, A b) {
   join_one_test(b, b, b, false);
   meet_one_test(b, b, b, false);
   // Coherency of join/meet w.r.t. ordering
-  join_one_test(a, b, b, a.value() != b.value());
+  join_one_test(a, b, b, a != b);
   join_one_test(b, a, b, false);
   // Commutativity
   meet_one_test(a, b, a, false);
-  meet_one_test(b, a, a, a.value() != b.value());
+  meet_one_test(b, a, a, a != b);
   // Absorbing
   meet_one_test(a, A::top(), a, false);
   meet_one_test(b, A::top(), b, false);
-  join_one_test(a, A::top(), A::top(), !a.is_top().value());
-  join_one_test(b, A::top(), A::top(), !b.is_top().value());
-  meet_one_test(a, A::bot(), A::bot(), !a.is_bot().value());
-  meet_one_test(b, A::bot(), A::bot(), !b.is_bot().value());
+  join_one_test(a, A::top(), A::top(), !a.is_top());
+  join_one_test(b, A::top(), A::top(), !b.is_top());
+  meet_one_test(a, A::bot(), A::bot(), !a.is_bot());
+  meet_one_test(b, A::bot(), A::bot(), !b.is_bot());
   join_one_test(a, A::bot(), a, false);
   join_one_test(b, A::bot(), b, false);
 }
 
-template<class A>
-void generic_order_test(A element) {
-  using B = typename A::dual_type;
-  EXPECT_EQ2(leq<A>(element, B::bot()), true);
-  EXPECT_EQ2(leq<A>(element, B::top()), false);
-  EXPECT_EQ2(leq<A>(A::bot(), B::top()), true);
-  EXPECT_EQ2(leq<A>(A::top(), B::bot()), true);
-  EXPECT_EQ2(leq<A>(A::top(), B::top()), false);
-  EXPECT_EQ2(leq<A>(A::top(), B::bot()), true);
-  EXPECT_EQ2(leq<A>(A::bot(), B::bot()), true);
-  EXPECT_EQ2(leq<B>(B::top(), element), false);
-}
-
-template<class A>
-using SplitSeq = vector<A, StandardAllocator>;
-
-template<class A>
-SplitSeq<A> make_singleton(A x) {
-  return SplitSeq<A>({x});
-}
-
-template<class A>
-SplitSeq<A> make_empty() {
-  return SplitSeq<A>();
-}
-
-template<class A>
-SplitSeq<A> split(const A& a) {
-  return a.template split<StandardAllocator>();
-}
-
-template<class A>
-void generic_split_test(A element) {
-  EXPECT_EQ2(split(element)[0], element);
-  EXPECT_EQ(split(element).size(), 1);
-  EXPECT_EQ(split(A::top()).size(), 0);
-  EXPECT_TRUE2(split(A::bot())[0].is_bot());
-  EXPECT_EQ(split(A::bot()).size(), 1);
-}
-
-template<class A>
-void generic_deinterpret_test() {
-  EXPECT_EQ(A::bot().deinterpret(var_x), F::make_true());
-  EXPECT_EQ(A::top().deinterpret(var_x), F::make_false());
-}
-
-template<class Universe>
-void test_formula(const F& f, thrust::optional<Universe> expect) {
-  thrust::optional<Universe> j = Universe::interpret(f);
-  EXPECT_EQ(j.has_value(), expect.has_value());
-  if(j.has_value() && expect.has_value()) {
-    EXPECT_EQ2(j.value(), expect.value());
+template <Approx appx, Sig sig, class A>
+void generic_unary_fun_test() {
+  if constexpr(A::is_supported_fun(appx, sig)) {
+    if constexpr(sig == ABS) {
+      if constexpr(appx == EXACT) {
+        EXPECT_EQ((A::template fun<appx, sig>(A::bot())), interpret_to<A>("constraint int_ge(x, 0) :: exact;"));
+      }
+      else if constexpr(appx == UNDER) {
+        EXPECT_TRUE((A::template fun<appx, sig>(A::bot()) >= interpret_to<A>("constraint int_ge(x, 0) :: under;")));
+      }
+      else {
+        EXPECT_TRUE((A::template fun<appx, sig>(A::bot()) <= interpret_to<A>("constraint int_ge(x, 0) :: over;")));
+      }
+    }
+    else {
+      EXPECT_EQ((A::template fun<appx, sig>(A::bot())), A::bot());
+      EXPECT_EQ((A::template fun<appx, sig>(A::top())), A::top());
+    }
   }
 }
 
-template<class Universe, class K>
-void test_interpret(Sig sig, Approx appx, K elem, thrust::optional<Universe> expect) {
-  StandardAllocator standard_allocator;
-  test_formula<Universe>(
-    make_v_op_z(var_x, sig, elem, UNTYPED, appx, standard_allocator),
-    expect);
-}
-
-template<class Universe, class K>
-void test_all_interpret(Sig sig, K elem, thrust::optional<Universe> expect) {
-  Approx appxs[3] = {EXACT, UNDER, OVER};
-  for(int i = 0; i < 3; ++i) {
-    test_interpret<Universe>(sig, appxs[i], elem, expect);
+template <Approx appx, Sig sig, class A>
+void generic_binary_fun_test(A a) {
+  if constexpr(A::is_supported_fun(appx, sig)) {
+    battery::print(sig);
+    EXPECT_EQ((A::template fun<appx, sig>(A::bot(), A::bot())), A::bot());
+    EXPECT_EQ((A::template fun<appx, sig>(A::top(), A::bot())), A::top());
+    EXPECT_EQ((A::template fun<appx, sig>(A::bot(), A::top())), A::top());
+    EXPECT_EQ((A::template fun<appx, sig>(A::top(), a)), A::top());
+    EXPECT_EQ((A::template fun<appx, sig>(a, A::top())), A::top());
+    EXPECT_EQ((A::template fun<appx, sig>(A::bot(), a)), A::bot());
+    EXPECT_EQ((A::template fun<appx, sig>(a, A::bot())), A::bot());
   }
 }
 
-template<class Universe, class K>
-void test_exact_interpret(Sig sig, K elem, thrust::optional<Universe> expect) {
-  test_interpret<Universe>(sig, EXACT, elem, expect);
+template <Approx appx, class A>
+void generic_arithmetic_fun_test(A a) {
+  generic_unary_fun_test<appx, NEG, A>();
+  generic_unary_fun_test<appx, ABS, A>();
+  generic_binary_fun_test<appx, ADD>(a);
+  generic_binary_fun_test<appx, SUB>(a);
+  generic_binary_fun_test<appx, MUL>(a);
+  generic_binary_fun_test<appx, TDIV>(a);
+  generic_binary_fun_test<appx, FDIV>(a);
+  generic_binary_fun_test<appx, CDIV>(a);
+  generic_binary_fun_test<appx, EDIV>(a);
+  generic_binary_fun_test<appx, TMOD>(a);
+  generic_binary_fun_test<appx, FMOD>(a);
+  generic_binary_fun_test<appx, CMOD>(a);
+  generic_binary_fun_test<appx, EMOD>(a);
+  generic_binary_fun_test<appx, POW>(a);
+  generic_binary_fun_test<appx, MIN>(a);
+  generic_binary_fun_test<appx, MAX>(a);
 }
 
-template<class Universe, class K>
-void test_under_interpret(Sig sig, K elem, thrust::optional<Universe> expect) {
-  test_interpret<Universe>(sig, UNDER, elem, expect);
-}
+// template<class A>
+// void generic_deinterpret_test() {
+//   EXPECT_EQ(A::bot().deinterpret(var_x), F::make_true());
+//   EXPECT_EQ(A::top().deinterpret(var_x), F::make_false());
+// }
 
-template<class Universe, class K>
-void test_over_interpret(Sig sig, K elem, thrust::optional<Universe> expect) {
-  test_interpret<Universe>(sig, OVER, elem, expect);
-}
+// template<class Universe>
+// void test_formula(const F& f, thrust::optional<Universe> expect) {
+//   thrust::optional<Universe> j = Universe::interpret(f);
+//   EXPECT_EQ(j.has_value(), expect.has_value());
+//   if(j.has_value() && expect.has_value()) {
+//     EXPECT_EQ(j.value(), expect.value());
+//   }
+// }
+
 #endif

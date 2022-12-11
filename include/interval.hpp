@@ -13,8 +13,13 @@ class Interval;
 namespace impl {
   template <class LB, class UB>
   Interval<LB> make_itv(CartesianProduct<LB, UB> cp) {
-    return Interval<LB>(cp);
+    return Interval<LB>(project<0>(cp), project<1>(cp));
   }
+
+  template <class U> const typename Interval<U>::LB& lb(const Interval<U>& itv) { return itv.lb(); }
+  template <class L> const L& lb(const L& other) { return other; }
+  template <class U> const typename Interval<U>::UB& ub(const Interval<U>& itv) { return itv.ub(); }
+  template <class L> const L& ub(const L& other) { return other; }
 }
 
 /** An interval is a Cartesian product of a lower and upper bounds, themselves represented as lattices.
@@ -40,21 +45,25 @@ public:
 private:
   CP cp;
   CUDA Interval(const CP& cp): cp(cp) {}
-
+  CUDA this_type lb2() const { return Interval(lb(), dual<UB>(lb())); }
+  CUDA this_type ub2() const { return Interval(dual<LB>(ub()), ub()); }
 public:
   /** Given a value \f$ x \in U \f$ where \f$ U \f$ is the universe of discourse, we initialize a singleton interval \f$ [x..x] \f$. */
-  CUDA Interval(const typename U::value_type& x): cp(x, x) {}
-  CUDA Interval(const LB& lb, const UB& ub): cp(lb, ub) {}
+  CUDA constexpr Interval(const typename U::value_type& x): cp(x, x) {}
+  CUDA constexpr Interval(const LB& lb, const UB& ub): cp(lb, ub) {}
 
   template<class A>
-  CUDA Interval(const Interval<A>& other): cp(other.cp) {}
+  CUDA constexpr Interval(const Interval<A>& other): cp(other.cp) {}
 
-  static constexpr this_type zero = Interval(LB::zero, UB::zero);
-  static constexpr this_type one = Interval(LB::one, UB::one);
+  template<class A>
+  CUDA constexpr Interval(Interval<A>&& other): cp(std::move(other.cp)) {}
+
+  inline static const this_type zero = this_type(LB::zero, UB::zero);
+  inline static const this_type one = this_type(LB::one, UB::one);
 
   CUDA static this_type bot() { return Interval(CP::bot()); }
   CUDA static this_type top() { return Interval(CP::top()); }
-  CUDA local::BInc is_top() const { return cp.is_top() || lb() > ub(); }
+  CUDA local::BInc is_top() const { return cp.is_top() || (!ub().is_bot() && lb() > dual<LB>(ub())); }
   CUDA local::BDec is_bot() const { return cp.is_bot(); }
   CUDA const CP& as_product() const { return cp; }
   CUDA value_type value() const { return cp.value(); }
@@ -68,25 +77,24 @@ public:
     // The equality is interpreted in both bounds by over-approximation, therefore the equal element must be in \f$ \gamma(lb) \cap \gamma(ub) \f$.
     // If an exact equality is asked, we verify the interpretations in LB and UB are equal.
     if(f.is_binary() && f.sig() == EQ) {
-      if(f.approx() == UNDER) {
+      if(f.is_under()) {
         return iresult<F>(IError<F>(true, name, "Equality cannot be interpreted by under-approximation (it would always give an empty interval).", f));
       }
       auto cp_res = CP::interpret(f.map_approx(OVER), env);
       if(cp_res.has_value()) {
         this_type itv(cp_res.value());
-        if(f.is_exact() && lb().value() != ub().value()) {
+        if(f.is_exact() && itv.lb() != itv.ub()) {
           return iresult<F>(IError<F>(true, name, "Equality cannot be interpreted exactly because LB over-approximates the equality to a different value than UB.", f));
         }
-        return iresult<F>(std::move(itv))
-          .join_warnings(std::move(cp_res));
+        return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
       }
     }
     // Forward to CP in case the formula `f` did not fit the cases above.
     auto cp_interpret = CP::interpret(f, env);
     if(cp_interpret.has_value()) {
-      return Interval(*cp_interpret);
+      return std::move(iresult<F>(Interval(cp_interpret.value())).join_warnings(std::move(cp_interpret)));
     }
-    return {};
+    return std::move(cp_interpret).template map_error<this_type>();
   }
 
   CUDA const LB& lb() const { return project<0>(cp); }
@@ -224,21 +232,34 @@ public:
   }
 
   /** The additive inverse is obtained by pairwise negation of the components.
-   *  Equivalent to `neg(reverse(x))`. */
+   * Equivalent to `neg(reverse(x))`.
+   * Note that the inverse of `bot` is `bot`, simply because `bot` has no mathematical inverse. */
   CUDA this_type additive_inverse(const this_type& x) {
     static_assert(LB::is_supported_fun(EXACT, NEG) && UB::is_supported_fun(EXACT, NEG),
       "Exact negation of interval bounds are required to compute the additive inverse.");
-    return this_type(CP::fun<EXACT, NEG>(x.as_product()));
+    return this_type(CP::template fun<EXACT, NEG>(x.as_product()));
   }
 
+private:
+  // A faster version of reverse when we know x != bot.
+  template<class L>
+  CUDA static constexpr this_type reverse2(const Interval<L>& x) {
+    return this_type(x.ub().value(), x.lb().value());
+  }
+
+public:
   template<class L>
   CUDA static constexpr this_type reverse(const Interval<L>& x) {
-    return this_type(ub(), lb());
+    return x.is_bot() ? bot() : reverse2(x);
   }
 
   template<Approx appx, class L>
   CUDA static constexpr this_type neg(const Interval<L>& x) {
-    return this_type(UB::fun<appx, NEG>(x.ub()), LB::fun<appx, NEG>(x.lb()));
+    using LB2 = typename Interval<L>::LB;
+    using UB2 = typename Interval<L>::UB;
+    return this_type(
+      dual<LB>(UB2::template fun<appx, NEG>(x.ub())),
+      dual<UB>(LB2::template fun<appx, NEG>(x.lb())));
   }
 
   // This operation preserves top, i.e., \f$ abs(x) \in [\top] \f$ if \f$ x \in [\top] \f$, \f$ [\top] \f$ being the equivalence class of top elements.
@@ -246,17 +267,15 @@ public:
   CUDA static constexpr this_type abs(const Interval<L>& x) {
     using LB2 = typename Interval<L>::LB;
     using UB2 = typename Interval<L>::UB;
-    const LB2& lb = x.lb();
-    if(lb > LB2::zero) {
-      return x;
+    switch(sig(x)) {
+      case PP: return x;
+      case NP: return this_type(LB2::template fun<appx, ABS>(x.lb()), x.ub());
+      case NN: return this_type(dual<LB>(UB2::template fun<appx, NEG>(x.ub())),
+                                dual<UB>(LB2::template fun<appx, NEG>(x.lb())));
+      case PN: return this_type(x.lb(), UB2::template fun<appx, ABS>(x.ub()));
     }
-    else {
-      const UB2& ub = x.ub();
-      if(ub < UB2::zero) {
-        return this_type(UB2::fun<appx, NEG>(ub), LB2::fun<appx, NEG>(lb));
-      }
-      return this_type(LB2::zero, ub);
-    }
+    assert(0); // all cases should be covered:
+    return top();
   }
 
   template<Approx appx, Sig sig, class L>
@@ -270,13 +289,14 @@ public:
     }
   }
 
-  template<Approx appx, class A, class B>
-  CUDA static constexpr this_type add(const A& x, const B& y) {
-    return make_itv(CP::fun<appx, sig>(x.as_product(), y.as_product()));
+public:
+  template<Approx appx, class L, class K>
+  CUDA static constexpr this_type add(const Interval<L>& x, const Interval<K>& y) {
+    return impl::make_itv(CP::template fun<appx, ADD>(x.as_product(), y.as_product()));
   }
 
-  template<Approx appx, class A, class B>
-  CUDA static constexpr this_type sub(const A& x, const B& y) {
+  template<Approx appx, class L, class K>
+  CUDA static constexpr this_type sub(const Interval<L>& x, const Interval<K>& y) {
     return this_type::add<appx>(x, neg<appx>(y));
   }
 
@@ -288,206 +308,184 @@ private:
 
   template<class A>
   CUDA static constexpr bounds_sign sig(const Interval<A>& a) {
-    if(a.lb().value() >= LB::zero) { return (a.ub().value() >= UB::zero) ? PP : PN; }
-    else { return (a.ub().value() <= UB::zero) ? NN : NP; }
+    if(a.lb() >= LB::zero) { return (a.ub() >= UB::zero) ? PP : PN; }
+    else { return (a.ub() <= UB::zero) ? NN : NP; }
   }
 
-  template<class A>
-  struct is_interval {
-    static constexpr bool value = false;
-  };
+  template<Approx appx, class A, class B>
+  CUDA static this_type mul2(const Interval<A>& a, const Interval<B>& b) {
+    return this_type(CP::template fun<appx, MUL>(a.as_product(), b.as_product()));
+  }
 
-  template<class A>
-  struct is_interval<Interval<A>> {
-    static constexpr bool value = true;
-  };
-
-  template<class A>
-  inline static constexpr bool is_interval_v = is_interval<A>::value;
-
-  CUDA operator CP() const { return as_product(); }
+  template<Approx appx, Sig divsig, class A, class B>
+  CUDA static constexpr this_type div2(const A& a, const B& b) {
+    return this_type(CP::template fun<appx, divsig>(a.as_product(), b.as_product()));
+  }
 
 public:
   /** By default, multiplication is over-approximating as it is not possible to exactly represent multiplication in general.
-    Under-approximation of multiplication is not the best possible: it returns a singleton [al*bl..al*bl] where only the lower bounds are multiplied.
     Note that we do not rely on the commutativity property of multiplication. */
-  template<Approx appx = OVER, class A, class B>
-  CUDA static constexpr this_type mul(const A& a, const B& b) {
-    static_assert(is_interval_v<A> || is_interval_v<B>,
-      "Multiplication over interval is only defined when one of the operands is an interval.");
-    static_assert(appx != EXACT, "Multiplication cannot be exactly represented in intervals.");
-    // I. Under-approximation case.
-    if constexpr(appx == UNDER) {
-      auto l = LB::fun<appx, MUL>(is_interval_v<A> ? lb(a) : a, is_interval_v<B> ? lb(b) : b);
-      return Interval<L>(l, l);
-    }
-    // II. Interval multiplied by a bound, [al..au] * b or a * [bl..bu].
-    else if constexpr(!is_interval_v<B>) {
-      return (b >= B::zero)
-        ? this_type(CP::fun<appx, MUL>(a, b));
-        : this_type(CP::fun<appx, MUL>(reverse(a), b));
-    }
-    else if constexpr(!is_interval_v<A>) {
-      return (a >= A::zero)
-        ? this_type(CP::fun<appx, MUL>(a, b));
-        : this_type(CP::fun<appx, MUL>(a, reverse(b)));
-    }
-    // III. Interval multiplication case, [al..au] * [bl..bu]
-    else {
-      switch(sig(a)) {
-        case PP:
+  template<Approx appx = OVER, class L, class K>
+  CUDA static constexpr this_type mul(const Interval<L>& a, const Interval<K>& b) {
+    static_assert(appx == OVER, "Only over-approximation of multiplication is supported.");
+    // Interval multiplication case, [al..au] * [bl..bu]
+    switch(sig(a)) {
+      case PP:
+        switch(sig(b)) {
+          case PP: return mul2<appx>(a, b);
+          case NP: return mul2<appx>(a.ub2(), b);
+          case NN: return mul2<appx>(reverse2(a), b);
+          case PN:
+            if(b.as_product().is_top()) { return top(); }
+            else { return mul2<appx>(a.lb2(), b); }
+        }
+      case NP:
+        switch(sig(b)) {
+          case PP: return mul2<appx>(a, b.ub2());
+          // Note: we use meet for both bounds because UB is the dual of LB (e.g., if meet in LB is min, then meet in UB is max).
+          case NP: return this_type(
+              meet(LB::template fun<appx, MUL>(a.lb(), b.ub()), LB::template fun<appx, MUL>(a.ub(), b.lb())),
+              meet(UB::template fun<appx, MUL>(a.lb(), b.lb()), UB::template fun<appx, MUL>(a.ub(), b.ub())));
+          case NN: return mul2<appx>(reverse(a), b.lb2());
+          case PN:
+            if(b.as_product().is_top()) { return top(); }
+            else { return zero; }
+        }
+      case NN:
+        switch(sig(b)) {
+          case PP: return mul2<appx>(a, reverse2(b));
+          case NP: return mul2<appx>(a.lb2(), reverse(b));
+          case NN: return mul2<appx>(reverse2(a), reverse2(b));
+          case PN:
+            if(b.as_product().is_top()) { return top(); }
+            else { return mul2<appx>(a.ub2(), reverse2(b)); }
+        }
+      case PN:
+        if(a.as_product().is_top()) { return top(); }
+        else {
           switch(sig(b)) {
-            case PP: return this_type(CP::fun<appx, MUL>(a, b));
-            case NP: return this_type(CP::fun<appx, MUL>(a.ub(), b));
-            case NN: return this_type(CP::fun<appx, MUL>(reverse(a), b));
-            case PN: return this_type(CP::fun<appx, MUl>(a.lb(), b));
-          }
-        case NP:
-          switch(sig(b)) {
-            case PP: return this_type(CP::fun<appx, MUL>(a, b.ub()));
-            // Note: we use meet for both bounds because UB is the dual of LB (e.g., if meet in LB is min, then meet in UB is max).
-            case NP: return this_type(
-                meet(LB::fun<appx, MUL>(a.lb(), b.ub()), LB::fun<appx, MUL>(a.ub(), b.lb())),
-                meet(UB::fun<appx, MUL>(a.lb(), b.lb()), UB::fun<appx, MUL>(a.ub(), b.ub())));
-            case NN: return this_type(CP::fun<appx, MUL>(reverse(a), b.lb()));
-            case PN: return zero;
-          }
-        case NN:
-          switch(sig(b)) {
-            case PP: return this_type(CP::fun<appx, MUL>(a, reverse(b)));
-            case NP: return this_type(CP::fun<appx, MUL>(a.lb(), reverse(b)));
-            case NN: return this_type(CP::fun<appx, MUL>(reverse(a), reverse(b)));
-            case PN: return this_type(CP::fun<appx, MUL>(a.ub(), reverse(b)));
-          }
-        case PN:
-          switch(sig(b)) {
-            case PP: return this_type(CP::fun<appx, MUL>(a, b.lb()));
+            case PP: return mul2<appx>(a, b.lb2());
             case NP: return zero;
-            case NN: return this_type(CP::fun<appx, MUL>(reverse(a), b.ub()));
-            case PN: return this_type(
-                join(LB::fun<appx, MUL>(a.lb(), b.lb()), LB::fun<appx, MUL>(a.ub(), b.ub())),
-                join(UB::fun<appx, MUL>(a.lb(), b.ub()), UB::fun<appx, MUL>(a.ub(), b.lb())));
+            case NN: return mul2<appx>(reverse2(a), b.ub2());
+            case PN:
+              if(b.as_product().is_top()) { return top(); }
+              else {
+                return this_type(
+                  join(LB::template fun<appx, MUL>(a.lb(), b.lb()), LB::template fun<appx, MUL>(a.ub(), b.ub())),
+                  join(UB::template fun<appx, MUL>(a.lb(), b.ub()), UB::template fun<appx, MUL>(a.ub(), b.lb())));
+              }
           }
-      }
+        }
     }
+    assert(0); // All cases should be covered.
+    return top();
   }
 
-  template<Approx appx = OVER, Sig divsig, class A, class B>
-  CUDA static constexpr this_type div(const A& a, const B& b) {
-    static_assert(is_interval_v<A> || is_interval_v<B>,
-      "Division over interval is only defined when one of the operands is an interval.");
-    static_assert(appx != EXACT, "Division cannot be exactly represented in intervals.");
-    // I. Under-approximation case.
-    if constexpr(appx == UNDER) {
-      auto l = LB::fun<appx, divsig>(is_interval_v<A> ? lb(a) : a, is_interval_v<B> ? lb(b) : b);
-      return this_type(l, l);
-    }
-    // II. Interval divided by a bound, [al..au] / b or a / [bl..bu].
-    else if constexpr(!is_interval_v<B>) {
-      return (b >= B::zero)
-        ? this_type(CP::fun<appx, divsig>(a, b));
-        : this_type(CP::fun<appx, divsig>(reverse(a), b));
-    }
-    else if constexpr(!is_interval_v<A>) {
-      if(b.lb().value() < B::zero && b.ub().value() > B::zero) {
-        return this_type::bot();
-      }
-      else {
-        return (a >= A::zero)
-          ? this_type(CP::fun<appx, divsig>(a, b));
-          : this_type(CP::fun<appx, divsig>(a, reverse(b)));
-      }
-    }
-    // III. Interval division, [al..au] / [bl..bu]
-    else {
-      switch(sig(b)) {
-        case NP: return this_type::bot();
-        case PN: return this_type::top();  /* This is by duality with the case above, but I am unsure if it makes sense. */
-        case PP:
-          if(b.lb() == B::LB::zero) { return this_type::top(); }  // b is a singleton equal to zero.
+  template<Approx appx = OVER, Sig divsig, class L, class K>
+  CUDA static constexpr this_type div(const Interval<L>& a, const Interval<K>& b) {
+    static_assert(appx == OVER, "Only over-approximation of division is supported.");
+    // Interval division, [al..au] / [bl..bu]
+    switch(sig(b)) {
+      case PP:
+        if(b.ub() == K::zero) { return top(); }  // b is a singleton equal to zero.
+        switch(sig(a)) {
+          case PP: return div2<appx, divsig>(a, reverse2(b));
+          case NP: return div2<appx, divsig>(a, b.lb2());
+          case NN: return div2<appx, divsig>(a, b);
+          case PN:
+            if(a.as_product().is_top()) { return top(); }
+            else { return div2<appx, divsig>(a, b.ub2()); }
+        }
+      case NP:
+        if(a.is_top()) { return top(); }
+        else {
+          if constexpr(L::preserve_inner_covers && K::preserve_inner_covers) { // In the discrete case, division can be more precise.
+            switch(sig(a)) {
+              case PP: return div2<appx, divsig>(a.ub2(), reverse(b));
+              case NP: return this_type(
+                meet(LB::template fun<appx, divsig>(a.lb(), b.lb()), LB::template fun<appx, divsig>(a.ub(), b.ub())),
+                meet(UB::template fun<appx, divsig>(a.lb(), b.ub()), UB::template fun<appx, divsig>(a.ub(), b.lb())));
+              case NN: return div2<appx, divsig>(a.lb2(), b);
+              case PN: return (a.as_product().is_top()) ? top() : zero;
+            }
+          }
+          else {
+            return bot();
+          }
+        }
+      case NN:
+        switch(sig(a)) {
+          case PP: return div2<appx, divsig>(reverse2(a), reverse2(b));
+          case NP: return div2<appx, divsig>(reverse(a), b.ub2());
+          case NN: return div2<appx, divsig>(reverse2(a), b);
+          case PN:
+            if(a.as_product().is_top()) { return top(); }
+            else { return div2<appx, divsig>(reverse2(a), b.lb2()); }
+        }
+      case PN:
+        if(b.as_product().is_top()) { return top(); }
+        if constexpr(L::preserve_inner_covers && K::preserve_inner_covers) {
           switch(sig(a)) {
-            case PP: return this_type(CP::fun<appx, divsig>(a, reverse(b)));
-            case NP: return this_type(CP::fun<appx, divsig>(a, b.lb()));
-            case NN: return this_type(CP::fun<appx, divsig>(a, b));
-            case PN: return this_type(CP::fun<appx, divsig>(a, b.ub()));
+            case PP: return div2<appx, divsig>(a.lb2(), reverse2(b));
+            case NP: return zero;
+            case NN: return div2<appx, divsig>(a.ub2(), reverse2(b));
+            case PN:
+              if(a.as_product().is_top()) { return top(); }
+              else {
+                return this_type(
+                  join(LB::template fun<appx, divsig>(a.lb(), b.ub()), LB::template fun<appx, divsig>(a.ub(), b.lb())),
+                  join(UB::template fun<appx, divsig>(a.lb(), b.lb()), UB::template fun<appx, divsig>(a.ub(), b.ub())));
+              }
           }
-        case NN:
-          switch(sig(a)) {
-            case PP: return this_type(CP::fun<appx, divsig>(reverse(a), reverse(b)));
-            case NP: return this_type(CP::fun<appx, divsig>(reverse(a), b.ub()));
-            case NN: return this_type(CP::fun<appx, divsig>(reverse(a), b));
-            case PN: return this_type(CP::fun<appx, divsig>(reverse(a), b.lb()));
-          }
-      }
+        }
+        else {
+          return top();  /* This is by duality with the case above, but I am unsure if it makes sense. */
+        }
     }
+    assert(0); // All cases should be covered.
+    return top();
   }
 
-  template<Approx appx = OVER, Sig modsig, class A, class B>
-  CUDA static constexpr this_type mod(const A& a, const B& b) {
-    static_assert(is_interval_v<A> && is_interval_v<B>,
-      "Modulo over interval is only defined when both of the operands are an interval.");
-    static_assert(appx != EXACT, "Modulo cannot be exactly represented in intervals.");
-    // I. Under-approximation case.
-    if constexpr(appx == UNDER) {
-      auto l = LB::fun<appx, modsig>(is_interval_v<A> ? lb(a) : a, is_interval_v<B> ? lb(b) : b);
-      return this_type(l, l);
+  template<Approx appx = OVER, Sig modsig, class L, class K>
+  CUDA static constexpr this_type mod(const Interval<L>& a, const Interval<K>& b) {
+    static_assert(appx == OVER, "Only over-approximation of modulo is supported.");
+    if(a.is_top() || b.is_top()) { return top(); }
+    if(a.lb() == dual<LB>(a.ub()) && b.lb() == dual<LB>(b.ub())) {
+      auto l = LB::template fun<appx, modsig>(a.lb(), b.lb());
+      auto u = UB::template fun<appx, modsig>(a.ub(), b.ub());
+      return this_type(l, u);
     }
     else {
-      if(a.lb() == a.ub() && b.lb() == b.ub()) {
-        auto l = LB::fun<appx, modsig>(a.lb(), b.lb());
-        auto u = UB::fun<appx, modsig>(a.ub(), b.ub());
-        return this_type(l, u);
-      }
-      else {
-        return a;
-      }
+      return bot();
     }
   }
 
-  template<Approx appx = OVER, class A, class B>
-  CUDA static constexpr this_type pow(const A& a, const B& b) {
-    static_assert(is_interval_v<A> && is_interval_v<B>,
-      "Exponentiation over interval is only defined when both of the operands are an interval.");
-    static_assert(appx != EXACT, "Exponentiation cannot be exactly represented in intervals.");
-    // I. Under-approximation case.
-    if constexpr(appx == UNDER) {
-      auto l = LB::fun<appx, POW>(is_interval_v<A> ? lb(a) : a, is_interval_v<B> ? lb(b) : b);
-      return this_type(l, l);
+  template<Approx appx = OVER, class L, class K>
+  CUDA static constexpr this_type pow(const Interval<L>& a, const Interval<K>& b) {
+    static_assert(appx == OVER, "Only over-approximation of exponentiation is supported.");
+    if(a.is_top() || b.is_top()) { return top(); }
+    if(a.lb() == dual<LB>(a.ub()) && b.lb() == dual<LB>(b.ub())) {
+      auto l = LB::template fun<appx, POW>(a.lb(), b.lb());
+      auto u = UB::template fun<appx, POW>(a.ub(), b.ub());
+      return this_type(l, u);
     }
     else {
-      if(a.lb() == a.ub() && b.lb() == b.ub()) {
-        auto l = LB::fun<appx, POW>(a.lb(), b.lb());
-        auto u = UB::fun<appx, POW>(a.ub(), b.ub());
-        return this_type(l, u);
-      }
-      else {
-        return a;
-      }
+      return bot();
     }
   }
 
-  template<Approx appx, Sig sig, class A, class B>
-  CUDA static constexpr this_type fun(const A& x, const B& y) {
-    static_assert(
+  template<Approx appx, Sig sig, class L, class K>
+  CUDA static constexpr this_type fun(const Interval<L>& x, const Interval<K>& y) {
+    if constexpr(sig == ADD) { return this_type::add<appx>(x, y); }
+    else if constexpr(sig == SUB) { return this_type::sub<appx>(x, y); }
+    else if constexpr(sig == MUL) { return this_type::mul<appx>(x, y); }
+    else if constexpr(is_division(sig)) { return this_type::div<appx, sig>(x, y); }
+    else if constexpr(is_modulo(sig)) { return this_type::mod<appx, sig>(x, y); }
+    else if constexpr(sig == POW) { return this_type::pow<appx>(x, y); }
+    else if constexpr(sig == MIN || sig == MAX) { return this_type(CP::template fun<appx, sig>(x.as_product(), y.as_product())); }
+    else { static_assert(
       sig == ADD || sig == SUB || sig == MUL || sig == TDIV || sig == TMOD || sig == FDIV || sig == FMOD || sig == CDIV || sig == CMOD || sig == EDIV || sig == EMOD || sig == POW || sig == MIN || sig == MAX,
       "Unsupported binary function.");
-    switch(sig) {
-      case ADD: return this_type::add<appx>(x, y);
-      case SUB: return this_type::sub<appx>(x, y);
-      case MUL: return this_type::mul<appx>(x, y);
-      case DIV:
-      case TDIV:
-      case FDIV:
-      case CDIV:
-      case EDIV: return this_type::div<appx, sig>(x, y);
-      case TMOD:
-      case FMOD:
-      case CMOD:
-      case EMOD: return this_type::mod<appx, sig>(x, y);
-      case POW: return this_type::pow<appx>(x, y);
-      case MIN:
-      case MAX: return this_type(CP::fun<appx, sig>(a, b));
-      default: assert(0); return x;
     }
   }
 };
@@ -504,38 +502,38 @@ CUDA auto meet(const Interval<L>& a, const Interval<K>& b)
   return impl::make_itv(meet(a.as_product(), b.as_product()));
 }
 
-template<class A, class B>
-CUDA bool operator<=(const A& a, const B& b)
+template<class L, class K>
+CUDA bool operator<=(const Interval<L>& a, const Interval<K>& b)
 {
   return b.is_top() || a.as_product() <= b.as_product();
 }
 
-template<class A, class B>
-CUDA bool operator<(const A& a, const B& b)
+template<class L, class K>
+CUDA bool operator<(const Interval<L>& a, const Interval<K>& b)
 {
   return (b.is_top() && !a.is_top()) || a.as_product() < b.as_product();
 }
 
-template<class A, class B>
-CUDA bool operator>=(const A& a, const B& b)
+template<class L, class K>
+CUDA bool operator>=(const Interval<L>& a, const Interval<K>& b)
 {
   return b <= a;
 }
 
-template<class A, class B>
-CUDA bool operator>(const A& a, const B& b)
+template<class L, class K>
+CUDA bool operator>(const Interval<L>& a, const Interval<K>& b)
 {
   return b < a;
 }
 
-template<class A, class B>
-CUDA bool operator==(const A& a, const B& b)
+template<class L, class K>
+CUDA bool operator==(const Interval<L>& a, const Interval<K>& b)
 {
   return a.as_product() == b.as_product() || (a.is_top() && b.is_top());
 }
 
-template<class A, class B>
-CUDA bool operator!=(const A& a, const B& b)
+template<class L, class K>
+CUDA bool operator!=(const Interval<L>& a, const Interval<K>& b)
 {
   return a.as_product() != b.as_product() && !(a.is_top() && b.is_top());
 }
