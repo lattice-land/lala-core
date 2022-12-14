@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#include "cartesian_product.hpp"
 #include "generic_universe_test.hpp"
+#include "cartesian_product.hpp"
 
 using zi = local::ZInc;
 using zd = local::ZDec;

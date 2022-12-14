@@ -130,7 +130,12 @@ public:
   }
 
   CUDA size_t num_vars_in(AType aty) const {
-    return avar2lvar[aty].size();
+    if(aty >= avar2lvar.size()) {
+      return 0;
+    }
+    else {
+      return avar2lvar[aty].size();
+    }
   }
 
   /** A variable environment can interpret formulas of two forms:

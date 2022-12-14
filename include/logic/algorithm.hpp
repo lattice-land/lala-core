@@ -84,6 +84,16 @@ namespace impl {
     }
     return total;
   }
+
+  template<size_t n, class F>
+  CUDA int num_qf_vars_in_seq(const F& f) {
+    const auto& children = battery::get<1>(battery::get<n>(f.data()));
+    int total = 0;
+    for(int i = 0; i < children.size(); ++i) {
+      total += num_quantified_untyped_vars(children[i]);
+    }
+    return total;
+  }
 }
 
 /** \return The first variable occurring in the formula, or any other subformula if the formula does not contain a variable.
@@ -100,17 +110,24 @@ template<class F>
 CUDA int num_vars(const F& f)
 {
   switch(f.index()) {
-    case F::Z:
-    case F::R:
-    case F::S:
-      return 0;
     case F::V:
     case F::E:
     case F::LV:
       return 1;
     case F::Seq: return impl::num_vars_in_seq<F::Seq>(f);
     case F::ESeq: return impl::num_vars_in_seq<F::ESeq>(f);
-    default: printf("num_vars: formula not handled.\n"); assert(false); return 0;
+    default: return 0;
+  }
+}
+
+/** \return The number of variables occurring in an existential quantifier that are untyped. */
+template<class F>
+CUDA int num_quantified_untyped_vars(const F& f) {
+  switch(f.index()) {
+    case F::E: return f.type() == UNTYPED ? 1 : 0;
+    case F::Seq: return impl::num_qf_vars_in_seq<F::Seq>(f);
+    case F::ESeq: return impl::num_qf_vars_in_seq<F::ESeq>(f);
+    default: return 0;
   }
 }
 

@@ -48,6 +48,8 @@ private:
   CUDA this_type lb2() const { return Interval(lb(), dual<UB>(lb())); }
   CUDA this_type ub2() const { return Interval(dual<LB>(ub()), ub()); }
 public:
+  /** Initialize the interval to bottom using the default constructor of the bounds. */
+  CUDA constexpr Interval() {}
   /** Given a value \f$ x \in U \f$ where \f$ U \f$ is the universe of discourse, we initialize a singleton interval \f$ [x..x] \f$. */
   CUDA constexpr Interval(const typename U::value_type& x): cp(x, x) {}
   CUDA constexpr Interval(const LB& lb, const UB& ub): cp(lb, ub) {}
@@ -490,6 +492,8 @@ public:
   }
 };
 
+// Lattice operations
+
 template<class L, class K>
 CUDA auto join(const Interval<L>& a, const Interval<K>& b)
 {
@@ -536,6 +540,11 @@ template<class L, class K>
 CUDA bool operator!=(const Interval<L>& a, const Interval<K>& b)
 {
   return a.as_product() != b.as_product() && !(a.is_top() && b.is_top());
+}
+
+template<class L>
+std::ostream& operator<<(std::ostream &s, const Interval<L> &itv) {
+  return s << "[" << itv.lb() << ".." << itv.ub() << "]";
 }
 
 } // namespace lala

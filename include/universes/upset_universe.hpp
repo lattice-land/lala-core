@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <utility>
 #include <cmath>
+#include <iostream>
 #include "thrust/optional.h"
 #include "../logic/logic.hpp"
 #include "chain_pre_dual.hpp"
@@ -144,14 +145,15 @@ private:
 public:
   /** Similar to \f$[\![\mathit{true}]\!]\f$ if `preserve_bot` is true. */
   CUDA static this_type bot() {
-    return this_type(U::bot());
+    return this_type();
   }
 
   /** Similar to \f$[\![\mathit{false}]\!]\f$ if `preserve_top` is true. */
   CUDA static this_type top() {
     return this_type(U::top());
   }
-
+  /** Initialize an upset universe to bottom. */
+  CUDA UpsetUniverse(): val(U::bot()) {}
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
   CUDA UpsetUniverse(value_type x): val(x) {}
   CUDA UpsetUniverse(const this_type& other): UpsetUniverse(other.value()) {}
@@ -485,6 +487,19 @@ CUDA bool operator!=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M
   return a.value() != b.value();
 }
 
+template<class Pre, class M>
+std::ostream& operator<<(std::ostream &s, const UpsetUniverse<Pre, M> &upset) {
+  if(upset.is_bot()) {
+    s << "\u22A5";
+  }
+  else if(upset.is_top()) {
+    s << "\u22A4";
+  }
+  else {
+    s << upset.value();
+  }
+  return s;
+}
 
 } // namespace lala
 

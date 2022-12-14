@@ -65,6 +65,7 @@ public:
   template<size_t i>
   using type_of = typename battery::tuple_element<i, battery::tuple<As...>>::type;
   constexpr static size_t n = battery::tuple_size<battery::tuple<As...>>{};
+  static_assert(n > 0, "CartesianProduct must not be empty.");
   using this_type = CartesianProduct<As...>;
   using memory_type = typename type_of<0>::memory_type;
 
@@ -81,6 +82,8 @@ private:
   battery::tuple<As...> val;
 
 public:
+  /** Initialize a Cartesian product to bottom using default constructors. */
+  CUDA constexpr CartesianProduct() = default;
   CUDA constexpr CartesianProduct(const As&... as): val(battery::make_tuple(as...)) {}
   CUDA constexpr CartesianProduct(As&&... as): val(battery::make_tuple(std::forward<As>(as)...)) {}
   CUDA constexpr CartesianProduct(typename As::value_type... vs): val(battery::make_tuple(As(vs)...)) {}
@@ -537,6 +540,29 @@ template<class... As, class... Bs>
 CUDA bool operator!=(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
 {
   return impl::neq_(a, b, impl::index_sequence_of(a, b));
+}
+
+namespace impl {
+  template<size_t i = 0, class... As>
+  void std_print(std::ostream &s, const CartesianProduct<As...> &cp) {
+    if constexpr(i < CartesianProduct<As...>::n) {
+      s << project<i>(cp);
+      if constexpr(i < CartesianProduct<As...>::n - 1) {
+        s << ", ";
+        std_print<i+1>(s, cp);
+      }
+    }
+  }
+}
+
+template<class A, class... As>
+std::ostream& operator<<(std::ostream &s, const CartesianProduct<A, As...> &cp) {
+// There is a weird compilation bug with `template<class... As>` where the compiler tries to instantiate << with an empty sequence of templates.
+// Forcing at least one template solves the problem.
+  s << "(";
+  impl::std_print<0>(s, cp);
+  s << ")";
+  return s;
 }
 
 } // namespace lala
