@@ -108,7 +108,7 @@ public:
   template<size_t i, class F, class Env>
   CUDA static iresult<F> interpret_one(const F& f, const Env& env) {
     auto one = type_of<i>::interpret(f, env);
-    if(one.is_ok()) {
+    if(one.has_value()) {
       auto res = bot();
       project<i>(res).tell(one.value());
       return one.map(std::move(res));
@@ -132,13 +132,13 @@ private:
     }
     else {
       auto one = type_of<i>::interpret(f, env);
-      if(one.is_ok()) {
+      if(one.has_value()) {
         res.template project<i>().tell(one.value());
         return std::move(interpret_all<i+1>(f, res, false, env).join_warnings(std::move(one)));
       }
       else {
         auto r = interpret_all<i+1>(f, res, empty, env);
-        if(!r.is_ok()) {
+        if(!r.has_value()) {
           r.join_errors(std::move(one));
         }
         return std::move(r);
@@ -155,7 +155,7 @@ public:
       iresult<F> res(bot());
       for(int i = 0; i < f.seq().size(); ++i) {
         auto r = interpret_all(f.seq(i), cp, true, env);
-        if(!r.is_ok()) {
+        if(!r.has_value()) {
           return std::move(r).template map_error<this_type>();
         }
         res.join_warnings(std::move(r));

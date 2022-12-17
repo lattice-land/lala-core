@@ -37,7 +37,7 @@ struct ChainPreDual {
   template<class F>
   CUDA static iresult<F> interpret_type(const F& f) {
     auto r = L::interpret_type(f);
-    if(r.is_ok() && r.value() == L::bot()) {
+    if(r.has_value() && r.value() == L::bot()) {
       return std::move(r).map(bot());
     }
     return r;

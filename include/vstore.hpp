@@ -163,12 +163,12 @@ private:
     using TellType = tell_type<typename Env::allocator_type>;
     assert(f.is(F::E));
     auto u = universe_type::interpret(f, env);
-    if(u.is_ok()) {
+    if(u.has_value()) {
       if(env.num_vars_in(atype) >= vars()) {
         return iresult<Env, F>(IError<F>(true, name, "The variable could not be interpreted because the store is full.", f));
       }
       auto avar = env.interpret(f.map_atype(atype));
-      if(avar.is_ok()) {
+      if(avar.has_value()) {
         if(u.value().is_bot()) {
           return std::move(iresult<Env, F>(TellType(env.get_allocator())).join_warnings(std::move(u)));
         }
@@ -207,7 +207,7 @@ private:
   template <class F, class Env>
   CUDA iresult<Env, F> interpret_unary_predicate(const F& f, const Env& env) const {
     auto u = universe_type::interpret(f, env);
-    if(u.is_ok()) {
+    if(u.has_value()) {
       tell_type res(env.get_allocator());
       auto var = var_in(f, env);
       if(!var.has_value()) {
@@ -258,7 +258,7 @@ public:
     Variables must be existentially quantified before a formula containing variables can be interpreted.
     Variables are immediately assigned to an index of `VStore` and initialized to \f$ \bot_U \f$, if the universe's interpretation is different from bottom, the result of the VStore interpretation need to be `tell` later on in the store.
     Shadowing/redeclaration of variables with existential quantifier is not supported.
-    Variables are added to the current abstract element only if `interpret(f).is_ok()`.
+    Variables are added to the current abstract element only if `interpret(f).has_value()`.
 
     As a quirk, different stores might be produced if quantifiers do not appear in the same order.
     This is because we attribute the first available index to variables when interpreting the quantifier.
@@ -304,7 +304,7 @@ public:
   CUDA static IResult<this_type, F> interpret(const F& f, Env& env, allocator_type alloc = allocator_type()) {
     this_type store(env.num_abstract_doms(), num_quantified_untyped_vars(f), alloc);
     auto r = store.interpret_in(f, env);
-    if(r.is_ok()) {
+    if(r.has_value()) {
       store.tell(r.value());
       return std::move(r).map(std::move(store));
     }

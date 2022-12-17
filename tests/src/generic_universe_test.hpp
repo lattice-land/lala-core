@@ -34,10 +34,10 @@ L interpret_to(const std::string& fzn, VarEnv<StandardAllocator>& env, Approx ap
   f->approx_as(appx);
   f->print(true, true);
   IResult<L, F> r = L::interpret(*f, env);
-  if(!r.is_ok()) {
+  if(!r.has_value()) {
     r.print_diagnostics();
   }
-  EXPECT_TRUE(r.is_ok());
+  EXPECT_TRUE(r.has_value());
   return std::move(r.value());
 }
 
@@ -63,10 +63,10 @@ void must_interpret_to(VarEnv<StandardAllocator>& env, const char* fzn, const L&
   std::cout << std::endl;
   IResult<L, F> r = L::interpret(*f, env);
   std::cout << fzn << std::endl;
-  if(!r.is_ok()) {
+  if(!r.has_value()) {
     r.print_diagnostics();
   }
-  EXPECT_TRUE(r.is_ok());
+  EXPECT_TRUE(r.has_value());
   EXPECT_EQ(r.has_warning(), has_warning);
   EXPECT_EQ(r.value(), expect);
 }
@@ -85,10 +85,10 @@ void must_error(VarEnv<StandardAllocator>& env, const char* fzn) {
   f->print(true, true);
   IResult<L, F> r = L::interpret(*f, env);
   std::cout << fzn << std::endl;
-  if(r.is_ok()) {
+  if(r.has_value()) {
     std::cout << r.value() << std::endl;
   }
-  EXPECT_FALSE(r.is_ok());
+  EXPECT_FALSE(r.has_value());
 }
 
 template<class L>

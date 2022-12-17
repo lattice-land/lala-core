@@ -273,7 +273,7 @@ private:
       return iresult<F>(IError<F>(true, name, "Undeclared variable.", f));
     }
     auto r = pre_universe::interpret(k, var->sort, f.approx());
-    if(!r.is_ok()) {
+    if(!r.has_value()) {
       return r;
     }
     else if(sig == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24

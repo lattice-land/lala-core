@@ -150,12 +150,8 @@ public:
     return *this;
   }
 
-  CUDA bool is_ok() const {
-    return result.index() == 0;
-  }
-
   CUDA bool has_value() const {
-    return is_ok();
+    return result.index() == 0;
   }
 
   CUDA const T& value() const {
@@ -171,7 +167,7 @@ public:
 
   template<class U>
   CUDA IResult<U, F> map(U&& data2) && {
-    if(is_ok()) {
+    if(has_value()) {
       auto r = IResult<U, F>(std::move(data2));
       r.warnings = std::move(warnings);
       return std::move(r);
@@ -212,7 +208,7 @@ public:
   }
 
   CUDA void print_diagnostics() const {
-    if(is_ok()) {
+    if(has_value()) {
       printf("successfully interpreted\n");
     }
     else {
