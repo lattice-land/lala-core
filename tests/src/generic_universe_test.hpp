@@ -26,26 +26,32 @@ inline VarEnv<StandardAllocator> init_env() {
   return std::move(env);
 }
 
+/** `appx` is the approximation kind of the top-level conjunction. */
 template <class L>
-L interpret_to(const std::string& fzn, VarEnv<StandardAllocator>& env) {
+L interpret_to(const std::string& fzn, VarEnv<StandardAllocator>& env, Approx appx = EXACT) {
   auto f = parse_flatzinc_str<StandardAllocator>(fzn);
   EXPECT_TRUE(f);
+  f->approx_as(appx);
+  f->print(true, true);
   IResult<L, F> r = L::interpret(*f, env);
+  if(!r.is_ok()) {
+    r.print_diagnostics();
+  }
   EXPECT_TRUE(r.is_ok());
   return std::move(r.value());
 }
 
 template <class L>
-L interpret_to(const char* fzn) {
+L interpret_to(const char* fzn, Approx appx = EXACT) {
   using F = TFormula<StandardAllocator>;
   VarEnv<StandardAllocator> env = init_env();
   return interpret_to<L>(fzn, env);
 }
 
 template <class L>
-L interpret_to2(const char* fzn) {
+L interpret_to2(const char* fzn, Approx appx = EXACT) {
   VarEnv<StandardAllocator> env;
-  return interpret_to<L>(fzn, env);
+  return interpret_to<L>(fzn, env, appx);
 }
 
 template<class L>

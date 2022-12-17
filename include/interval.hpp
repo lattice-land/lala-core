@@ -91,6 +91,18 @@ public:
         return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
       }
     }
+    else if(f.is_binary() && f.sig() == NEQ) {
+      if(f.is_over()) {
+        return iresult<F>(IError<F>(true, name, "Disequality cannot be interpreted by over-approximation (it would always give the bottom interval [-oo..oo]).", f));
+      }
+      else if(f.is_under()) {
+        auto lb = LB::interpret(f, env);
+        if(lb.has_value()) {
+          this_type itv(lb.value(), UB::bot());
+          return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(lb)));
+        }
+      }
+    }
     // Forward to CP in case the formula `f` did not fit the cases above.
     auto cp_interpret = CP::interpret(f, env);
     if(cp_interpret.has_value()) {

@@ -20,7 +20,7 @@ In practice, we cannot represent infinite collections, so we represent bottom ei
 Any finite store \f$ \langle x_1, \ldots, x_n \rangle \f$ should be seen as the concrete store \f$ \langle x_1, \ldots, x_n, \bot, \ldots \rangle \f$.
 
 This semantics has implication when joining or merging two elements.
-For instance, \f$ \langle 1 \rangle.\mathit{dtell}(\langle \bot, 4 \rangle) \rangle will be equal to bottom, in that case represented by \f$ \langle \bot \rangle \f$.
+For instance, \f$ \langle 1 \rangle.\mathit{dtell}(\langle \bot, 4 \rangle) \f$ will be equal to bottom, in that case represented by \f$ \langle \bot \rangle \f$.
 
 Limitation:
   - The size of the variable store is fixed at initialization and cannot be modified afterwards.
