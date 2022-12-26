@@ -69,6 +69,11 @@ public:
     return *this;
   }
 
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type& other) const {
+    cp = other.cp;
+    return *this;
+  }
+
   inline static const this_type zero = this_type(LB::zero, UB::zero);
   inline static const this_type one = this_type(LB::one, UB::one);
 
@@ -257,7 +262,7 @@ public:
   /** The additive inverse is obtained by pairwise negation of the components.
    * Equivalent to `neg(reverse(x))`.
    * Note that the inverse of `bot` is `bot`, simply because `bot` has no mathematical inverse. */
-  CUDA this_type additive_inverse(const this_type& x) {
+  CUDA static this_type additive_inverse(const this_type& x) {
     static_assert(LB::is_supported_fun(EXACT, NEG) && UB::is_supported_fun(EXACT, NEG),
       "Exact negation of interval bounds are required to compute the additive inverse.");
     return this_type(CP::template fun<EXACT, NEG>(x.as_product()));

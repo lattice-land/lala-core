@@ -171,6 +171,11 @@ public:
     return *this;
   }
 
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type& other) const {
+    memory_type::store(val, other.value());
+    return *this;
+  }
+
   CUDA value_type value() const { return memory_type::load(val); }
 
   CUDA operator value_type() const { return value(); }

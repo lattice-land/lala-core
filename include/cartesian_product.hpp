@@ -103,6 +103,11 @@ public:
     return *this;
   }
 
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type& other) const {
+    val = other.val;
+    return *this;
+  }
+
   /** Cartesian product initialized to \f$ (\bot_1, \ldots, \bot_n) \f$. */
   CUDA static this_type bot() {
     return CartesianProduct(As::bot()...);
