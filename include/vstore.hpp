@@ -100,7 +100,7 @@ public:
     return data.get_allocator();
   }
 
-  CUDA AType uid() const {
+  CUDA AType aty() const {
     return atype;
   }
 
@@ -110,17 +110,17 @@ public:
     return data.size();
   }
 
-  CUDA static this_type bot(AType uid = UNTYPED,
+  CUDA static this_type bot(AType atype = UNTYPED,
     const allocator_type& alloc = allocator_type())
   {
-    return VStore(uid, 0, alloc);
+    return VStore(atype, 0, alloc);
   }
 
   /** A special symbolic element representing top. */
-  CUDA static this_type top(AType uid = UNTYPED,
+  CUDA static this_type top(AType atype = UNTYPED,
     const allocator_type& alloc = allocator_type())
   {
-    return std::move(VStore(uid, 0, alloc).tell_top());
+    return std::move(VStore(atype, 0, alloc).tell_top());
   }
 
   /** `true` if at least one element is equal to top in the store, `false` otherwise. */
@@ -174,7 +174,7 @@ private:
         }
         else {
           TellType res(env.get_allocator());
-          res.push_back(var_dom(VID(avar.value()), u.value()));
+          res.push_back(var_dom(avar.value().vid(), u.value()));
           return std::move(iresult<Env, F>(std::move(res)).join_warnings(std::move(u)));
         }
       }
@@ -220,7 +220,7 @@ private:
               "The variable was not declared in the current abstract element (but exists in other abstract elements).", f))
             .join_warnings(std::move(u)));
         }
-        res.push_back(var_dom(VID(*avar), u.value()));
+        res.push_back(var_dom(avar->vid(), u.value()));
       }
       return std::move(iresult<Env, F>(std::move(res)).join_warnings(std::move(u)));
     }
@@ -266,7 +266,7 @@ public:
   */
   template <class F, class Env>
   CUDA iresult<Env, F> interpret_in(const F& f, Env& env) const {
-    if((f.type() == UNTYPED || f.type() == uid())
+    if((f.type() == UNTYPED || f.type() == aty())
      && f.is(F::Seq) && f.sig() == AND)
     {
       const typename F::Sequence& seq = f.seq();
@@ -315,9 +315,9 @@ public:
 
   /** The projection must stay const, otherwise the user might tell new information in the universe, but we need to know in case we reach `top`. */
   CUDA const universe_type& project(AVar x) const {
-    assert(AID(x) == uid());
-    assert(VID(x) < data.size());
-    return data[VID(x)];
+    assert(x.aty() == aty());
+    assert(x.vid() < data.size());
+    return data[x.vid()];
   }
 
   /** See note on projection. */
@@ -342,6 +342,17 @@ public:
     data[x].tell(dom, has_changed);
     is_at_top.tell(data[x].is_top());
     return *this;
+  }
+
+  CUDA this_type& tell(AVar x, const universe_type& dom) {
+    assert(x.aty() == aty());
+    return tell(x.vid(), dom);
+  }
+
+  template <class Mem>
+  CUDA this_type& tell(AVar x, const universe_type& dom, BInc<Mem>& has_changed) {
+    assert(x.aty() == aty());
+    return tell(x.vid(), dom, has_changed);
   }
 
   template <class Alloc2>

@@ -43,7 +43,7 @@ public:
 
     CUDA thrust::optional<AVar> avar_of(AType aty) const {
       for(int i = 0; i < avars.size(); ++i) {
-        if(AID(avars[i]) == aty) {
+        if(avars[i].aty() == aty) {
           return avars[i];
         }
       }
@@ -63,7 +63,7 @@ private:
 
   CUDA AVar extends_vars(AType aty, const bstring& name, const Sort<Allocator>& sort, Approx appx) {
     extends_abstract_doms(aty);
-    AVar avar = make_var(aty, avar2lvar[aty].size());
+    AVar avar(aty, avar2lvar[aty].size());
     avar2lvar[aty].push_back(lvars.size());
     lvars.push_back(Variable(name, sort, appx, avar));
     return avar;
@@ -155,7 +155,7 @@ public:
         return f.v();
       }
       else {
-        return iresult<F>(IError<F>(true, name, "Undeclared abstract variable `" + bstring::from_int(f.v()) + "`.", f));
+        return iresult<F>(IError<F>(true, name, "Undeclared abstract variable `" + bstring::from_int(f.v().aty()) + ", " + bstring::from_int(f.v().vid()) + "`.", f));
       }
     }
     else {
@@ -177,14 +177,14 @@ public:
   }
 
   CUDA bool contains(AVar av) const {
-    if(av != UNTYPED) {
-      return avar2lvar.size() > AID(av) && avar2lvar[AID(av)].size() > VID(av);
+    if(!av.is_untyped()) {
+      return avar2lvar.size() > av.aty() && avar2lvar[av.aty()].size() > av.vid();
     }
     return false;
   }
 
   CUDA const Variable& operator[](AVar av) const {
-    return lvars[avar2lvar[AID(av)][VID(av)]];
+    return lvars[avar2lvar[av.aty()][av.vid()]];
   }
 
   CUDA const bstring& name_of(AVar av) const {

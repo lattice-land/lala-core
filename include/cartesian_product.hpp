@@ -404,7 +404,7 @@ private:
       return TFormula<Allocator>::make_nary(
         AND,
         std::move(seq),
-        AID(x), EXACT, env.get_allocator());
+        x.aty(), EXACT, env.get_allocator());
     }
   }
 

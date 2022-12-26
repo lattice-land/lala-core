@@ -20,21 +20,44 @@ template<class Allocator>
 using LVar = battery::string<Allocator>;
 
 /** We call an "abstract variable" the representation of a logical variable in an abstract domain.
-It is a pair of integers `(aid, vid)` where `aid` is the UID of the abstract element and `vid` is an internal identifier of the variable inside the abstract element.
-The mapping between logical variables and abstract variables is maintained in `VarEnv` below.
+It is a pair of integers `(aty, vid)` where `aty` is the UID of the abstract element and `vid` is an internal identifier of the variable inside the abstract element.
+The mapping between logical variables and abstract variables is maintained in an environment (see `env.hpp`).
 An abstract variable always has a single name (or no name if it is not explicitly represented in the initial formula).
-However, a logical variable can be represented by several abstract variables when the variable occurs in different abstract elements. */
-using AVar = int;
-#define AID(v) (v & ((1 << 8) - 1))
-#define VID(v) (v >> 8)
+But a logical variable can be represented by several abstract variables when the variable occurs in different abstract elements. */
+class AVar {
+  int value;
+public:
+  CUDA constexpr AVar(): value(-1) {}
+  CUDA constexpr AVar(const AVar&) = default;
+  CUDA constexpr AVar(AVar&&) = default;
+  CUDA constexpr AVar& operator=(const AVar&) = default;
+  CUDA constexpr AVar& operator=(AVar&&) = default;
+  CUDA constexpr bool operator==(const AVar&) const = default;
+  CUDA constexpr bool operator!=(const AVar&) const = default;
 
-CUDA inline AVar make_var(AType atype, int var_id) {
-  assert(atype >= 0);
-  assert(var_id >= 0);
-  assert(atype < (1 << 8));
-  assert(var_id < (1 << 23));
-  return (var_id << 8) | atype;
-}
+  CUDA constexpr AVar(AType atype, int var_id): value((var_id << 8) | atype) {
+    assert(atype >= 0);
+    assert(var_id >= 0);
+    assert(atype < (1 << 8));
+    assert(var_id < (1 << 23));
+  }
+
+  CUDA constexpr bool is_untyped() const {
+    return value == -1;
+  }
+
+  CUDA constexpr int aty() const {
+    return (value & ((1 << 8) - 1));
+  }
+
+  CUDA constexpr int vid() const {
+    return value >> 8;
+  }
+
+  CUDA constexpr void type_as(AType aty) {
+    value = (vid() << 8) | aty;
+  }
+};
 
 /** A first-order signature is a triple \f$ (X, F, P) \f$ where \f$ X \f$ is the set of variables, \f$ F \f$ the set of function symbols and \f$ P \f$ the set of predicates.
   We represent \f$ X \f$ by strings (see `LVar`), while \f$ F \f$ and \f$ P \f$ are described in the following enumeration `Sig`.
@@ -309,7 +332,7 @@ public:
   CUDA void type_as(AType ty) {
     type_ = ty;
     if(is(V)) {
-      v() = make_var(ty, VID(v()));
+      v().type_as(ty);
     }
   }
 
@@ -340,11 +363,11 @@ public:
 
   /** The type of the formula is embedded in `v`. */
   CUDA static this_type make_avar(AVar v, Approx a = EXACT) {
-    return this_type(AID(v), a, Formula::template create<V>(v));
+    return this_type(v.aty(), a, Formula::template create<V>(v));
   }
 
   CUDA static this_type make_avar(AType ty, int vid, Approx a = EXACT) {
-    return make_avar(make_var(ty, vid), a);
+    return make_avar(AVar(ty, vid), a);
   }
 
   CUDA static this_type make_lvar(AType ty, LVar<Allocator> lvar, Approx a = EXACT) {
@@ -597,7 +620,7 @@ public:
         printf("}");
         break;
       case V:
-        printf("var(%d)", v());
+        printf("var(%d, %d)", v().aty(), v().vid());
         break;
       case LV:
         lv().print();

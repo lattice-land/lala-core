@@ -240,7 +240,7 @@ public:
     else if(preserve_bot && is_bot()) {
       return TFormula<allocator_t>::make_true();
     }
-    return make_v_op_z(avar, U::sig_order(), value(), AID(avar), EXACT, env.get_allocator());
+    return make_v_op_z(avar, U::sig_order(), value(), avar.aty(), EXACT, env.get_allocator());
   }
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
