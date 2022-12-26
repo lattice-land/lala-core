@@ -1,6 +1,6 @@
 // Copyright 2021 Pierre Talbot
 
-#include "generic_universe_test.hpp"
+#include "abstract_testing.hpp"
 #include "cartesian_product.hpp"
 
 using zi = local::ZInc;

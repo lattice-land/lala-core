@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
 #include "interval.hpp"
-#include "generic_universe_test.hpp"
+#include "abstract_testing.hpp"
 
 using zi = local::ZInc;
 using zd = local::ZDec;

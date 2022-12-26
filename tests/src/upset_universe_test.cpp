@@ -4,7 +4,7 @@
 #include "logic/logic.hpp"
 #include "universes/upset_universe.hpp"
 #include "allocator.hpp"
-#include "generic_universe_test.hpp"
+#include "abstract_testing.hpp"
 
 using namespace lala;
 using namespace battery;
