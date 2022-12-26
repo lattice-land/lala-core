@@ -64,12 +64,7 @@ public:
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
   template <class A>
-  CUDA std::enable_if_t<sequential, this_type&> operator=(const Interval<A>& other) const {
-    cp = other.cp;
-    return *this;
-  }
-
-  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type& other) const {
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const Interval<A>& other) {
     cp = other.cp;
     return *this;
   }

@@ -98,12 +98,7 @@ public:
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
   template <class... Bs>
-  CUDA std::enable_if_t<sequential, this_type&> operator=(const CartesianProduct<Bs...>& other) const {
-    val = other.val;
-    return *this;
-  }
-
-  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type& other) const {
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const CartesianProduct<Bs...>& other) {
     val = other.val;
     return *this;
   }

@@ -166,12 +166,7 @@ public:
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
   template <class M>
-  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type2<M>& other) const {
-    memory_type::store(val, other.value());
-    return *this;
-  }
-
-  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type& other) const {
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type2<M>& other) {
     memory_type::store(val, other.value());
     return *this;
   }
