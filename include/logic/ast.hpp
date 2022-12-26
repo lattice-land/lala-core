@@ -79,22 +79,6 @@ enum Sig {
   ///@}
 };
 
-/** Returns the converse of a comparison operator <=, <, >, >=, =, !=. */
-CUDA inline Sig converse_comparison(Sig sig) {
-  switch(sig) {
-    case LEQ: return GEQ;
-    case GEQ: return LEQ;
-    case GT: return LT;
-    case LT: return GT;
-    case EQ: return sig;
-    case NEQ: return sig;
-    default:
-      assert(false); // converse not supported for all operators.
-      break;
-  }
-  return sig;
-}
-
 CUDA inline const char* string_of_sig(Sig sig) {
   switch(sig) {
     case NEG: return "-";
