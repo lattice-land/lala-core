@@ -69,6 +69,11 @@ public:
     return *this;
   }
 
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type& other) {
+    cp = other.cp;
+    return *this;
+  }
+
   inline static const this_type zero = this_type(LB::zero, UB::zero);
   inline static const this_type one = this_type(LB::one, UB::one);
 
