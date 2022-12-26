@@ -127,6 +127,7 @@ public:
   template<class F>
   using iresult = IResult<this_type, F>;
 
+  constexpr static const bool sequential = Mem::sequential;
   constexpr static const bool is_totally_ordered = pre_universe::is_totally_ordered;
   constexpr static const bool preserve_bot = pre_universe::preserve_bot;
   constexpr static const bool preserve_top = pre_universe::preserve_top;
@@ -161,6 +162,14 @@ public:
 
   template <class M>
   CUDA UpsetUniverse(const this_type2<M>& other): UpsetUniverse(other.value()) {}
+
+  /** The assignment operator can only be used in a sequential context.
+   * It is monotone but not extensive. */
+  template <class M>
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type2<M>& other) const {
+    memory_type::store(val, other.value());
+    return *this;
+  }
 
   CUDA value_type value() const { return memory_type::load(val); }
 

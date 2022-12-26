@@ -40,6 +40,7 @@ public:
   template<class F>
   using iresult = IResult<this_type, F>;
 
+  constexpr static const bool sequential = CP::sequential;
   constexpr static const char* name = "Interval";
 
 private:
@@ -59,6 +60,14 @@ public:
 
   template<class A>
   CUDA constexpr Interval(Interval<A>&& other): cp(std::move(other.cp)) {}
+
+  /** The assignment operator can only be used in a sequential context.
+   * It is monotone but not extensive. */
+  template <class A>
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const Interval<A>& other) const {
+    cp = other.cp;
+    return *this;
+  }
 
   inline static const this_type zero = this_type(LB::zero, UB::zero);
   inline static const this_type one = this_type(LB::one, UB::one);

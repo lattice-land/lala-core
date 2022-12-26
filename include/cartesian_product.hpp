@@ -76,6 +76,7 @@ public:
 
   using value_type = battery::tuple<typename As::value_type...>;
 
+  constexpr static const bool sequential = (... && As::sequential);
   constexpr static const char* name = "CartesianProduct";
 
 private:
@@ -93,6 +94,14 @@ public:
 
   template<class... Bs>
   CUDA constexpr CartesianProduct(CartesianProduct<Bs...>&& other): val(std::move(other.val)) {}
+
+  /** The assignment operator can only be used in a sequential context.
+   * It is monotone but not extensive. */
+  template <class... Bs>
+  CUDA std::enable_if_t<sequential, this_type&> operator=(const CartesianProduct<Bs...>& other) const {
+    val = other.val;
+    return *this;
+  }
 
   /** Cartesian product initialized to \f$ (\bot_1, \ldots, \bot_n) \f$. */
   CUDA static this_type bot() {
