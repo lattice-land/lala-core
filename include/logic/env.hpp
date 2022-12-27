@@ -54,10 +54,18 @@ private:
   bvector<Variable> lvars;
   bvector<bvector<int>> avar2lvar;
 
+public:
+  CUDA AType extends_abstract_dom() {
+    avar2lvar.push_back(bvector<int>());
+    return avar2lvar.size() - 1;
+  }
+
+private:
+
   CUDA void extends_abstract_doms(AType aty) {
     assert(aty != UNTYPED);
     while(aty >= avar2lvar.size()) {
-      avar2lvar.push_back(bvector<int>());
+      extends_abstract_dom();
     }
   }
 
