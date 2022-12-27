@@ -51,7 +51,7 @@ public:
   template <class Alloc = allocator_type>
   using snapshot_type = battery::vector<universe_type, Alloc>;
 
-  template<class Env, class F>
+  template<class F, class Env>
   using iresult = IResult<tell_type<typename Env::allocator_type>, F>;
 
   constexpr static const char* name = "VStore";
@@ -159,23 +159,23 @@ public:
 
 private:
   template <class F, class Env>
-  CUDA iresult<Env, F> interpret_existential(const F& f, Env& env) const {
+  CUDA iresult<F, Env> interpret_existential(const F& f, Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
     assert(f.is(F::E));
     auto u = universe_type::interpret(f, env);
     if(u.has_value()) {
       if(env.num_vars_in(atype) >= vars()) {
-        return iresult<Env, F>(IError<F>(true, name, "The variable could not be interpreted because the store is full.", f));
+        return iresult<F, Env>(IError<F>(true, name, "The variable could not be interpreted because the store is full.", f));
       }
       auto avar = env.interpret(f.map_atype(atype));
       if(avar.has_value()) {
         if(u.value().is_bot()) {
-          return std::move(iresult<Env, F>(TellType(env.get_allocator())).join_warnings(std::move(u)));
+          return std::move(iresult<F, Env>(TellType(env.get_allocator())).join_warnings(std::move(u)));
         }
         else {
           TellType res(env.get_allocator());
           res.push_back(var_dom(avar.value().vid(), u.value()));
-          return std::move(iresult<Env, F>(std::move(res)).join_warnings(std::move(u)));
+          return std::move(iresult<F, Env>(std::move(res)).join_warnings(std::move(u)));
         }
       }
       else {
@@ -189,48 +189,48 @@ private:
 
   /** Interpret a predicate without variables. */
   template <class F, class Env>
-  CUDA iresult<Env, F> interpret_zero_predicate(const F& f, const Env& env) const {
+  CUDA iresult<F, Env> interpret_zero_predicate(const F& f, const Env& env) const {
     if(f.is_true()) {
-      return std::move(iresult<Env, F>(tell_type(env.get_allocator())));
+      return std::move(iresult<F, Env>(tell_type(env.get_allocator())));
     }
     else if(f.is_false()) {
       tell_type res(env.get_allocator());
       res.push_back(var_dom(-1, U::top()));
-      return std::move(iresult<Env, F>(std::move(res)));
+      return std::move(iresult<F, Env>(std::move(res)));
     }
     else {
-      return std::move(iresult<Env, F>(IError<F>(true, name, "Only `true` and `false` can be interpreted in the store without being named.", f)));
+      return std::move(iresult<F, Env>(IError<F>(true, name, "Only `true` and `false` can be interpreted in the store without being named.", f)));
     }
   }
 
   /** Interpret a predicate with a single variable occurrence. */
   template <class F, class Env>
-  CUDA iresult<Env, F> interpret_unary_predicate(const F& f, const Env& env) const {
+  CUDA iresult<F, Env> interpret_unary_predicate(const F& f, const Env& env) const {
     auto u = universe_type::interpret(f, env);
     if(u.has_value()) {
       tell_type res(env.get_allocator());
       auto var = var_in(f, env);
       if(!var.has_value()) {
-        return std::move(iresult<Env, F>(IError<F>(true, name, "Undeclared variable.", f)).join_warnings(std::move(u)));
+        return std::move(iresult<F, Env>(IError<F>(true, name, "Undeclared variable.", f)).join_warnings(std::move(u)));
       }
       if(!u.value().is_bot()) {
         auto avar = var->avar_of(atype);
         if(!avar.has_value()) {
-          return std::move(iresult<Env, F>(IError<F>(true, name,
+          return std::move(iresult<F, Env>(IError<F>(true, name,
               "The variable was not declared in the current abstract element (but exists in other abstract elements).", f))
             .join_warnings(std::move(u)));
         }
         res.push_back(var_dom(avar->vid(), u.value()));
       }
-      return std::move(iresult<Env, F>(std::move(res)).join_warnings(std::move(u)));
+      return std::move(iresult<F, Env>(std::move(res)).join_warnings(std::move(u)));
     }
     else {
-      return std::move(iresult<Env, F>(IError<F>(true, name, "Could not interpret a unary predicate in the underlying abstract universe.", f)).join_errors(std::move(u)));
+      return std::move(iresult<F, Env>(IError<F>(true, name, "Could not interpret a unary predicate in the underlying abstract universe.", f)).join_errors(std::move(u)));
     }
   }
 
   template <class F, class Env>
-  CUDA iresult<Env, F> interpret_predicate(const F& f, Env& env) const {
+  CUDA iresult<F, Env> interpret_predicate(const F& f, Env& env) const {
     if(f.is(F::E)) {
       return interpret_existential(f, env);
     }
@@ -238,7 +238,7 @@ private:
       switch(num_vars(f)) {
         case 0: return interpret_zero_predicate(f, env);
         case 1: return interpret_unary_predicate(f, env);
-        default: return iresult<Env, F>(IError<F>(true, name, "Interpretation of n-ary predicate is not supported in VStore.", f));
+        default: return iresult<F, Env>(IError<F>(true, name, "Interpretation of n-ary predicate is not supported in VStore.", f));
       }
     }
   }
@@ -265,12 +265,12 @@ public:
     The store will only be equivalent when considering the `env` structure.
   */
   template <class F, class Env>
-  CUDA iresult<Env, F> interpret_in(const F& f, Env& env) const {
+  CUDA iresult<F, Env> interpret_in(const F& f, Env& env) const {
     if((f.type() == UNTYPED || f.type() == aty())
      && f.is(F::Seq) && f.sig() == AND)
     {
       const typename F::Sequence& seq = f.seq();
-      auto res = iresult<Env, F>(tell_type(env.get_allocator()));
+      auto res = iresult<F, Env>(tell_type(env.get_allocator()));
       for(int i = 0; i < seq.size(); ++i) {
         auto r = interpret_predicate(seq[i], env);
         if(r.has_value()) {
@@ -285,7 +285,7 @@ public:
           res.push_warning(std::move(warning));
         }
         else {
-          res = std::move(iresult<Env, F>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
+          res = std::move(iresult<F, Env>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
             .join_errors(std::move(r))
             .join_warnings(std::move(res)));
         }
@@ -369,7 +369,7 @@ public:
   template <class Alloc2, class Mem>
   CUDA this_type& tell(const tell_type<Alloc2>& t, BInc<Mem>& has_changed) {
     if(t.size() > 0 && t[0].idx == -1) {
-      is_at_top.tell(true, has_changed);
+      is_at_top.tell(local::BInc(true), has_changed);
       return *this;
     }
     for(int i = 0; i < t.size(); ++i) {
@@ -439,7 +439,7 @@ public:
   template <class Alloc2>
   CUDA local::BInc ask(const tell_type<Alloc2>& t) const {
     for(int i = 0; i < t.size(); ++i) {
-      if(data[t[i].idx] < t[i].dom) {
+      if(!(data[t[i].idx] >= t[i].dom)) {
         return false;
       }
     }
