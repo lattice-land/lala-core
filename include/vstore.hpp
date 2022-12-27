@@ -434,6 +434,18 @@ public:
     return dtell(other, has_changed);
   }
 
+  /** \return `true` when we can deduce the content of `t` from the current domain.
+   * For instance, if we have in the store `x = [0..10]`, we can deduce `x = [-1..11]` but we cannot deduce `x = [5..8]`. */
+  template <class Alloc2>
+  CUDA local::BInc ask(const tell_type<Alloc2>& t) const {
+    for(int i = 0; i < t.size(); ++i) {
+      if(data[t[i].idx] < t[i].dom) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /** Whenever `this` is different from `top`, we extract its data into `ua`.
    * For now, we suppose VStore is only used to store under-approximation, I'm not sure yet how we would interact with over-approximation.
    * The variable environment of `ua` is supposed to be already initialized. */

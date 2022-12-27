@@ -277,10 +277,10 @@ CUDA inline Sig converse_comparison(Sig sig) {
 If the formula is not a predicate, it is returned unchanged. */
 template <class F>
 CUDA F move_constants_on_rhs(const F& f) {
-  if(is_comparison(f) && !f.seq(1).is(F::Z)) {
+  if(is_comparison(f) && !f.seq(1).is_constant()) {
     AType aty = f.type();
     Approx appx = f.approx();
-    if(f.seq(0).is(F::Z)) {
+    if(f.seq(0).is_constant()) {
       return F::make_binary(f.seq(1), converse_comparison(f.sig()), f.seq(0), aty, appx);
     }
     else {

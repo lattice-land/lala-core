@@ -135,3 +135,19 @@ TEST(VStoreTest, UnderOverInterpretation) {
   interpret_and_test<CPStore>("var int: x; var int: y; constraint int_eq(x, 4)::under; constraint int_gt(y, 1); constraint int_lt(y, 10);", {CP::bot(), CP(zi(2), zd(9))}, OVER);
   must_error<CPStore>("var int: x; constraint int_eq(x, 4)::under;");
 }
+
+TEST(VStoreTest, AskOperation) {
+  VarEnv<StandardAllocator> env;
+  ZStore store = interpret_to<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);", env);
+  auto ask1 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 0); constraint int_ge(y, 1);"), env).value();
+  auto ask2 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(y, -1);"), env).value();
+  auto ask3 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 0); constraint int_ge(y, 2);"), env).value();
+  auto ask4 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 10); constraint int_ge(y, 2);"), env).value();
+  auto ask5 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 10);"), env).value();
+  EXPECT_TRUE(store.ask(ask1));
+  EXPECT_TRUE(store.ask(ask2));
+  EXPECT_FALSE(store.ask(ask3));
+  EXPECT_FALSE(store.ask(ask4));
+  EXPECT_FALSE(store.ask(ask5));
+}
+
