@@ -187,7 +187,9 @@ public:
 
   template<class U>
   CUDA this_type& join_errors(IResult<U, F>&& other) {
-    error().add_suberror(std::move(other.error()));
+    if(!other.has_value()) {
+      error().add_suberror(std::move(other.error()));
+    }
     return join_warnings(std::move(other));
   }
 
