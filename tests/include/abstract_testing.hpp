@@ -54,6 +54,21 @@ L interpret_to2(const char* fzn, Approx appx = EXACT) {
   return interpret_to<L>(fzn, env, appx);
 }
 
+template <class L>
+void interpret_and_tell(L& a, const char* fzn, VarEnv<StandardAllocator>& env, Approx appx = EXACT) {
+  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
+  EXPECT_TRUE(f);
+  f->approx_as(appx);
+  f->print(true, true);
+  auto r = a.interpret_in(*f, env);
+  if(!r.has_value()) {
+    r.print_diagnostics();
+  }
+  local::BInc has_changed;
+  a.tell(std::move(r.value()), has_changed);
+  EXPECT_TRUE(has_changed);
+}
+
 template<class L>
 void must_interpret_to(VarEnv<StandardAllocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
   using F = TFormula<StandardAllocator>;
