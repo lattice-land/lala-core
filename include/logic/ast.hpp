@@ -434,15 +434,6 @@ public:
     return is(Seq) && seq().size() == 2;
   }
 
-  CUDA bool is_logical() const {
-    if(is(Seq)) {
-      Sig sig = sig();
-      return sig == AND || sig == OR || sig == IMPLY
-        || sig == EQUIV || sig == NOT || sig == XOR || sig == ITE;
-    }
-    return false;
-  }
-
   CUDA logic_bool b() const {
     return battery::get<B>(formula);
   }
@@ -473,6 +464,15 @@ public:
 
   CUDA Sig sig() const {
     return battery::get<0>(battery::get<Seq>(formula));
+  }
+
+  CUDA bool is_logical() const {
+    if(is(Seq)) {
+      Sig s = sig();
+      return s == AND || s == OR || s == IMPLY
+        || s == EQUIV || s == NOT || s == XOR || s == ITE;
+    }
+    return false;
   }
 
   CUDA const ExtendedSig& esig() const {
