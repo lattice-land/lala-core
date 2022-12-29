@@ -434,6 +434,15 @@ public:
     return is(Seq) && seq().size() == 2;
   }
 
+  CUDA bool is_logical() const {
+    if(is(Seq)) {
+      Sig sig = sig();
+      return sig == AND || sig == OR || sig == IMPLY
+        || sig == EQUIV || sig == NOT || sig == XOR || sig == ITE;
+    }
+    return false;
+  }
+
   CUDA logic_bool b() const {
     return battery::get<B>(formula);
   }
