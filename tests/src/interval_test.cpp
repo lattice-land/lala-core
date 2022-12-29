@@ -13,6 +13,21 @@ TEST(IntervalTest, BotTopTests) {
   bot_top_test(Itv(zi(0), zd::bot()));
 }
 
+TEST(IntervalTest, NoInterpret) {
+  VarEnv<StandardAllocator> env = init_env();
+  must_error<Itv>(env, "constraint int_eq(x, 10) :: under;");
+  must_error<Itv>(env, "constraint int_ne(x, 10) :: over;");
+  must_error<Itv>(env, "constraint int_ne(x, 10) :: exact;");
+}
+
+TEST(IntervalTest, ValidInterpret) {
+  // VarEnv<StandardAllocator> env = init_env();
+  VarEnv<StandardAllocator> env;
+  must_interpret_to(env, "constraint int_eq(x, 10);", Itv(10, 10), false);
+  must_interpret_to(env, "constraint int_eq(x, 10) :: over;", Itv(10, 10), false);
+  must_interpret_to(env, "constraint int_ne(x, 10) :: under;", Itv(zi(11), zd::bot()), false);
+}
+
 TEST(IntervalTest, JoinMeetTest) {
   join_meet_generic_test(Itv::bot(), Itv::top());
   join_meet_generic_test(Itv(0,0), Itv(0,0));

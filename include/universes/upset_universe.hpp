@@ -282,11 +282,7 @@ private:
   /** Interpret a formula of the form `k <sig> x`. */
   template<class F, class Env>
   CUDA static iresult<F> interpret_k_op_x(const F& f, const F& k, Sig sig, const F& x, const Env& env) {
-    auto var = var_in(x, env);
-    if(!var.has_value()) {
-      return iresult<F>(IError<F>(true, name, "Undeclared variable.", f));
-    }
-    auto r = pre_universe::interpret(k, var->sort, f.approx());
+    auto r = pre_universe::interpret(k, k.sort().value(), f.approx());
     if(!r.has_value()) {
       return r;
     }

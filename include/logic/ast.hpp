@@ -340,6 +340,18 @@ public:
     appx = a;
   }
 
+  CUDA thrust::optional<Sort<allocator_type>> sort() const {
+    using sort_t = Sort<allocator_type>;
+    switch(formula.index()) {
+      case B: return sort_t(sort_t::Bool);
+      case Z: return sort_t(sort_t::Int);
+      case R: return sort_t(sort_t::Real);
+      case S: return sort_t(sort_t::Set, std::move(*battery::get<0>(s()[0]).sort()) , s().get_allocator());
+      case E: return battery::get<1>(exists());
+    }
+    return {};
+  }
+
   CUDA static this_type make_true() { return TFormula(); }
   CUDA static this_type make_false() { return TFormula(Formula::template create<B>(false)); }
 
