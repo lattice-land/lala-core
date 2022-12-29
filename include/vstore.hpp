@@ -243,29 +243,8 @@ private:
     }
   }
 
-public:
-  /** The store of variables lattice expects a conjunctive formula \f$ c_1 \land \ldots \land c_n \f$ in which all components \f$ c_i \f$ are formulas with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
-   *
-    I. Approximation
-    ================
-
-    Exact and under-approximation of \f$ \land \f$ are treated in the same way (nothing special is performed for under-approximation).
-    Over-approximation of \f$ \land \f$ allows the abstract domain to ignore components of the formula that cannot be interpreted in the underlying abstract universe.
-
-    II. Existential quantifier
-    ==========================
-
-    Variables must be existentially quantified before a formula containing variables can be interpreted.
-    Variables are immediately assigned to an index of `VStore` and initialized to \f$ \bot_U \f$, if the universe's interpretation is different from bottom, the result of the VStore interpretation need to be `tell` later on in the store.
-    Shadowing/redeclaration of variables with existential quantifier is not supported.
-    Variables are added to the current abstract element only if `interpret(f).has_value()`.
-
-    As a quirk, different stores might be produced if quantifiers do not appear in the same order.
-    This is because we attribute the first available index to variables when interpreting the quantifier.
-    The store will only be equivalent when considering the `env` structure.
-  */
   template <class F, class Env>
-  CUDA iresult<F, Env> interpret_in(const F& f, Env& env) const {
+  CUDA iresult<F, Env> interpret_in_impl(const F& f, Env& env) const {
     if((f.type() == UNTYPED || f.type() == aty())
      && f.is(F::Seq) && f.sig() == AND)
     {
@@ -295,6 +274,37 @@ public:
     else {
       return interpret_predicate(f, env);
     }
+  }
+
+public:
+  /** The store of variables lattice expects a conjunctive formula \f$ c_1 \land \ldots \land c_n \f$ in which all components \f$ c_i \f$ are formulas with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
+   *
+    I. Approximation
+    ================
+
+    Exact and under-approximation of \f$ \land \f$ are treated in the same way (nothing special is performed for under-approximation).
+    Over-approximation of \f$ \land \f$ allows the abstract domain to ignore components of the formula that cannot be interpreted in the underlying abstract universe.
+
+    II. Existential quantifier
+    ==========================
+
+    Variables must be existentially quantified before a formula containing variables can be interpreted.
+    Variables are immediately assigned to an index of `VStore` and initialized to \f$ \bot_U \f$, if the universe's interpretation is different from bottom, the result of the VStore interpretation need to be `tell` later on in the store.
+    Shadowing/redeclaration of variables with existential quantifier is not supported.
+    Variables are added to the current abstract element only if `interpret(f).has_value()`.
+
+    As a quirk, different stores might be produced if quantifiers do not appear in the same order.
+    This is because we attribute the first available index to variables when interpreting the quantifier.
+    The store will only be equivalent when considering the `env` structure.
+  */
+  template <class F, class Env>
+  CUDA iresult<F, Env> interpret_in(const F& f, Env& env) const {
+    auto snap = env.snapshot();
+    auto r = interpret_in_impl(f, env);
+    if(!r.has_value()) {
+      env.restore(snap);
+    }
+    return std::move(r);
   }
 
   /** The static version of interpret creates a store with exactly the number of existentially quantified variables occurring in `f`.

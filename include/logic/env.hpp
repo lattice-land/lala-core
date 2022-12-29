@@ -206,6 +206,41 @@ public:
   CUDA Approx approx_of(AVar av) const {
     return (*this)[av].appx;
   }
+
+  struct snapshot_type {
+    bvector<int> lvars_snap;
+    bvector<int> avar2lvar_snap;
+  };
+
+  /** Save the state of the environment. */
+  CUDA snapshot_type snapshot() const {
+    snapshot_type snap;
+    for(int i = 0; i < lvars.size(); ++i) {
+      snap.lvars_snap.push_back(lvars[i].avars.size());
+    }
+    for(int i = 0; i < avar2lvar.size(); ++i) {
+      snap.avar2lvar_snap.push_back(avar2lvar[i].size());
+    }
+    return std::move(snap);
+  }
+
+  /** Restore the environment to its previous state `snap`. */
+  CUDA void restore(const snapshot_type& snap) {
+    assert(lvars.size() >= snap.lvars_snap.size());
+    assert(avar2lvar.size() >= snap.avar2lvar_snap.size());
+    while(lvars.size() > snap.lvars_snap.size()) {
+      lvars.pop_back();
+    }
+    for(int i = 0; i < lvars.size(); ++i) {
+      lvars[i].avars.resize(snap.lvars_snap[i]);
+    }
+    while(avar2lvar.size() > snap.avar2lvar_snap.size()) {
+      avar2lvar.pop_back();
+    }
+    for(int i = 0; i < avar2lvar.size(); ++i) {
+      avar2lvar[i].resize(snap.avar2lvar_snap[i]);
+    }
+  }
 };
 
 /** Given a formula `f` and an environment, return the first variable occurring in `f` or `{}` if `f` has no variable in `env`. */
