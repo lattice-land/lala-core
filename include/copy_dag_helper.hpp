@@ -46,11 +46,11 @@ public:
   }
 
   template<class A>
-  CUDA battery::shared_ptr<A, Alloc> extract(AType uid) {
-    assert(uid != UNTYPED);
-    assert(deps.size() > uid);
-    assert(deps[uid]);
-    return static_cast<dep_holder<A>*>(deps[uid].get())->a;
+  CUDA battery::shared_ptr<A, Alloc> extract(AType aty) {
+    assert(aty != UNTYPED);
+    assert(deps.size() > aty);
+    assert(deps[aty]);
+    return static_cast<dep_holder<A>*>(deps[aty].get())->a;
   }
 
   template<class A, class FromAlloc>
@@ -59,19 +59,19 @@ public:
     if(!a) {
       return nullptr;
     }
-    assert(a->uid() != UNTYPED); // Abstract domain must all have a unique identifier to be copied.
+    assert(a->aty() != UNTYPED); // Abstract domain must all have a unique identifier to be copied.
     // If the dependency is not in the list, we copy it and add it.
-    if(deps.size() <= a->uid() || !static_cast<bool>(deps[a->uid()])) {
-      deps.resize(battery::max((int)deps.size(), a->uid()+1));
+    if(deps.size() <= a->aty() || !static_cast<bool>(deps[a->aty()])) {
+      deps.resize(battery::max((int)deps.size(), a->aty()+1));
       Alloc to_alloc = deps.get_allocator();
-      deps[a->uid()] = battery::unique_ptr<dep_erasure, Alloc>(
+      deps[a->aty()] = battery::unique_ptr<dep_erasure, Alloc>(
         new(to_alloc) dep_holder<A>(
           new(to_alloc) A(*a, *this),
           to_alloc),
         to_alloc);
-      // NOTE: Since we are copying a DAG, `A(*a, *this)` or one of its dependency cannot create `deps[a->uid()]`.
+      // NOTE: Since we are copying a DAG, `A(*a, *this)` or one of its dependency cannot create `deps[a->aty()]`.
     }
-    return extract<A>(a->uid());
+    return extract<A>(a->aty());
   }
 
   CUDA allocator_type get_allocator() const {
