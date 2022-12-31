@@ -245,7 +245,7 @@ private:
 
   template <class F, class Env>
   CUDA iresult<F, Env> interpret_in_impl(const F& f, Env& env) const {
-    if((f.type() == UNTYPED || f.type() == aty())
+    if((f.is_untyped() || f.type() == aty())
      && f.is(F::Seq) && f.sig() == AND)
     {
       const typename F::Sequence& seq = f.seq();

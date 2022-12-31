@@ -340,6 +340,10 @@ public:
     appx = a;
   }
 
+  CUDA constexpr bool is_untyped() const {
+    return type() == UNTYPED;
+  }
+
   CUDA thrust::optional<Sort<allocator_type>> sort() const {
     using sort_t = Sort<allocator_type>;
     switch(formula.index()) {

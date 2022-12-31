@@ -9,10 +9,10 @@ using namespace battery;
 
 TEST(AST, AbstractDeps) {
   struct FakeAD {
-    int uid_;
-    FakeAD(): uid_(0) {}
-    FakeAD(const FakeAD&, AbstractDeps<>&): uid_(0) {}
-    int uid() const { return uid_; }
+    int atype;
+    FakeAD(): atype(0) {}
+    FakeAD(const FakeAD&, AbstractDeps<>&): atype(0) {}
+    int aty() const { return atype; }
   };
   StandardAllocator alloc;
   shared_ptr<FakeAD> a(new(alloc) FakeAD, alloc);

@@ -191,6 +191,10 @@ public:
     return false;
   }
 
+  CUDA const Variable& operator[](int i) const {
+    return lvars[i];
+  }
+
   CUDA const Variable& operator[](AVar av) const {
     return lvars[avar2lvar[av.aty()][av.vid()]];
   }
