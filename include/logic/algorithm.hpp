@@ -85,14 +85,33 @@ namespace impl {
     return total;
   }
 
+  template<class F>
+  CUDA int num_qf_vars(const F& f, bool must_be_untyped);
+
   template<size_t n, class F>
-  CUDA int num_qf_vars_in_seq(const F& f) {
+  CUDA int num_qf_vars_in_seq(const F& f, bool must_be_untyped) {
     const auto& children = battery::get<1>(battery::get<n>(f.data()));
     int total = 0;
     for(int i = 0; i < children.size(); ++i) {
-      total += num_quantified_untyped_vars(children[i]);
+      total += num_qf_vars(children[i], must_be_untyped);
     }
     return total;
+  }
+
+  template<class F>
+  CUDA int num_qf_vars(const F& f, bool must_be_untyped) {
+    switch(f.index()) {
+      case F::E:
+        if(must_be_untyped) {
+          return f.type() == UNTYPED ? 1 : 0;
+        }
+        else {
+          return 1;
+        }
+      case F::Seq: return impl::num_qf_vars_in_seq<F::Seq>(f, must_be_untyped);
+      case F::ESeq: return impl::num_qf_vars_in_seq<F::ESeq>(f, must_be_untyped);
+      default: return 0;
+    }
   }
 }
 
@@ -120,15 +139,16 @@ CUDA int num_vars(const F& f)
   }
 }
 
+/** \return The number of existential quantifiers. */
+template<class F>
+CUDA int num_quantified_vars(const F& f) {
+  return impl::num_qf_vars(f, false);
+}
+
 /** \return The number of variables occurring in an existential quantifier that are untyped. */
 template<class F>
 CUDA int num_quantified_untyped_vars(const F& f) {
-  switch(f.index()) {
-    case F::E: return f.type() == UNTYPED ? 1 : 0;
-    case F::Seq: return impl::num_qf_vars_in_seq<F::Seq>(f);
-    case F::ESeq: return impl::num_qf_vars_in_seq<F::ESeq>(f);
-    default: return 0;
-  }
+  return impl::num_qf_vars(f, true);
 }
 
 template<class F>
