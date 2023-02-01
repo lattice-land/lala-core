@@ -350,7 +350,21 @@ public:
       case B: return sort_t(sort_t::Bool);
       case Z: return sort_t(sort_t::Int);
       case R: return sort_t(sort_t::Real);
-      case S: return sort_t(sort_t::Set, std::move(*battery::get<0>(s()[0]).sort()) , s().get_allocator());
+      case S: {
+        if(s().empty()) {
+          return {}; // Impossible to get the sort of the empty set.
+        }
+        for(int i = 0; i < s().size(); ++i) {
+          auto subsort = battery::get<0>(s()[i]).sort();
+          if(!subsort.has_value()) {
+            subsort = battery::get<1>(s()[i]).sort();
+          }
+          if(subsort.has_value()) {
+            return sort_t(sort_t::Set, std::move(*subsort) , s().get_allocator());
+          }
+        }
+        break;
+      }
       case E: return battery::get<1>(exists());
     }
     return {};
@@ -373,7 +387,7 @@ public:
     return this_type(atype, a, Formula::template create<R>(r));
   }
 
-  CUDA static this_type make_set(LogicSet set, AType atype = UNTYPED, Approx a = OVER) {
+  CUDA static this_type make_set(LogicSet set, AType atype = UNTYPED, Approx a = EXACT) {
     return this_type(atype, a, Formula::template create<S>(std::move(set)));
   }
 

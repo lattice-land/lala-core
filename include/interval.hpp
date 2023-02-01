@@ -89,7 +89,7 @@ public:
   template<class F, class Env>
   CUDA static iresult<F> interpret(const F& f, const Env& env) {
     // In interval, we can handle the equality predicate exactly or by over-approximation.
-    // Under-approximation does not make sense since it would give an empty interval.
+    // Under-approximation does not make sense since it would either be exact or give an empty interval.
     // The equality is interpreted in both bounds by over-approximation, therefore the equal element must be in \f$ \gamma(lb) \cap \gamma(ub) \f$.
     // If an exact equality is asked, we verify the interpretations in LB and UB are equal.
     if(f.is_binary() && f.sig() == EQ) {
@@ -116,6 +116,12 @@ public:
           return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(lb)));
         }
       }
+    }
+    else if(f.is_binary() && f.sig() == IN) {
+      // TODO!
+      // Can over-approximates in both LB and UB if the underlying type is totally ordered.
+      // In which case it will be exactly interpreted (if the bounds are integer), or over-approximated (if the bounds are continuous).
+      // If it's a set, then it can only be over-approximated in intervals (unless all sets between the bounds are asked).
     }
     // Forward to CP in case the formula `f` did not fit the cases above.
     auto cp_interpret = CP::interpret(f, env);

@@ -79,7 +79,9 @@ struct Sort {
 
   CUDA Sort(const this_type& other): Sort(other, other.sub.get_allocator()) {}
 
+  CUDA Sort& operator=(const this_type& other) = default;
   CUDA Sort(Sort&&) = default;
+  CUDA Sort& operator=(Sort&&) = default;
 
   CUDA Approx default_approx() const {
     switch(tag) {
@@ -87,7 +89,7 @@ struct Sort {
       case Int: return EXACT;
       case Real: return OVER;
       case Set: return sub->default_approx();
-      default: assert(false); // "Sort: Unknown type".
+      default: assert(false); return EXACT; // "Sort: Unknown type".
     }
   }
 
