@@ -234,6 +234,9 @@ private:
     if(f.is(F::E)) {
       return interpret_existential(f, env);
     }
+    else if(f.is(F::Seq) && f.sig() == AND) {
+      return interpret_in_impl(f, env);
+    }
     else {
       switch(num_vars(f)) {
         case 0: return interpret_zero_predicate(f, env);

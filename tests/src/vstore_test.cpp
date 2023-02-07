@@ -122,6 +122,8 @@ TEST(VStoreTest, InterpretationIStore) {
   must_error<IStore>("var int: x; constraint int_eq(x, 4)::under;");
   interpret_and_test<IStore>("var int: x; constraint int_eq(x, 4)::under;", {Itv::bot()}, OVER);
   interpret_and_test<IStore>("var int: x; constraint int_eq(x, 4)::over;", {Itv(4, 4)});
+  interpret_and_test<IStore>("var 1..10: x;", {Itv(1, 10)});
+  interpret_and_test<IStore>("var 1..10: x; var -5..5: y;", {Itv(1, 10), Itv(-5, 5)});
   IStore s3 = interpret_and_test<IStore>("var int: x; constraint int_ne(x, 4)::under;", {Itv(zi(5), zd::bot())});
   EXPECT_FALSE(s3.is_top());
 }

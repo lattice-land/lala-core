@@ -321,32 +321,42 @@ private:
     }
   }
 
+  template <class F>
+  CUDA static iresult<F> interpret_false(const F& f) {
+    if(preserve_top || f.is_over()) {
+      return iresult<F>(top());
+    }
+    else {
+      return iresult<F>(IError<F>(true, name, "Top is not preserved, hence it cannot exactly interpret or under-approximate formulas equivalent to `false`.", f));
+    }
+  }
+
+  template<class F>
+  CUDA static iresult<F> interpret_true(const F& f) {
+    if(preserve_bot || f.is_under()) {
+      return bot();
+    }
+    else {
+      return iresult<F>(IError<F>(true, name, "Bottom is not preserved, hence it cannot exactly interpret or over-approximate formula equivalent to `true`.", f));
+    }
+  }
+
 public:
 
-  /** Expects a predicate of the form `x <op> i` or `i <op> x`, where `x` is any variable's name, and `i` an integer.
+  /** Expects a predicate of the form `x <op> k` or `k <op> x`, where `x` is any variable's name, and `k` a constant.
     - If `f.approx()` is EXACT: `op` can be `U::sig_order()` or `U::sig_strict_order()`.
     - If `f.approx()` is UNDER: `op` can be, in addition to exact, `!=`.
-    - If `f.approx()` is OVER: `op` can be, in addition to exact, `==`.
+    - If `f.approx()` is OVER: `op` can be, in addition to exact, `==` and `in`.
     Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom).
     - The interpretation depends on the abstract pre-universe.
     */
   template<class F, class Env>
   CUDA static iresult<F> interpret(const F& f, const Env& env) {
     if(f.is_true()) {
-      if(preserve_bot || f.is_under()) {
-        return bot();
-      }
-      else {
-        return iresult<F>(IError<F>(true, name, "Bottom is not preserved, hence it cannot exactly interpret or over-approximate the formula `true`.", f));
-      }
+      return interpret_true(f);
     }
     else if(f.is_false()) {
-      if(preserve_top || f.is_over()) {
-        return top();
-      }
-      else {
-        return iresult<F>(IError<F>(true, name, "Top is not preserved, hence it cannot exactly interpret or under-approximate the formula `false`.", f));
-      }
+      return interpret_false(f);
     }
     else if(f.is(F::E)) {
       return pre_universe::interpret_type(f);
@@ -360,8 +370,43 @@ public:
         }
         const auto& k = f.seq(idx_constant);
         const auto& x = f.seq(idx_variable);
-        Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
-        return interpret_k_op_x(f, k, sig, x, env);
+        if(f.sig() == IN) {
+          if(idx_constant == 0) { // `k in x` is equivalent to `{k} \subseteq x`.
+            return interpret_k_op_x(f, F::make_set(logic_set<F, typename F::allocator_type>(
+              {battery::make_tuple<F,F>(F(k),F(k))})), SUBSETEQ, x, env);
+          }
+          else { // `x in k` is equivalent to `x >= meet k` where `>=` is the lattice order `U::sig_order()`.
+            const auto& set = k.s();
+            if(set.size() == 0) {
+              return interpret_false(f);
+            }
+            if(f.is_over()) {
+              value_type meet_s = pre_universe::top();
+              constexpr int bound_index = increasing ? 0 : 1;
+              for(int i = 0; i < set.size(); ++i) {
+                auto bound = battery::get<bound_index>(set[i]);
+                auto sort = bound.sort();
+                if(!sort.has_value()) {
+                  return iresult<F>(IError<F>(true, name, "Could not compute the sort of the bound in a set constant.", k));
+                }
+                auto res = pre_universe::interpret(bound, *sort, bound.approx());
+                if(!res.has_value()) {
+                  return std::move(iresult<F>(IError<F>(true, name, "Could not interpret an element of a set in the interval's bound.", f))
+                    .join_errors(std::move(res)));
+                }
+                meet_s = pre_universe::meet(meet_s, res.value());
+              }
+              return iresult<F>(this_type(meet_s));
+            }
+            else {
+              return iresult<F>(IError<F>(true, name, "Exact or under-approximation of 'set' constant is not yet supported.", f));
+            }
+          }
+        }
+        else {
+          Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
+          return interpret_k_op_x(f, k, sig, x, env);
+        }
       }
       else {
         return iresult<F>(IError<F>(true, name, "Only binary constraints are supported.", f));

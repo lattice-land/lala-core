@@ -117,11 +117,12 @@ public:
         }
       }
     }
-    else if(f.is_binary() && f.sig() == IN) {
-      // TODO!
-      // Can over-approximates in both LB and UB if the underlying type is totally ordered.
-      // In which case it will be exactly interpreted (if the bounds are integer), or over-approximated (if the bounds are continuous).
-      // If it's a set, then it can only be over-approximated in intervals (unless all sets between the bounds are asked).
+    else if(f.is_binary() && f.sig() == IN && f.seq(1).is(F::S)) {
+      auto cp_res = CP::interpret(f.map_approx(OVER), env);
+      if(cp_res.has_value()) {
+        this_type itv(cp_res.value());
+        return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
+      }
     }
     // Forward to CP in case the formula `f` did not fit the cases above.
     auto cp_interpret = CP::interpret(f, env);
