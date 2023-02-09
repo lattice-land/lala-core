@@ -267,7 +267,7 @@ private:
           res.push_warning(std::move(warning));
         }
         else {
-          res = std::move(iresult<F, Env>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
+          return std::move(iresult<F, Env>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
             .join_errors(std::move(r))
             .join_warnings(std::move(res)));
         }
