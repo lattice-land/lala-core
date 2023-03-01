@@ -84,7 +84,7 @@ private:
 
 public:
   /** Initialize a Cartesian product to bottom using default constructors. */
-  CUDA constexpr CartesianProduct() = default;
+  constexpr CartesianProduct() = default;
   CUDA constexpr CartesianProduct(const As&... as): val(battery::make_tuple(as...)) {}
   CUDA constexpr CartesianProduct(As&&... as): val(battery::make_tuple(std::forward<As>(as)...)) {}
   CUDA constexpr CartesianProduct(typename As::value_type... vs): val(battery::make_tuple(As(vs)...)) {}
@@ -436,7 +436,7 @@ private:
       project<i>().print();
       if constexpr(i < n - 1) {
         printf("\n");
-        print<i+1>();
+        print_<i+1>();
       }
     }
   }

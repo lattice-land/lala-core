@@ -143,7 +143,7 @@ public:
   /** Take a snapshot of the current variable store. */
   template <class Alloc = allocator_type>
   CUDA snapshot_type<Alloc> snapshot(const Alloc& alloc = Alloc()) const {
-    return snapshot_type(data, alloc);
+    return snapshot_type<Alloc>(data, alloc);
   }
 
   template <class Alloc>
@@ -190,11 +190,12 @@ private:
   /** Interpret a predicate without variables. */
   template <class F, class Env>
   CUDA iresult<F, Env> interpret_zero_predicate(const F& f, const Env& env) const {
+    using TellType = tell_type<typename Env::allocator_type>;
     if(f.is_true()) {
-      return std::move(iresult<F, Env>(tell_type(env.get_allocator())));
+      return std::move(iresult<F, Env>(TellType(env.get_allocator())));
     }
     else if(f.is_false()) {
-      tell_type res(env.get_allocator());
+      TellType res(env.get_allocator());
       res.push_back(var_dom(-1, U::top()));
       return std::move(iresult<F, Env>(std::move(res)));
     }
@@ -206,9 +207,10 @@ private:
   /** Interpret a predicate with a single variable occurrence. */
   template <class F, class Env>
   CUDA iresult<F, Env> interpret_unary_predicate(const F& f, const Env& env) const {
+    using TellType = tell_type<typename Env::allocator_type>;
     auto u = universe_type::interpret(f, env);
     if(u.has_value()) {
-      tell_type res(env.get_allocator());
+      TellType res(env.get_allocator());
       auto var = var_in(f, env);
       if(!var.has_value()) {
         return std::move(iresult<F, Env>(IError<F>(true, name, "Undeclared variable.", f)).join_warnings(std::move(u)));
@@ -248,11 +250,12 @@ private:
 
   template <class F, class Env>
   CUDA iresult<F, Env> interpret_in_impl(const F& f, Env& env) const {
+    using TellType = tell_type<typename Env::allocator_type>;
     if((f.is_untyped() || f.type() == aty())
      && f.is(F::Seq) && f.sig() == AND)
     {
       const typename F::Sequence& seq = f.seq();
-      auto res = iresult<F, Env>(tell_type(env.get_allocator()));
+      auto res = iresult<F, Env>(TellType(env.get_allocator()));
       for(int i = 0; i < seq.size(); ++i) {
         auto r = interpret_predicate(seq[i], env);
         if(r.has_value()) {

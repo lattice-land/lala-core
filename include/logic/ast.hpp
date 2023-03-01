@@ -28,12 +28,16 @@ class AVar {
   int value;
 public:
   CUDA constexpr AVar(): value(-1) {}
-  CUDA constexpr AVar(const AVar&) = default;
-  CUDA constexpr AVar(AVar&&) = default;
-  CUDA constexpr AVar& operator=(const AVar&) = default;
-  CUDA constexpr AVar& operator=(AVar&&) = default;
-  CUDA constexpr bool operator==(const AVar&) const = default;
-  CUDA constexpr bool operator!=(const AVar&) const = default;
+  constexpr AVar(const AVar&) = default;
+  constexpr AVar(AVar&&) = default;
+  constexpr AVar& operator=(const AVar&) = default;
+  constexpr AVar& operator=(AVar&&) = default;
+  CUDA constexpr bool operator==(const AVar& other) const {
+    return value == other.value;
+  }
+  CUDA constexpr bool operator!=(const AVar& other) const {
+    return value != other.value;
+  }
 
   CUDA constexpr AVar(AType atype, int var_id): value((var_id << 8) | atype) {
     assert(atype >= 0);

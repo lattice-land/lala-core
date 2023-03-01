@@ -79,9 +79,9 @@ struct Sort {
 
   CUDA Sort(const this_type& other): Sort(other, other.sub.get_allocator()) {}
 
-  CUDA Sort& operator=(const this_type& other) = default;
-  CUDA Sort(Sort&&) = default;
-  CUDA Sort& operator=(Sort&&) = default;
+  Sort& operator=(const this_type& other) = default;
+  Sort(Sort&&) = default;
+  Sort& operator=(Sort&&) = default;
 
   CUDA Approx default_approx() const {
     switch(tag) {
