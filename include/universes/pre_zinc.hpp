@@ -96,8 +96,8 @@ struct PreZInc {
       return iresult<F>(z);
     }
     else if(f.is(F::R) && sort.is_int()) {
-      auto lb = rd_cast<value_type>(battery::get<0>(f.r()));
-      auto ub = ru_cast<value_type>(battery::get<1>(f.r()));
+      auto lb = battery::rd_cast<value_type>(battery::get<0>(f.r()));
+      auto ub = battery::ru_cast<value_type>(battery::get<1>(f.r()));
       if(lb == ub) {
         return iresult<F>(std::move(lb));
       }

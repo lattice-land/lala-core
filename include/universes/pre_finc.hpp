@@ -49,8 +49,8 @@ struct PreFInc {
       if(z == bot() || z == top()) {
         return iresult<F>(IError<F>(true, name, "Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.", f));
       }
-      auto lb = rd_cast<value_type>(z);
-      auto ub = ru_cast<value_type>(z);
+      auto lb = battery::rd_cast<value_type>(z);
+      auto ub = battery::ru_cast<value_type>(z);
       if(lb == ub) {
         return iresult<F>(std::move(lb));
       }
@@ -63,8 +63,8 @@ struct PreFInc {
       }
     }
     else if(f.is(F::R) && sort.is_real()) {
-      auto lb = rd_cast<value_type>(battery::get<0>(f.r()));
-      auto ub = ru_cast<value_type>(battery::get<1>(f.r()));
+      auto lb = battery::rd_cast<value_type>(battery::get<0>(f.r()));
+      auto ub = battery::ru_cast<value_type>(battery::get<1>(f.r()));
       if(lb == ub) {
         return iresult<F>(std::move(lb));
       }

@@ -51,8 +51,8 @@ struct PreBInc {
       }
     }
     else if(f.is(F::R) && sort.is_bool()) {
-      auto lb = rd_cast<value_type>(battery::get<0>(f.r()));
-      auto ub = ru_cast<value_type>(battery::get<1>(f.r()));
+      auto lb = battery::rd_cast<value_type>(battery::get<0>(f.r()));
+      auto ub = battery::ru_cast<value_type>(battery::get<1>(f.r()));
       auto warning = IError<F>(false, name, "Real constant interpreted as a Boolean (0 is false, everything else is true).", f);
       if(lb == ub && lb == 0) {
         return iresult<F>(false, std::move(warning));
