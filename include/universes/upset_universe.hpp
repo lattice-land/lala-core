@@ -104,7 +104,7 @@ namespace impl {
     A difference occurs on the bottom and top element.
     Indeed, by our representation of bot and top, the bottom value in a lattice L equals the top value in its dual, but we need them to remain the same, so the dual of `L::bot()` is `LDual::bot()`.*/
 template <class LDual, class L>
-CUDA LDual dual(L x) {
+CUDA constexpr LDual dual(L x) {
   if(x.is_bot()) return LDual::bot();
   if(x.is_top()) return LDual::top();
   return LDual(x.value());
@@ -181,7 +181,7 @@ public:
   CUDA constexpr UpsetUniverse(): val(U::bot()) {}
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
   CUDA constexpr UpsetUniverse(value_type x): val(x) {}
-  CUDA UpsetUniverse(const this_type& other): UpsetUniverse(other.value()) {}
+  CUDA constexpr UpsetUniverse(const this_type& other): UpsetUniverse(other.value()) {}
   CUDA constexpr UpsetUniverse(this_type&& other): val(std::move(other.val)) {}
 
   template <class M>
