@@ -190,37 +190,37 @@ public:
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
   template <class M>
-  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type2<M>& other) {
+  CUDA constexpr std::enable_if_t<sequential, this_type&> operator=(const this_type2<M>& other) {
     memory_type::store(val, other.value());
     return *this;
   }
 
-  CUDA std::enable_if_t<sequential, this_type&> operator=(const this_type& other) {
+  CUDA constexpr std::enable_if_t<sequential, this_type&> operator=(const this_type& other) {
     memory_type::store(val, other.value());
     return *this;
   }
 
-  CUDA value_type value() const { return memory_type::load(val); }
+  CUDA constexpr value_type value() const { return memory_type::load(val); }
 
-  CUDA operator value_type() const { return value(); }
+  CUDA constexpr operator value_type() const { return value(); }
 
   /** `true` whenever \f$ a = \top \f$, `false` otherwise. */
-  CUDA local::BInc is_top() const {
+  CUDA constexpr local::BInc is_top() const {
     return value() == U::top();
   }
 
   /** `true` whenever \f$ a = \bot \f$, `false` otherwise. */
-  CUDA local::BDec is_bot() const {
+  CUDA constexpr local::BDec is_bot() const {
     return value() == U::bot();
   }
 
-  CUDA this_type& tell_top() {
+  CUDA constexpr this_type& tell_top() {
     memory_type::store(val, U::top());
     return *this;
   }
 
   template<class M1, class M2>
-  CUDA this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
+  CUDA constexpr this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
     value_type r1 = value();
     value_type r2 = is_totally_ordered ? other.value() : U::join(r1, other.value());
     if(U::strict_order(r1, r2)) {
@@ -231,7 +231,7 @@ public:
   }
 
   template<class M1>
-  CUDA this_type& tell(const this_type2<M1>& other) {
+  CUDA constexpr this_type& tell(const this_type2<M1>& other) {
     value_type r1 = value();
     value_type r2 = is_totally_ordered ? other.value() : U::join(r1, other.value());
     if(U::strict_order(r1, r2)) {
@@ -240,13 +240,13 @@ public:
     return *this;
   }
 
-  CUDA this_type& dtell_bot() {
+  CUDA constexpr this_type& dtell_bot() {
     memory_type::store(val, U::bot());
     return *this;
   }
 
   template<class M1, class M2>
-  CUDA this_type& dtell(const this_type2<M1>& other, BInc<M2>& has_changed) {
+  CUDA constexpr this_type& dtell(const this_type2<M1>& other, BInc<M2>& has_changed) {
     value_type r1 = value();
     value_type r2 = is_totally_ordered ? other.value() : U::meet(r1, other.value());
     if(U::strict_order(r2, r1)) {
@@ -257,7 +257,7 @@ public:
   }
 
   template<class M1>
-  CUDA this_type& dtell(const this_type2<M1>& other) {
+  CUDA constexpr this_type& dtell(const this_type2<M1>& other) {
     value_type r1 = value();
     value_type r2 = is_totally_ordered ? other.value() : U::meet(r1, other.value());
     if(U::strict_order(r2, r1)) {
@@ -283,7 +283,7 @@ public:
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
    * For this abstract universe, it always returns `true` since the current element \f$ a \f$ is an exact representation of \f$ \rrbracket a \llbracket \f$. */
-  CUDA bool extract(this_type2<battery::LocalMemory>& ua) const {
+  CUDA constexpr bool extract(this_type2<battery::LocalMemory>& ua) const {
     ua.val = value();
     return true;
   }
@@ -529,42 +529,42 @@ public:
 // Lattice operators
 
 template<class Pre, class M1, class M2>
-CUDA UpsetUniverse<Pre, battery::LocalMemory> join(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr UpsetUniverse<Pre, battery::LocalMemory> join(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
   return Pre::join(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA UpsetUniverse<Pre, battery::LocalMemory> meet(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr UpsetUniverse<Pre, battery::LocalMemory> meet(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
   return Pre::meet(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA bool operator<=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator<=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
   return Pre::order(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA bool operator<(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator<(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
   return Pre::strict_order(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA bool operator>=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator>=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
   return Pre::order(b, a);
 }
 
 template<class Pre, class M1, class M2>
-CUDA bool operator>(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator>(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
   return Pre::strict_order(b, a);
 }
 
 template<class Pre, class M1, class M2>
-CUDA bool operator==(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator==(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
   return a.value() == b.value();
 }
 
 template<class Pre, class M1, class M2>
-CUDA bool operator!=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator!=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
   return a.value() != b.value();
 }
 

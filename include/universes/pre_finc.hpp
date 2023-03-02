@@ -150,7 +150,7 @@ struct PreFInc {
 
     \return The next value of \f$ x \f$ in the floating-point increasing chain \f$ -\infty, \ldots, prev(-2.0), -2.0, next(-2.0), \ldots, \infty \f$ is the next representable value of \f$ x \f$ when \f$ x \not\in \{\infty, -\infty\} \f$ and \f$ x \f$ otherwise.
       Note that \f$ 0 \f$ is considered to be represented by a single value. */
-  CUDA static value_type next(value_type x) {
+  CUDA static constexpr value_type next(value_type x) {
     if(x == bot() || x == top()) {
       return x;
     }
@@ -164,7 +164,7 @@ struct PreFInc {
 
     \return The previous value of \f$ x \f$ in the floating-point increasing chain \f$ -\infty, \ldots, prev(-2.0), -2.0, next(-2.0), \ldots, \infty \f$ is the previous representable value of \f$ x \f$ when \f$ x \not\in \{\infty, -\infty\} \f$ and \f$ x \f$ otherwise.
       \f$ 0 \f$ is considered to be represented by a single value. */
-  CUDA static value_type prev(value_type x) {
+  CUDA static constexpr value_type prev(value_type x) {
     if(x == bot() || x == top()) {
       return x;
     }
