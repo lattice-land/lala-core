@@ -27,8 +27,9 @@ struct PreBInc {
   constexpr static const bool increasing = true;
   constexpr static const char* name = "BInc";
   constexpr static const char* dual_name = "BDec";
-  constexpr static const value_type zero = false;
-  constexpr static const value_type one = true;
+  constexpr static const bool is_arithmetic = true;
+  CUDA constexpr static value_type zero() { return false; }
+  CUDA constexpr static value_type one() { return true; }
 
   template<class F>
   using iresult = IResult<value_type, F>;

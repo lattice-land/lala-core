@@ -28,8 +28,9 @@ struct PreFInc {
   constexpr static const bool increasing = true;
   constexpr static const char* name = "FInc";
   constexpr static const char* dual_name = "FDec";
-  constexpr static const value_type zero = 0.0;
-  constexpr static const value_type one = 1.0;
+  constexpr static const bool is_arithmetic = true;
+  CUDA constexpr static value_type zero() { return 0.0; }
+  CUDA constexpr static value_type one() { return 1.0; }
 
   template<class F>
   using iresult = IResult<value_type, F>;
@@ -79,7 +80,7 @@ struct PreFInc {
       }
     }
     else if(f.is(F::B) && sort.is_real()) {
-      return iresult<F>(value_type(f.b() ? one : zero));
+      return iresult<F>(value_type(f.b() ? one() : zero()));
     }
     return iresult<F>(IError<F>(true, name, "Only constant of sorts `Bool`, `Int` and `Real` can be interpreted by an integer-type.", f));
   }

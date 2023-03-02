@@ -74,8 +74,10 @@ public:
     return *this;
   }
 
-  inline static const this_type zero = this_type(LB::zero, UB::zero);
-  inline static const this_type one = this_type(LB::one, UB::one);
+  /** Pre-interpreted formula `x == 0`. */
+  CUDA static constexpr this_type eq_zero() { return this_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::zero())); }
+  /** Pre-interpreted formula `x == 1`. */
+  CUDA static constexpr this_type eq_one() { return this_type(LB::geq_k(LB::pre_universe::one()), UB::leq_k(UB::pre_universe::one())); }
 
   CUDA static this_type bot() { return Interval(CP::bot()); }
   CUDA static this_type top() { return Interval(CP::top()); }
@@ -302,7 +304,7 @@ public:
   CUDA static constexpr this_type abs(const Interval<L>& x) {
     using LB2 = typename Interval<L>::LB;
     using UB2 = typename Interval<L>::UB;
-    switch(sig(x)) {
+    switch(sign(x)) {
       case PP: return x;
       case NP: return this_type(LB2::template fun<appx, ABS>(x.lb()), x.ub());
       case NN: return this_type(dual<LB>(UB2::template fun<appx, NEG>(x.ub())),
@@ -336,15 +338,33 @@ public:
   }
 
 private:
-  /** Characterization of the sign of the bounds (e.g., NP = lower bound is negative, upper bound is positive). */
+  /** Characterization of the sign of the bounds (e.g., NP = lower bound is negative, upper bound is positive).
+   * It can viewed as a lattice with the order NP < PP < PN and NP < NN < PN. */
   enum bounds_sign {
     PP, NN, NP, PN
   };
 
+  /** The sign function is monotone w.r.t. the order of `Interval<A>` and `bounds_sign`. */
   template<class A>
-  CUDA static constexpr bounds_sign sig(const Interval<A>& a) {
-    if(a.lb() >= LB::zero) { return (a.ub() >= UB::zero) ? PP : PN; }
-    else { return (a.ub() <= UB::zero) ? NN : NP; }
+  CUDA static constexpr bounds_sign sign(const Interval<A>& a) {
+    using LB2 = typename Interval<A>::LB;
+    using UB2 = typename Interval<A>::UB;
+    if(a.lb() >= LB2::geq_k(LB2::pre_universe::zero())) {
+      if(a.ub() > UB2::leq_k(UB2::pre_universe::zero())) {
+        return PN;
+      }
+      else {
+        return PP;
+      }
+    }
+    else {
+      if(a.ub() >= UB2::leq_k(UB2::pre_universe::zero())) {
+        return NN;
+      }
+      else {
+        return NP;
+      }
+    }
   }
 
   template<Approx appx, class A, class B>
@@ -358,15 +378,16 @@ private:
   }
 
 public:
+
   /** By default, multiplication is over-approximating as it is not possible to exactly represent multiplication in general.
     Note that we do not rely on the commutativity property of multiplication. */
   template<Approx appx = OVER, class L, class K>
   CUDA static constexpr this_type mul(const Interval<L>& a, const Interval<K>& b) {
     static_assert(appx == OVER, "Only over-approximation of multiplication is supported.");
     // Interval multiplication case, [al..au] * [bl..bu]
-    switch(sig(a)) {
+    switch(sign(a)) {
       case PP:
-        switch(sig(b)) {
+        switch(sign(b)) {
           case PP: return mul2<appx>(a, b);
           case NP: return mul2<appx>(a.ub2(), b);
           case NN: return mul2<appx>(reverse2(a), b);
@@ -375,7 +396,7 @@ public:
             else { return mul2<appx>(a.lb2(), b); }
         }
       case NP:
-        switch(sig(b)) {
+        switch(sign(b)) {
           case PP: return mul2<appx>(a, b.ub2());
           // Note: we use meet for both bounds because UB is the dual of LB (e.g., if meet in LB is min, then meet in UB is max).
           case NP: return this_type(
@@ -384,10 +405,10 @@ public:
           case NN: return mul2<appx>(reverse(a), b.lb2());
           case PN:
             if(b.as_product().is_top()) { return top(); }
-            else { return zero; }
+            else { return eq_zero(); }
         }
       case NN:
-        switch(sig(b)) {
+        switch(sign(b)) {
           case PP: return mul2<appx>(a, reverse2(b));
           case NP: return mul2<appx>(a.lb2(), reverse(b));
           case NN: return mul2<appx>(reverse2(a), reverse2(b));
@@ -398,9 +419,9 @@ public:
       case PN:
         if(a.as_product().is_top()) { return top(); }
         else {
-          switch(sig(b)) {
+          switch(sign(b)) {
             case PP: return mul2<appx>(a, b.lb2());
-            case NP: return zero;
+            case NP: return eq_zero();
             case NN: return mul2<appx>(reverse2(a), b.ub2());
             case PN:
               if(b.as_product().is_top()) { return top(); }
@@ -419,11 +440,12 @@ public:
   template<Approx appx = OVER, Sig divsig, class L, class K>
   CUDA static constexpr this_type div(const Interval<L>& a, const Interval<K>& b) {
     static_assert(appx == OVER, "Only over-approximation of division is supported.");
+    constexpr auto leq_zero = Interval<K>::UB::leq_k(Interval<K>::UB::pre_universe::zero());
     // Interval division, [al..au] / [bl..bu]
-    switch(sig(b)) {
+    switch(sign(b)) {
       case PP:
-        if(b.ub() == K::zero) { return top(); }  // b is a singleton equal to zero.
-        switch(sig(a)) {
+        if(b.ub() >= leq_zero) { return top(); }  // b is a singleton equal to zero.
+        switch(sign(a)) {
           case PP: return div2<appx, divsig>(a, reverse2(b));
           case NP: return div2<appx, divsig>(a, b.lb2());
           case NN: return div2<appx, divsig>(a, b);
@@ -435,13 +457,13 @@ public:
         if(a.is_top()) { return top(); }
         else {
           if constexpr(L::preserve_inner_covers && K::preserve_inner_covers) { // In the discrete case, division can be more precise.
-            switch(sig(a)) {
+            switch(sign(a)) {
               case PP: return div2<appx, divsig>(a.ub2(), reverse(b));
               case NP: return this_type(
                 meet(LB::template fun<appx, divsig>(a.lb(), b.lb()), LB::template fun<appx, divsig>(a.ub(), b.ub())),
                 meet(UB::template fun<appx, divsig>(a.lb(), b.ub()), UB::template fun<appx, divsig>(a.ub(), b.lb())));
               case NN: return div2<appx, divsig>(a.lb2(), b);
-              case PN: return (a.as_product().is_top()) ? top() : zero;
+              case PN: return (a.as_product().is_top()) ? top() : eq_zero();
             }
           }
           else {
@@ -449,7 +471,7 @@ public:
           }
         }
       case NN:
-        switch(sig(a)) {
+        switch(sign(a)) {
           case PP: return div2<appx, divsig>(reverse2(a), reverse2(b));
           case NP: return div2<appx, divsig>(reverse(a), b.ub2());
           case NN: return div2<appx, divsig>(reverse2(a), b);
@@ -460,9 +482,9 @@ public:
       case PN:
         if(b.as_product().is_top()) { return top(); }
         if constexpr(L::preserve_inner_covers && K::preserve_inner_covers) {
-          switch(sig(a)) {
+          switch(sign(a)) {
             case PP: return div2<appx, divsig>(a.lb2(), reverse2(b));
-            case NP: return zero;
+            case NP: return eq_zero();
             case NN: return div2<appx, divsig>(a.ub2(), reverse2(b));
             case PN:
               if(a.as_product().is_top()) { return top(); }

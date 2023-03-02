@@ -42,7 +42,7 @@ public:
     int idx;
     universe_type dom;
     var_dom() = default;
-    var_dom(int idx, const universe_type& dom): idx(idx), dom(dom) {}
+    CUDA var_dom(int idx, const universe_type& dom): idx(idx), dom(dom) {}
   };
 
   template <class Alloc>

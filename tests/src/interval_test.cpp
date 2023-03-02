@@ -77,7 +77,7 @@ TEST(IntervalTest, Negation) {
 TEST(IntervalTest, Absolute) {
   EXPECT_EQ((Itv::fun<EXACT, ABS>(Itv(5, 10))), Itv(5, 10));
   EXPECT_EQ((Itv::fun<EXACT, ABS>(Itv(-10, 10))), Itv(0, 10));
-  EXPECT_EQ((Itv::fun<EXACT, ABS>(Itv(10, -10))), Itv(10, 0));
+  EXPECT_EQ((Itv::fun<EXACT, ABS>(Itv(10, -10))), Itv(10, 10));
   EXPECT_EQ((Itv::fun<EXACT, ABS>(Itv(-10, -5))), Itv(5, 10));
 }
 
@@ -115,11 +115,11 @@ TEST(IntervalTest, Multiplication) {
   EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, 10), Itv(-9, -3))), Itv(-90, 90));
   EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, 10), Itv(3, 9))), Itv(-90, 90));
   EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, 10), Itv(-9, 9))), Itv(-90, 90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, 10), Itv(9, -9))), Itv::zero);
+  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, 10), Itv(9, -9))), Itv::eq_zero());
 
   EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(10, -10), Itv(-9, -3))), Itv(90, -90));
   EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(10, -10), Itv(3, 9))), Itv(90, -90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(10, -10), Itv(-9, 9))), Itv::zero);
+  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(10, -10), Itv(-9, 9))), Itv::eq_zero());
   EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(10, -10), Itv(9, -9))), Itv(90, -90));
 }
 
@@ -137,10 +137,10 @@ TEST(IntervalTest, Multiplication) {
 //   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, 10), Itv(-9, -3))), Itv(-90, 90));
 //   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, 10), Itv(3, 9))), Itv(-90, 90));
 //   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, 10), Itv(-9, 9))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, 10), Itv(9, -9))), Itv::zero);
+//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, 10), Itv(9, -9))), Itv::eq_zero());
 
 //   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(10, -10), Itv(-9, -3))), Itv(90, -90));
 //   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(10, -10), Itv(3, 9))), Itv(90, -90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(10, -10), Itv(-9, 9))), Itv::zero);
+//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(10, -10), Itv(-9, 9))), Itv::eq_zero());
 //   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(10, -10), Itv(9, -9))), Itv(90, -90));
 // }

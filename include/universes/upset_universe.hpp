@@ -136,8 +136,32 @@ public:
   constexpr static const bool complemented = pre_universe::complemented;
   constexpr static const bool increasing = pre_universe::increasing;
   constexpr static const char* name = pre_universe::name;
-  inline static const value_type zero = this_type(pre_universe::zero);
-  inline static const value_type one = this_type(pre_universe::one);
+
+  constexpr static const bool is_arithmetic = pre_universe::is_arithmetic;
+
+  /** A pre-interpreted formula `x >= value` ready to use.
+   * This is mainly for optimization purpose to avoid calling `interpret` each time we need it. */
+  CUDA static constexpr this_type geq_k(value_type k) {
+    if constexpr(increasing && is_arithmetic && is_totally_ordered) {
+      return this_type(k);
+    }
+    else {
+      static_assert(increasing && is_arithmetic && is_totally_ordered,
+        "The pre-interpreted formula x >= 0 is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
+        Moreover, the underlying abstract universe must be increasing, otherwise this formula is not supported.");
+    }
+  }
+
+  CUDA static constexpr this_type leq_k(value_type k) {
+    if constexpr(!increasing && is_arithmetic && is_totally_ordered) {
+      return this_type(k);
+    }
+    else {
+      static_assert(!increasing && is_arithmetic && is_totally_ordered,
+        "The pre-interpreted formula x <= 0 is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
+        Moreover, the underlying abstract universe must be decreasing, otherwise this formula is not supported.");
+    }
+  }
 
 private:
   using atomic_type = typename memory_type::atomic_type<value_type>;
@@ -145,23 +169,23 @@ private:
 
 public:
   /** Similar to \f$[\![\mathit{true}]\!]\f$ if `preserve_bot` is true. */
-  CUDA static this_type bot() {
+  CUDA static constexpr this_type bot() {
     return this_type();
   }
 
   /** Similar to \f$[\![\mathit{false}]\!]\f$ if `preserve_top` is true. */
-  CUDA static this_type top() {
+  CUDA static constexpr this_type top() {
     return this_type(U::top());
   }
   /** Initialize an upset universe to bottom. */
-  CUDA UpsetUniverse(): val(U::bot()) {}
+  CUDA constexpr UpsetUniverse(): val(U::bot()) {}
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
-  CUDA UpsetUniverse(value_type x): val(x) {}
+  CUDA constexpr UpsetUniverse(value_type x): val(x) {}
   CUDA UpsetUniverse(const this_type& other): UpsetUniverse(other.value()) {}
-  CUDA UpsetUniverse(this_type&& other): val(std::move(other.val)) {}
+  CUDA constexpr UpsetUniverse(this_type&& other): val(std::move(other.val)) {}
 
   template <class M>
-  CUDA UpsetUniverse(const this_type2<M>& other): UpsetUniverse(other.value()) {}
+  CUDA constexpr UpsetUniverse(const this_type2<M>& other): UpsetUniverse(other.value()) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
@@ -423,10 +447,16 @@ private:
   template<Approx appx, Sig sig, class A, class B>
   CUDA static constexpr this_type2<battery::LocalMemory> div_per_zero(const A& a, const B&) {
     if constexpr(A::increasing && B::increasing == increasing) {
-      if(a >= A::zero) return zero;
+      constexpr auto geq_zero = A::geq_k(A::pre_universe::zero());
+      if(a >= geq_zero) {
+        return this_type2<battery::LocalMemory>(pre_universe::zero());
+      }
     }
-    else if(!A::increasing && B::increasing != increasing) {
-      if(a <= A::zero) return zero;
+    else if constexpr(!A::increasing && B::increasing != increasing) {
+      constexpr auto leq_zero = A::leq_k(A::pre_universe::zero());
+      if(a >= leq_zero) {
+        return this_type2<battery::LocalMemory>(pre_universe::zero());
+      }
     }
     return this_type2<battery::LocalMemory>::bot();
   }
@@ -442,13 +472,9 @@ public:
         return this_type2<battery::LocalMemory>::top();
       }
     }
-    if constexpr(sig == ABS) {
-      if(a < zero) {
-        return zero;
-      }
-      else {
-        return a;
-      }
+    if constexpr(sig == ABS && A::increasing) {
+      constexpr auto geq_zero = A::geq_k(A::pre_universe::zero());
+      return join(a, geq_zero);
     }
     else if constexpr(A::preserve_bot) {
       if(a.is_bot()) {
@@ -483,8 +509,8 @@ public:
         return this_type2<battery::LocalMemory>::bot();
       }
     }
-    if constexpr(is_division(sig) && impl::is_upset_universe_v<A> && impl::is_upset_universe_v<B>) {
-      if(b == B::zero) {
+    if constexpr(is_division(sig) && impl::is_upset_universe_v<A> && impl::is_upset_universe_v<B> && B::is_arithmetic) {
+      if(b.value() == B::pre_universe::zero()) {
         if(B::preserve_inner_covers && B::pre_universe::has_unique_next(b)) {
           return pre_universe::template fun<appx, sig>(a, B::pre_universe::next(b));
         }

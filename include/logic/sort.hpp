@@ -28,7 +28,7 @@ enum Approx {
   EXACT ///< An exact element is both under- and over-approximating; it exactly represents the set of solutions.
 };
 
-static inline void print_approx(Approx appx) {
+CUDA static inline void print_approx(Approx appx) {
   switch(appx) {
     case UNDER: printf("under"); break;
     case OVER: printf("over"); break;
@@ -36,7 +36,7 @@ static inline void print_approx(Approx appx) {
   }
 }
 
-static constexpr Approx dapprox(Approx appx) {
+CUDA static constexpr Approx dapprox(Approx appx) {
   return appx == EXACT ? EXACT : (appx == UNDER ? OVER : UNDER);
 }
 
@@ -110,7 +110,7 @@ struct Sort {
 };
 
 template <class Alloc1, class Alloc2>
-inline bool operator==(const Sort<Alloc1>& lhs, const Sort<Alloc2>& rhs) {
+CUDA inline bool operator==(const Sort<Alloc1>& lhs, const Sort<Alloc2>& rhs) {
   if(lhs.tag == rhs.tag) {
     if(lhs.tag == Sort<Alloc1>::Set) {
       return *(lhs.sub) == *(rhs.sub);

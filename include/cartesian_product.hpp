@@ -18,17 +18,17 @@ class CartesianProduct;
 
 namespace impl {
   template<class... As>
-  auto index_sequence_of(const CartesianProduct<As...>&) {
+  CUDA auto index_sequence_of(const CartesianProduct<As...>&) {
     return std::index_sequence_for<As...>{};
   }
 
   template<class... As>
-  auto index_sequence_of(const battery::tuple<As...>&) {
+  CUDA auto index_sequence_of(const battery::tuple<As...>&) {
     return std::index_sequence_for<As...>{};
   }
 
   template <class A, class B>
-  auto index_sequence_of(const A& a, const B& b) {
+  CUDA auto index_sequence_of(const A& a, const B& b) {
     static_assert(decltype(impl::index_sequence_of(a))::size() == decltype(impl::index_sequence_of(b))::size());
     return impl::index_sequence_of(a);
   }

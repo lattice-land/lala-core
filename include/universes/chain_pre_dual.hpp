@@ -22,8 +22,9 @@ struct ChainPreDual {
   constexpr static const bool increasing = !L::increasing;
   constexpr static const char* name = L::dual_name;
   constexpr static const char* dual_name = L::name;
-  constexpr static const value_type zero = L::zero;
-  constexpr static const value_type one = L::one;
+  constexpr static const bool is_arithmetic = L::is_arithmetic;
+  CUDA constexpr static value_type zero() { return L::zero(); }
+  CUDA constexpr static value_type one() { return L::one(); }
 
   template<class F>
   using iresult = typename L::iresult<F>;
