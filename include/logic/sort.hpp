@@ -69,7 +69,7 @@ struct Sort {
 
   template<class Alloc2>
   CUDA Sort(const Sort<Alloc2>& other, const allocator_type& alloc = allocator_type())
-   : tag(other.tag)
+   : tag(static_cast<Tag>(other.tag))
   {
     if(other.sub) {
       this_type s = this_type(*other.sub, alloc);

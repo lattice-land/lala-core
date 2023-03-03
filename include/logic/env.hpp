@@ -17,6 +17,7 @@ namespace lala {
 /** A `VarEnv` is a variable environment mapping between logical variables and abstract variables. */
 template <class Allocator>
 class VarEnv {
+  template <class F> using fstring = battery::string<typename F::allocator_type>;
 public:
   using allocator_type = Allocator;
   using this_type = VarEnv<Allocator>;
@@ -104,7 +105,7 @@ private:
           return AVar(*avar);
         }
         else {
-          return iresult<F>(IError<F>(true, name, "Variable `" + vname + "` has not been declared in the abstract domain `" + bstring::from_int(f.type()) + "`.", f));
+          return iresult<F>(IError<F>(true, name, "Variable `" + vname + "` has not been declared in the abstract domain `" + fstring<F>::from_int(f.type()) + "`.", f));
         }
       }
       else {
@@ -163,7 +164,7 @@ public:
         return f.v();
       }
       else {
-        return iresult<F>(IError<F>(true, name, "Undeclared abstract variable `" + bstring::from_int(f.v().aty()) + ", " + bstring::from_int(f.v().vid()) + "`.", f));
+        return iresult<F>(IError<F>(true, name, "Undeclared abstract variable `" + fstring<F>::from_int(f.v().aty()) + ", " + fstring<F>::from_int(f.v().vid()) + "`.", f));
       }
     }
     else {

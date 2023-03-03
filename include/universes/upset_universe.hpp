@@ -190,14 +190,24 @@ public:
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
   template <class M>
-  CUDA constexpr std::enable_if_t<sequential, this_type&> operator=(const this_type2<M>& other) {
-    memory_type::store(val, other.value());
-    return *this;
+  CUDA constexpr this_type& operator=(const this_type2<M>& other) {
+   if constexpr(sequential) {
+      memory_type::store(val, other.value());
+      return *this;
+    }
+    else {
+      static_assert(sequential, "The operator= in `UpsetUniverse` can only be used when the underlying memory is `sequential`.");
+    }
   }
 
-  CUDA constexpr std::enable_if_t<sequential, this_type&> operator=(const this_type& other) {
-    memory_type::store(val, other.value());
-    return *this;
+  CUDA constexpr this_type& operator=(const this_type& other) {
+    if constexpr(sequential) {
+      memory_type::store(val, other.value());
+      return *this;
+    }
+    else {
+      static_assert(sequential, "The operator= in `UpsetUniverse` can only be used when the underlying memory is `sequential`.");
+    }
   }
 
   CUDA constexpr value_type value() const { return memory_type::load(val); }
