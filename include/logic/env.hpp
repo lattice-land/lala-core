@@ -125,6 +125,11 @@ private:
 public:
   CUDA VarEnv(const Allocator& allocator): lvars(allocator), avar2lvar(allocator) {}
   CUDA VarEnv(): VarEnv(Allocator()) {}
+  CUDA this_type& operator=(const this_type& other) {
+    lvars = other.lvars;
+    avar2lvar = other.avar2lvar;
+    return *this;
+  }
 
   CUDA allocator_type get_allocator() const {
     return lvars.get_allocator();
