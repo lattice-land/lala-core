@@ -14,6 +14,41 @@
 
 namespace lala {
 
+template<class Allocator>
+struct Variable {
+  template<class T>
+  using bvector = battery::vector<T, Allocator>;
+  using bstring = battery::string<Allocator>;
+
+  bstring name;
+  Sort<Allocator> sort;
+  Approx appx;
+  bvector<AVar> avars;
+
+  CUDA Variable(const bstring& name, const Sort<Allocator>& sort, Approx appx, AVar av, const Allocator& allocator = Allocator())
+    : name(name, allocator), sort(sort, allocator), appx(appx), avars(1, allocator)
+  {
+    avars.push_back(av);
+  }
+
+  template <class Alloc2>
+  CUDA Variable(const Variable<Alloc2>& other, const Allocator& allocator = Allocator())
+    : name(other.name, allocator)
+    , sort(other.sort, allocator)
+    , appx(other.appx)
+    , avars(other.avars, allocator)
+  {}
+
+  CUDA thrust::optional<AVar> avar_of(AType aty) const {
+    for(int i = 0; i < avars.size(); ++i) {
+      if(avars[i].aty() == aty) {
+        return avars[i];
+      }
+    }
+    return {};
+  }
+};
+
 /** A `VarEnv` is a variable environment mapping between logical variables and abstract variables. */
 template <class Allocator>
 class VarEnv {
@@ -31,33 +66,15 @@ public:
   using bvector = battery::vector<T, Allocator>;
   using bstring = battery::string<Allocator>;
 
-  struct Variable {
-    bstring name;
-    Sort<Allocator> sort;
-    Approx appx;
-    bvector<AVar> avars;
-    CUDA Variable(const bstring& name, const Sort<Allocator>& sort, Approx appx, AVar av)
-      : name(name), sort(sort), appx(appx)
-    {
-      avars.push_back(av);
-    }
+  using variable_type = Variable<Allocator>;
 
-    CUDA thrust::optional<AVar> avar_of(AType aty) const {
-      for(int i = 0; i < avars.size(); ++i) {
-        if(avars[i].aty() == aty) {
-          return avars[i];
-        }
-      }
-      return {};
-    }
-  };
 private:
-  bvector<Variable> lvars;
+  bvector<variable_type> lvars;
   bvector<bvector<int>> avar2lvar;
 
 public:
   CUDA AType extends_abstract_dom() {
-    avar2lvar.push_back(bvector<int>());
+    avar2lvar.push_back(bvector<int>(get_allocator()));
     return avar2lvar.size() - 1;
   }
 
@@ -74,7 +91,7 @@ private:
     extends_abstract_doms(aty);
     AVar avar(aty, avar2lvar[aty].size());
     avar2lvar[aty].push_back(lvars.size());
-    lvars.push_back(Variable(name, sort, appx, avar));
+    lvars.push_back(Variable(name, sort, appx, avar, get_allocator()));
     return avar;
   }
 
@@ -124,10 +141,18 @@ private:
 
 public:
   CUDA VarEnv(const Allocator& allocator): lvars(allocator), avar2lvar(allocator) {}
+  CUDA VarEnv(this_type&& other): lvars(std::move(other.lvars)), avar2lvar(std::move(other.avar2lvar)) {}
   CUDA VarEnv(): VarEnv(Allocator()) {}
-  CUDA this_type& operator=(const this_type& other) {
-    lvars = other.lvars;
-    avar2lvar = other.avar2lvar;
+
+  template <class Alloc2>
+  CUDA VarEnv(const VarEnv<Alloc2>& other, const Allocator& allocator = Allocator())
+    : lvars(other.lvars, allocator)
+    , avar2lvar(other.avar2lvar, allocator)
+  {}
+
+  CUDA this_type& operator=(this_type&& other) {
+    lvars = std::move(other.lvars);
+    avar2lvar = std::move(other.avar2lvar);
     return *this;
   }
 
@@ -177,7 +202,7 @@ public:
     }
   }
 
-  CUDA thrust::optional<const Variable&> variable_of(const bstring& lv) const {
+  CUDA thrust::optional<const variable_type&> variable_of(const bstring& lv) const {
     for(int i = 0; i < lvars.size(); ++i) {
       if(lvars[i].name == lv) {
         return lvars[i];
@@ -197,11 +222,11 @@ public:
     return false;
   }
 
-  CUDA const Variable& operator[](int i) const {
+  CUDA const variable_type& operator[](int i) const {
     return lvars[i];
   }
 
-  CUDA const Variable& operator[](AVar av) const {
+  CUDA const variable_type& operator[](AVar av) const {
     return lvars[avar2lvar[av.aty()][av.vid()]];
   }
 
@@ -255,7 +280,7 @@ public:
 
 /** Given a formula `f` and an environment, return the first variable occurring in `f` or `{}` if `f` has no variable in `env`. */
 template <class F, class Env>
-CUDA thrust::optional<const typename Env::Variable&> var_in(const F& f, const Env& env) {
+CUDA thrust::optional<const typename Env::variable_type&> var_in(const F& f, const Env& env) {
   const auto& g = var_in(f);
   switch(g.index()) {
     case F::V:
