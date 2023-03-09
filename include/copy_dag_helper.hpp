@@ -53,8 +53,8 @@ public:
     return static_cast<dep_holder<A>*>(deps[aty].get())->a;
   }
 
-  template<class A, class FromAlloc>
-  CUDA battery::shared_ptr<A, Alloc> clone(const battery::shared_ptr<A, FromAlloc>& a)
+  template<class A2, class A, class FromAlloc>
+  CUDA battery::shared_ptr<A2, Alloc> clone(const battery::shared_ptr<A, FromAlloc>& a)
   {
     if(!a) {
       return nullptr;
@@ -65,13 +65,13 @@ public:
       deps.resize(battery::max((int)deps.size(), a->aty()+1));
       Alloc to_alloc = deps.get_allocator();
       deps[a->aty()] = battery::unique_ptr<dep_erasure, Alloc>(
-        new(to_alloc) dep_holder<A>(
-          new(to_alloc) A(*a, *this),
+        new(to_alloc) dep_holder<A2>(
+          new(to_alloc) A2(*a, *this),
           to_alloc),
         to_alloc);
       // NOTE: Since we are copying a DAG, `A(*a, *this)` or one of its dependency cannot create `deps[a->aty()]`.
     }
-    return extract<A>(a->aty());
+    return extract<A2>(a->aty());
   }
 
   CUDA allocator_type get_allocator() const {

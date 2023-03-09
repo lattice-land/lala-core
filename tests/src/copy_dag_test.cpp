@@ -18,6 +18,6 @@ TEST(AST, AbstractDeps) {
   shared_ptr<FakeAD> a(new(alloc) FakeAD, alloc);
   AbstractDeps deps;
   EXPECT_EQ(deps.size(), 0);
-  shared_ptr<FakeAD> b = deps.clone(a);
+  shared_ptr<FakeAD> b = deps.template clone<FakeAD>(a);
   EXPECT_EQ(deps.size(), 1);
 }

@@ -89,8 +89,8 @@ public:
 
   /** Copy the vstore `other` in the current element.
    *  `deps` can be empty and is not used besides to get the allocator (since this abstract domain does not have dependencies). */
-  template<class Alloc2, class Alloc3>
-  CUDA VStore(const VStore<U, Alloc2>& other, const AbstractDeps<Alloc3, allocator_type>& deps)
+  template<class R, class Alloc2, class Alloc3>
+  CUDA VStore(const VStore<R, Alloc2>& other, const AbstractDeps<Alloc3, allocator_type>& deps)
    : VStore(other, deps.get_fast_allocator()) {}
 
   CUDA VStore(this_type&& other):
