@@ -145,8 +145,8 @@ void join_one_test(const A& a, const A& b, const A& expect, bool has_changed_exp
   EXPECT_EQ(join(a, b), expect)  << "join(" << a << ", " << b << ")";;
   if(test_tell) {
     A c(a);
-    EXPECT_EQ(c.tell(b, has_changed), expect) << c << ".tell(" << b << ")";
-    EXPECT_EQ(has_changed, has_changed_expect) << c << ".tell(" << b << ")";
+    EXPECT_EQ(c.tell(b, has_changed), expect) << a << ".tell(" << b << ") == " << expect;
+    EXPECT_EQ(has_changed, has_changed_expect) << a << ".tell(" << b << ")";
   }
 }
 
@@ -189,22 +189,16 @@ void join_meet_generic_test(const A& a, const A& b, bool commutative_tell = true
 template <Approx appx, Sig sig, class A>
 void generic_unary_fun_test() {
   if constexpr(A::is_supported_fun(appx, sig)) {
-    if constexpr(sig == ABS) {
-      if constexpr(appx == EXACT) {
-        EXPECT_EQ((A::template fun<appx, sig>(A::bot())), interpret_to<A>("constraint int_ge(x, 0) :: exact;"));
-      }
-      else if constexpr(appx == UNDER) {
-        EXPECT_TRUE((A::template fun<appx, sig>(A::bot()) >= interpret_to<A>("constraint int_ge(x, 0) :: under;")));
-      }
-      else {
-        EXPECT_TRUE((A::template fun<appx, sig>(A::bot()) <= interpret_to<A>("constraint int_ge(x, 0) :: over;")));
-      }
-    }
-    else {
-      EXPECT_EQ((A::template fun<appx, sig>(A::bot())), A::bot());
-      EXPECT_EQ((A::template fun<appx, sig>(A::top())), A::top());
-    }
+    EXPECT_EQ((A::template fun<appx, sig>(A::bot())), A::bot());
+    EXPECT_EQ((A::template fun<appx, sig>(A::top())), A::top());
   }
+}
+
+template <class A>
+void generic_abs_test() {
+  EXPECT_EQ((A::template fun<EXACT, ABS>(A::bot())), interpret_to<A>("constraint int_ge(x, 0) :: exact;"));
+  EXPECT_TRUE((A::template fun<UNDER, ABS>(A::bot()) >= interpret_to<A>("constraint int_ge(x, 0) :: under;")));
+  EXPECT_TRUE((A::template fun<OVER, ABS>(A::bot()) <= interpret_to<A>("constraint int_ge(x, 0) :: over;")));
 }
 
 template <Approx appx, Sig sig, class A>
@@ -224,7 +218,6 @@ void generic_binary_fun_test(const A& a) {
 template <Approx appx, class A>
 void generic_arithmetic_fun_test(const A& a) {
   generic_unary_fun_test<appx, NEG, A>();
-  generic_unary_fun_test<appx, ABS, A>();
   generic_binary_fun_test<appx, ADD>(a);
   generic_binary_fun_test<appx, SUB>(a);
   generic_binary_fun_test<appx, MUL>(a);

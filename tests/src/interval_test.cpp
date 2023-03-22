@@ -55,7 +55,7 @@ TEST(IntervalTest, OrderTest) {
 
 TEST(IntervalTest, GenericFunTests) {
   generic_unary_fun_test<EXACT, NEG, Itv>();
-  generic_unary_fun_test<EXACT, ABS, Itv>();
+  generic_abs_test<Itv>();
   generic_binary_fun_test<EXACT, ADD>(Itv(0,10));
   generic_binary_fun_test<EXACT, SUB>(Itv(0,10));
   generic_binary_fun_test<EXACT, MIN>(Itv(0,10));

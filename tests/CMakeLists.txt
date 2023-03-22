@@ -85,6 +85,11 @@ target_link_libraries(copy_dag_test cuda_battery gtest_main)
 target_include_directories(copy_dag_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 gtest_discover_tests(copy_dag_test)
 
+add_executable(flat_universe_test src/flat_universe_test.cpp)
+target_link_libraries(flat_universe_test cuda_battery lala_parsing gtest_main)
+target_include_directories(flat_universe_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_parsing_SOURCE_DIR}/include ${thrust_SOURCE_DIR} ${cpp-peglib_SOURCE_DIR})
+gtest_discover_tests(flat_universe_test)
+
 add_executable(upset_universe_test src/upset_universe_test.cpp)
 target_link_libraries(upset_universe_test cuda_battery lala_parsing gtest_main)
 target_include_directories(upset_universe_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_parsing_SOURCE_DIR}/include ${thrust_SOURCE_DIR} ${cpp-peglib_SOURCE_DIR})

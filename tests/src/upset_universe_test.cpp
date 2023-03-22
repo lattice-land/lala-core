@@ -9,12 +9,12 @@
 using namespace lala;
 using namespace battery;
 
-TEST(UniverseTest, BotTopTest) {
+TEST(UpsetUniverseTest, BotTopTest) {
   bot_top_test(local::ZInc(0));
   bot_top_test(local::ZDec(0));
 }
 
-TEST(UniverseTest, JoinMeetTest) {
+TEST(UpsetUniverseTest, JoinMeetTest) {
   join_meet_generic_test(local::ZInc::bot(), local::ZInc::top());
   join_meet_generic_test(local::ZInc(0), local::ZInc(0));
   join_meet_generic_test(local::ZInc(0), local::ZInc(5));
@@ -32,6 +32,8 @@ void test_z_arithmetic() {
   generic_arithmetic_fun_test<UNDER>(L(0));
   generic_arithmetic_fun_test<OVER>(L(0));
 
+  generic_abs_test<L>();
+
   EXPECT_EQ((L::template fun<EXACT, ADD>(L(0), L(1))), L(1));
   EXPECT_EQ((L::template fun<EXACT, ADD>(L(-10), L(0))), L(-10));
   EXPECT_EQ((L::template fun<EXACT, ADD>(L(-10), L(-5))), L(-15));
@@ -39,7 +41,7 @@ void test_z_arithmetic() {
   EXPECT_EQ((L::template fun<EXACT, ADD>(L(10), L(5))), L(15));
 }
 
-TEST(UniverseTest, ArithmeticTest) {
+TEST(UpsetUniverseTest, ArithmeticTest) {
   test_z_arithmetic<local::ZInc>();
   test_z_arithmetic<local::ZDec>();
 }
@@ -62,7 +64,7 @@ void interpret_integer_type() {
   must_error<B>("var int: x :: over;");
 }
 
-TEST(UniverseTest, InterpretIntegerType) {
+TEST(UpsetUniverseTest, InterpretIntegerType) {
   interpret_integer_type<local::ZInc, local::FInc, local::BInc>();
   interpret_integer_type<local::ZDec, local::FDec, local::BDec>();
 }
@@ -85,7 +87,7 @@ void interpret_real_type() {
   must_error<B>("var real: x :: over;");
 }
 
-TEST(UniverseTest, InterpretRealType) {
+TEST(UpsetUniverseTest, InterpretRealType) {
   interpret_real_type<local::ZInc, local::FInc, local::BInc>();
   interpret_real_type<local::ZDec, local::FDec, local::BDec>();
 }
@@ -108,12 +110,12 @@ void interpret_bool_type() {
   must_interpret_to("var bool: x :: over;", B::bot());
 }
 
-TEST(UniverseTest, InterpretBoolType) {
+TEST(UpsetUniverseTest, InterpretBoolType) {
   interpret_bool_type<local::ZInc, local::FInc, local::BInc>();
   interpret_bool_type<local::ZDec, local::FDec, local::BDec>();
 }
 
-TEST(UniverseTest, ZIncInterpretation) {
+TEST(UpsetUniverseTest, ZIncInterpretation) {
   using ZI = local::ZInc;
   must_interpret_to("constraint true :: exact;", ZI::bot());
   must_interpret_to("constraint true :: over;", ZI::bot());
@@ -169,7 +171,7 @@ TEST(UniverseTest, ZIncInterpretation) {
 }
 
 
-TEST(UniverseTest, ZDecInterpretation) {
+TEST(UpsetUniverseTest, ZDecInterpretation) {
   using ZD = local::ZDec;
   must_interpret_to("constraint true :: exact;", ZD::bot());
   must_interpret_to("constraint true :: over;", ZD::bot());
