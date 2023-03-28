@@ -4,7 +4,7 @@
 #define PRE_FINC_HPP
 
 #include "../logic/logic.hpp"
-#include "chain_pre_dual.hpp"
+#include "pre_fdec.hpp"
 
 namespace lala {
 
@@ -15,7 +15,7 @@ namespace lala {
 template<class VT>
 struct PreFInc {
   using this_type = PreFInc<VT>;
-  using reverse_type = ChainPreDual<this_type>;
+  using dual_type = PreFDec<VT>;
   using value_type = VT;
 
   constexpr static const bool is_totally_ordered = true;
@@ -23,11 +23,10 @@ struct PreFInc {
   constexpr static const bool preserve_top = true;
   /** Note that -0 and +0 are treated as the same element. */
   constexpr static const bool injective_concretization = true;
-  constexpr static const bool preserve_inner_covers = false;
+  constexpr static const bool preserve_concrete_covers = false;
   constexpr static const bool complemented = false;
   constexpr static const bool increasing = true;
   constexpr static const char* name = "FInc";
-  constexpr static const char* dual_name = "FDec";
   constexpr static const bool is_arithmetic = true;
   CUDA constexpr static value_type zero() { return 0.0; }
   CUDA constexpr static value_type one() { return 1.0; }
@@ -43,7 +42,7 @@ struct PreFInc {
             2. OVER: \f$ x >= lb \f$.
             3. EXACT: Only possible if \f$ lb == ub \f$ and \f$ lb \f$ is representable in the type `value_type`.
         * Formulas of kind `F::S` are not supported. */
-  template<class F, class Sort, bool dualize = false>
+  template<class F, class Sort>
   CUDA static iresult<F> interpret(const F& f, const Sort& sort, Approx appx) {
     if(f.is(F::Z) && sort.is_real()) {
       auto z = f.z();
@@ -113,13 +112,11 @@ struct PreFInc {
       We have \f$ a \leq_\mathit{FInc} b \Leftrightarrow a \leq b \f$.
       \return The logical symbol `LEQ`. */
   CUDA static constexpr Sig sig_order() { return LEQ; }
-  CUDA static constexpr Sig dual_sig_order() { return GEQ; }
 
   /** The logical predicate symbol corresponding to the strict order of this pre-universe.
       We have \f$ a <_\mathit{FInc} b \Leftrightarrow a < b \f$.
       \return The logical symbol `LT`. */
   CUDA static constexpr Sig sig_strict_order() { return LT; }
-  CUDA static constexpr Sig dual_sig_strict_order() { return GT; }
 
   /** \f$ \bot \f$ is represented by the floating-point negative infinity value. */
   CUDA static constexpr value_type bot() {
@@ -142,9 +139,6 @@ struct PreFInc {
 
   /** \return \f$ \mathit{true} \f$ if \f$ x <_\mathit{FInc} y \f$ where the order \f$ <_\mathit{ZInc} \f$ is the natural arithmetic ordering, otherwise returns \f$ \mathit{false} \f$. */
   CUDA static constexpr bool strict_order(value_type x, value_type y) { return x < y; }
-
-  CUDA static constexpr bool has_unique_next(value_type x) { return true; }
-  CUDA static constexpr bool has_unique_prev(value_type x) { return true; }
 
   /** From a lattice perspective, this function returns an element \f$ y \f$ such that \f$ y \f$ is a cover of \f$ x \f$.
 
@@ -174,7 +168,7 @@ struct PreFInc {
     return battery::nextafter(x, bot());
   }
 
-  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
+  CUDA static constexpr bool is_supported_fun(Sig sig) {
     switch(sig) {
       case NEG:
       case ABS:
@@ -186,20 +180,19 @@ struct PreFInc {
       case GEQ:
       case LT:
       case GT:
-        return true;
       case ADD:
       case SUB:
       case MUL:
       case DIV:
-        return appx != EXACT;
+        return true;
       default: return false;
     }
   }
 
-  template<Approx appx, Sig sig>
+  template<Sig sig>
   CUDA static constexpr value_type fun(value_type x) {
-    static_assert(is_supported_fun(appx, sig), "Unsupported unary function.");
-    // Negation and absolute function are exact functions in floating-point arithmetic.
+    static_assert(is_supported_fun(sig), "Unsupported unary function.");
+    // Negation and absolute functions are exact in floating-point arithmetic.
     switch(sig) {
       case NEG: return -x;
       case ABS: return abs(x);
@@ -207,14 +200,14 @@ struct PreFInc {
     }
   }
 
-  template<Approx appx, Sig sig>
+  template<Sig sig>
   CUDA static constexpr value_type fun(value_type x, value_type y) {
-    static_assert(is_supported_fun(appx, sig), "Unsupported binary function.");
+    static_assert(is_supported_fun(sig), "Unsupported binary function.");
     switch(sig) {
-      case ADD: return appx == UNDER ? battery::add_up(x, y) : battery::add_down(x, y);
-      case SUB: return appx == UNDER ? battery::sub_up(x, y) : battery::sub_down(x, y);
-      case MUL: return appx == UNDER ? battery::mul_up(x, y) : battery::mul_down(x, y);
-      case DIV: return appx == UNDER ? battery::div_up(x, y) : battery::div_down(x, y);
+      case ADD: return battery::add_down(x, y);
+      case SUB: return battery::sub_down(x, y);
+      case MUL: return battery::mul_down(x, y);
+      case DIV: return battery::div_down(x, y);
       case MIN: return battery::min(x, y);
       case MAX: return battery::max(x, y);
       case EQ: return x == y;

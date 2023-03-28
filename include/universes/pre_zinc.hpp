@@ -4,7 +4,7 @@
 #define PRE_ZINC_HPP
 
 #include "../logic/logic.hpp"
-#include "chain_pre_dual.hpp"
+#include "pre_zdec.hpp"
 
 namespace lala {
 
@@ -14,7 +14,7 @@ namespace lala {
 template<class VT>
 struct PreZInc {
   using this_type = PreZInc<VT>;
-  using reverse_type = ChainPreDual<this_type>;
+  using dual_type = PreZDec<VT>;
   using value_type = VT;
 
   static_assert(std::is_integral_v<value_type>, "PreZInc only works over integer types.");
@@ -31,18 +31,18 @@ struct PreZInc {
       This is important for the correctness of `prev` and `next` because we suppose \f$ \gamma(x) != \gamma(\mathit{next}(x)) \f$ when \f$ x \neq \bot \land x \neq \top \f$. */
   constexpr static const bool injective_concretization = true;
 
-  /** `true` if inner covers are preserved in the concrete domain, i.e., \f$ \gamma(\mathit{next}(x)) \f$ is a cover of \f$ \gamma(x) \f$.
-      An inner cover is a cover where bottom and top are not considered. */
-  constexpr static const bool preserve_inner_covers = true;
+  /** `true` if concrete covers are preserved by the concretization function, i.e., \f$ \gamma(\mathit{next}(x)) \f$ is a cover of \f$ \gamma(x) \f$, and dually for \f$ \mathit{prev}(x) \f$.
+   * \remark `preserve_concrete_covers` implies `injective_concretization`.
+   */
+  constexpr static const bool preserve_concrete_covers = true;
 
-  /** `true` if for all element \f$ x \in A \f$, there exists an element \f$ \lnot x \in A \f$ such that \f$ x \sqcup \lnot x = \top \f$ and \f$ x \sqcap \lnot x = \bot \f$. */
+  /** `true` if for all element \f$ x \in A \f$, there exists a unique element \f$ \lnot x \in A \f$ such that \f$ x \sqcup \lnot x = \top \f$ and \f$ x \sqcap \lnot x = \bot \f$. */
   constexpr static const bool complemented = false;
 
   /** `true` if the natural order of the universe of discourse coincides with the lattice order of this pre-universe, `false` if it is reversed. */
   constexpr static const bool increasing = true;
 
   constexpr static const char* name = "ZInc";
-  constexpr static const char* dual_name = "ZDec";
 
   constexpr static const bool is_arithmetic = true;
   CUDA constexpr static value_type zero() { return 0; }
@@ -87,7 +87,7 @@ struct PreZInc {
         * \f$ [\![ x:\mathbb{B} \geq [l..u]:\mathbb{R} ]\!]_u = \lceil u \rceil \f$.
         * \f$ [\![ x:\mathbb{B} \geq [l..u]:\mathbb{R} ]\!]_e = l \f$ iff \f$ \lfloor l \rfloor = \lceil u \rceil \f$.
       */
-  template<class F, class Sort, bool dualize = false>
+  template<class F, class Sort>
   CUDA static iresult<F> interpret(const F& f, const Sort& sort, Approx appx) {
     if(f.is(F::Z) && sort.is_int()) {
       auto z = f.z();
@@ -154,13 +154,11 @@ struct PreZInc {
       We have \f$ a \leq_\mathit{ZInc} b \Leftrightarrow a \leq b \f$.
       \return The logical symbol `LEQ`. */
   CUDA static constexpr Sig sig_order() { return LEQ; }
-  CUDA static constexpr Sig dual_sig_order() { return GEQ; }
 
   /** The logical predicate symbol corresponding to the strict order of this pre-universe.
       We have \f$ a <_\mathit{ZInc} b \Leftrightarrow a < b \f$.
       \return The logical symbol `LT`. */
   CUDA static constexpr Sig sig_strict_order() { return LT; }
-  CUDA static constexpr Sig dual_sig_strict_order() { return GT; }
 
   /** \f$ \bot \f$ is represented by the minimal representable value of the underlying value type. */
   CUDA static constexpr value_type bot() {
@@ -184,27 +182,26 @@ struct PreZInc {
   /** \return \f$ \mathit{true} \f$ if \f$ x <_\mathit{ZInc} y \f$ where the order \f$ <_\mathit{ZInc} \f$ is the natural arithmetic ordering, otherwise returns \f$ \mathit{false} \f$. */
   CUDA static constexpr bool strict_order(value_type x, value_type y) { return x < y; }
 
-  /** `true` if the element \f$ x \f$ has a unique cover in the abstract universe. */
-  CUDA static constexpr bool has_unique_next(value_type x) { return true; }
-
-  /** `true` if the element \f$ x \f$ covers a unique element in the abstract universe. */
-  CUDA static constexpr bool has_unique_prev(value_type x) { return true; }
-
-  /**  From a lattice perspective, this function returns an element \f$ y \f$ such that \f$ y \f$ is a cover of \f$ x \f$.
-
-    \return The next value of \f$ x \f$ in the discrete increasing chain \f$ -\infty, \ldots, -2, -1, 0, 1, \ldots \infty \f$ is \f$ x + 1 \f$ when \f$ x \not\in \{\infty, -\infty\} \f$ and \f$ x \f$ otherwise. */
+  /** From a lattice perspective, `next: ZInc -> ZInc` returns an element `next(x)` such that `x` is covered by `next(x)`.
+      \param x The element covering the returned element.
+      \return The next value of `x` in the discrete increasing chain `bot, ..., -2, -1, 0, 1, ..., top`.
+      \remark The next value of `bot` is `bot` and the next value of `top` is `top`.
+      \remark There is no element \f$ x \neq \top \f$ such that \f$ \mathit{next}(x) = \top \f$, but it can occur in case of overflow which is not checked. */
   CUDA static constexpr value_type next(value_type x) {
     return x + (x != top() && x != bot());
   }
 
-  /** From a lattice perspective, this function returns an element \f$ y \f$ such that \f$ x \f$ is a cover of \f$ y \f$.
-
-   \return The previous value of \f$ x \f$ in the discrete increasing chain \f$ -\infty, \ldots, -2, -1, 0, 1, \ldots \infty \f$ is \f$ x - 1 \f$ when \f$ x \not\in \{\infty, -\infty\} \f$ and \f$ x \f$ otherwise. */
-  CUDA static constexpr value_type prev(value_type x) {
+  /** From a lattice perspective, `prev: ZInc -> ZInc` returns an element `prev(x)` such that `x` covers `prev(x)`.
+      \param x The element covered by the returned element.
+      \return The previous value of `x` in the discrete increasing chain `bot, ..., -2, -1, 0, 1, ..., top`.
+      \remark The previous value of `bot` is `bot` and the previous value of `top` is `top`.
+      \remark There is no element \f$ x \neq \bot \f$ such that \f$ \mathit{prev}(x) = \bot \f$, but it can occur in case of overflow which is not checked. */
+      CUDA static constexpr value_type prev(value_type x)
+  {
     return x - (x != top() && x != bot());
   }
 
-  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
+  CUDA static constexpr bool is_supported_fun(Sig sig) {
     switch(sig) {
       case NEG:
       case ABS:
@@ -232,7 +229,12 @@ struct PreZInc {
     }
   }
 
-  template<Approx appx, Sig sig>
+  /** `fun: value_type -> ZInc` is an abstract function on `ZInc` over-approximating the function denoted by `sig` on the concrete domain.
+   * \param sig The signature of the function to over-approximate, can be either `NEG` or `ABS`.
+   * \param x The argument of the function, which is a constant value in the underlying universe of discourse.
+   * \note Since `x` is a constant, we do not check for equality with `bot()` or `top()`.
+   */
+  template<Sig sig>
   CUDA static constexpr value_type fun(value_type x) {
     static_assert(sig == NEG || sig == ABS, "Unsupported unary function.");
     switch(sig) {
@@ -242,7 +244,8 @@ struct PreZInc {
     }
   }
 
-  template<Approx appx, Sig sig>
+  /** `fun: value_type X value_type -> ZInc` is similar to its unary version but with an arity of 2. */
+  template<Sig sig>
   CUDA static constexpr value_type fun(value_type x, value_type y) {
     static_assert(
       sig == ADD || sig == SUB || sig == MUL || sig == TDIV || sig == TMOD || sig == FDIV || sig == FMOD || sig == CDIV || sig == CMOD || sig == EDIV || sig == EMOD || sig == POW || sig == MIN || sig == MAX || sig == EQ || sig == NEQ || sig == LEQ || sig == GEQ || sig == LT || sig == GT,
@@ -254,13 +257,13 @@ struct PreZInc {
       // Truncated division and modulus, by default in C++.
       case TDIV: return x / y;
       case TMOD: return x % y;
-      // Floor division and modulus, see (Leijend D. (2003). Division and Modulus for Computer Scientists).
+      // Floor division and modulus, see (Leijen D. (2003). Division and Modulus for Computer Scientists).
       case FDIV: return x / y - (battery::signum(x % y) == -battery::signum(y));
       case FMOD: return x % y + y * (battery::signum(x % y) == -battery::signum(y));
       // Ceil division and modulus.
       case CDIV: return x / y + (battery::signum(x % y) == battery::signum(y));
       case CMOD: return x % y - y * (battery::signum(x % y) == battery::signum(y));
-      // Euclidean division and modulus, see (Leijend D. (2003). Division and Modulus for Computer Scientists).
+      // Euclidean division and modulus, see (Leijen D. (2003). Division and Modulus for Computer Scientists).
       case EDIV: return x / y - ((x % y >= 0) ? 0 : battery::signum(y));
       case EMOD: return x % y + y * ((x % y >= 0) ? 0 : battery::signum(y));
       case POW: return battery::ipow(x, y);

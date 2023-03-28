@@ -278,14 +278,17 @@ public:
     }
   }
 
+  /** By construction, the flat lattice only supports exact function.
+   * Indeed, an under-approximation systematically leads to top, and an over-approximation systematically leads to bottom. */
   CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
-    return pre_universe::is_supported_fun(appx, sig);
+    return appx == EXACT && pre_universe::is_supported_fun(appx, sig);
   }
 
 public:
   /** Unary function over `value_type`. */
   template<Approx appx, Sig sig, class M1>
   CUDA static constexpr this_type2<battery::LocalMemory> fun(const this_type2<M1>& u) {
+    static_assert(is_supported_fun(appx, sig));
     if(u.is_top()) {
       return this_type2<battery::LocalMemory>::top();
     }
@@ -298,6 +301,7 @@ public:
   /** Binary functions over `value_type`. */
   template<Approx appx, Sig sig, class M1, class M2>
   CUDA static constexpr this_type2<battery::LocalMemory> fun(const this_type2<M1>& a, const this_type2<M2>& b) {
+    static_assert(is_supported_fun(appx, sig));
     if(a.is_top() || b.is_top()) {
       return this_type2<battery::LocalMemory>::top();
     }

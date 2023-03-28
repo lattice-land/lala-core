@@ -32,8 +32,6 @@ void test_z_arithmetic() {
   generic_arithmetic_fun_test<UNDER>(L(0));
   generic_arithmetic_fun_test<OVER>(L(0));
 
-  generic_abs_test<L>();
-
   EXPECT_EQ((L::template fun<EXACT, ADD>(L(0), L(1))), L(1));
   EXPECT_EQ((L::template fun<EXACT, ADD>(L(-10), L(0))), L(-10));
   EXPECT_EQ((L::template fun<EXACT, ADD>(L(-10), L(-5))), L(-15));
@@ -43,6 +41,7 @@ void test_z_arithmetic() {
 
 TEST(UpsetUniverseTest, ArithmeticTest) {
   test_z_arithmetic<local::ZInc>();
+  generic_abs_test<local::ZInc>();
   test_z_arithmetic<local::ZDec>();
 }
 

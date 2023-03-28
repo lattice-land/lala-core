@@ -9,10 +9,12 @@
 #include <iostream>
 #include "thrust/optional.h"
 #include "../logic/logic.hpp"
-#include "chain_pre_dual.hpp"
 #include "pre_binc.hpp"
 #include "pre_finc.hpp"
 #include "pre_zinc.hpp"
+#include "pre_bdec.hpp"
+#include "pre_fdec.hpp"
+#include "pre_zdec.hpp"
 #include "memory.hpp"
 
 /** A pre-abstract universe is a lattice (with usual operations join, order, ...) equipped with a simple logical interpretation function and a next/prev functions.
@@ -51,7 +53,7 @@ using ZInc = UpsetUniverse<PreZInc<VT>, Mem>;
 /** Lattice of decreasing integers.
 Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \geq y\} \f$. */
 template<class VT, class Mem>
-using ZDec = UpsetUniverse<ChainPreDual<PreZInc<VT>>, Mem>;
+using ZDec = UpsetUniverse<PreZDec<VT>, Mem>;
 
 /** Lattice of increasing floating-point numbers.
 Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; y \in \mathbb{R}, x \leq y\} \f$. */
@@ -61,7 +63,7 @@ using FInc = UpsetUniverse<PreFInc<VT>, Mem>;
 /** Lattice of decreasing floating-point numbers.
 Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; y \in \mathbb{R}, x \geq y\} \f$. */
 template<class VT, class Mem>
-using FDec = UpsetUniverse<ChainPreDual<PreFInc<VT>>, Mem>;
+using FDec = UpsetUniverse<PreFDec<VT>, Mem>;
 
 /** Lattice of increasing Boolean where \f$ \mathit{false} \leq \mathit{true} \f$. */
 template<class Mem>
@@ -69,7 +71,7 @@ using BInc = UpsetUniverse<PreBInc, Mem>;
 
 /** Lattice of decreasing Boolean where \f$ \mathit{true} \leq \mathit{false} \f$. */
 template<class Mem>
-using BDec = UpsetUniverse<ChainPreDual<PreBInc>, Mem>;
+using BDec = UpsetUniverse<PreBDec, Mem>;
 
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
@@ -119,10 +121,15 @@ public:
   using value_type = typename pre_universe::value_type;
   using memory_type = Mem;
   using this_type = UpsetUniverse<pre_universe, memory_type>;
-  using reverse_type = UpsetUniverse<typename pre_universe::reverse_type, memory_type>;
+  using dual_type = UpsetUniverse<typename pre_universe::dual_type, memory_type>;
 
   template<class M>
   using this_type2 = UpsetUniverse<pre_universe, M>;
+
+  using local_type = this_type2<battery::LocalMemory>;
+
+  template<class M>
+  using flat_type = FlatUniverse<pre_universe, M>;
 
   template<class F>
   using iresult = IResult<this_type, F>;
@@ -132,7 +139,7 @@ public:
   constexpr static const bool preserve_bot = pre_universe::preserve_bot;
   constexpr static const bool preserve_top = pre_universe::preserve_top;
   constexpr static const bool injective_concretization = pre_universe::injective_concretization;
-  constexpr static const bool preserve_inner_covers = pre_universe::preserve_inner_covers;
+  constexpr static const bool preserve_concrete_covers = pre_universe::preserve_concrete_covers;
   constexpr static const bool complemented = pre_universe::complemented;
   constexpr static const bool increasing = pre_universe::increasing;
   constexpr static const char* name = pre_universe::name;
@@ -147,7 +154,7 @@ public:
     }
     else {
       static_assert(increasing && is_arithmetic && is_totally_ordered,
-        "The pre-interpreted formula x >= 0 is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
+        "The pre-interpreted formula x >= k is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
         Moreover, the underlying abstract universe must be increasing, otherwise this formula is not supported.");
     }
   }
@@ -158,7 +165,7 @@ public:
     }
     else {
       static_assert(!increasing && is_arithmetic && is_totally_ordered,
-        "The pre-interpreted formula x <= 0 is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
+        "The pre-interpreted formula x <= k is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
         Moreover, the underlying abstract universe must be decreasing, otherwise this formula is not supported.");
     }
   }
@@ -169,14 +176,10 @@ private:
 
 public:
   /** Similar to \f$[\![\mathit{true}]\!]\f$ if `preserve_bot` is true. */
-  CUDA static constexpr this_type bot() {
-    return this_type();
-  }
+  CUDA static constexpr this_type bot() { return this_type(); }
 
   /** Similar to \f$[\![\mathit{false}]\!]\f$ if `preserve_top` is true. */
-  CUDA static constexpr this_type top() {
-    return this_type(U::top());
-  }
+  CUDA static constexpr this_type top() { return this_type(U::top()); }
   /** Initialize an upset universe to bottom. */
   CUDA constexpr UpsetUniverse(): val(U::bot()) {}
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
@@ -293,7 +296,7 @@ public:
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
    * For this abstract universe, it always returns `true` since the current element \f$ a \f$ is an exact representation of \f$ \rrbracket a \llbracket \f$. */
-  CUDA constexpr bool extract(this_type2<battery::LocalMemory>& ua) const {
+  CUDA constexpr bool extract(local_type& ua) const {
     ua.val = value();
     return true;
   }
@@ -324,18 +327,17 @@ private:
       return r;
     }
     else if(sig == U::sig_strict_order()) {  // e.g., x < 4
-      if(f.is_under() ||
-         (preserve_inner_covers && pre_universe::has_unique_next(r.value())))
+      if(!f.is_over() || (preserve_concrete_covers && is_totally_ordered)))
       {
         return std::move(r).map(pre_universe::next(r.value()));
       }
-      else if(f.is_exact()) {
-        auto err = IError<F>(true, name, "Exactly interpreting a strict relation, i.e. `x < k`, not supported.", f);
-        if constexpr(!preserve_inner_covers) {
+      else {
+        auto err = IError<F>(true, name, "Interpreting a strict relation, i.e. `x < k`, not supported.", f);
+        if constexpr(!preserve_concrete_covers) {
           err.add_suberror(IError<F>(true, name, "Inner covers are not preserved: there might be elements between k and next(k).", f));
         }
-        if(!pre_universe::has_unique_next(r.value())) {
-          err.add_suberror(IError<F>(true, name, "The cover is not unique: there are several incomparable elements satisfying next(k).", f));
+        if(!is_totally_ordered) {
+          err.add_suberror(IError<F>(true, name, "The cover is not unique (the abstract universe is not totally ordered): there might be several incomparable elements satisfying next(k).", f));
         }
         return iresult<F>(std::move(err));
       }
@@ -448,88 +450,86 @@ public:
     }
   }
 
-  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
-    if(sig == ABS && !increasing) { return false; } // The absolute function is linked to increasing abstract universe, and cannot be represented in a decreasing abstract domain (unless by mapping to `top` but that's uninteresting).
-    return pre_universe::is_supported_fun(appx, sig);
+  CUDA static constexpr bool is_supported_fun(Sig sig) {
+    return pre_universe::is_supported_fun(sig);
   }
 
 private:
-  template<Approx appx, Sig sig, class A, class B>
-  CUDA static constexpr this_type2<battery::LocalMemory> div_per_zero(const A& a, const B&) {
-    if constexpr(A::increasing && B::increasing == increasing) {
-      constexpr auto geq_zero = A::geq_k(A::pre_universe::zero());
-      if(a >= geq_zero) {
-        return this_type2<battery::LocalMemory>(pre_universe::zero());
-      }
-    }
-    else if constexpr(!A::increasing && B::increasing != increasing) {
-      constexpr auto leq_zero = A::leq_k(A::pre_universe::zero());
-      if(a >= leq_zero) {
-        return this_type2<battery::LocalMemory>(pre_universe::zero());
-      }
-    }
-    return this_type2<battery::LocalMemory>::bot();
-  }
+
 
 public:
-  /** Unary function over `value_type`.
-   * Due to some complications, the function acts as if `a` was of the lattice type "Flat Lattice" instead of an upset.
-   * To obtain the upset semantics of the functions, you can rely on Interval, where you set one of the bounds to `bot`.  */
-  template<Approx appx, Sig sig, class A>
-  CUDA static constexpr this_type2<battery::LocalMemory> fun(const A& a) {
-    if constexpr(A::preserve_top) {
-      if(a.is_top()) {
-        return this_type2<battery::LocalMemory>::top();
-      }
+  /** Unary function of type `Sig: FlatUniverse -> UpsetUniverse`.
+   * \return If `a` is `bot`, we return the bottom element of the upset lattice; and dually for `top`.
+   * Otherwise, we apply the function `Sig` to `a` and return the result.
+   * \remark The result of the function is always over-approximated (or exact when possible).
+  */
+  template <Sig sig, class M>
+  CUDA static constexpr local_type fun(const flat_type<M>& a)
+  {
+    if(a.is_top()) {
+      return local_type::top();
     }
-    if constexpr(sig == ABS && A::increasing) {
-      constexpr auto geq_zero = A::geq_k(A::pre_universe::zero());
-      return join(a, geq_zero);
+    else if(a.is_bot()) {
+      return local_type::bot();
     }
-    else if constexpr(A::preserve_bot) {
-      if(a.is_bot()) {
-        return this_type2<battery::LocalMemory>::bot();
-      }
-    }
-    return pre_universe::template fun<appx, sig>(a);
+    return pre_universe::template fun<sig>(a);
   }
 
-  /** Binary functions over `value_type`.
-   * Due to some complications, the function acts as if `a` and `b` were of the lattice type "Flat Lattice" instead of an upset.
-   * To obtain the upset semantics of these functions, you can rely on Interval, where you set one of the bounds of each `a` and `b` to `bot`. */
-  template<Approx appx, Sig sig, class A, class B>
-  CUDA static constexpr this_type2<battery::LocalMemory> fun(const A& a, const B& b) {
-    if constexpr(A::preserve_top) {
-      if(a.is_top()) {
-        return this_type2<battery::LocalMemory>::top();
+  /** Binary functions of type `Sig: FlatUniverse x FlatUniverse -> UpsetUniverse`.
+   * \return If `a` or `b` is `bot`, we return the bottom element of the upset lattice; and dually for `top`.
+   * Otherwise, we apply the function `Sig` to `a` and `b` and return the result.
+   * \remark The result of the function is always over-approximated (or exact when possible).
+   */
+  template<Sig sig, class M1, class M2>
+  CUDA static constexpr local_type fun(const flat_type<M1>& a, const flat_type<M2>& b)
+    if(a.is_top() || b.is_top()) {
+      return local_type::top();
+    }
+    else if(a.is_bot() || b.is_bot()) {
+      return local_type::bot();
+    }
+    if constexpr(is_division(sig)) {
+      if(b.value() == pre_universe::zero()) {
+        return local_type::top();
       }
     }
-    if constexpr(B::preserve_top) {
-      if(b.is_top()) {
-        return this_type2<battery::LocalMemory>::top();
+    return pre_universe::template fun<sig>(a, b);
+  }
+
+  /** Given two values `a` and `b`, we perform the division while taking care of the case where `b == 0`.
+   * When `b != 0`, the result is `fun<sig>(a, b)`.
+   * Otherwise, the result depends on the type of `a` and `b`:
+   *   `a`   | `b`    | local_type | Result
+   *  ------ | ------ | ---------- | ------
+   *  Inc    | Inc    | Inc        | 0
+   *  Inc    | Dec    | Dec        | 0
+   *  Dec    | Dec    | Inc        | 0
+   *  Dec    | Inc    | Dec        | 0
+   *  -      | -      | -          | bot()
+   */
+  template<Sig sig, class Pre1, class Mem1, class Pre2, class Mem2>
+  CUDA static constexpr local_type guarded_div(
+    const UpsetUniverse<Pre1, Mem1>& a, const UpsetUniverse<Pre2, Mem2>& b)
+  {
+    if(b != B::zero()) {
+      return fun<sig>(a.value(), b.value());
+    }
+    else {
+      if constexpr(B::preserve_concrete_covers && B::is_totally_ordered) {
+        // When `b` is "integer-like" we can just skip the value 0 and go to `-1` or `1` depending on the type `B`.
+        return R::fun<sig>(a.value(), B::pre_universe::next(b));
+      }
+      else if constexpr(
+        (A::increasing && B::increasing == R::increasing) || // Inc X T -> T where T is either Inc or Dec.
+        (!A::increasing && !B::increasing && R::increasing) || // Dec X Dec -> Inc
+        (!A::increasing && B::increasing && !R::increasing)) // Dec X Inc -> Dec
+      {
+        return R::zero();
+      }
+      else {
+        return R::bot();
       }
     }
-    if constexpr(A::preserve_bot) {
-      if(a.is_bot()) {
-        return this_type2<battery::LocalMemory>::bot();
-      }
-    }
-    if constexpr(B::preserve_bot) {
-      if(b.is_bot()) {
-        return this_type2<battery::LocalMemory>::bot();
-      }
-    }
-    if constexpr(is_division(sig) && impl::is_upset_universe_v<A> && impl::is_upset_universe_v<B> && B::is_arithmetic) {
-      if(b.value() == B::pre_universe::zero()) {
-        if(B::preserve_inner_covers && B::pre_universe::has_unique_next(b)) {
-          return pre_universe::template fun<appx, sig>(a, B::pre_universe::next(b));
-        }
-        else {
-          return div_per_zero<appx, sig>(a, b);
-        }
-      }
-    }
-    return pre_universe::template fun<appx, sig>(a, b);
   }
 
   template<class Pre2, class Mem2>

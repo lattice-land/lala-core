@@ -17,8 +17,10 @@ TEST(VarTest, MakeVar) {
     EXPECT_EQ(v.aty(), types[i]);
     EXPECT_EQ(v.vid(), var_ids[i]);
   }
+#ifdef DEBUG
   ASSERT_DEATH(AVar((1 << 8), 0), "");
   ASSERT_DEATH(AVar(0, (1 << 23)), "");
+#endif
 }
 
 template <class Env>
