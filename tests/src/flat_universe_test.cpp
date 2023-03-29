@@ -22,12 +22,17 @@ TEST(FlatUniverseTest, JoinMeetTest) {
 }
 
 TEST(FlatUniverseTest, ArithmeticTest) {
-  generic_arithmetic_fun_test<EXACT>(ZF(0));
-  generic_arithmetic_fun_test<UNDER>(ZF(0));
-  generic_arithmetic_fun_test<OVER>(ZF(0));
+  generic_arithmetic_fun_test(ZF(0));
 
-  EXPECT_EQ((ZF::template fun<EXACT, ADD>(ZF(0), ZF(1))), ZF(1));
-  EXPECT_EQ((ZF::template fun<EXACT, ADD>(ZF(-10), ZF(-5))), ZF(-15));
+  EXPECT_EQ((ZF::template fun<ADD>(ZF(0), ZF(1))), ZF(1));
+  EXPECT_EQ((ZF::template fun<ADD>(ZF(-10), ZF(-5))), ZF(-15));
+}
+
+TEST(FlatUniverseTest, ConversionUpset) {
+  EXPECT_EQ((ZF(local::ZInc::top())), ZF::top());
+  EXPECT_EQ((ZF(local::ZDec::top())), ZF::top());
+  EXPECT_EQ((ZF(local::ZInc::bot())), ZF::bot());
+  EXPECT_EQ((ZF(local::ZDec::bot())), ZF::bot());
 }
 
 TEST(FlatUniverseTest, InterpretIntegerType) {

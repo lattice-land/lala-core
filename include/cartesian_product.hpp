@@ -34,8 +34,8 @@ namespace impl {
   }
 
   template<class... Os>
-  CUDA constexpr CartesianProduct<Os...> make_cp(Os... os) {
-    return CartesianProduct<Os...>(os...);
+  CUDA constexpr typename CartesianProduct<Os...>::local_type make_cp(Os... os) {
+    return typename CartesianProduct<Os...>::local_type(os...);
   }
 
   template<class A>
@@ -67,12 +67,13 @@ public:
   constexpr static size_t n = battery::tuple_size<battery::tuple<As...>>{};
   static_assert(n > 0, "CartesianProduct must not be empty.");
   using this_type = CartesianProduct<As...>;
+  using local_type = CartesianProduct<typename As::local_type...>;
   using memory_type = typename type_of<0>::memory_type;
 
   template<class...Bs> friend class CartesianProduct;
 
   template<class F>
-  using iresult = IResult<this_type, F>;
+  using iresult = IResult<local_type, F>;
 
   using value_type = battery::tuple<typename As::value_type...>;
 
@@ -119,12 +120,12 @@ public:
   }
 
   /** Cartesian product initialized to \f$ (\bot_1, \ldots, \bot_n) \f$. */
-  CUDA static constexpr this_type bot() {
+  CUDA static constexpr local_type bot() {
     return CartesianProduct(As::bot()...);
   }
 
   /** Cartesian product initialized to \f$ (\top_1, \ldots, \top_n) \f$. */
-  CUDA static constexpr this_type top() {
+  CUDA static constexpr local_type top() {
     return CartesianProduct(As::top()...);
   }
 
@@ -145,7 +146,7 @@ public:
 
 private:
   template<size_t i = 0, class F, class Env>
-  CUDA static IResult<bool, F> interpret_all(const F& f, this_type& res, bool empty, const Env& env) {
+  CUDA static IResult<bool, F> interpret_all(const F& f, local_type& res, bool empty, const Env& env) {
     if constexpr(i == n) {
       if(empty) {
         return IResult<bool, F>(IError<F>(true, name, "No component of this Cartesian product can interpret this formula.", f));
@@ -174,13 +175,13 @@ public:
   /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
   template<class F, class Env>
   CUDA static iresult<F> interpret(const F& f, const Env& env) {
-    this_type cp = bot();
+    local_type cp = bot();
     if(f.is(F::Seq) && f.sig() == AND) {
       iresult<F> res(bot());
       for(int i = 0; i < f.seq().size(); ++i) {
         auto r = interpret_all(f.seq(i), cp, true, env);
         if(!r.has_value()) {
-          return std::move(r).template map_error<this_type>();
+          return std::move(r).template map_error<local_type>();
         }
         res.join_warnings(std::move(r));
       }
@@ -363,56 +364,56 @@ public:
 // Implementation of the logical signature.
 
 private:
-  template<Approx appx, Sig sig, class A, size_t... I>
+  template<Sig sig, class A, size_t... I>
   CUDA static constexpr auto fun_(const A& a, std::index_sequence<I...>)
   {
-    return impl::make_cp((As::template fun<appx, sig>(a.template project<I>()))...);
+    return impl::make_cp((As::template fun<sig>(a.template project<I>()))...);
   }
 
-  template<Approx appx, Sig sig, class A, class B, size_t... I>
+  template<Sig sig, class A, class B, size_t... I>
   CUDA static constexpr auto fun_(const A& a, const B& b, std::index_sequence<I...>)
   {
-    return impl::make_cp((As::template fun<appx, sig>(a.template project<I>(), b.template project<I>()))...);
+    return impl::make_cp((As::template fun<sig>(a.template project<I>(), b.template project<I>()))...);
   }
 
-  template<Approx appx, Sig sig, class A, class B, size_t... I>
+  template<Sig sig, class A, class B, size_t... I>
   CUDA static constexpr auto fun_left(const A& a, const B& b, std::index_sequence<I...>)
   {
-    return impl::make_cp((As::template fun<appx, sig>(a.template project<I>(), b))...);
+    return impl::make_cp((As::template fun<sig>(a.template project<I>(), b))...);
   }
 
-  template<Approx appx, Sig sig, class A, class B, size_t... I>
+  template<Sig sig, class A, class B, size_t... I>
   CUDA static constexpr auto fun_right(const A& a, const B& b, std::index_sequence<I...>)
   {
-    return impl::make_cp((As::template fun<appx, sig>(a, b.template project<I>()))...);
+    return impl::make_cp((As::template fun<sig>(a, b.template project<I>()))...);
   }
 
 public:
-  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
-    return (... && As::is_supported_fun(appx, sig));
+  CUDA static constexpr bool is_supported_fun(Sig sig) {
+    return (... && As::is_supported_fun(sig));
   }
 
   /** Given a product \f$ (x_1, \ldots, x_n) \f$, returns \f$ (f(x_1), \ldots, f(x_n)) \f$. */
-  template<Approx appx, Sig sig, class... Bs>
+  template<Sig sig, class... Bs>
   CUDA static constexpr auto fun(const CartesianProduct<Bs...>& a) {
-    return fun_<appx, sig>(a, impl::index_sequence_of(a));
+    return fun_<sig>(a, impl::index_sequence_of(a));
   }
 
   /** Given two product \f$ (x_1, \ldots, x_n) \f$ and \f$ (y_1, \ldots, y_n) \f$, returns \f$ (f(x_1, y_1), \ldots, f(x_n, y_n)) \f$.
       If either the left or right operand is not a product, returns \f$ (f(x_1, c), \ldots, f(x_n, c)) \f$ or  \f$ (f(c, y_1), \ldots, f(c, y_n)) \f$. */
-  template<Approx appx, Sig sig, class... As2, class... Bs>
+  template<Sig sig, class... As2, class... Bs>
   CUDA static constexpr auto fun(const CartesianProduct<As2...>& a, const CartesianProduct<Bs...>& b) {
-    return fun_<appx, sig>(a, b, impl::index_sequence_of(a, b));
+    return fun_<sig>(a, b, impl::index_sequence_of(a, b));
   }
 
-  template<Approx appx, Sig sig, class... As2, class B>
+  template<Sig sig, class... As2, class B>
   CUDA static constexpr auto fun(const CartesianProduct<As2...>& a, const B& b) {
-    return fun_left<appx, sig>(a, b, impl::index_sequence_of(a));
+    return fun_left<sig>(a, b, impl::index_sequence_of(a));
   }
 
-  template<Approx appx, Sig sig, class A, class... Bs>
+  template<Sig sig, class A, class... Bs>
   CUDA static constexpr auto fun(const A& a, const CartesianProduct<Bs...>& b) {
-    return fun_right<appx, sig>(a, b, impl::index_sequence_of(b));
+    return fun_right<sig>(a, b, impl::index_sequence_of(b));
   }
 
 private:

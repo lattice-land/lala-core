@@ -35,21 +35,22 @@ template<class U, class Allocator>
 class VStore {
 public:
   using universe_type = U;
+  using local_universe = typename universe_type::local_type;
   using allocator_type = Allocator;
   using this_type = VStore<universe_type, allocator_type>;
 
   struct var_dom {
     int idx;
-    universe_type dom;
+    local_universe dom;
     var_dom() = default;
-    CUDA var_dom(int idx, const universe_type& dom): idx(idx), dom(dom) {}
+    CUDA var_dom(int idx, const local_universe& dom): idx(idx), dom(dom) {}
   };
 
   template <class Alloc>
   using tell_type = battery::vector<var_dom, Alloc>;
 
   template <class Alloc = allocator_type>
-  using snapshot_type = battery::vector<universe_type, Alloc>;
+  using snapshot_type = battery::vector<local_universe, Alloc>;
 
   template<class F, class Env>
   using iresult = IResult<tell_type<typename Env::allocator_type>, F>;
@@ -162,7 +163,7 @@ private:
   CUDA iresult<F, Env> interpret_existential(const F& f, Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
     assert(f.is(F::E));
-    auto u = universe_type::interpret(f, env);
+    auto u = local_universe::interpret(f, env);
     if(u.has_value()) {
       if(env.num_vars_in(atype) >= vars()) {
         return iresult<F, Env>(IError<F>(true, name, "The variable could not be interpreted because the store is full.", f));
@@ -208,7 +209,7 @@ private:
   template <class F, class Env>
   CUDA iresult<F, Env> interpret_unary_predicate(const F& f, const Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
-    auto u = universe_type::interpret(f, env);
+    auto u = local_universe::interpret(f, env);
     if(u.has_value()) {
       TellType res(env.get_allocator());
       auto var = var_in(f, env);

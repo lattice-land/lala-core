@@ -54,93 +54,98 @@ TEST(IntervalTest, OrderTest) {
 }
 
 TEST(IntervalTest, GenericFunTests) {
-  generic_unary_fun_test<EXACT, NEG, Itv>();
+  generic_unary_fun_test<NEG, Itv>();
   generic_abs_test<Itv>();
-  generic_binary_fun_test<EXACT, ADD>(Itv(0,10));
-  generic_binary_fun_test<EXACT, SUB>(Itv(0,10));
-  generic_binary_fun_test<EXACT, MIN>(Itv(0,10));
-  generic_binary_fun_test<EXACT, MAX>(Itv(0,10));
-  generic_arithmetic_fun_test<OVER>(Itv(0, 10));
-  generic_arithmetic_fun_test<OVER>(Itv(1, 10));
-  generic_arithmetic_fun_test<OVER>(Itv(-10, 10));
-  generic_arithmetic_fun_test<OVER>(Itv(-10, -1));
-  generic_arithmetic_fun_test<OVER>(Itv(-10, 0));
+  generic_binary_fun_test<ADD>(Itv(0,10));
+  generic_binary_fun_test<SUB>(Itv(0,10));
+  generic_arithmetic_fun_test(Itv(0, 10));
+  generic_arithmetic_fun_test(Itv(1, 10));
+  generic_arithmetic_fun_test(Itv(-10, 10));
+  generic_arithmetic_fun_test(Itv(-10, -1));
+  generic_arithmetic_fun_test(Itv(-10, 0));
+}
+
+TEST(IntervalTest, MinMax) {
+  EXPECT_EQ((Itv::template fun<MIN>(Itv::bot(), Itv(-10, 10))), Itv(zi::bot(), zd(10)));
+  EXPECT_EQ((Itv::template fun<MIN>(Itv(-10, 10), Itv::bot())), Itv(zi::bot(), zd(10)));
+  EXPECT_EQ((Itv::template fun<MAX>(Itv::bot(), Itv(-10, 10))), Itv(zi(-10), zd::bot()));
+  EXPECT_EQ((Itv::template fun<MAX>(Itv(-10, 10), Itv::bot())), Itv(zi(-10), zd::bot()));
 }
 
 TEST(IntervalTest, Negation) {
-  EXPECT_EQ((Itv::fun<EXACT, NEG>(Itv(5, 10))), Itv(-10, -5));
-  EXPECT_EQ((Itv::fun<EXACT, NEG>(Itv(-10, 10))), Itv(-10, 10));
-  EXPECT_EQ((Itv::fun<EXACT, NEG>(Itv(10, -10))), Itv(10, -10));
-  EXPECT_EQ((Itv::fun<EXACT, NEG>(Itv(-10, -5))), Itv(5, 10));
+  EXPECT_EQ((Itv::fun<NEG>(Itv(5, 10))), Itv(-10, -5));
+  EXPECT_EQ((Itv::fun<NEG>(Itv(-10, 10))), Itv(-10, 10));
+  EXPECT_EQ((Itv::fun<NEG>(Itv(10, -10))), Itv(10, -10));
+  EXPECT_EQ((Itv::fun<NEG>(Itv(-10, -5))), Itv(5, 10));
 }
 
 TEST(IntervalTest, Absolute) {
-  EXPECT_EQ((Itv::fun<EXACT, ABS>(Itv(5, 10))), Itv(5, 10));
-  EXPECT_EQ((Itv::fun<EXACT, ABS>(Itv(-10, 10))), Itv(0, 10));
-  EXPECT_EQ((Itv::fun<EXACT, ABS>(Itv(10, -10))), Itv(10, 10));
-  EXPECT_EQ((Itv::fun<EXACT, ABS>(Itv(-10, -5))), Itv(5, 10));
+  EXPECT_EQ((Itv::fun<ABS>(Itv(5, 10))), Itv(5, 10));
+  EXPECT_EQ((Itv::fun<ABS>(Itv(-10, 10))), Itv(0, 10));
+  EXPECT_EQ((Itv::fun<ABS>(Itv(10, -10))), Itv(10, 0));
+  EXPECT_EQ((Itv::fun<ABS>(Itv(-10, -5))), Itv(5, 10));
 }
 
 TEST(IntervalTest, Addition) {
-  EXPECT_EQ((Itv::fun<EXACT, ADD>(Itv(-10, -10), Itv(-10, -10))), Itv(-20, -20));
-  EXPECT_EQ((Itv::fun<EXACT, ADD>(Itv(-10, -10), Itv(0, 0))), Itv(-10, -10));
-  EXPECT_EQ((Itv::fun<EXACT, ADD>(Itv(0, 0), Itv(-10, -10))), Itv(-10, -10));
-  EXPECT_EQ((Itv::fun<EXACT, ADD>(Itv(1, 10), Itv(1, 10))), Itv(2, 20));
-  EXPECT_EQ((Itv::fun<EXACT, ADD>(Itv(-1, 10), Itv(1, 10))), Itv(0, 20));
-  EXPECT_EQ((Itv::fun<EXACT, ADD>(Itv(-1, 10), Itv(-1, 10))), Itv(-2, 20));
-  EXPECT_EQ((Itv::fun<EXACT, ADD>(Itv(-10, -1), Itv(1, 10))), Itv(-9, 9));
+  EXPECT_EQ((Itv::fun<ADD>(Itv(-10, -10), Itv(-10, -10))), Itv(-20, -20));
+  EXPECT_EQ((Itv::fun<ADD>(Itv(-10, -10), Itv(0, 0))), Itv(-10, -10));
+  EXPECT_EQ((Itv::fun<ADD>(Itv(0, 0), Itv(-10, -10))), Itv(-10, -10));
+  EXPECT_EQ((Itv::fun<ADD>(Itv(1, 10), Itv(1, 10))), Itv(2, 20));
+  EXPECT_EQ((Itv::fun<ADD>(Itv(-1, 10), Itv(1, 10))), Itv(0, 20));
+  EXPECT_EQ((Itv::fun<ADD>(Itv(-1, 10), Itv(-1, 10))), Itv(-2, 20));
+  EXPECT_EQ((Itv::fun<ADD>(Itv(-10, -1), Itv(1, 10))), Itv(-9, 9));
 }
 
 TEST(IntervalTest, Subtraction) {
-  EXPECT_EQ((Itv::fun<EXACT, SUB>(Itv(-10, -10), Itv(-10, -10))), Itv(0, 0));
-  EXPECT_EQ((Itv::fun<EXACT, SUB>(Itv(-10, -10), Itv(0, 0))), Itv(-10, -10));
-  EXPECT_EQ((Itv::fun<EXACT, SUB>(Itv(0, 0), Itv(-10, -10))), Itv(10, 10));
-  EXPECT_EQ((Itv::fun<EXACT, SUB>(Itv(1, 10), Itv(1, 10))), Itv(-9, 9));
-  EXPECT_EQ((Itv::fun<EXACT, SUB>(Itv(-1, 10), Itv(1, 10))), Itv(-11, 9));
-  EXPECT_EQ((Itv::fun<EXACT, SUB>(Itv(-1, 10), Itv(-1, 10))), Itv(-11, 11));
-  EXPECT_EQ((Itv::fun<EXACT, SUB>(Itv(-10, -1), Itv(1, 10))), Itv(-20, -2));
+  EXPECT_EQ((Itv::fun<SUB>(Itv(-10, -10), Itv(-10, -10))), Itv(0, 0));
+  EXPECT_EQ((Itv::fun<SUB>(Itv(-10, -10), Itv(0, 0))), Itv(-10, -10));
+  EXPECT_EQ((Itv::fun<SUB>(Itv(0, 0), Itv(-10, -10))), Itv(10, 10));
+  EXPECT_EQ((Itv::fun<SUB>(Itv(1, 10), Itv(1, 10))), Itv(-9, 9));
+  EXPECT_EQ((Itv::fun<SUB>(Itv(-1, 10), Itv(1, 10))), Itv(-11, 9));
+  EXPECT_EQ((Itv::fun<SUB>(Itv(-1, 10), Itv(-1, 10))), Itv(-11, 11));
+  EXPECT_EQ((Itv::fun<SUB>(Itv(-10, -1), Itv(1, 10))), Itv(-20, -2));
 }
 
 TEST(IntervalTest, Multiplication) {
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, -2), Itv(-9, -3))), Itv(6, 90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, -2), Itv(3, 9))), Itv(-90, -6));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, -2), Itv(-9, 9))), Itv(-90, 90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, -2), Itv(9, -9))), Itv(90, -90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(-10, -2), Itv(-9, -3))), Itv(6, 90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(-10, -2), Itv(3, 9))), Itv(-90, -6));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(-10, -2), Itv(-9, 9))), Itv(-90, 90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(-10, -2), Itv(9, -9))), Itv(90, -90));
 
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(2, 10), Itv(-9, -3))), Itv(-90, -6));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(2, 10), Itv(3, 9))), Itv(6, 90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(2, 10), Itv(-9, 9))), Itv(-90, 90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(2, 10), Itv(9, -9))), Itv(90, -90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(2, 10), Itv(-9, -3))), Itv(-90, -6));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(2, 10), Itv(3, 9))), Itv(6, 90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(2, 10), Itv(-9, 9))), Itv(-90, 90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(2, 10), Itv(9, -9))), Itv(90, -90));
 
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, 10), Itv(-9, -3))), Itv(-90, 90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, 10), Itv(3, 9))), Itv(-90, 90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, 10), Itv(-9, 9))), Itv(-90, 90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(-10, 10), Itv(9, -9))), Itv::eq_zero());
+  EXPECT_EQ((Itv::fun<MUL>(Itv(-10, 10), Itv(-9, -3))), Itv(-90, 90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(-10, 10), Itv(3, 9))), Itv(-90, 90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(-10, 10), Itv(-9, 9))), Itv(-90, 90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(-10, 10), Itv(9, -9))), Itv::eq_zero());
 
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(10, -10), Itv(-9, -3))), Itv(90, -90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(10, -10), Itv(3, 9))), Itv(90, -90));
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(10, -10), Itv(-9, 9))), Itv::eq_zero());
-  EXPECT_EQ((Itv::fun<OVER, MUL>(Itv(10, -10), Itv(9, -9))), Itv(90, -90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(10, -10), Itv(-9, -3))), Itv(90, -90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(10, -10), Itv(3, 9))), Itv(90, -90));
+  EXPECT_EQ((Itv::fun<MUL>(Itv(10, -10), Itv(-9, 9))), Itv::eq_zero());
+  EXPECT_EQ((Itv::fun<MUL>(Itv(10, -10), Itv(9, -9))), Itv(90, -90));
 }
 
 // TEST(IntervalTest, Division) {
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, -2), Itv(-9, -3))), Itv(6, 90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, -2), Itv(3, 9))), Itv(-90, -6));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, -2), Itv(-9, 9))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, -2), Itv(9, -9))), Itv(90, -90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, -2), Itv(-9, -3))), Itv(6, 90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, -2), Itv(3, 9))), Itv(-90, -6));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, -2), Itv(-9, 9))), Itv(-90, 90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, -2), Itv(9, -9))), Itv(90, -90));
 
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(2, 10), Itv(-9, -3))), Itv(-90, -6));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(2, 10), Itv(3, 9))), Itv(6, 90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(2, 10), Itv(-9, 9))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(2, 10), Itv(9, -9))), Itv(90, -90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(2, 10), Itv(-9, -3))), Itv(-90, -6));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(2, 10), Itv(3, 9))), Itv(6, 90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(2, 10), Itv(-9, 9))), Itv(-90, 90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(2, 10), Itv(9, -9))), Itv(90, -90));
 
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, 10), Itv(-9, -3))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, 10), Itv(3, 9))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, 10), Itv(-9, 9))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(-10, 10), Itv(9, -9))), Itv::eq_zero());
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, 10), Itv(-9, -3))), Itv(-90, 90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, 10), Itv(3, 9))), Itv(-90, 90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, 10), Itv(-9, 9))), Itv(-90, 90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, 10), Itv(9, -9))), Itv::eq_zero());
 
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(10, -10), Itv(-9, -3))), Itv(90, -90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(10, -10), Itv(3, 9))), Itv(90, -90));
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(10, -10), Itv(-9, 9))), Itv::eq_zero());
-//   EXPECT_EQ((Itv::fun<OVER, EDIV>(Itv(10, -10), Itv(9, -9))), Itv(90, -90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(-9, -3))), Itv(90, -90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(3, 9))), Itv(90, -90));
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(-9, 9))), Itv::eq_zero());
+//   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(9, -9))), Itv(90, -90));
 // }

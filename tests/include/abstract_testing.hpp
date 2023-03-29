@@ -186,52 +186,48 @@ void join_meet_generic_test(const A& a, const A& b, bool commutative_tell = true
   join_one_test(b, A::bot(), b, false);
 }
 
-template <Approx appx, Sig sig, class A>
+template <Sig sig, class A, class R = A>
 void generic_unary_fun_test() {
-  if constexpr(A::is_supported_fun(appx, sig)) {
-    EXPECT_EQ((A::template fun<appx, sig>(A::bot())), A::bot());
-    EXPECT_EQ((A::template fun<appx, sig>(A::top())), A::top());
+  if constexpr(R::is_supported_fun(sig)) {
+    EXPECT_EQ((R::template fun<sig>(A::bot())), R::bot());
+    EXPECT_EQ((R::template fun<sig>(A::top())), R::top());
   }
 }
 
 template <class A>
 void generic_abs_test() {
-  EXPECT_EQ((A::template fun<EXACT, ABS>(A::bot())), interpret_to<A>("constraint int_ge(x, 0) :: exact;"));
-  EXPECT_TRUE((A::template fun<UNDER, ABS>(A::bot()) >= interpret_to<A>("constraint int_ge(x, 0) :: under;")));
-  EXPECT_TRUE((A::template fun<OVER, ABS>(A::bot()) <= interpret_to<A>("constraint int_ge(x, 0) :: over;")));
+  EXPECT_EQ((A::template fun<ABS>(A::bot())), interpret_to<A>("constraint int_ge(x, 0);"));
 }
 
-template <Approx appx, Sig sig, class A>
+template <Sig sig, class A, class R = A>
 void generic_binary_fun_test(const A& a) {
-  if constexpr(A::is_supported_fun(appx, sig)) {
+  if constexpr(R::is_supported_fun(sig)) {
     battery::print(sig);
-    EXPECT_EQ((A::template fun<appx, sig>(A::bot(), A::bot())), A::bot());
-    EXPECT_EQ((A::template fun<appx, sig>(A::top(), A::bot())), A::top());
-    EXPECT_EQ((A::template fun<appx, sig>(A::bot(), A::top())), A::top());
-    EXPECT_EQ((A::template fun<appx, sig>(A::top(), a)), A::top());
-    EXPECT_EQ((A::template fun<appx, sig>(a, A::top())), A::top());
-    EXPECT_EQ((A::template fun<appx, sig>(A::bot(), a)), A::bot());
-    EXPECT_EQ((A::template fun<appx, sig>(a, A::bot())), A::bot());
+    EXPECT_EQ((R::template fun<sig>(A::bot(), A::bot())), R::bot());
+    EXPECT_EQ((R::template fun<sig>(A::top(), A::bot())), R::top());
+    EXPECT_EQ((R::template fun<sig>(A::bot(), A::top())), R::top());
+    EXPECT_EQ((R::template fun<sig>(A::top(), a)), R::top());
+    EXPECT_EQ((R::template fun<sig>(a, A::top())), R::top());
+    EXPECT_EQ((R::template fun<sig>(A::bot(), a)), R::bot());
+    EXPECT_EQ((R::template fun<sig>(a, A::bot())), R::bot());
   }
 }
 
-template <Approx appx, class A>
+template <class A, class R = A>
 void generic_arithmetic_fun_test(const A& a) {
-  generic_unary_fun_test<appx, NEG, A>();
-  generic_binary_fun_test<appx, ADD>(a);
-  generic_binary_fun_test<appx, SUB>(a);
-  generic_binary_fun_test<appx, MUL>(a);
-  generic_binary_fun_test<appx, TDIV>(a);
-  generic_binary_fun_test<appx, FDIV>(a);
-  generic_binary_fun_test<appx, CDIV>(a);
-  generic_binary_fun_test<appx, EDIV>(a);
-  generic_binary_fun_test<appx, TMOD>(a);
-  generic_binary_fun_test<appx, FMOD>(a);
-  generic_binary_fun_test<appx, CMOD>(a);
-  generic_binary_fun_test<appx, EMOD>(a);
-  generic_binary_fun_test<appx, POW>(a);
-  generic_binary_fun_test<appx, MIN>(a);
-  generic_binary_fun_test<appx, MAX>(a);
+  generic_unary_fun_test<NEG, A, R>();
+  generic_binary_fun_test<ADD, A, R>(a);
+  generic_binary_fun_test<SUB, A, R>(a);
+  generic_binary_fun_test<MUL, A, R>(a);
+  generic_binary_fun_test<TDIV, A, R>(a);
+  generic_binary_fun_test<FDIV, A, R>(a);
+  generic_binary_fun_test<CDIV, A, R>(a);
+  generic_binary_fun_test<EDIV, A, R>(a);
+  generic_binary_fun_test<TMOD, A, R>(a);
+  generic_binary_fun_test<FMOD, A, R>(a);
+  generic_binary_fun_test<CMOD, A, R>(a);
+  generic_binary_fun_test<EMOD, A, R>(a);
+  generic_binary_fun_test<POW, A, R>(a);
 }
 
 #endif

@@ -4,9 +4,11 @@
 #define PRE_FINC_HPP
 
 #include "../logic/logic.hpp"
-#include "pre_fdec.hpp"
 
 namespace lala {
+
+template <class VT>
+struct PreFDec;
 
 /** `PreFInc` is a pre-abstract universe \f$ \langle \mathbb{F}\setminus\{NaN\}, \leq \rangle \f$ totally ordered by the floating-point arithmetic comparison operator.
     We work on a subset of floating-point numbers without NaN.
@@ -17,6 +19,7 @@ struct PreFInc {
   using this_type = PreFInc<VT>;
   using dual_type = PreFDec<VT>;
   using value_type = VT;
+  using increasing_type = this_type;
 
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;

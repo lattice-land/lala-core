@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 #include "logic/logic.hpp"
 #include "universes/upset_universe.hpp"
+#include "universes/flat_universe.hpp"
 #include "allocator.hpp"
 #include "abstract_testing.hpp"
 
@@ -28,21 +29,37 @@ TEST(UpsetUniverseTest, JoinMeetTest) {
 
 template <class L>
 void test_z_arithmetic() {
-  generic_arithmetic_fun_test<EXACT>(L(0));
-  generic_arithmetic_fun_test<UNDER>(L(0));
-  generic_arithmetic_fun_test<OVER>(L(0));
+  using F = typename L::flat_type<battery::LocalMemory>;
 
-  EXPECT_EQ((L::template fun<EXACT, ADD>(L(0), L(1))), L(1));
-  EXPECT_EQ((L::template fun<EXACT, ADD>(L(-10), L(0))), L(-10));
-  EXPECT_EQ((L::template fun<EXACT, ADD>(L(-10), L(-5))), L(-15));
-  EXPECT_EQ((L::template fun<EXACT, ADD>(L(10), L(-5))), L(5));
-  EXPECT_EQ((L::template fun<EXACT, ADD>(L(10), L(5))), L(15));
+  generic_arithmetic_fun_test<F, L>(F(0));
+
+  EXPECT_EQ((L::template fun<NEG>(F(L::top()))), L::top());
+
+  EXPECT_EQ((L::template fun<ADD>(F(0), F(1))), L(1));
+  EXPECT_EQ((L::template fun<ADD>(F(-10), F(0))), L(-10));
+  EXPECT_EQ((L::template fun<ADD>(F(-10), F(-5))), L(-15));
+  EXPECT_EQ((L::template fun<ADD>(F(10), F(-5))), L(5));
+  EXPECT_EQ((L::template fun<ADD>(F(10), F(5))), L(15));
 }
 
 TEST(UpsetUniverseTest, ArithmeticTest) {
   test_z_arithmetic<local::ZInc>();
-  generic_abs_test<local::ZInc>();
   test_z_arithmetic<local::ZDec>();
+  using ZI = local::ZInc;
+  using ZD = local::ZDec;
+  EXPECT_EQ((ZI::template fun<MIN>(ZI::bot(), ZI(10))), ZI::bot());
+  EXPECT_EQ((ZI::template fun<MIN>(ZI(10), ZI::bot())), ZI::bot());
+  EXPECT_EQ((ZI::template fun<MAX>(ZI::bot(), ZI(10))), ZI(10));
+  EXPECT_EQ((ZD::template fun<MIN>(ZD::bot(), ZD(10))), ZD(10));
+  EXPECT_EQ((ZD::template fun<MIN>(ZD(10), ZD::bot())), ZD(10));
+  EXPECT_EQ((ZI::template fun<MAX>(ZI(10), ZI::bot())), ZI(10));
+  EXPECT_EQ((ZD::template fun<MAX>(ZD::bot(), ZD(10))), ZD::bot());
+  EXPECT_EQ((ZD::template fun<MAX>(ZD(10), ZD::bot())), ZD::bot());
+
+  EXPECT_EQ((ZI::template fun<MIN>(ZI::top(), ZI(10))), ZI::top());
+  EXPECT_EQ((ZI::template fun<MAX>(ZI::top(), ZI(10))), ZI::top());
+  EXPECT_EQ((ZD::template fun<MIN>(ZD::top(), ZD(10))), ZD::top());
+  EXPECT_EQ((ZD::template fun<MAX>(ZD::top(), ZD(10))), ZD::top());
 }
 
 template<class Z, class F, class B>

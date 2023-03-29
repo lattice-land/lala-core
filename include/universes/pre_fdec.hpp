@@ -8,6 +8,9 @@
 
 namespace lala {
 
+template<class VT>
+struct PreFInc;
+
 /** `PreFDec` is a pre-abstract universe \f$ \langle \mathbb{F}\setminus\{NaN\}, \leq \rangle \f$ totally ordered by the reversed floating-point arithmetic comparison operator.
     We work on a subset of floating-point numbers without NaN.
     It is used to represent (and possibly approximate) constraints of the form \f$ x \leq k \f$ where \f$ k \f$ is a real number.
@@ -17,6 +20,7 @@ struct PreFDec {
   using this_type = PreFDec<VT>;
   using dual_type = PreFInc<VT>;
   using value_type = VT;
+  using increasing_type = dual_type;
 
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;
@@ -55,7 +59,7 @@ struct PreFDec {
   CUDA static constexpr value_type meet(value_type x, value_type y) { return dual_type::join(x, y); }
   CUDA static constexpr bool order(value_type x, value_type y) { return dual_type::order(y, x); }
   CUDA static constexpr bool strict_order(value_type x, value_type y) { return dual_type::strict_order(y, x); }
-  CUDA static constexpr value_type next(value_type x) { return battery::prev(x); }
+  CUDA static constexpr value_type next(value_type x) { return dual_type::prev(x); }
   CUDA static constexpr value_type prev(value_type x) { return dual_type::next(x); }
   CUDA static constexpr bool is_supported_fun(Sig sig) { return sig != ABS && dual_type::is_supported_fun(sig); }
 

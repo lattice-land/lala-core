@@ -7,7 +7,6 @@
 #include <utility>
 #include <cmath>
 #include <iostream>
-#include "thrust/optional.h"
 #include "../logic/logic.hpp"
 #include "pre_binc.hpp"
 #include "pre_finc.hpp"
@@ -41,6 +40,9 @@
 */
 
 namespace lala {
+
+template<class PreUniverse, class Mem>
+class FlatUniverse;
 
 template<class PreUniverse, class Mem>
 class UpsetUniverse;
@@ -129,7 +131,7 @@ public:
   using local_type = this_type2<battery::LocalMemory>;
 
   template<class M>
-  using flat_type = FlatUniverse<pre_universe, M>;
+  using flat_type = FlatUniverse<typename pre_universe::increasing_type, M>;
 
   template<class F>
   using iresult = IResult<this_type, F>;
@@ -327,8 +329,7 @@ private:
       return r;
     }
     else if(sig == U::sig_strict_order()) {  // e.g., x < 4
-      if(!f.is_over() || (preserve_concrete_covers && is_totally_ordered)))
-      {
+      if(!f.is_over() || (preserve_concrete_covers && is_totally_ordered)) {
         return std::move(r).map(pre_universe::next(r.value()));
       }
       else {
@@ -454,18 +455,22 @@ public:
     return pre_universe::is_supported_fun(sig);
   }
 
-private:
-
-
 public:
+  CUDA static constexpr local_type next(const this_type2<Mem>& a) {
+    return local_type(pre_universe::next(a.value()));
+  }
+
+  CUDA static constexpr local_type prev(const this_type2<Mem>& a) {
+    return local_type(pre_universe::prev(a.value()));
+  }
+
   /** Unary function of type `Sig: FlatUniverse -> UpsetUniverse`.
    * \return If `a` is `bot`, we return the bottom element of the upset lattice; and dually for `top`.
    * Otherwise, we apply the function `Sig` to `a` and return the result.
    * \remark The result of the function is always over-approximated (or exact when possible).
   */
   template <Sig sig, class M>
-  CUDA static constexpr local_type fun(const flat_type<M>& a)
-  {
+  CUDA static constexpr local_type fun(const flat_type<M>& a) {
     if(a.is_top()) {
       return local_type::top();
     }
@@ -481,7 +486,7 @@ public:
    * \remark The result of the function is always over-approximated (or exact when possible).
    */
   template<Sig sig, class M1, class M2>
-  CUDA static constexpr local_type fun(const flat_type<M1>& a, const flat_type<M2>& b)
+  CUDA static constexpr local_type fun(const flat_type<M1>& a, const flat_type<M2>& b) {
     if(a.is_top() || b.is_top()) {
       return local_type::top();
     }
@@ -511,25 +516,49 @@ public:
   CUDA static constexpr local_type guarded_div(
     const UpsetUniverse<Pre1, Mem1>& a, const UpsetUniverse<Pre2, Mem2>& b)
   {
-    if(b != B::zero()) {
-      return fun<sig>(a.value(), b.value());
+    using A = UpsetUniverse<Pre1, Mem1>;
+    using B = UpsetUniverse<Pre2, Mem2>;
+    using local_flat_type = flat_type<battery::LocalMemory>;
+    if (b.value() != B::pre_universe::zero())
+    {
+      return fun<sig>(local_flat_type(a), local_flat_type(b));
     }
     else {
       if constexpr(B::preserve_concrete_covers && B::is_totally_ordered) {
         // When `b` is "integer-like" we can just skip the value 0 and go to `-1` or `1` depending on the type `B`.
-        return R::fun<sig>(a.value(), B::pre_universe::next(b));
+        return fun<sig>(local_flat_type(a), local_flat_type(B::next(b)));
       }
       else if constexpr(
-        (A::increasing && B::increasing == R::increasing) || // Inc X T -> T where T is either Inc or Dec.
-        (!A::increasing && !B::increasing && R::increasing) || // Dec X Dec -> Inc
-        (!A::increasing && B::increasing && !R::increasing)) // Dec X Inc -> Dec
+        (A::increasing && B::increasing == increasing) || // Inc X T -> T where T is either Inc or Dec.
+        (!A::increasing && !B::increasing && increasing) || // Dec X Dec -> Inc
+        (!A::increasing && B::increasing && !increasing)) // Dec X Inc -> Dec
       {
-        return R::zero();
+        return local_type(pre_universe::zero());
       }
       else {
-        return R::bot();
+        return bot();
       }
     }
+  }
+
+  template <Sig sig, class M1, class M2>
+  CUDA static constexpr local_type fun(const this_type2<M1> &a, const this_type2<M2> &b)
+  {
+    static_assert(sig == MIN || sig == MAX, "Only MIN and MAX are supported on Upset elements.");
+    if (a.is_top() || b.is_top())
+    {
+      return local_type::top();
+    }
+    else if (a.is_bot() || b.is_bot())
+    {
+      if constexpr((sig == MAX && increasing) || (sig == MIN && !increasing)) {
+        return a.is_bot() ? b : a;
+      }
+      else {
+        return local_type::bot();
+      }
+    }
+    return pre_universe::template fun<sig>(a, b);
   }
 
   template<class Pre2, class Mem2>

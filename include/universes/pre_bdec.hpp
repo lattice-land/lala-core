@@ -16,13 +16,14 @@ namespace lala {
 struct PreBDec {
   using this_type = PreBDec;
   using dual_type = PreBInc;
-  using value_type = bool;
+  using value_type = dual_type::value_type;
+  using increasing_type = PreBInc;
 
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;
   constexpr static const bool preserve_top = false;
   constexpr static const bool injective_concretization = true;
-  constexpr static const bool preserve_inner_covers = true;
+  constexpr static const bool preserve_concrete_covers = true;
   constexpr static const bool complemented = false;
   constexpr static const bool increasing = false;
   constexpr static const char* name = "BDec";
@@ -47,6 +48,7 @@ struct PreBDec {
   }
 
   CUDA static constexpr Sig sig_order() { return GEQ; }
+  CUDA static constexpr Sig sig_strict_order() { return GT; }
   CUDA static constexpr value_type bot() { return dual_type::top(); }
   CUDA static constexpr value_type top() { return dual_type::bot(); }
   CUDA static constexpr value_type join(value_type x, value_type y) { return dual_type::meet(x, y);}
@@ -56,8 +58,8 @@ struct PreBDec {
   CUDA static constexpr value_type next(value_type x) { return dual_type::prev(x); }
   CUDA static constexpr value_type prev(value_type x) { return dual_type::next(x); }
   CUDA static constexpr bool is_supported_fun(Sig sig) { return dual_type::is_supported_fun(sig); }
-  template<Sig sig> CUDA static constexpr value_type fun(value_type x) { return dual_type::fun(x); }
-  template<Sig sig> CUDA static constexpr value_type fun(value_type x, value_type y) { return dual_type::fun(x, y); }
+  template<Sig sig> CUDA static constexpr value_type fun(value_type x) { return dual_type::fun<sig>(x); }
+  template<Sig sig> CUDA static constexpr value_type fun(value_type x, value_type y) { return dual_type::fun<sig>(x, y); }
 };
 
 } // namespace lala

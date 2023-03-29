@@ -34,13 +34,12 @@ public:
   using value_type = typename pre_universe::value_type;
   using memory_type = Mem;
   using this_type = FlatUniverse<pre_universe, memory_type>;
-
-  template<class M>
-  using this_type2 = FlatUniverse<pre_universe, M>;
+  template <class M> using this_type2 = FlatUniverse<pre_universe, M>;
+  using local_type = this_type2<battery::LocalMemory>;
 
   template<class F>
-  using iresult = IResult<this_type, F>;
-
+  using iresult = IResult<local_type, F>;
+  static_assert(pre_universe::increasing);
   static_assert(pre_universe::preserve_bot && pre_universe::preserve_top,
     "The Flat lattice construction reuse the bottom and top elements of the pre-universe.\
     Therefore, it must preserve bottom and top.");
@@ -50,15 +49,15 @@ public:
   constexpr static const bool preserve_bot = true;
   constexpr static const bool preserve_top = true;
   constexpr static const bool injective_concretization = pre_universe::injective_concretization;
-  constexpr static const bool preserve_inner_covers = false;
+  constexpr static const bool preserve_concrete_covers = true;
   constexpr static const bool complemented = false;
   constexpr static const char* name = "Flat";
   constexpr static const bool is_arithmetic = pre_universe::is_arithmetic;
 
   /** A pre-interpreted formula `x = value` ready to use.
    * This is mainly for optimization purpose to avoid calling `interpret` each time we need it. */
-  CUDA static constexpr this_type eq_k(value_type k) {
-    return this_type(k);
+  CUDA static constexpr local_type eq_k(value_type k) {
+    return local_type(k);
   }
 
 private:
@@ -67,15 +66,15 @@ private:
 
 public:
   /** Similar to \f$[\![\mathit{true}]\!]\f$. */
-  CUDA static constexpr this_type bot() {
-    return this_type();
+  CUDA static constexpr local_type bot() {
+    return local_type();
   }
 
   /** Similar to \f$[\![\mathit{false}]\!]\f$. */
-  CUDA static constexpr this_type top() {
-    return this_type(U::top());
+  CUDA static constexpr local_type top() {
+    return local_type(U::top());
   }
-  /** Initialize an upset universe to bottom. */
+  /** Initialize to the bottom of the flat lattice. */
   CUDA constexpr FlatUniverse(): val(U::bot()) {}
   /** Similar to \f$[\![x = k]\!]\f$ for any name `x` where \f$ = \f$ is the equality. */
   CUDA constexpr FlatUniverse(value_type k): val(k) {}
@@ -84,6 +83,14 @@ public:
 
   template <class M>
   CUDA constexpr FlatUniverse(const this_type2<M>& other): FlatUniverse(other.value()) {}
+
+  template <class M>
+  CUDA constexpr FlatUniverse(const UpsetUniverse<pre_universe, M>& other)
+    : FlatUniverse(other.value()) {}
+
+  template <class M>
+  CUDA constexpr FlatUniverse(const UpsetUniverse<typename pre_universe::dual_type, M> &other)
+    : FlatUniverse(dual<UpsetUniverse<pre_universe, battery::LocalMemory>>(other)) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
@@ -207,7 +214,7 @@ public:
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
    * For this abstract universe, it always returns `true` since the current element \f$ a \f$ is an exact representation of \f$ \rrbracket a \llbracket \f$. */
-  CUDA constexpr bool extract(this_type2<battery::LocalMemory>& ua) const {
+  CUDA constexpr bool extract(local_type& ua) const {
     ua.val = value();
     return true;
   }
@@ -229,7 +236,7 @@ private:
   template <class F>
   CUDA static iresult<F> interpret_false(const F& f) {
     if(preserve_top || f.is_over()) {
-      return iresult<F>(top());
+      return iresult<F>(local_type::top());
     }
     else {
       return iresult<F>(IError<F>(true, name, "Top is not preserved, hence it cannot exactly interpret or under-approximate formulas equivalent to `false`.", f));
@@ -239,7 +246,7 @@ private:
   template<class F>
   CUDA static iresult<F> interpret_true(const F& f) {
     if(preserve_bot || f.is_under()) {
-      return bot();
+      return local_type::bot();
     }
     else {
       return iresult<F>(IError<F>(true, name, "Bottom is not preserved, hence it cannot exactly interpret or over-approximate formula equivalent to `true`.", f));
@@ -247,7 +254,6 @@ private:
   }
 
 public:
-
   /** Expects a predicate of the form `x = k` or `k = x`, where `x` is any variable's name, and `k` a constant.
     The only interpretation mode possible is `EXACT`.
     Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom). */
@@ -278,42 +284,40 @@ public:
     }
   }
 
-  /** By construction, the flat lattice only supports exact function.
-   * Indeed, an under-approximation systematically leads to top, and an over-approximation systematically leads to bottom. */
-  CUDA static constexpr bool is_supported_fun(Approx appx, Sig sig) {
-    return appx == EXACT && pre_universe::is_supported_fun(appx, sig);
+  CUDA static constexpr bool is_supported_fun(Sig sig) {
+    return pre_universe::is_supported_fun(sig);
   }
 
 public:
   /** Unary function over `value_type`. */
-  template<Approx appx, Sig sig, class M1>
-  CUDA static constexpr this_type2<battery::LocalMemory> fun(const this_type2<M1>& u) {
-    static_assert(is_supported_fun(appx, sig));
+  template<Sig sig, class M1>
+  CUDA static constexpr local_type fun(const this_type2<M1>& u) {
+    static_assert(is_supported_fun(sig));
     if(u.is_top()) {
-      return this_type2<battery::LocalMemory>::top();
+      return local_type::top();
     }
     else if(u.is_bot()) {
-      return this_type2<battery::LocalMemory>::bot();
+      return local_type::bot();
     }
-    return pre_universe::template fun<appx, sig>(u.value());
+    return pre_universe::template fun<sig>(u.value());
   }
 
   /** Binary functions over `value_type`. */
-  template<Approx appx, Sig sig, class M1, class M2>
-  CUDA static constexpr this_type2<battery::LocalMemory> fun(const this_type2<M1>& a, const this_type2<M2>& b) {
-    static_assert(is_supported_fun(appx, sig));
+  template<Sig sig, class M1, class M2>
+  CUDA static constexpr local_type fun(const this_type2<M1>& a, const this_type2<M2>& b) {
+    static_assert(is_supported_fun(sig));
     if(a.is_top() || b.is_top()) {
-      return this_type2<battery::LocalMemory>::top();
+      return local_type::top();
     }
     else if(a.is_bot() || b.is_bot()) {
-      return this_type2<battery::LocalMemory>::bot();
+      return local_type::bot();
     }
     if constexpr(is_division(sig) && is_arithmetic) {
       if(b.value() == pre_universe::zero()) {
-        return this_type2<battery::LocalMemory>::top();
+        return local_type::top();
       }
     }
-    return pre_universe::template fun<appx, sig>(a, b);
+    return pre_universe::template fun<sig>(a, b);
   }
 
   template<class Pre2, class Mem2>

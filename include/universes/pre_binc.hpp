@@ -4,9 +4,10 @@
 #define PRE_BINC_HPP
 
 #include "../logic/logic.hpp"
-#include "pre_bdec.hpp"
 
 namespace lala {
+
+struct PreBDec;
 
 /** `PreBInc` is a pre-abstract universe \f$ \langle \{\mathit{true}, \mathit{false}\}, \leq \rangle \f$ such that \f$ \mathit{false} \leq \mathit{true} \f$.
     It is used to represent Boolean variables which truth's value progresses from \f$ \mathit{false} \f$ to \f$ \mathit{true} \f$.
@@ -17,12 +18,13 @@ struct PreBInc {
   using this_type = PreBInc;
   using dual_type = PreBDec;
   using value_type = bool;
+  using increasing_type = PreBInc;
 
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;
   constexpr static const bool preserve_top = false;
   constexpr static const bool injective_concretization = true;
-  constexpr static const bool preserve_inner_covers = true;
+  constexpr static const bool preserve_concrete_covers = true;
   constexpr static const bool complemented = false;
   constexpr static const bool increasing = true;
   constexpr static const char* name = "BInc";
@@ -89,6 +91,7 @@ struct PreBInc {
       We have \f$ a \leq_\mathit{BInc} b \Leftrightarrow a \leq b \f$.
       \return The logical symbol `LEQ`. */
   CUDA static constexpr Sig sig_order() { return LEQ; }
+  CUDA static constexpr Sig sig_strict_order() { return LT; }
 
   /** \f$ \bot \f$ is represented by `false`. */
   CUDA static constexpr value_type bot() { return false; }
@@ -120,7 +123,7 @@ struct PreBInc {
    \return `false`. */
   CUDA static constexpr value_type prev(value_type x) { return false; }
 
-  CUDA static constexpr bool is_supported_fun(Approx, Sig sig) {
+  CUDA static constexpr bool is_supported_fun(Sig sig) {
     switch(sig) {
       case AND:
       case OR:

@@ -4,9 +4,11 @@
 #define PRE_ZINC_HPP
 
 #include "../logic/logic.hpp"
-#include "pre_zdec.hpp"
 
 namespace lala {
+
+template<class VT>
+struct PreZDec;
 
 /** `PreZInc` is a pre-abstract universe \f$ \langle \{-\infty, \ldots, -2, -1, 0, 1, 2, \ldots, \infty\}, \leq \rangle \f$ totally ordered by the natural arithmetic comparison operator.
     It is used to represent constraints of the form \f$ x \geq k \f$ where \f$ k \f$ is an integer.
@@ -16,6 +18,7 @@ struct PreZInc {
   using this_type = PreZInc<VT>;
   using dual_type = PreZDec<VT>;
   using value_type = VT;
+  using increasing_type = this_type;
 
   static_assert(std::is_integral_v<value_type>, "PreZInc only works over integer types.");
 
@@ -196,7 +199,7 @@ struct PreZInc {
       \return The previous value of `x` in the discrete increasing chain `bot, ..., -2, -1, 0, 1, ..., top`.
       \remark The previous value of `bot` is `bot` and the previous value of `top` is `top`.
       \remark There is no element \f$ x \neq \bot \f$ such that \f$ \mathit{prev}(x) = \bot \f$, but it can occur in case of overflow which is not checked. */
-      CUDA static constexpr value_type prev(value_type x)
+  CUDA static constexpr value_type prev(value_type x)
   {
     return x - (x != top() && x != bot());
   }
@@ -230,7 +233,7 @@ struct PreZInc {
   }
 
   /** `fun: value_type -> ZInc` is an abstract function on `ZInc` over-approximating the function denoted by `sig` on the concrete domain.
-   * \param sig The signature of the function to over-approximate, can be either `NEG` or `ABS`.
+   * \tparam sig The signature of the function to over-approximate, can be either `NEG` or `ABS`.
    * \param x The argument of the function, which is a constant value in the underlying universe of discourse.
    * \note Since `x` is a constant, we do not check for equality with `bot()` or `top()`.
    */

@@ -8,6 +8,9 @@
 
 namespace lala {
 
+template <class VT>
+struct PreZInc;
+
 /** `PreZDec` is a pre-abstract universe \f$ \langle \{\infty, \ldots, 2, 1, 0, -1, -2, \ldots, -\infty\}, \leq \rangle \f$ totally ordered by the reversed natural arithmetic comparison operator.
     It is used to represent constraints of the form \f$ x \leq k \f$ where \f$ k \f$ is an integer.
 */
@@ -16,6 +19,7 @@ struct PreZDec {
   using this_type = PreZDec<VT>;
   using dual_type = PreZInc<VT>;
   using value_type = VT;
+  using increasing_type = dual_type;
 
   static_assert(std::is_integral_v<value_type>, "PreZDec only works over integer types.");
 
