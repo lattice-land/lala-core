@@ -149,3 +149,22 @@ TEST(IntervalTest, Multiplication) {
 //   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(-9, 9))), Itv::eq_zero());
 //   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(9, -9))), Itv(90, -90));
 // }
+
+TEST(IntervalTest, Width) {
+  EXPECT_EQ(Itv(0,0).width(), Itv(0,0));
+  EXPECT_EQ(Itv(-10, 10).width(), Itv(20,20));
+  EXPECT_EQ(Itv(zi::bot(), zd(10)).width(), Itv::bot());
+  EXPECT_EQ(Itv(zi(10), zd::bot()).width(), Itv::bot());
+  EXPECT_EQ(Itv::bot().width(), Itv::bot());
+  EXPECT_TRUE(Itv::top().width().is_top());
+}
+
+TEST(IntervalTest, Median) {
+  EXPECT_EQ(Itv(0, 0).median(), Itv(0, 0));
+  EXPECT_EQ(Itv(-10, 10).median(), Itv(0, 0));
+  EXPECT_EQ(Itv(-9, 10).median(), Itv(0, 1));
+  EXPECT_EQ(Itv(zi::bot(), zd(10)).median(), Itv::bot());
+  EXPECT_EQ(Itv(zi(10), zd::bot()).median(), Itv::bot());
+  EXPECT_EQ(Itv::bot().median(), Itv::bot());
+  EXPECT_TRUE(Itv::top().median().is_top());
+}

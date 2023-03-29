@@ -549,6 +549,21 @@ public:
       "Unsupported binary function.");
     }
   }
+
+  CUDA constexpr local_type width() const {
+    static_assert(LB::is_totally_ordered && LB::is_arithmetic,
+      "Width is only defined for totally ordered arithmetic intervals.");
+    return sub(ub2(), lb2());
+  }
+
+  /** \return The median value of the interval, which is computed by `lb() + ((ub() - lb()) / 2)`. */
+  CUDA constexpr local_type median() const {
+    static_assert(LB::is_totally_ordered && LB::is_arithmetic,
+      "Median function is only defined for totally ordered arithmetic intervals.");
+    auto x = sub(ub2(), lb2());
+    return
+      add(lb2(), meet(div<TDIV>(x, local_type(2,2)), div<CDIV>(x, local_type(2,2))));
+  }
 };
 
 // Lattice operations
