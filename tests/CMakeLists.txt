@@ -99,3 +99,18 @@ add_executable(vstore_test src/vstore_test.cpp)
 target_link_libraries(vstore_test cuda_battery lala_parsing gtest_main)
 target_include_directories(vstore_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_parsing_SOURCE_DIR}/include ${thrust_SOURCE_DIR} ${cpp-peglib_SOURCE_DIR})
 gtest_discover_tests(vstore_test)
+
+if(GPU)
+  set_source_files_properties(src/gpu_fixpoint_test.cpp PROPERTIES LANGUAGE CUDA)
+  add_executable(gpu_fixpoint_test src/gpu_fixpoint_test.cpp)
+  set_property(TARGET gpu_fixpoint_test PROPERTY CUDA_ARCHITECTURES 75)
+  set_property(TARGET gpu_fixpoint_test PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+  target_compile_options(gpu_fixpoint_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:
+      --expt-relaxed-constexpr
+      --compiler-options -frounding-math>
+    $<$<CONFIG:Debug>:-g -DDEBUG>)
+  target_include_directories(gpu_fixpoint_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include)
+  add_test(NAME gpu_fixpoint_test COMMAND compute-sanitizer --error-exitcode 1 $<TARGET_FILE:gpu_fixpoint_test>)
+endif()
+
