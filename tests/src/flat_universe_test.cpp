@@ -37,58 +37,33 @@ TEST(FlatUniverseTest, ConversionUpset) {
 
 TEST(FlatUniverseTest, InterpretIntegerType) {
   std::cout << "Z ";
-  must_interpret_to("var int: x :: exact;", ZF::bot());
-  must_interpret_to("var int: x :: under;", ZF::bot());
-  must_interpret_to("var int: x :: over;", ZF::bot());
-
+  must_interpret_tell_to("var int: x;", ZF::bot());
   std::cout << "F ";
-  must_error<local::FFlat>("var int: x :: exact;");
-  must_error<local::FFlat>("var int: x :: under;");
-  must_interpret_to("var int: x :: over;", local::FFlat::bot(), true);
+  must_interpret_tell_to("var int: x;", local::FFlat::bot(), true);
 }
 
 TEST(FlatUniverseTest, InterpretRealType) {
   std::cout << "Z ";
-  must_error<ZF>("var real: x :: exact;");
-  must_interpret_to("var real: x :: under;", ZF::bot(), true);
-  must_error<ZF>("var real: x :: over;");
-
+  must_error_tell<ZF>("var real: x;");
   std::cout << "F ";
-  must_interpret_to("var real: x :: exact;", local::FFlat::bot());
-  must_interpret_to("var real: x :: under;", local::FFlat::bot());
-  must_interpret_to("var real: x :: over;", local::FFlat::bot());
+  must_interpret_tell_to("var real: x;", local::FFlat::bot());
 }
 
 TEST(FlatUniverseTest, InterpretBoolType) {
   std::cout << "Z ";
-  must_error<ZF>("var bool: x :: exact;");
-  must_error<ZF>("var bool: x :: under;");
-  must_interpret_to("var bool: x :: over;", ZF::bot(), true);
-
+  must_error_tell<ZF>("var bool: x;");
   std::cout << "F ";
-  must_error<local::FFlat>("var bool: x :: exact;");
-  must_error<local::FFlat>("var bool: x :: under;");
-  must_interpret_to("var bool: x :: over;", local::FFlat::bot(), true);
+  must_error_tell<local::FFlat>("var bool: x;");
 }
 
 TEST(FlatUniverseTest, ZFlatInterpretation) {
-  must_interpret_to("constraint true :: exact;", ZF::bot());
-  must_interpret_to("constraint true :: over;", ZF::bot());
-  must_interpret_to("constraint true :: under;", ZF::bot());
-
-  must_interpret_to("constraint false :: exact;", ZF::top());
-  must_interpret_to("constraint false :: over;", ZF::top());
-  must_interpret_to("constraint false :: under;", ZF::top());
+  must_interpret_to("constraint true;", ZF::bot());
+  must_interpret_to("constraint false;", ZF::top());
 
   VarEnv<StandardAllocator> env;
   auto f = parse_flatzinc_str<StandardAllocator>("var int: x :: abstract(0);");
   EXPECT_TRUE(f);
   env.interpret(*f);
-  must_interpret_to(env, "constraint int_eq(x, 0) :: exact;", ZF(0));
-  must_error<ZF>(env, "constraint int_eq(x, -10) :: over;");
-  must_error<ZF>(env, "constraint int_eq(x, 10) :: under;");
-
-  must_error<ZF>(env, "constraint int_ne(x, 1) :: exact;");
-  must_error<ZF>(env, "constraint int_ne(x, 1) :: over;");
-  must_error<ZF>(env, "constraint int_ne(x, 1) :: under;");
+  must_interpret_to(env, "constraint int_eq(x, 0);", ZF(0));
+  must_error<ZF>(env, "constraint int_ne(x, 1);");
 }

@@ -71,38 +71,22 @@ TEST(CPTest, JoinMeetTest) {
 
 TEST(CPTest, NoInterpret) {
   VarEnv<StandardAllocator> env = init_env();
-  must_error<Itv>(env, "constraint int_ne(x, 10);");
-  must_error<Itv>(env, "constraint int_ne(x, 10) :: over;");
-  must_error<Itv>(env, "constraint int_eq(x, 10);");
-  must_error<Itv>(env, "constraint int_eq(x, 10) :: under;");
+  must_error_tell<Itv>(env, "constraint int_ne(x, 10);");
+  must_error_ask<Itv>(env, "constraint int_eq(x, 10);");
 }
 
 TEST(CPTest, ValidInterpret) {
   VarEnv<StandardAllocator> env = init_env();
-  must_interpret_to(env, "constraint int_ge(x, 10) :: exact;", Itv(zi(10), zd::bot()), false);
-  must_interpret_to(env, "constraint int_ge(x, 10) :: under;", Itv(zi(10), zd::bot()), false);
-  must_interpret_to(env, "constraint int_ge(x, 10) :: over;", Itv(zi(10), zd::bot()), false);
-
-  must_interpret_to(env, "constraint int_gt(x, 10) :: exact;", Itv(zi(11), zd::bot()), false);
-  must_interpret_to(env, "constraint int_gt(x, 10) :: under;", Itv(zi(11), zd::bot()), false);
-  must_interpret_to(env, "constraint int_gt(x, 10) :: over;", Itv(zi(11), zd::bot()), false);
-
-  must_interpret_to(env, "constraint int_le(x, 10) :: exact;", Itv(zi::bot(), zd(10)), false);
-  must_interpret_to(env, "constraint int_le(x, 10) :: under;", Itv(zi::bot(), zd(10)), false);
-  must_interpret_to(env, "constraint int_le(x, 10) :: over;", Itv(zi::bot(), zd(10)), false);
-
-  must_interpret_to(env, "constraint int_lt(x, 10) :: exact;", Itv(zi::bot(), zd(9)), false);
-  must_interpret_to(env, "constraint int_lt(x, 10) :: under;", Itv(zi::bot(), zd(9)), false);
-  must_interpret_to(env, "constraint int_lt(x, 10) :: over;", Itv(zi::bot(), zd(9)), false);
-
-  must_interpret_to(env, "constraint int_ge(x, 10) :: exact;\
-                          constraint int_le(x, 20) :: exact;", Itv(zi(10), zd(20)), false);
-
-  must_interpret_to(env, "constraint int_ge(x, 10) :: exact;\
-                          constraint int_le(x, 20) :: exact;\
-                          constraint int_le(x, 15) :: exact;\
-                          constraint int_ge(x, 5) :: exact;", Itv(zi(10), zd(15)), false);
-
-  must_interpret_to(env, "constraint int_ne(x, 10) :: under;", Itv(zi(11), zd(9)), false);
-  must_interpret_to(env, "constraint int_eq(x, 10) :: over;", Itv(zi(10), zd(10)), false);
+  must_interpret_to(env, "constraint int_ge(x, 10);", Itv(zi(10), zd::bot()), false);
+  must_interpret_to(env, "constraint int_gt(x, 10);", Itv(zi(11), zd::bot()), false);
+  must_interpret_to(env, "constraint int_le(x, 10);", Itv(zi::bot(), zd(10)), false);
+  must_interpret_to(env, "constraint int_lt(x, 10);", Itv(zi::bot(), zd(9)), false);
+  must_interpret_to(env, "constraint int_ge(x, 10);\
+                          constraint int_le(x, 20);", Itv(zi(10), zd(20)), false);
+  must_interpret_to(env, "constraint int_ge(x, 10);\
+                          constraint int_le(x, 20);\
+                          constraint int_le(x, 15);\
+                          constraint int_ge(x, 5);", Itv(zi(10), zd(15)), false);
+  must_interpret_tell_to(env, "constraint int_eq(x, 10);", Itv(zi(10), zd(10)), false);
+  must_interpret_ask_to(env, "constraint int_ne(x, 10);", Itv(zi(11), zd(9)), false);
 }

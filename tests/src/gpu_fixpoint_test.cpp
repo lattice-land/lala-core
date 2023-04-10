@@ -6,7 +6,7 @@
 #include "fixpoint.hpp"
 #include "allocator.hpp"
 #include "memory.hpp"
-#include "universes/upset_universe.hpp"
+#include "universes/primitive_upset.hpp"
 
 using namespace battery;
 using namespace lala;

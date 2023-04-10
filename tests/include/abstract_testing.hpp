@@ -7,7 +7,7 @@
 #include <gtest/gtest-spi.h>
 #include "thrust/optional.h"
 #include "logic/logic.hpp"
-#include "universes/upset_universe.hpp"
+#include "universes/primitive_upset.hpp"
 #include "flatzinc_parser.hpp"
 
 using namespace lala;
@@ -26,41 +26,95 @@ inline VarEnv<StandardAllocator> init_env() {
   return std::move(env);
 }
 
-/** `appx` is the approximation kind of the top-level conjunction. */
-template <class L>
-L interpret_to(const std::string& fzn, VarEnv<StandardAllocator>& env, Approx appx = EXACT) {
-  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
-  EXPECT_TRUE(f);
-  f->approx_as(appx);
-  f->print(true, true);
-  IResult<L, F> r = L::interpret(*f, env);
-  if(!r.has_value()) {
-    r.print_diagnostics();
+namespace impl {
+  template <bool is_tell, class L>
+  IResult<L, F> interpretation(const F& f, VarEnv<StandardAllocator>& env) {
+    if constexpr(is_tell) {
+      return L::interpret_tell(f, env);
+    }
+    else {
+      return L::interpret_ask(f, env);
+    }
   }
-  EXPECT_TRUE(r.has_value());
-  return std::move(r.value());
+
+  template <bool is_tell, class L>
+  L interpret_to(const std::string& fzn, VarEnv<StandardAllocator>& env) {
+    auto f = parse_flatzinc_str<StandardAllocator>(fzn);
+    EXPECT_TRUE(f);
+    std::cout << (is_tell ? "tell" : "ask") << ": ";
+    f->print(true);
+    IResult<L, F> r = interpretation<is_tell, L>(*f, env);
+    if(!r.has_value()) {
+      r.print_diagnostics();
+    }
+    EXPECT_TRUE(r.has_value());
+    return std::move(r.value());
+  }
 }
 
 template <class L>
-L interpret_to(const char* fzn, Approx appx = EXACT) {
+L interpret_tell_to(const std::string& fzn, VarEnv<StandardAllocator>& env) {
+  return ::impl::interpret_to<true, L>(fzn, env);
+}
+
+template <class L>
+L interpret_ask_to(const std::string& fzn, VarEnv<StandardAllocator>& env) {
+  return ::impl::interpret_to<false, L>(fzn, env);
+}
+
+template <class L>
+L interpret_to(const std::string& fzn, VarEnv<StandardAllocator>& env) {
+  auto tell = interpret_tell_to<L>(fzn, env);
+  auto ask = interpret_ask_to<L>(fzn, env);
+  EXPECT_EQ(tell, ask) << "The tell and ask interpretations should be equal.";
+  return tell;
+}
+
+template <class L>
+L interpret_to(const char* fzn) {
   using F = TFormula<StandardAllocator>;
   VarEnv<StandardAllocator> env = init_env();
   return interpret_to<L>(fzn, env);
 }
 
 template <class L>
-L interpret_to2(const char* fzn, Approx appx = EXACT) {
-  VarEnv<StandardAllocator> env;
-  return interpret_to<L>(fzn, env, appx);
+L interpret_ask_to(const char* fzn) {
+  using F = TFormula<StandardAllocator>;
+  VarEnv<StandardAllocator> env = init_env();
+  return interpret_ask_to<L>(fzn, env);
 }
 
 template <class L>
-void interpret_and_tell(L& a, const char* fzn, VarEnv<StandardAllocator>& env, Approx appx = EXACT) {
+L interpret_tell_to(const char* fzn) {
+  using F = TFormula<StandardAllocator>;
+  VarEnv<StandardAllocator> env = init_env();
+  return interpret_tell_to<L>(fzn, env);
+}
+
+template <class L>
+L interpret_to2(const char* fzn) {
+  VarEnv<StandardAllocator> env;
+  return interpret_to<L>(fzn, env);
+}
+
+template <class L>
+L interpret_tell_to2(const char* fzn) {
+  VarEnv<StandardAllocator> env;
+  return interpret_tell_to<L>(fzn, env);
+}
+
+template <class L>
+L interpret_ask_to2(const char* fzn) {
+  VarEnv<StandardAllocator> env;
+  return interpret_ask_to<L>(fzn, env);
+}
+
+template <class L>
+void interpret_and_tell(L& a, const char* fzn, VarEnv<StandardAllocator>& env) {
   auto f = parse_flatzinc_str<StandardAllocator>(fzn);
   EXPECT_TRUE(f);
-  f->approx_as(appx);
-  f->print(true, true);
-  auto r = a.interpret_in(*f, env);
+  f->print(true);
+  auto r = a.interpret_tell_in(*f, env);
   if(!r.has_value()) {
     r.print_diagnostics();
   }
@@ -69,47 +123,130 @@ void interpret_and_tell(L& a, const char* fzn, VarEnv<StandardAllocator>& env, A
   EXPECT_TRUE(has_changed);
 }
 
-template<class L>
-void must_interpret_to(VarEnv<StandardAllocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
-  using F = TFormula<StandardAllocator>;
+template <class L>
+void interpret_and_ask(L& a, const char* fzn, bool expect) {
   auto f = parse_flatzinc_str<StandardAllocator>(fzn);
   EXPECT_TRUE(f);
-  f->print(true, true);
-  std::cout << std::endl;
-  IResult<L, F> r = L::interpret(*f, env);
-  std::cout << fzn << std::endl;
+  f->print(true);
+  auto env = init_env();
+  auto r = a.interpret_ask_in(*f, env);
   if(!r.has_value()) {
     r.print_diagnostics();
   }
-  EXPECT_TRUE(r.has_value());
-  EXPECT_EQ(r.has_warning(), has_warning);
-  EXPECT_EQ(r.value(), expect);
+  EXPECT_EQ(a.ask(std::move(r.value())), expect);
+}
+
+namespace impl {
+  template<bool is_tell, class L>
+  void must_interpret_to(VarEnv<StandardAllocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
+    using F = TFormula<StandardAllocator>;
+    auto f = parse_flatzinc_str<StandardAllocator>(fzn);
+    EXPECT_TRUE(f);
+    std::cout << (is_tell ? "tell" : "ask") << ": ";
+    f->print(true);
+    std::cout << std::endl;
+    IResult<L, F> r = interpretation<is_tell, L>(*f, env);
+    std::cout << fzn << std::endl;
+    if(!r.has_value()) {
+      r.print_diagnostics();
+    }
+    EXPECT_TRUE(r.has_value());
+    EXPECT_EQ(r.has_warning(), has_warning);
+    EXPECT_EQ(r.value(), expect);
+  }
+
+  template<bool is_tell, class L>
+  void must_interpret_to(const char* fzn, const L& expect, bool has_warning = false) {
+    VarEnv<StandardAllocator> env;
+    must_interpret_to<is_tell>(env, fzn, expect, has_warning);
+  }
+}
+
+template<class L>
+void must_interpret_tell_to(VarEnv<StandardAllocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
+  ::impl::must_interpret_to<true>(env, fzn, expect, has_warning);
+}
+
+template<class L>
+void must_interpret_ask_to(VarEnv<StandardAllocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
+  ::impl::must_interpret_to<false>(env, fzn, expect, has_warning);
+}
+
+template<class L>
+void must_interpret_to(VarEnv<StandardAllocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
+  must_interpret_tell_to(env, fzn, expect, has_warning);
+  must_interpret_ask_to(env, fzn, expect, has_warning);
+}
+
+template<class L>
+void must_interpret_tell_to(const char* fzn, const L& expect, bool has_warning = false) {
+  ::impl::must_interpret_to<true>(fzn, expect, has_warning);
+}
+
+template<class L>
+void must_interpret_ask_to(const char* fzn, const L& expect, bool has_warning = false) {
+  ::impl::must_interpret_to<false>(fzn, expect, has_warning);
 }
 
 template<class L>
 void must_interpret_to(const char* fzn, const L& expect, bool has_warning = false) {
-  VarEnv<StandardAllocator> env;
-  must_interpret_to(env, fzn, expect, has_warning);
+  must_interpret_tell_to(fzn, expect, has_warning);
+  must_interpret_ask_to(fzn, expect, has_warning);
+}
+
+namespace impl {
+  template<bool is_tell, class L>
+  void must_error(VarEnv<StandardAllocator>& env, const char* fzn) {
+    using F = TFormula<StandardAllocator>;
+    auto f = parse_flatzinc_str<StandardAllocator>(fzn);
+    EXPECT_TRUE(f);
+    std::cout << (is_tell ? "tell" : "ask") << ": ";
+    f->print(true);
+    IResult<L, F> r = interpretation<is_tell, L>(*f, env);
+    std::cout << fzn << std::endl;
+    if(r.has_value()) {
+      std::cout << r.value() << std::endl;
+    }
+    EXPECT_FALSE(r.has_value());
+  }
+
+  template<bool is_tell, class L>
+  void must_error(const char* fzn) {
+    VarEnv<StandardAllocator> env;
+    must_error<is_tell, L>(env, fzn);
+  }
+}
+
+template<class L>
+void must_error_tell(VarEnv<StandardAllocator>& env, const char* fzn) {
+  ::impl::must_error<true, L>(env, fzn);
+}
+
+template<class L>
+void must_error_ask(VarEnv<StandardAllocator>& env, const char* fzn) {
+  ::impl::must_error<false, L>(env, fzn);
 }
 
 template<class L>
 void must_error(VarEnv<StandardAllocator>& env, const char* fzn) {
-  using F = TFormula<StandardAllocator>;
-  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
-  EXPECT_TRUE(f);
-  f->print(true, true);
-  IResult<L, F> r = L::interpret(*f, env);
-  std::cout << fzn << std::endl;
-  if(r.has_value()) {
-    std::cout << r.value() << std::endl;
-  }
-  EXPECT_FALSE(r.has_value());
+  must_error_tell<L>(env, fzn);
+  must_error_ask<L>(env, fzn);
+}
+
+template<class L>
+void must_error_tell(const char* fzn) {
+  ::impl::must_error<true, L>(fzn);
+}
+
+template<class L>
+void must_error_ask(const char* fzn) {
+  ::impl::must_error<false, L>(fzn);
 }
 
 template<class L>
 void must_error(const char* fzn) {
-  VarEnv<StandardAllocator> env;
-  must_error<L>(env, fzn);
+  must_error_tell<L>(fzn);
+  must_error_ask<L>(fzn);
 }
 
 /** We must have `A::bot() < mid < A::top()`. */
@@ -135,8 +272,12 @@ void bot_top_test(const A& mid) {
   EXPECT_TRUE(bot < mid) << bot << " " << mid;
   EXPECT_TRUE(mid < top);
 
-  must_interpret_to<A>("constraint true;", bot);
-  must_interpret_to<A>("constraint false;", top);
+  must_interpret_tell_to<A>("constraint true;", bot);
+  must_interpret_tell_to<A>("constraint false;", top);
+  if constexpr(A::is_abstract_universe) {
+    must_interpret_ask_to<A>("constraint true;", bot);
+    must_interpret_ask_to<A>("constraint false;", top);
+  }
 }
 
 template <class A>

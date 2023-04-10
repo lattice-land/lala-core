@@ -4,7 +4,7 @@
 #define VSTORE_HPP
 
 #include "logic/logic.hpp"
-#include "universes/upset_universe.hpp"
+#include "universes/primitive_upset.hpp"
 #include "copy_dag_helper.hpp"
 
 namespace lala {
@@ -12,7 +12,7 @@ namespace lala {
 /** The variable store abstract domain is a _domain transformer_ built on top of an abstract universe `U`.
 Concretization function: \f$ \gamma(\rho) \sqcap_{x \in \pi(\rho)} \gamma_{U_x}(\rho(x)) \f$.
 The top element is smashed and the equality between two stores is represented by the following equivalence relation, for two stores \f$ S \f$ and \f$ T \f$:
-\f$ S \equiv T \Leftrightarrow \forall{x \in \mathit{Vars}},~S(x) = T(x) \lor \exists{x \in \mathit{dom}(S)},\exists{y \in \mathit{dom}(T)},~S(x) = \top \land T(x) = \top \f$.
+\f$ S \equiv T \Leftrightarrow \forall{x \in \mathit{Vars}},~S(x) = T(x) \lor \exists{x \in \mathit{dom}(S)},\exists{y \in \mathit{dom}(T)},~S(x) = \top \land T(y) = \top \f$.
 Intuitively, it means that either all elements are equal or both stores have a top element, in which case they "collapse" to the top element, and are considered equal.
 
 The bottom element is the element \f$ \langle \bot, \ldots \rangle \f$, that is an infinite number of variables initialized to bottom.
@@ -24,13 +24,12 @@ For instance, \f$ \langle 1 \rangle.\mathit{dtell}(\langle \bot, 4 \rangle) \f$ 
 
 Limitation:
   - The size of the variable store is fixed at initialization and cannot be modified afterwards.
-    The reason is that resizing an array does not currently fit the PCCP model of computation.
+    The reason is that resizing an array does not easily fit the PCCP model of computation.
   - You can only tell store that are smaller or equal in size (unless the extra elements are set to bottom).
 
 Template parameters:
   - `U` is the type of the abstract universe.
-  - `Allocator` is the allocator of the underlying array of universes.
-On some architecture, such as GPU, it is better to store the data in the shared memory whenever possible. */
+  - `Allocator` is the allocator of the underlying array of universes. */
 template<class U, class Allocator>
 class VStore {
 public:
@@ -49,12 +48,16 @@ public:
   template <class Alloc>
   using tell_type = battery::vector<var_dom, Alloc>;
 
+  template <class Alloc>
+  using ask_type = tell_type<Alloc>;
+
   template <class Alloc = allocator_type>
   using snapshot_type = battery::vector<local_universe, Alloc>;
 
   template<class F, class Env>
   using iresult = IResult<tell_type<typename Env::allocator_type>, F>;
 
+  constexpr static const bool is_abstract_universe = false;
   constexpr static const char* name = "VStore";
 
   template<class U2, class Alloc2>
@@ -163,7 +166,7 @@ private:
   CUDA iresult<F, Env> interpret_existential(const F& f, Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
     assert(f.is(F::E));
-    auto u = local_universe::interpret(f, env);
+    auto u = local_universe::interpret_tell(f, env);
     if(u.has_value()) {
       if(env.num_vars_in(atype) >= vars()) {
         return iresult<F, Env>(IError<F>(true, name, "The variable could not be interpreted because the store is full.", f));
@@ -206,10 +209,10 @@ private:
   }
 
   /** Interpret a predicate with a single variable occurrence. */
-  template <class F, class Env>
+  template <bool is_tell, class F, class Env>
   CUDA iresult<F, Env> interpret_unary_predicate(const F& f, const Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
-    auto u = local_universe::interpret(f, env);
+    auto u = is_tell ? local_universe::interpret_tell(f, env) : local_universe::interpret_ask(f, env);
     if(u.has_value()) {
       TellType res(env.get_allocator());
       auto var = var_in(f, env);
@@ -232,24 +235,26 @@ private:
     }
   }
 
-  template <class F, class Env>
+  template <bool is_tell, class F, class Env>
   CUDA iresult<F, Env> interpret_predicate(const F& f, Env& env) const {
-    if(f.is(F::E)) {
-      return interpret_existential(f, env);
+    if constexpr(is_tell) {
+      if(f.is(F::E)) {
+        return interpret_existential(f, env);
+      }
     }
-    else if(f.is(F::Seq) && f.sig() == AND) {
-      return interpret_in_impl(f, env);
+    if(f.is(F::Seq) && f.sig() == AND) {
+      return interpret_in_impl<is_tell>(f, env);
     }
     else {
       switch(num_vars(f)) {
         case 0: return interpret_zero_predicate(f, env);
-        case 1: return interpret_unary_predicate(f, env);
+        case 1: return interpret_unary_predicate<is_tell>(f, env);
         default: return iresult<F, Env>(IError<F>(true, name, "Interpretation of n-ary predicate is not supported in VStore.", f));
       }
     }
   }
 
-  template <class F, class Env>
+  template <bool is_tell, class F, class Env>
   CUDA iresult<F, Env> interpret_in_impl(const F& f, Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
     if((f.is_untyped() || f.type() == aty())
@@ -258,17 +263,12 @@ private:
       const typename F::Sequence& seq = f.seq();
       auto res = iresult<F, Env>(TellType(env.get_allocator()));
       for(int i = 0; i < seq.size(); ++i) {
-        auto r = interpret_predicate(seq[i], env);
+        auto r = interpret_predicate<is_tell>(seq[i], env);
         if(r.has_value()) {
           for(int j = 0; j < r.value().size(); ++j) {
             res.value().push_back(r.value()[j]);
           }
           res.join_warnings(std::move(r));
-        }
-        else if(f.approx() == OVER) {
-          auto warning = IError<F>(false, name, "A component of the conjunction was ignored (allowed by over-approximation)", f);
-          warning.add_suberror(std::move(r.error()));
-          res.push_warning(std::move(warning));
         }
         else {
           return std::move(iresult<F, Env>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
@@ -279,35 +279,26 @@ private:
       return res;
     }
     else {
-      return interpret_predicate(f, env);
+      return interpret_predicate<is_tell>(f, env);
     }
   }
-
 public:
   /** The store of variables lattice expects a conjunctive formula \f$ c_1 \land \ldots \land c_n \f$ in which all components \f$ c_i \f$ are formulas with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
+   *  If one component of the conjunction cannot be interpreted by the abstract universe, the whole formula is considered as uninterpretable.
    *
-    I. Approximation
-    ================
+   * Variables must be existentially quantified before a formula containing variables can be interpreted.
+   * Variables are immediately assigned to an index of `VStore` and initialized to \f$ \bot_U \f$, if the universe's interpretation is different from bottom, the result of the VStore interpretation need to be `tell` later on in the store.
+   * Shadowing/redeclaration of variables with existential quantifier is not supported.
+   * Variable mappings are added to the environment only if `interpret(f).has_value()`.
 
-    Exact and under-approximation of \f$ \land \f$ are treated in the same way (nothing special is performed for under-approximation).
-    Over-approximation of \f$ \land \f$ allows the abstract domain to ignore components of the formula that cannot be interpreted in the underlying abstract universe.
-
-    II. Existential quantifier
-    ==========================
-
-    Variables must be existentially quantified before a formula containing variables can be interpreted.
-    Variables are immediately assigned to an index of `VStore` and initialized to \f$ \bot_U \f$, if the universe's interpretation is different from bottom, the result of the VStore interpretation need to be `tell` later on in the store.
-    Shadowing/redeclaration of variables with existential quantifier is not supported.
-    Variables are added to the current abstract element only if `interpret(f).has_value()`.
-
-    As a quirk, different stores might be produced if quantifiers do not appear in the same order.
-    This is because we attribute the first available index to variables when interpreting the quantifier.
-    The store will only be equivalent when considering the `env` structure.
+   * There is a small quirk: different stores might be produced if quantifiers do not appear in the same order.
+   * This is because we attribute the first available index to variables when interpreting the quantifier.
+   * The store will only be equivalent when considering the `env` structure.
   */
   template <class F, class Env>
-  CUDA iresult<F, Env> interpret_in(const F& f, Env& env) const {
+  CUDA iresult<F, Env> interpret_tell_in(const F& f, Env& env) const {
     auto snap = env.snapshot();
-    auto r = interpret_in_impl(f, env);
+    auto r = interpret_in_impl<true>(f, env);
     if(!r.has_value()) {
       env.restore(snap);
     }
@@ -318,16 +309,24 @@ public:
    * All the existentially quantified variables must be untyped.
    * The UID of the store will be an UID that is free in `env`. */
   template <class F, class Env>
-  CUDA static IResult<this_type, F> interpret(const F& f, Env& env, allocator_type alloc = allocator_type()) {
-    this_type store(env.num_abstract_doms(), num_quantified_untyped_vars(f), alloc);
-    auto r = store.interpret_in(f, env);
+  CUDA static IResult<this_type, F> interpret_tell(const F& f, Env& env, allocator_type alloc = allocator_type()) {
+    auto snap = env.snapshot();
+    this_type store(env.extends_abstract_dom(), num_quantified_untyped_vars(f), alloc);
+    auto r = store.interpret_tell_in(f, env);
     if(r.has_value()) {
       store.tell(r.value());
       return std::move(r).map(std::move(store));
     }
     else {
+      env.restore(snap);
       return std::move(r).template map_error<this_type>();
     }
+  }
+
+  /** Similar to `interpret_tell_in` but do not support existential quantifier. */
+  template <class F, class Env>
+  CUDA iresult<F, Env> interpret_ask_in(const F& f, const Env& env) const {
+    return interpret_in_impl<false>(f, env);
   }
 
   /** The projection must stay const, otherwise the user might tell new information in the universe, but we need to know in case we reach `top`. */
@@ -454,7 +453,7 @@ public:
   /** \return `true` when we can deduce the content of `t` from the current domain.
    * For instance, if we have in the store `x = [0..10]`, we can deduce `x = [-1..11]` but we cannot deduce `x = [5..8]`. */
   template <class Alloc2>
-  CUDA local::BInc ask(const tell_type<Alloc2>& t) const {
+  CUDA local::BInc ask(const ask_type<Alloc2>& t) const {
     for(int i = 0; i < t.size(); ++i) {
       if(!(data[t[i].idx] >= t[i].dom)) {
         return false;

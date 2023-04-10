@@ -41,6 +41,7 @@ public:
   template<class F>
   using iresult = IResult<this_type, F>;
 
+  constexpr static const bool is_abstract_universe = true;
   constexpr static const bool sequential = CP::sequential;
   constexpr static const char* name = "Interval";
 
@@ -106,54 +107,63 @@ private:
       UB2::template fun<sig>(typename A::flat_type<battery::LocalMemory>(a.ub())));
   }
 
-public:
+  template <bool is_tell, class F, class Env>
+  CUDA static iresult<F> forward_to_cp(const F& f, const Env& env) {
+    auto cp_res = is_tell ? CP::interpret_tell(f, env) : CP::interpret_ask(f, env);
+    if(cp_res.has_value()) {
+      local_type itv(cp_res.value());
+      return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
+    }
+    return std::move(cp_res).template map_error<this_type>();
+  }
 
-  /** Same as the Cartesian product interpretation but for equality:
-   *    * Exact interpretation of equality is attempted by over-approximating both bounds and checking they are equal. */
+public:
+  /** Support the same language than the Cartesian product, and more:
+   *    * `x == k` is over-approximated by interpreting `x == k` in both bounds.
+   *    * `x in k` is over-approximated by interpreting `x in k` in both bounds.
+   * Therefore, the element `k` is always in \f$ \gamma(lb) \cap \gamma(ub) \f$. */
   template<class F, class Env>
-  CUDA static iresult<F> interpret(const F& f, const Env& env) {
-    // In interval, we can handle the equality predicate exactly or by over-approximation.
-    // Under-approximation does not make sense since it would either be exact or give an empty interval.
-    // The equality is interpreted in both bounds by over-approximation, therefore the equal element must be in \f$ \gamma(lb) \cap \gamma(ub) \f$.
-    // If an exact equality is asked, we verify the interpretations in LB and UB are equal.
-    if(f.is_binary() && f.sig() == EQ) {
-      if(f.is_under()) {
-        return iresult<F>(IError<F>(true, name, "Equality cannot be interpreted by under-approximation (it would always give an empty interval).", f));
-      }
-      auto cp_res = CP::interpret(f.map_approx(OVER), env);
-      if(cp_res.has_value()) {
-        local_type itv(cp_res.value());
-        if(f.is_exact() && itv.lb() != itv.ub()) {
-          return iresult<F>(IError<F>(true, name, "Equality cannot be interpreted exactly because LB over-approximates the equality to a different value than UB.", f));
-        }
-        return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
-      }
-    }
-    else if(f.is_binary() && f.sig() == NEQ) {
-      if(f.is_over()) {
-        return iresult<F>(IError<F>(true, name, "Disequality cannot be interpreted by over-approximation (it would always give the bottom interval [-oo..oo]).", f));
-      }
-      else if(f.is_under()) {
-        auto lb = LB::interpret(f, env);
-        if(lb.has_value()) {
-          local_type itv(lb.value(), UB::bot());
-          return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(lb)));
-        }
-      }
-    }
-    else if(f.is_binary() && f.sig() == IN && f.seq(1).is(F::S)) {
-      auto cp_res = CP::interpret(f.map_approx(OVER), env);
+  CUDA static iresult<F> interpret_tell(const F& f, const Env& env) {
+    if(f.is_binary() &&
+      (f.sig() == EQ ||
+      (f.sig() == IN && f.seq(1).is(F::S))))
+    {
+      auto cp_res = CP::interpret_tell(f, env);
       if(cp_res.has_value()) {
         local_type itv(cp_res.value());
         return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
       }
     }
-    // Forward to CP in case the formula `f` did not fit the cases above.
-    auto cp_interpret = CP::interpret(f, env);
-    if(cp_interpret.has_value()) {
-      return std::move(iresult<F>(Interval(cp_interpret.value())).join_warnings(std::move(cp_interpret)));
+    return forward_to_cp<true>(f, env);
+  }
+
+  /** Support the same language than the Cartesian product, and more:
+   *    * `x != k` is under-approximated by interpreting `x != k` in the lower bound.
+   *    * `x == k` is interpreted by over-approximating `x == k` in both bounds and then verifying both bounds are the same. */
+  template<class F, class Env>
+  CUDA static iresult<F> interpret_ask(const F& f, const Env& env) {
+    if(f.is_binary() && f.sig() == NEQ) {
+      auto lb = LB::interpret_ask(f, env);
+      if(lb.has_value()) {
+        local_type itv(lb.value(), UB::bot());
+        return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(lb)));
+      }
     }
-    return std::move(cp_interpret).template map_error<this_type>();
+    else if(f.is_binary() && f.sig() == EQ) {
+      auto lb = LB::interpret_tell(f, env);
+      if(lb.has_value()) {
+        auto ub = UB::interpret_tell(f, env);
+        if(ub.has_value()) {
+          if(lb.value() == ub.value()) {
+            return iresult<F>(local_type(lb.value(), ub.value()));
+          }
+          else {
+            return iresult<F>(IError<F>(true, name, "When interpreting equality, the underlying bounds LB and UB failed to agree on the same value.", f));
+          }
+        }
+      }
+    }
+    return forward_to_cp<false>(f, env);
   }
 
   CUDA constexpr const LB& lb() const { return project<0>(cp); }
@@ -390,11 +400,10 @@ private:
   }
 
 public:
-
-  /** By default, multiplication is over-approximating as it is not possible to exactly represent multiplication in general.
-    Note that we do not rely on the commutativity property of multiplication. */
   template<class L, class K>
-  CUDA constexpr static local_type mul(const Interval<L>& a, const Interval<K>& b) {
+  CUDA constexpr static local_type mul(const Interval<L>& l, const Interval<K>& k) {
+    auto a = typename Interval<L>::local_type(l);
+    auto b = typename Interval<K>::local_type(k);
     // Interval multiplication case, [al..au] * [bl..bu]
     switch(sign(a)) {
       case PP:
@@ -449,8 +458,11 @@ public:
   }
 
   template<Sig divsig, class L, class K>
-  CUDA constexpr static local_type div(const Interval<L>& a, const Interval<K>& b) {
-    constexpr auto leq_zero = Interval<K>::UB::leq_k(Interval<K>::UB::pre_universe::zero());
+  CUDA constexpr static local_type div(const Interval<L>& l, const Interval<K>& k) {
+    auto a = typename Interval<L>::local_type(l);
+    auto b = typename Interval<K>::local_type(k);
+    using UB_K = typename Interval<K>::UB::local_type;
+    constexpr auto leq_zero = UB_K::leq_k(UB_K::pre_universe::zero());
     // Interval division, [al..au] / [bl..bu]
     switch(sign(b)) {
       case PP:
@@ -514,7 +526,9 @@ public:
   }
 
   template<Sig modsig, class L, class K>
-  CUDA constexpr static local_type mod(const Interval<L>& a, const Interval<K>& b) {
+  CUDA constexpr static local_type mod(const Interval<L>& l, const Interval<K>& k) {
+    auto a = typename Interval<L>::local_type(l);
+    auto b = typename Interval<K>::local_type(k);
     if(a.is_top() || b.is_top()) { return top(); }
     if(a.lb() == dual<LB2>(a.ub()) && b.lb() == dual<LB2>(b.ub())) {
       return flat_fun<modsig>(a, b);
@@ -525,7 +539,9 @@ public:
   }
 
   template<class L, class K>
-  CUDA constexpr static local_type pow(const Interval<L>& a, const Interval<K>& b) {
+  CUDA constexpr static local_type pow(const Interval<L>& l, const Interval<K>& k) {
+    auto a = typename Interval<L>::local_type(l);
+    auto b = typename Interval<K>::local_type(k);
     if(a.is_top() || b.is_top()) { return top(); }
     if(a.lb() == dual<LB2>(a.ub()) && b.lb() == dual<LB2>(b.ub())) {
       return flat_fun<POW>(a, b);

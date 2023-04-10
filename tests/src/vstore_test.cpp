@@ -14,19 +14,19 @@ using CPStore = VStore<CP, StandardAllocator>;
 using IStore = VStore<Itv, StandardAllocator>;
 
 TEST(VStoreTest, BotTopTests) {
-  ZStore one = interpret_to2<ZStore>("var int: x; constraint int_ge(x, 1);");
-  ZStore two = interpret_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 10);");
-  IStore istore = interpret_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 10);");
+  ZStore one = interpret_tell_to2<ZStore>("var int: x; constraint int_ge(x, 1);");
+  ZStore two = interpret_tell_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 10);");
+  IStore istore = interpret_tell_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 10);");
   bot_top_test(one);
   bot_top_test(two);
   bot_top_test(istore);
 }
 
 TEST(VStoreTest, JoinMeetTest) {
-  ZStore one = interpret_to2<ZStore>("var int: x; constraint int_ge(x, 1);");
-  ZStore two = interpret_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, -1); constraint int_ge(y, 10);");
-  ZStore joined = interpret_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 10);");
-  ZStore met = interpret_to2<ZStore>("var int: x; constraint int_ge(x, -1);");
+  ZStore one = interpret_tell_to2<ZStore>("var int: x; constraint int_ge(x, 1);");
+  ZStore two = interpret_tell_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, -1); constraint int_ge(y, 10);");
+  ZStore joined = interpret_tell_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 10);");
+  ZStore met = interpret_tell_to2<ZStore>("var int: x; constraint int_ge(x, -1);");
 
   std::cout << one << "\n" << two << "\n" << joined << "\n" << met << std::endl;
 
@@ -41,7 +41,7 @@ TEST(VStoreTest, JoinMeetTest) {
 }
 
 TEST(VStoreTest, CopyConstructor) {
-  ZStore vstore = interpret_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
+  ZStore vstore = interpret_tell_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
   ZStore copy(vstore, AbstractDeps<>());
   EXPECT_EQ(vstore.vars(), copy.vars());
   for(int i = 0; i < vstore.vars(); ++i) {
@@ -50,7 +50,7 @@ TEST(VStoreTest, CopyConstructor) {
 }
 
 TEST(VStoreTest, SnapshotRestore) {
-  ZStore vstore = interpret_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
+  ZStore vstore = interpret_tell_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
   ZStore::snapshot_type<> snap = vstore.snapshot();
   EXPECT_EQ(vstore[0], zi(1));
   EXPECT_EQ(vstore[1], zi(1));
@@ -75,7 +75,7 @@ TEST(VStoreTest, SnapshotRestore) {
 }
 
 TEST(VStoreTest, Extract) {
-  ZStore vstore = interpret_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
+  ZStore vstore = interpret_tell_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
   ZStore copy(vstore, AbstractDeps<>());
   local::BInc has_changed = local::BInc::bot();
   copy
@@ -87,10 +87,9 @@ TEST(VStoreTest, Extract) {
   }
 }
 
-/** `appx` is the approximation kind of the top-level conjunction. */
 template<class L>
-L interpret_and_test(const char* fzn, const vector<typename L::universe_type>& expect, Approx appx = EXACT) {
-  L s = interpret_to2<L>(fzn, appx);
+L interpret_and_test(const char* fzn, const vector<typename L::universe_type>& expect) {
+  L s = interpret_tell_to2<L>(fzn);
   EXPECT_EQ(s.vars(), expect.size());
   for(int i = 0; i < expect.size(); ++i) {
     EXPECT_EQ(s[i], expect[i]);
@@ -99,53 +98,46 @@ L interpret_and_test(const char* fzn, const vector<typename L::universe_type>& e
 }
 
 TEST(VStoreTest, InterpretationZStore) {
-  must_error<ZStore>("constraint int_gt(x, 4);"); // (undeclared variable)
+  must_error_tell<ZStore>("constraint int_gt(x, 4);"); // (undeclared variable)
   interpret_and_test<ZStore>("var int: x; constraint int_gt(x, 4);", {zi(5)});
-  must_error<ZStore>("constraint int_gt(x, 4); var int: x;"); // (declaration after usage)
-  must_error<ZStore>("var int: x; constraint int_lt(x, 4);"); // (x < 4 not supported in increasing integers abstract universe).
+  must_error_tell<ZStore>("constraint int_gt(x, 4); var int: x;"); // (declaration after usage)
+  must_error_tell<ZStore>("var int: x; constraint int_lt(x, 4);"); // (x < 4 not supported in increasing integers abstract universe).
   interpret_and_test<ZStore>("var int: x; constraint int_gt(x, 4); constraint int_gt(x, 5);", {zi(6)});
 }
 
 TEST(VStoreTest, InterpretationCPStore) {
   interpret_and_test<CPStore>("var int: x; constraint int_gt(x, 4); constraint int_lt(x, 6);", {CP(zi(5), zd(5))});
   interpret_and_test<CPStore>("var int: x; var int: y; constraint int_gt(x, 4); constraint int_lt(x, 6); constraint int_le(y, 1);", {CP(zi(5), zd(5)), CP(zi::bot(), zd(1))});
-  must_error<CPStore>("var int: x; constraint int_gt(x, 4); constraint int_lt(x, 6); constraint int_le(y, 1);");
+  must_error_tell<CPStore>("var int: x; constraint int_gt(x, 4); constraint int_lt(x, 6); constraint int_le(y, 1);");
 }
 
 TEST(VStoreTest, InterpretationIStore) {
   IStore s1 = interpret_and_test<IStore>("var int: x; constraint int_gt(x, 4); constraint int_lt(x, 4);", {Itv(5, 3)});
   EXPECT_TRUE(s1.is_top());
-  interpret_and_test<IStore>("var int: x; constraint int_ge(x, 4); constraint int_le(x, 4);", {Itv(4, 4)});
   IStore s2 = interpret_and_test<IStore>("var int: x; var int: y; constraint int_gt(x, 4); constraint int_lt(x, 4); constraint int_lt(y, 2);", {Itv(5, 3), Itv(zi::bot(), zd(1))});
   EXPECT_TRUE(s2.is_top());
+  IStore s3 = interpret_and_test<IStore>("var int: x; constraint int_ge(x, 4); constraint int_le(x, 4);", {Itv(4, 4)});
   interpret_and_test<IStore>("var int: x; constraint int_eq(x, 4);", {Itv(4, 4)});
-  must_error<IStore>("var int: x; constraint int_eq(x, 4)::under;");
-  interpret_and_test<IStore>("var int: x; constraint int_eq(x, 4)::under;", {Itv::bot()}, OVER);
-  interpret_and_test<IStore>("var int: x; constraint int_eq(x, 4)::over;", {Itv(4, 4)});
-  interpret_and_test<IStore>("var 1..10: x;", {Itv(1, 10)});
-  interpret_and_test<IStore>("var 1..10: x; var -5..5: y;", {Itv(1, 10), Itv(-5, 5)});
-  IStore s3 = interpret_and_test<IStore>("var int: x; constraint int_ne(x, 4)::under;", {Itv(zi(5), zd::bot())});
-  EXPECT_FALSE(s3.is_top());
-}
-
-TEST(VStoreTest, UnderOverInterpretation) {
-  interpret_and_test<ZStore>("var int: x; constraint int_eq(x, 4)::under;", {zi::bot()}, OVER);
-  interpret_and_test<ZStore>("var int: x; constraint int_eq(x, 4)::over;", {zi(4)}, OVER);
-  interpret_and_test<ZStore>("var int: x; var int: y; constraint int_eq(x, 4)::under; constraint int_gt(y, 1); constraint int_lt(y, 10);", {zi::bot(), zi(2)}, OVER);
-  interpret_and_test<ZStore>("var int: x; var int: y; constraint int_eq(x, 4)::over; constraint int_gt(y, 1); constraint int_lt(y, 10);", {zi(4), zi(2)}, OVER);
-
-  interpret_and_test<CPStore>("var int: x; var int: y; constraint int_eq(x, 4)::under; constraint int_gt(y, 1); constraint int_lt(y, 10);", {CP::bot(), CP(zi(2), zd(9))}, OVER);
-  must_error<CPStore>("var int: x; constraint int_eq(x, 4)::under;");
+  IStore s4 = interpret_and_test<IStore>("var 1..10: x;", {Itv(1, 10)});
+  interpret_and_test<IStore>("var 5..10: x; var -5..5: y;", {Itv(5, 10), Itv(-5, 5)});
+  interpret_and_ask(s1, "constraint int_eq(x, 4);", true);
+  interpret_and_ask(s2, "constraint int_eq(x, 4);", true);
+  interpret_and_ask(s3, "constraint int_eq(x, 4);", true);
+  interpret_and_ask(s4, "constraint int_eq(x, 4);", false);
+  interpret_and_ask(s1, "constraint int_ne(x, 4);", true);
+  interpret_and_ask(s2, "constraint int_ne(x, 4);", true);
+  interpret_and_ask(s3, "constraint int_ne(x, 4);", false);
+  interpret_and_ask(s4, "constraint int_ne(x, 4);", false);
 }
 
 TEST(VStoreTest, AskOperation) {
   VarEnv<StandardAllocator> env;
-  ZStore store = interpret_to<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);", env);
-  auto ask1 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 0); constraint int_ge(y, 1);"), env).value();
-  auto ask2 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(y, -1);"), env).value();
-  auto ask3 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 0); constraint int_ge(y, 2);"), env).value();
-  auto ask4 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 10); constraint int_ge(y, 2);"), env).value();
-  auto ask5 = store.interpret_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 10);"), env).value();
+  ZStore store = interpret_tell_to<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);", env);
+  auto ask1 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 0); constraint int_ge(y, 1);"), env).value();
+  auto ask2 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(y, -1);"), env).value();
+  auto ask3 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 0); constraint int_ge(y, 2);"), env).value();
+  auto ask4 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 10); constraint int_ge(y, 2);"), env).value();
+  auto ask5 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 10);"), env).value();
   EXPECT_TRUE(store.ask(ask1));
   EXPECT_TRUE(store.ask(ask2));
   EXPECT_FALSE(store.ask(ask3));

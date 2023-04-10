@@ -21,25 +21,6 @@ using AType = int;
 /** This value means a formula is not typed in a particular abstract domain and its type should be inferred. */
 #define UNTYPED (-1)
 
-/** The approximation of a formula in an abstract domain w.r.t. the concrete domain. */
-enum Approx {
-  UNDER, ///< An under-approximating element contains only solutions but not necessarily all.
-  OVER, ///< An over-approximating element contains all solutions but not necessarily only solutions.
-  EXACT ///< An exact element is both under- and over-approximating; it exactly represents the set of solutions.
-};
-
-CUDA static inline void print_approx(Approx appx) {
-  switch(appx) {
-    case UNDER: printf("under"); break;
-    case OVER: printf("over"); break;
-    case EXACT: printf("exact"); break;
-  }
-}
-
-CUDA static constexpr Approx dapprox(Approx appx) {
-  return appx == EXACT ? EXACT : (appx == UNDER ? OVER : UNDER);
-}
-
 /** The concrete type of variables, called `sort`, introduced by existential quantification.
     More concrete types could be added later. */
 template <class Allocator>
@@ -82,16 +63,6 @@ struct Sort {
   Sort& operator=(const this_type& other) = default;
   Sort(Sort&&) = default;
   Sort& operator=(Sort&&) = default;
-
-  CUDA Approx default_approx() const {
-    switch(tag) {
-      case Bool: return EXACT;
-      case Int: return EXACT;
-      case Real: return OVER;
-      case Set: return sub->default_approx();
-      default: assert(false); return EXACT; // "Sort: Unknown type".
-    }
-  }
 
   CUDA bool is_bool() const { return tag == Bool; }
   CUDA bool is_int() const { return tag == Int; }

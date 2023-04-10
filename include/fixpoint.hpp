@@ -4,7 +4,7 @@
 #define FIXPOINT_HPP
 
 #include "logic/logic.hpp"
-#include "universes/upset_universe.hpp"
+#include "universes/primitive_upset.hpp"
 #include "memory.hpp"
 
 #ifdef __NVCC__
@@ -17,7 +17,6 @@ namespace lala {
  * At each iteration, the refinement operations \f$ f_1, \ldots, f_n \f$ are simply composed by functional composition \f$ f = f_n \circ \ldots \circ f_1 \f$.
  * This strategy basically corresponds to the Gauss-Seidel iteration method. */
 class GaussSeidelIteration {
-
 public:
   CUDA void barrier() {}
 

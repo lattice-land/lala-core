@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef UPSET_UNIVERSE_HPP
-#define UPSET_UNIVERSE_HPP
+#ifndef PRIMITIVE_UPSET_HPP
+#define PRIMITIVE_UPSET_HPP
 
 #include <type_traits>
 #include <utility>
@@ -17,7 +17,7 @@
 #include "memory.hpp"
 
 /** A pre-abstract universe is a lattice (with usual operations join, order, ...) equipped with a simple logical interpretation function and a next/prev functions.
-    We consider pre-abstract universes with an upset semantics.
+    We consider totally ordered pre-abstract universes with an upset semantics.
     For any lattice \f$ L \f$, we consider an element \f$ a \in L \f$ to represent all the concrete elements equal to or above it.
     This set is called the upset of \f$ a \f$ and is denoted \f$ \mathord{\uparrow}{a} \f$.
     The concretization function \f$ \gamma \f$ formalizes this idea: \f$ \gamma(a) = \{x \mapsto b \;|\; b \in \mathord{\uparrow}{a} \cap U \} \f$ where \f$ U \f$ is the universe of discourse.
@@ -45,35 +45,35 @@ template<class PreUniverse, class Mem>
 class FlatUniverse;
 
 template<class PreUniverse, class Mem>
-class UpsetUniverse;
+class PrimitiveUpset;
 
 /** Lattice of increasing integers.
 Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \leq y\} \f$. */
 template<class VT, class Mem>
-using ZInc = UpsetUniverse<PreZInc<VT>, Mem>;
+using ZInc = PrimitiveUpset<PreZInc<VT>, Mem>;
 
 /** Lattice of decreasing integers.
 Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \geq y\} \f$. */
 template<class VT, class Mem>
-using ZDec = UpsetUniverse<PreZDec<VT>, Mem>;
+using ZDec = PrimitiveUpset<PreZDec<VT>, Mem>;
 
 /** Lattice of increasing floating-point numbers.
 Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; y \in \mathbb{R}, x \leq y\} \f$. */
 template<class VT, class Mem>
-using FInc = UpsetUniverse<PreFInc<VT>, Mem>;
+using FInc = PrimitiveUpset<PreFInc<VT>, Mem>;
 
 /** Lattice of decreasing floating-point numbers.
 Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; y \in \mathbb{R}, x \geq y\} \f$. */
 template<class VT, class Mem>
-using FDec = UpsetUniverse<PreFDec<VT>, Mem>;
+using FDec = PrimitiveUpset<PreFDec<VT>, Mem>;
 
 /** Lattice of increasing Boolean where \f$ \mathit{false} \leq \mathit{true} \f$. */
 template<class Mem>
-using BInc = UpsetUniverse<PreBInc, Mem>;
+using BInc = PrimitiveUpset<PreBInc, Mem>;
 
 /** Lattice of decreasing Boolean where \f$ \mathit{true} \leq \mathit{false} \f$. */
 template<class Mem>
-using BDec = UpsetUniverse<PreBDec, Mem>;
+using BDec = PrimitiveUpset<PreBDec, Mem>;
 
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
@@ -88,17 +88,17 @@ namespace local {
 
 namespace impl {
   template<class T>
-  struct is_upset_universe {
+  struct is_primitive_upset {
     static constexpr bool value = false;
   };
 
   template<class PreUniverse, class Mem>
-  struct is_upset_universe<UpsetUniverse<PreUniverse, Mem>> {
+  struct is_primitive_upset<PrimitiveUpset<PreUniverse, Mem>> {
     static constexpr bool value = true;
   };
 
   template <class T>
-  inline constexpr bool is_upset_universe_v = is_upset_universe<T>::value;
+  inline constexpr bool is_primitive_upset_v = is_primitive_upset<T>::value;
 
 }
 
@@ -115,18 +115,18 @@ CUDA constexpr LDual dual(L x) {
 }
 
 template<class PreUniverse, class Mem>
-class UpsetUniverse
+class PrimitiveUpset
 {
   using U = PreUniverse;
 public:
   using pre_universe = PreUniverse;
   using value_type = typename pre_universe::value_type;
   using memory_type = Mem;
-  using this_type = UpsetUniverse<pre_universe, memory_type>;
-  using dual_type = UpsetUniverse<typename pre_universe::dual_type, memory_type>;
+  using this_type = PrimitiveUpset<pre_universe, memory_type>;
+  using dual_type = PrimitiveUpset<typename pre_universe::dual_type, memory_type>;
 
   template<class M>
-  using this_type2 = UpsetUniverse<pre_universe, M>;
+  using this_type2 = PrimitiveUpset<pre_universe, M>;
 
   using local_type = this_type2<battery::LocalMemory>;
 
@@ -136,6 +136,7 @@ public:
   template<class F>
   using iresult = IResult<this_type, F>;
 
+  constexpr static const bool is_abstract_universe = true;
   constexpr static const bool sequential = Mem::sequential;
   constexpr static const bool is_totally_ordered = pre_universe::is_totally_ordered;
   constexpr static const bool preserve_bot = pre_universe::preserve_bot;
@@ -148,25 +149,27 @@ public:
 
   constexpr static const bool is_arithmetic = pre_universe::is_arithmetic;
 
+  static_assert(is_totally_ordered, "The underlying pre-universe must be totally ordered.");
+
   /** A pre-interpreted formula `x >= value` ready to use.
    * This is mainly for optimization purpose to avoid calling `interpret` each time we need it. */
   CUDA static constexpr this_type geq_k(value_type k) {
-    if constexpr(increasing && is_arithmetic && is_totally_ordered) {
+    if constexpr(increasing && is_arithmetic) {
       return this_type(k);
     }
     else {
-      static_assert(increasing && is_arithmetic && is_totally_ordered,
+      static_assert(increasing && is_arithmetic,
         "The pre-interpreted formula x >= k is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
         Moreover, the underlying abstract universe must be increasing, otherwise this formula is not supported.");
     }
   }
 
   CUDA static constexpr this_type leq_k(value_type k) {
-    if constexpr(!increasing && is_arithmetic && is_totally_ordered) {
+    if constexpr(!increasing && is_arithmetic) {
       return this_type(k);
     }
     else {
-      static_assert(!increasing && is_arithmetic && is_totally_ordered,
+      static_assert(!increasing && is_arithmetic,
         "The pre-interpreted formula x <= k is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
         Moreover, the underlying abstract universe must be decreasing, otherwise this formula is not supported.");
     }
@@ -183,14 +186,14 @@ public:
   /** Similar to \f$[\![\mathit{false}]\!]\f$ if `preserve_top` is true. */
   CUDA static constexpr this_type top() { return this_type(U::top()); }
   /** Initialize an upset universe to bottom. */
-  CUDA constexpr UpsetUniverse(): val(U::bot()) {}
+  CUDA constexpr PrimitiveUpset(): val(U::bot()) {}
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
-  CUDA constexpr UpsetUniverse(value_type x): val(x) {}
-  CUDA constexpr UpsetUniverse(const this_type& other): UpsetUniverse(other.value()) {}
-  CUDA constexpr UpsetUniverse(this_type&& other): val(std::move(other.val)) {}
+  CUDA constexpr PrimitiveUpset(value_type x): val(x) {}
+  CUDA constexpr PrimitiveUpset(const this_type& other): PrimitiveUpset(other.value()) {}
+  CUDA constexpr PrimitiveUpset(this_type&& other): val(std::move(other.val)) {}
 
   template <class M>
-  CUDA constexpr UpsetUniverse(const this_type2<M>& other): UpsetUniverse(other.value()) {}
+  CUDA constexpr PrimitiveUpset(const this_type2<M>& other): PrimitiveUpset(other.value()) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
@@ -201,7 +204,7 @@ public:
       return *this;
     }
     else {
-      static_assert(sequential, "The operator= in `UpsetUniverse` can only be used when the underlying memory is `sequential`.");
+      static_assert(sequential, "The operator= in `PrimitiveUpset` can only be used when the underlying memory is `sequential`.");
     }
   }
 
@@ -211,7 +214,7 @@ public:
       return *this;
     }
     else {
-      static_assert(sequential, "The operator= in `UpsetUniverse` can only be used when the underlying memory is `sequential`.");
+      static_assert(sequential, "The operator= in `PrimitiveUpset` can only be used when the underlying memory is `sequential`.");
     }
   }
 
@@ -237,7 +240,7 @@ public:
   template<class M1, class M2>
   CUDA constexpr this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
     value_type r1 = value();
-    value_type r2 = is_totally_ordered ? other.value() : U::join(r1, other.value());
+    value_type r2 = other.value();
     if(U::strict_order(r1, r2)) {
       memory_type::store(val, r2);
       has_changed.tell_top();
@@ -248,7 +251,7 @@ public:
   template<class M1>
   CUDA constexpr this_type& tell(const this_type2<M1>& other) {
     value_type r1 = value();
-    value_type r2 = is_totally_ordered ? other.value() : U::join(r1, other.value());
+    value_type r2 = other.value();
     if(U::strict_order(r1, r2)) {
       memory_type::store(val, r2);
     }
@@ -263,7 +266,7 @@ public:
   template<class M1, class M2>
   CUDA constexpr this_type& dtell(const this_type2<M1>& other, BInc<M2>& has_changed) {
     value_type r1 = value();
-    value_type r2 = is_totally_ordered ? other.value() : U::meet(r1, other.value());
+    value_type r2 = other.value();
     if(U::strict_order(r2, r1)) {
       memory_type::store(val, r2);
       has_changed.tell_top();
@@ -274,7 +277,7 @@ public:
   template<class M1>
   CUDA constexpr this_type& dtell(const this_type2<M1>& other) {
     value_type r1 = value();
-    value_type r2 = is_totally_ordered ? other.value() : U::meet(r1, other.value());
+    value_type r2 = other.value();
     if(U::strict_order(r2, r1)) {
       memory_type::store(val, r2);
     }
@@ -293,7 +296,7 @@ public:
     else if(preserve_bot && is_bot()) {
       return TFormula<allocator_t>::make_true();
     }
-    return make_v_op_z(avar, U::sig_order(), value(), avar.aty(), EXACT, env.get_allocator());
+    return make_v_op_z(avar, U::sig_order(), value(), avar.aty(), env.get_allocator());
   }
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
@@ -317,83 +320,86 @@ public:
   }
 
 private:
-
   /** Interpret a formula of the form `k <sig> x`. */
-  template<class F, class Env>
-  CUDA static iresult<F> interpret_k_op_x(const F& f, const F& k, Sig sig, const F& x, const Env& env) {
-    auto r = pre_universe::interpret(k, k.sort().value(), f.approx());
+  template<class F>
+  CUDA static iresult<F> interpret_tell_k_op_x(const F& f, const F& k, Sig sig) {
+    auto r = pre_universe::interpret_tell(k);
     if(!r.has_value()) {
       return r;
     }
-    else if(sig == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
+    else if(sig == EQ || sig == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
       return r;
     }
-    else if(sig == U::sig_strict_order()) {  // e.g., x < 4
-      if(!f.is_over() || (preserve_concrete_covers && is_totally_ordered)) {
+    else if(sig == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
+      if constexpr(preserve_concrete_covers) {
         return std::move(r).map(pre_universe::next(r.value()));
       }
       else {
-        auto err = IError<F>(true, name, "Interpreting a strict relation, i.e. `x < k`, not supported.", f);
-        if constexpr(!preserve_concrete_covers) {
-          err.add_suberror(IError<F>(true, name, "Inner covers are not preserved: there might be elements between k and next(k).", f));
-        }
-        if(!is_totally_ordered) {
-          err.add_suberror(IError<F>(true, name, "The cover is not unique (the abstract universe is not totally ordered): there might be several incomparable elements satisfying next(k).", f));
-        }
-        return iresult<F>(std::move(err));
+        return r;
       }
-      // In case of over-approximation, interpreting using `U::sig_order` is a correct option.
-      return r;
-    }
-    // Under-approximation of `x != k` as `next(k)`.
-    else if(f.is_under() && sig == NEQ) {
-      return std::move(r).map(pre_universe::next(r.value()));
-    }
-    // Over-approximation of `x == k` as `k`.
-    else if(f.is_over() && sig == EQ) {
-      return r;
     }
     else {
-      return iresult<F>(IError<F>(true, name, "The signature of the symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported: either the symbol is unknown, approximation kind is not supported or the type of the arguments of the symbols are not supported.", f));
+      return iresult<F>(IError<F>(true, name, "The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the language of this universe.", f));
     }
   }
 
-  template <class F>
-  CUDA static iresult<F> interpret_false(const F& f) {
-    if(preserve_top || f.is_over()) {
-      return iresult<F>(top());
+  /** Interpret a formula of the form `k <sig> x`. */
+  template<class F>
+  CUDA static iresult<F> interpret_ask_k_op_x(const F& f, const F& k, Sig sig) {
+    auto r = pre_universe::interpret_ask(k);
+    if(!r.has_value()) {
+      return r;
+    }
+    else if(sig == U::sig_order()) {
+      return r;
+    }
+    else if(sig == NEQ || sig == U::sig_strict_order()) {
+      // We could actually do a little bit better in the case of FInc/FDec.
+      // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
+      return std::move(r).map(pre_universe::next(r.value()));
     }
     else {
-      return iresult<F>(IError<F>(true, name, "Top is not preserved, hence it cannot exactly interpret or under-approximate formulas equivalent to `false`.", f));
+      return iresult<F>(IError<F>(true, name, "The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the ask language of this universe.", f));
     }
   }
 
   template<class F>
-  CUDA static iresult<F> interpret_true(const F& f) {
-    if(preserve_bot || f.is_under()) {
-      return bot();
+  CUDA static iresult<F> interpret_tell_in(const F& f, const F& k) {
+    const auto& set = k.s();
+    if(set.size() == 0) {
+      return top();
     }
-    else {
-      return iresult<F>(IError<F>(true, name, "Bottom is not preserved, hence it cannot exactly interpret or over-approximate formula equivalent to `true`.", f));
+    value_type meet_s = pre_universe::top();
+    constexpr int bound_index = increasing ? 0 : 1;
+    for(int i = 0; i < set.size(); ++i) {
+      auto bound = battery::get<bound_index>(set[i]);
+      auto res = pre_universe::interpret_tell(bound);
+      if(!res.has_value()) {
+        return std::move(iresult<F>(IError<F>(true, name, "Could not interpret an element of a set in the interval's bound.", f))
+          .join_errors(std::move(res)));
+      }
+      meet_s = pre_universe::meet(meet_s, res.value());
     }
+    return iresult<F>(this_type(meet_s));
   }
 
 public:
-
-  /** Expects a predicate of the form `x <op> k` or `k <op> x`, where `x` is any variable's name, and `k` a constant.
-    - If `f.approx()` is EXACT: `op` can be `U::sig_order()` or `U::sig_strict_order()`.
-    - If `f.approx()` is UNDER: `op` can be, in addition to exact, `!=`.
-    - If `f.approx()` is OVER: `op` can be, in addition to exact, `==` and `in`.
-    Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom).
-    - The interpretation depends on the abstract pre-universe.
-    */
+  /** Expects a predicate of the form `x <op> k`, `k <op> x` or `x in k`, where `x` is any variable's name, and `k` a constant.
+   * The symbol <op> is expected to be `U::sig_order()`, `U::sig_strict_order()` and `=`.
+   * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom) depending on the underlying pre-universe.
+   */
   template<class F, class Env>
-  CUDA static iresult<F> interpret(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret_tell(const F& f, const Env&) {
     if(f.is_true()) {
-      return interpret_true(f);
+      if constexpr(preserve_bot) {
+        return bot();
+      }
+      else {
+        return iresult<F>(IError<F>(true, name, "Bottom is not preserved, hence we cannot over-approximate `true`.", f));
+      }
     }
     else if(f.is_false()) {
-      return interpret_false(f);
+      return top();
     }
     else if(f.is(F::E)) {
       return pre_universe::interpret_type(f);
@@ -406,44 +412,51 @@ public:
           return iresult<F>(IError<F>(true, name, "Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
         }
         const auto& k = f.seq(idx_constant);
-        const auto& x = f.seq(idx_variable);
         if(f.sig() == IN) {
           if(idx_constant == 0) { // `k in x` is equivalent to `{k} \subseteq x`.
-            return interpret_k_op_x(f, F::make_set(logic_set<F, typename F::allocator_type>(
-              {battery::make_tuple<F,F>(F(k),F(k))})), SUBSETEQ, x, env);
+            return iresult<F>(IError<F>(true, name, "The formula `k in x` is not supported in this abstract universe (`x in k` is supported).", f));
           }
           else { // `x in k` is equivalent to `x >= meet k` where `>=` is the lattice order `U::sig_order()`.
-            const auto& set = k.s();
-            if(set.size() == 0) {
-              return interpret_false(f);
-            }
-            if(f.is_over()) {
-              value_type meet_s = pre_universe::top();
-              constexpr int bound_index = increasing ? 0 : 1;
-              for(int i = 0; i < set.size(); ++i) {
-                auto bound = battery::get<bound_index>(set[i]);
-                auto sort = bound.sort();
-                if(!sort.has_value()) {
-                  return iresult<F>(IError<F>(true, name, "Could not compute the sort of the bound in a set constant.", k));
-                }
-                auto res = pre_universe::interpret(bound, *sort, bound.approx());
-                if(!res.has_value()) {
-                  return std::move(iresult<F>(IError<F>(true, name, "Could not interpret an element of a set in the interval's bound.", f))
-                    .join_errors(std::move(res)));
-                }
-                meet_s = pre_universe::meet(meet_s, res.value());
-              }
-              return iresult<F>(this_type(meet_s));
-            }
-            else {
-              return iresult<F>(IError<F>(true, name, "Exact or under-approximation of 'set' constant is not yet supported.", f));
-            }
+            return interpret_tell_in(f, k);
           }
         }
         else {
           Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
-          return interpret_k_op_x(f, k, sig, x, env);
+          return interpret_tell_k_op_x(f, k, sig);
         }
+      }
+      else {
+        return iresult<F>(IError<F>(true, name, "Only binary constraints are supported.", f));
+      }
+    }
+  }
+
+  /** Expects a predicate of the form `x <op> k` or `k <op> x`, where `x` is any variable's name, and `k` a constant.
+   * The symbol <op> is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`.
+   */
+  template<class F, class Env>
+  CUDA static iresult<F> interpret_ask(const F& f, const Env&) {
+    if(f.is_true()) {
+      return bot();
+    }
+    else if(f.is_false()) {
+      if constexpr(preserve_top) {
+        return top();
+      }
+      else {
+        return iresult<F>(IError<F>(true, name, "Top is not preserved, hence we cannot under-approximate `false`.", f));
+      }
+    }
+    else {
+      if(f.is_binary()) {
+        int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
+        int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
+        if(idx_constant + idx_variable != 1) {
+          return iresult<F>(IError<F>(true, name, "Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
+        }
+        const auto& k = f.seq(idx_constant);
+        Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
+        return interpret_ask_k_op_x(f, k, sig);
       }
       else {
         return iresult<F>(IError<F>(true, name, "Only binary constraints are supported.", f));
@@ -464,41 +477,46 @@ public:
     return local_type(pre_universe::prev(a.value()));
   }
 
-  /** Unary function of type `Sig: FlatUniverse -> UpsetUniverse`.
+  /** Unary function of type `Sig: FlatUniverse -> PrimitiveUpset`.
    * \return If `a` is `bot`, we return the bottom element of the upset lattice; and dually for `top`.
    * Otherwise, we apply the function `Sig` to `a` and return the result.
    * \remark The result of the function is always over-approximated (or exact when possible).
   */
   template <Sig sig, class M>
   CUDA static constexpr local_type fun(const flat_type<M>& a) {
-    if(a.is_top()) {
+    using local_flat_type = flat_type<battery::LocalMemory>;
+    local_flat_type r1(a);
+    if(r1.is_top()) {
       return local_type::top();
     }
-    else if(a.is_bot()) {
+    else if(r1.is_bot()) {
       return local_type::bot();
     }
-    return pre_universe::template fun<sig>(a);
+    return pre_universe::template fun<sig>(r1);
   }
 
-  /** Binary functions of type `Sig: FlatUniverse x FlatUniverse -> UpsetUniverse`.
+  /** Binary functions of type `Sig: FlatUniverse x FlatUniverse -> PrimitiveUpset`.
    * \return If `a` or `b` is `bot`, we return the bottom element of the upset lattice; and dually for `top`.
    * Otherwise, we apply the function `Sig` to `a` and `b` and return the result.
    * \remark The result of the function is always over-approximated (or exact when possible).
    */
   template<Sig sig, class M1, class M2>
   CUDA static constexpr local_type fun(const flat_type<M1>& a, const flat_type<M2>& b) {
-    if(a.is_top() || b.is_top()) {
+    using local_flat_type = flat_type<battery::LocalMemory>;
+    local_flat_type r1(a);
+    local_flat_type r2(b);
+    if(r1.is_top() || r2.is_top()) {
       return local_type::top();
     }
-    else if(a.is_bot() || b.is_bot()) {
+    else if(r1.is_bot() || r2.is_bot()) {
       return local_type::bot();
     }
     if constexpr(is_division(sig)) {
-      if(b.value() == pre_universe::zero()) {
+      if(r2.value() == pre_universe::zero()) {
         return local_type::top();
       }
     }
-    return pre_universe::template fun<sig>(a, b);
+    return pre_universe::template fun<sig>(r1, r2);
   }
 
   /** Given two values `a` and `b`, we perform the division while taking care of the case where `b == 0`.
@@ -514,19 +532,21 @@ public:
    */
   template<Sig sig, class Pre1, class Mem1, class Pre2, class Mem2>
   CUDA static constexpr local_type guarded_div(
-    const UpsetUniverse<Pre1, Mem1>& a, const UpsetUniverse<Pre2, Mem2>& b)
+    const PrimitiveUpset<Pre1, Mem1>& a, const PrimitiveUpset<Pre2, Mem2>& b)
   {
-    using A = UpsetUniverse<Pre1, Mem1>;
-    using B = UpsetUniverse<Pre2, Mem2>;
+    using A = PrimitiveUpset<Pre1, Mem1>;
+    using B = PrimitiveUpset<Pre2, Mem2>;
     using local_flat_type = flat_type<battery::LocalMemory>;
-    if (b.value() != B::pre_universe::zero())
+    local_flat_type r1(a);
+    local_flat_type r2(b);
+    if (r2 != B::pre_universe::zero())
     {
-      return fun<sig>(local_flat_type(a), local_flat_type(b));
+      return fun<sig>(r1, r2);
     }
     else {
-      if constexpr(B::preserve_concrete_covers && B::is_totally_ordered) {
+      if constexpr(B::preserve_concrete_covers) {
         // When `b` is "integer-like" we can just skip the value 0 and go to `-1` or `1` depending on the type `B`.
-        return fun<sig>(local_flat_type(a), local_flat_type(B::next(b)));
+        return fun<sig>(r1, local_flat_type(B::next(r2.value())));
       }
       else if constexpr(
         (A::increasing && B::increasing == increasing) || // Inc X T -> T where T is either Inc or Dec.
@@ -544,71 +564,75 @@ public:
   template <Sig sig, class M1, class M2>
   CUDA static constexpr local_type fun(const this_type2<M1> &a, const this_type2<M2> &b)
   {
+    static_assert(pre_universe::is_supported_fun(sig), "Function unsupported by the current upset universe.");
     static_assert(sig == MIN || sig == MAX, "Only MIN and MAX are supported on Upset elements.");
-    if (a.is_top() || b.is_top())
+    using local_flat_type = flat_type<battery::LocalMemory>;
+    local_flat_type r1(a);
+    local_flat_type r2(b);
+    if (r1.is_top() || r2.is_top())
     {
       return local_type::top();
     }
-    else if (a.is_bot() || b.is_bot())
+    else if (r1.is_bot() || r2.is_bot())
     {
       if constexpr((sig == MAX && increasing) || (sig == MIN && !increasing)) {
-        return a.is_bot() ? b : a;
+        return r1.is_bot() ? b : a;
       }
       else {
         return local_type::bot();
       }
     }
-    return pre_universe::template fun<sig>(a, b);
+    return pre_universe::template fun<sig>(r1, r2);
   }
 
   template<class Pre2, class Mem2>
-  friend class UpsetUniverse;
+  friend class PrimitiveUpset;
 };
 
 // Lattice operators
 
 template<class Pre, class M1, class M2>
-CUDA constexpr UpsetUniverse<Pre, battery::LocalMemory> join(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr PrimitiveUpset<Pre, battery::LocalMemory> join(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::join(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr UpsetUniverse<Pre, battery::LocalMemory> meet(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr PrimitiveUpset<Pre, battery::LocalMemory> meet(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::meet(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator<=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator<=(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::order(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator<(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator<(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::strict_order(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator>=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator>=(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::order(b, a);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator>(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator>(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::strict_order(b, a);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator==(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator==(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return a.value() == b.value();
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator!=(const UpsetUniverse<Pre, M1>& a, const UpsetUniverse<Pre, M2>& b) {
+CUDA constexpr bool operator!=(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return a.value() != b.value();
 }
 
 template<class Pre, class M>
-std::ostream& operator<<(std::ostream &s, const UpsetUniverse<Pre, M> &upset) {
+std::ostream& operator<<(std::ostream &s, const PrimitiveUpset<Pre, M> &upset) {
   if(upset.is_bot()) {
     s << "\u22A5";
   }

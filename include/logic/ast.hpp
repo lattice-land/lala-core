@@ -262,24 +262,23 @@ public:
 
 private:
   AType type_;
-  Approx appx;
   Formula formula;
 
 public:
   /** By default, we initialize the formula to `true`. */
-  CUDA TFormula(): type_(UNTYPED), appx(EXACT), formula(Formula::template create<B>(true)) {}
-  CUDA TFormula(Formula&& formula): type_(UNTYPED), appx(EXACT), formula(std::move(formula)) {}
-  CUDA TFormula(AType uid, Approx appx, Formula&& formula): type_(uid), formula(std::move(formula)), appx(appx) {}
+  CUDA TFormula(): type_(UNTYPED), formula(Formula::template create<B>(true)) {}
+  CUDA TFormula(Formula&& formula): type_(UNTYPED), formula(std::move(formula)) {}
+  CUDA TFormula(AType uid, Formula&& formula): type_(uid), formula(std::move(formula)) {}
 
-  CUDA TFormula(const this_type& other): type_(other.type_), appx(other.appx), formula(other.formula) {}
-  CUDA TFormula(this_type&& other): type_(other.type_), appx(other.appx), formula(std::move(other.formula)) {}
+  CUDA TFormula(const this_type& other): type_(other.type_), formula(other.formula) {}
+  CUDA TFormula(this_type&& other): type_(other.type_), formula(std::move(other.formula)) {}
 
   template <class Alloc2, class ExtendedSig2>
   friend class TFormula;
 
   template <class Alloc2, class ExtendedSig2>
   CUDA TFormula(const TFormula<Alloc2, ExtendedSig2>& other, const Allocator& allocator = Allocator())
-    : type_(other.type_), appx(other.appx), formula(Formula::template create<B>(true))
+    : type_(other.type_), formula(Formula::template create<B>(true))
   {
     switch(other.formula.index()) {
       case B: formula = Formula::template create<B>(other.b()); break;
@@ -312,7 +311,6 @@ public:
 
   CUDA void swap(this_type& other) {
     ::battery::swap(type_, other.type_);
-    ::battery::swap(appx, other.appx);
     ::battery::swap(formula, other.formula);
   }
 
@@ -329,19 +327,11 @@ public:
   CUDA Formula& data() { return formula; }
   CUDA const Formula& data() const { return formula; }
   CUDA AType type() const { return type_; }
-  CUDA Approx approx() const { return appx; }
-  CUDA bool is_under() const { return appx == UNDER; }
-  CUDA bool is_over() const { return appx == OVER; }
-  CUDA bool is_exact() const { return appx == EXACT; }
   CUDA void type_as(AType ty) {
     type_ = ty;
     if(is(V)) {
       v().type_as(ty);
     }
-  }
-
-  CUDA void approx_as(Approx a) {
-    appx = a;
   }
 
   CUDA constexpr bool is_untyped() const {
@@ -378,54 +368,54 @@ public:
   CUDA static this_type make_false() { return TFormula(Formula::template create<B>(false)); }
 
   CUDA static this_type make_z(logic_int i, AType atype = UNTYPED) {
-    return this_type(atype, EXACT, Formula::template create<Z>(i));
+    return this_type(atype, Formula::template create<Z>(i));
   }
 
   /** Create a term representing a real number which is approximated by interval [lb..ub].
       By default the real number is supposedly over-approximated. */
-  CUDA static this_type make_real(double lb, double ub, AType atype = UNTYPED, Approx a = OVER) {
-    return this_type(atype, a, Formula::template create<R>(battery::make_tuple(lb, ub)));
+  CUDA static this_type make_real(double lb, double ub, AType atype = UNTYPED) {
+    return this_type(atype, Formula::template create<R>(battery::make_tuple(lb, ub)));
   }
 
-  CUDA static this_type make_real(logic_real r, AType atype = UNTYPED, Approx a = OVER) {
-    return this_type(atype, a, Formula::template create<R>(r));
+  CUDA static this_type make_real(logic_real r, AType atype = UNTYPED) {
+    return this_type(atype, Formula::template create<R>(r));
   }
 
-  CUDA static this_type make_set(LogicSet set, AType atype = UNTYPED, Approx a = EXACT) {
-    return this_type(atype, a, Formula::template create<S>(std::move(set)));
+  CUDA static this_type make_set(LogicSet set, AType atype = UNTYPED) {
+    return this_type(atype, Formula::template create<S>(std::move(set)));
   }
 
   /** The type of the formula is embedded in `v`. */
-  CUDA static this_type make_avar(AVar v, Approx a = EXACT) {
-    return this_type(v.aty(), a, Formula::template create<V>(v));
+  CUDA static this_type make_avar(AVar v) {
+    return this_type(v.aty(), Formula::template create<V>(v));
   }
 
-  CUDA static this_type make_avar(AType ty, int vid, Approx a = EXACT) {
-    return make_avar(AVar(ty, vid), a);
+  CUDA static this_type make_avar(AType ty, int vid) {
+    return make_avar(AVar(ty, vid));
   }
 
-  CUDA static this_type make_lvar(AType ty, LVar<Allocator> lvar, Approx a = EXACT) {
-    return this_type(ty, a, Formula::template create<LV>(std::move(lvar)));
+  CUDA static this_type make_lvar(AType ty, LVar<Allocator> lvar) {
+    return this_type(ty, Formula::template create<LV>(std::move(lvar)));
   }
 
-  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, Sort<Allocator> ctype, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    return this_type(ty, a, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
+  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, Sort<Allocator> ctype, const Allocator& allocator = Allocator()) {
+    return this_type(ty, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
-  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    return this_type(atype, a, Formula::template create<Seq>(battery::make_tuple(sig, std::move(children))));
+  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+    return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, std::move(children))));
   }
 
-  CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    return make_nary(sig, Sequence({std::move(child)}, allocator), atype, a, allocator);
+  CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+    return make_nary(sig, Sequence({std::move(child)}, allocator), atype, allocator);
   }
 
-  CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    return make_nary(sig, Sequence({std::move(lhs), std::move(rhs)}, allocator), atype, a, allocator);
+  CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+    return make_nary(sig, Sequence({std::move(lhs), std::move(rhs)}, allocator), atype, allocator);
   }
 
-  CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
-    return this_type(atype, a, Formula::template create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
+  CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+    return this_type(atype, Formula::template create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
   }
 
   CUDA int index() const {
@@ -568,27 +558,14 @@ public:
     return std::move(f);
   }
 
-  CUDA this_type map_approx(Approx appx) const {
-    this_type f = *this;
-    f.approx_as(appx);
-    return std::move(f);
-  }
-
   CUDA this_type map_atype(AType aty) const {
     this_type f = *this;
     f.type_as(aty);
     return std::move(f);
   }
 private:
-  CUDA void print_approx_(bool print_appx) const {
-    if(print_appx && appx != EXACT) {
-      printf("::");
-      print_approx(appx);
-    }
-  }
-
   template<size_t n>
-  CUDA void print_sequence(bool print_atype, bool print_appx) const {
+  CUDA void print_sequence(bool print_atype) const {
     const auto& op = battery::get<0>(battery::get<n>(formula));
     const auto& children = battery::get<1>(battery::get<n>(formula));
     assert(children.size() > 0);
@@ -597,11 +574,10 @@ private:
         if(op == ABS) printf("|");
         else if(op == CARD) printf("#(");
         else printf("%s(", string_of_sig(op));
-        children[0].print(print_atype, print_appx);
+        children[0].print(print_atype);
         if(op == ABS) printf("|");
         else if(op == CARD) printf(")");
         else printf(")");
-        print_approx_(print_appx);
         return;
       }
     }
@@ -614,7 +590,7 @@ private:
     }
     printf("(");
     for(int i = 0; i < children.size(); ++i) {
-      children[i].print(print_atype, print_appx);
+      children[i].print(print_atype);
       if(i < children.size() - 1) {
         if(!isprefix) {
           printf(" ");
@@ -630,7 +606,7 @@ private:
   }
 
 public:
-  CUDA void print(bool print_atype = true, bool print_appx = false) const {
+  CUDA void print(bool print_atype = true) const {
     switch(formula.index()) {
       case B:
         printf("%s", b() ? "true" : "false");
@@ -669,29 +645,28 @@ public:
         lv().print();
         break;
       case E: {
-        if(print_atype || print_appx) { printf("("); }
+        if(print_atype) { printf("("); }
         const auto& e = exists();
         printf("var ");
         battery::get<0>(e).print();
         printf(":");
         battery::get<1>(e).print();
-        if(print_atype || print_appx) { printf(")"); }
+        if(print_atype) { printf(")"); }
         break;
       }
-      case Seq: print_sequence<Seq>(print_atype, print_appx); break;
-      case ESeq: print_sequence<ESeq>(print_atype, print_appx); break;
+      case Seq: print_sequence<Seq>(print_atype); break;
+      case ESeq: print_sequence<ESeq>(print_atype); break;
       default: printf("print: formula not handled.\n"); assert(false); break;
     }
     if(print_atype) {
       printf(":%d", type_);
     }
-    print_approx_(print_appx);
   }
 };
 
 template<typename Allocator, typename ExtendedSig>
 CUDA bool operator==(const TFormula<Allocator, ExtendedSig>& lhs, const TFormula<Allocator, ExtendedSig>& rhs) {
-  return lhs.type() == rhs.type() && lhs.approx() == rhs.approx() && lhs.data() == rhs.data();
+  return lhs.type() == rhs.type() && lhs.data() == rhs.data();
 }
 
 } // namespace lala

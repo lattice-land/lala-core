@@ -3,7 +3,7 @@
 #ifndef FLAT_UNIVERSE_HPP
 #define FLAT_UNIVERSE_HPP
 
-#include "upset_universe.hpp"
+#include "primitive_upset.hpp"
 
 namespace lala {
 
@@ -44,6 +44,7 @@ public:
     "The Flat lattice construction reuse the bottom and top elements of the pre-universe.\
     Therefore, it must preserve bottom and top.");
 
+  constexpr static const bool is_abstract_universe = true;
   constexpr static const bool sequential = Mem::sequential;
   constexpr static const bool is_totally_ordered = false;
   constexpr static const bool preserve_bot = true;
@@ -85,12 +86,12 @@ public:
   CUDA constexpr FlatUniverse(const this_type2<M>& other): FlatUniverse(other.value()) {}
 
   template <class M>
-  CUDA constexpr FlatUniverse(const UpsetUniverse<pre_universe, M>& other)
+  CUDA constexpr FlatUniverse(const PrimitiveUpset<pre_universe, M>& other)
     : FlatUniverse(other.value()) {}
 
   template <class M>
-  CUDA constexpr FlatUniverse(const UpsetUniverse<typename pre_universe::dual_type, M> &other)
-    : FlatUniverse(dual<UpsetUniverse<pre_universe, battery::LocalMemory>>(other)) {}
+  CUDA constexpr FlatUniverse(const PrimitiveUpset<typename pre_universe::dual_type, M> &other)
+    : FlatUniverse(dual<PrimitiveUpset<pre_universe, battery::LocalMemory>>(other)) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
@@ -209,7 +210,7 @@ public:
     else if(is_bot()) {
       return TFormula<allocator_t>::make_true();
     }
-    return make_v_op_z(avar, EQ, value(), avar.aty(), EXACT, env.get_allocator());
+    return make_v_op_z(avar, EQ, value(), avar.aty(), env.get_allocator());
   }
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
@@ -232,56 +233,62 @@ public:
     }
   }
 
-private:
-  template <class F>
-  CUDA static iresult<F> interpret_false(const F& f) {
-    if(preserve_top || f.is_over()) {
-      return iresult<F>(local_type::top());
-    }
-    else {
-      return iresult<F>(IError<F>(true, name, "Top is not preserved, hence it cannot exactly interpret or under-approximate formulas equivalent to `false`.", f));
-    }
-  }
-
-  template<class F>
-  CUDA static iresult<F> interpret_true(const F& f) {
-    if(preserve_bot || f.is_under()) {
-      return local_type::bot();
-    }
-    else {
-      return iresult<F>(IError<F>(true, name, "Bottom is not preserved, hence it cannot exactly interpret or over-approximate formula equivalent to `true`.", f));
-    }
-  }
-
 public:
   /** Expects a predicate of the form `x = k` or `k = x`, where `x` is any variable's name, and `k` a constant.
-    The only interpretation mode possible is `EXACT`.
-    Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom). */
+      Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom). */
   template<class F, class Env>
-  CUDA static iresult<F> interpret(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret_tell(const F& f, const Env& env) {
     if(f.is_true()) {
-      return interpret_true(f);
+      return bot();
     }
     else if(f.is_false()) {
-      return interpret_false(f);
+      return top();
     }
     else if(f.is(F::E)) {
       return pre_universe::interpret_type(f);
     }
     else {
-      if(f.is_binary() && f.sig() == EQ && f.approx() == EXACT) {
+      if(f.is_binary() && f.sig() == EQ) {
         int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
         int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
         if(idx_constant + idx_variable == 1) {
           const auto& k = f.seq(idx_constant);
           const auto& x = f.seq(idx_variable);
-          auto r = pre_universe::interpret(k, k.sort().value(), EXACT);
-          return r;
+          auto t = pre_universe::interpret_tell(k);
+          auto a = pre_universe::interpret_ask(k);
+          if(t.has_value()) {
+            if(a.has_value()) {
+              if(a.value() == t.value()) {
+                return t;
+              }
+              else {
+                return std::move(iresult<F>(IError<F>(true, name, "The constant has no exact interpretation which is required in this abstract universe.", f))
+                  .join_errors(std::move(t))
+                  .join_errors(std::move(a)));
+              }
+            }
+            else {
+              return a;
+            }
+          }
+          else {
+            return t;
+          }
         }
       }
       return iresult<F>(IError<F>(true, name,
-        "Only exact interpretation of binary formulas of the form `t1 = t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
+        "Only interpretations of existential quantifier and binary formulas of the form `t1 = t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
     }
+  }
+
+  /** Same as `interpret_tell` without the support for existential quantifier. */
+  template<class F, class Env>
+  CUDA static iresult<F> interpret_ask(const F& f, const Env& env) {
+    if(f.is(F::E)) {
+      return iresult<F>(IError<F>(true, name,
+        "Only interpretation of binary formulas of the form `t1 = t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
+    }
+    return interpret_tell(f, env);
   }
 
   CUDA static constexpr bool is_supported_fun(Sig sig) {
@@ -293,27 +300,30 @@ public:
   template<Sig sig, class M1>
   CUDA static constexpr local_type fun(const this_type2<M1>& u) {
     static_assert(is_supported_fun(sig));
-    if(u.is_top()) {
+    auto a = u.value();
+    if(U::top() == a) {
       return local_type::top();
     }
-    else if(u.is_bot()) {
+    else if(U::bot() == a) {
       return local_type::bot();
     }
-    return pre_universe::template fun<sig>(u.value());
+    return pre_universe::template fun<sig>(a);
   }
 
   /** Binary functions over `value_type`. */
   template<Sig sig, class M1, class M2>
-  CUDA static constexpr local_type fun(const this_type2<M1>& a, const this_type2<M2>& b) {
+  CUDA static constexpr local_type fun(const this_type2<M1>& l, const this_type2<M2>& k) {
     static_assert(is_supported_fun(sig));
-    if(a.is_top() || b.is_top()) {
+    auto a = l.value();
+    auto b = k.value();
+    if(U::top() == a || U::top() == b) {
       return local_type::top();
     }
-    else if(a.is_bot() || b.is_bot()) {
+    else if(U::bot() == a || U::bot() == b) {
       return local_type::bot();
     }
     if constexpr(is_division(sig) && is_arithmetic) {
-      if(b.value() == pre_universe::zero()) {
+      if(b == pre_universe::zero()) {
         return local_type::top();
       }
     }

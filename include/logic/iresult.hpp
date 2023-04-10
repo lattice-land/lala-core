@@ -122,6 +122,8 @@ public:
   template <class U, class F2>
   friend class IResult;
 
+  CUDA IResult(this_type&& other): result(std::move(other.result)), warnings(std::move(other.warnings)) {}
+
   CUDA IResult(T&& data):
     result(result_type::template create<0>(std::move(data))) {}
 

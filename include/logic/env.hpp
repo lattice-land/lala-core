@@ -22,11 +22,10 @@ struct Variable {
 
   bstring name;
   Sort<Allocator> sort;
-  Approx appx;
   bvector<AVar> avars;
 
-  CUDA Variable(const bstring& name, const Sort<Allocator>& sort, Approx appx, AVar av, const Allocator& allocator = Allocator())
-    : name(name, allocator), sort(sort, allocator), appx(appx), avars(1, allocator)
+  CUDA Variable(const bstring& name, const Sort<Allocator>& sort, AVar av, const Allocator& allocator = Allocator())
+    : name(name, allocator), sort(sort, allocator), avars(1, allocator)
   {
     avars.push_back(av);
   }
@@ -35,7 +34,6 @@ struct Variable {
   CUDA Variable(const Variable<Alloc2>& other, const Allocator& allocator = Allocator())
     : name(other.name, allocator)
     , sort(other.sort, allocator)
-    , appx(other.appx)
     , avars(other.avars, allocator)
   {}
 
@@ -87,11 +85,11 @@ private:
     }
   }
 
-  CUDA AVar extends_vars(AType aty, const bstring& name, const Sort<Allocator>& sort, Approx appx) {
+  CUDA AVar extends_vars(AType aty, const bstring& name, const Sort<Allocator>& sort) {
     extends_abstract_doms(aty);
     AVar avar(aty, avar2lvar[aty].size());
     avar2lvar[aty].push_back(lvars.size());
-    lvars.push_back(Variable(name, sort, appx, avar, get_allocator()));
+    lvars.push_back(Variable(name, sort, avar, get_allocator()));
     return avar;
   }
 
@@ -107,7 +105,7 @@ private:
     else {
       AType aty = f.type();
       const Sort<Allocator>& sort = battery::get<1>(f.exists());
-      return iresult<F>(extends_vars(aty, vname, sort, f.approx()));
+      return iresult<F>(extends_vars(aty, vname, sort));
     }
   }
 
@@ -236,10 +234,6 @@ public:
 
   CUDA const Sort<Allocator>& sort_of(AVar av) const {
     return (*this)[av].sort;
-  }
-
-  CUDA Approx approx_of(AVar av) const {
-    return (*this)[av].appx;
   }
 
   struct snapshot_type {

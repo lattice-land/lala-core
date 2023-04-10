@@ -15,17 +15,15 @@ TEST(IntervalTest, BotTopTests) {
 
 TEST(IntervalTest, NoInterpret) {
   VarEnv<StandardAllocator> env = init_env();
-  must_error<Itv>(env, "constraint int_eq(x, 10) :: under;");
-  must_error<Itv>(env, "constraint int_ne(x, 10) :: over;");
-  must_error<Itv>(env, "constraint int_ne(x, 10) :: exact;");
+  must_error_ask<Itv>(env, "constraint float_eq(x, 1111111111.0000000000001);");
+  must_error_tell<Itv>(env, "constraint int_ne(x, 10);");
 }
 
 TEST(IntervalTest, ValidInterpret) {
   // VarEnv<StandardAllocator> env = init_env();
   VarEnv<StandardAllocator> env;
-  must_interpret_to(env, "constraint int_eq(x, 10);", Itv(10, 10), false);
-  must_interpret_to(env, "constraint int_eq(x, 10) :: over;", Itv(10, 10), false);
-  must_interpret_to(env, "constraint int_ne(x, 10) :: under;", Itv(zi(11), zd::bot()), false);
+  must_interpret_tell_to(env, "constraint int_eq(x, 10);", Itv(10, 10), false);
+  must_interpret_ask_to(env, "constraint int_ne(x, 10);", Itv(zi(11), zd::bot()), false);
 }
 
 TEST(IntervalTest, JoinMeetTest) {

@@ -9,7 +9,7 @@
 #include "tuple.hpp"
 #include "variant.hpp"
 #include "logic/logic.hpp"
-#include "universes/upset_universe.hpp"
+#include "universes/primitive_upset.hpp"
 
 namespace lala {
 
@@ -77,6 +77,7 @@ public:
 
   using value_type = battery::tuple<typename As::value_type...>;
 
+  constexpr static const bool is_abstract_universe = true;
   constexpr static const bool sequential = (... && As::sequential);
   constexpr static const char* name = "CartesianProduct";
 
@@ -129,10 +130,11 @@ public:
     return CartesianProduct(As::top()...);
   }
 
+private:
   /** Interpret the formula in the component `i`. */
-  template<size_t i, class F, class Env>
+  template<bool is_tell, size_t i, class F, class Env>
   CUDA static iresult<F> interpret_one(const F& f, const Env& env) {
-    auto one = type_of<i>::interpret(f, env);
+    auto one = is_tell ? type_of<i>::interpret_tell(f, env) :  type_of<i>::interpret_ask(f, env);
     if(one.has_value()) {
       auto res = bot();
       project<i>(res).tell(one.value());
@@ -144,8 +146,7 @@ public:
     }
   }
 
-private:
-  template<size_t i = 0, class F, class Env>
+  template<bool is_tell, size_t i = 0, class F, class Env>
   CUDA static IResult<bool, F> interpret_all(const F& f, local_type& res, bool empty, const Env& env) {
     if constexpr(i == n) {
       if(empty) {
@@ -156,13 +157,13 @@ private:
       }
     }
     else {
-      auto one = type_of<i>::interpret(f, env);
+      auto one = is_tell ? type_of<i>::interpret_tell(f, env) : type_of<i>::interpret_ask(f, env);
       if(one.has_value()) {
         res.template project<i>().tell(one.value());
-        return std::move(interpret_all<i+1>(f, res, false, env).join_warnings(std::move(one)));
+        return std::move(interpret_all<is_tell, i+1>(f, res, false, env).join_warnings(std::move(one)));
       }
       else {
-        auto r = interpret_all<i+1>(f, res, empty, env);
+        auto r = interpret_all<is_tell, i+1>(f, res, empty, env);
         if(!r.has_value()) {
           r.join_errors(std::move(one));
         }
@@ -171,15 +172,13 @@ private:
     }
   }
 
-public:
-  /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
-  template<class F, class Env>
+  template<bool is_tell, class F, class Env>
   CUDA static iresult<F> interpret(const F& f, const Env& env) {
     local_type cp = bot();
     if(f.is(F::Seq) && f.sig() == AND) {
       iresult<F> res(bot());
       for(int i = 0; i < f.seq().size(); ++i) {
-        auto r = interpret_all(f.seq(i), cp, true, env);
+        auto r = interpret_all<is_tell>(f.seq(i), cp, true, env);
         if(!r.has_value()) {
           return std::move(r).template map_error<local_type>();
         }
@@ -187,7 +186,29 @@ public:
       }
       return std::move(res).map(std::move(cp));
     }
-    return interpret_all(f, cp, true, env).map(std::move(cp));
+    return interpret_all<is_tell>(f, cp, true, env).map(std::move(cp));
+  }
+
+public:
+  template<size_t i, class F, class Env>
+  CUDA static iresult<F> interpret_one_tell(const F& f, const Env& env) {
+    return interpret_one<true, i>(f, env);
+  }
+
+  template<size_t i, class F, class Env>
+  CUDA static iresult<F> interpret_one_ask(const F& f, const Env& env) {
+    return interpret_one<false, i>(f, env);
+  }
+
+  /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
+  template<class F, class Env>
+  CUDA static iresult<F> interpret_tell(const F& f, const Env& env) {
+    return interpret<true>(f, env);
+  }
+
+  template<class F, class Env>
+  CUDA static iresult<F> interpret_ask(const F& f, const Env& env) {
+    return interpret<false>(f, env);
   }
 
 private:
@@ -429,7 +450,7 @@ private:
       return TFormula<Allocator>::make_nary(
         AND,
         std::move(seq),
-        x.aty(), EXACT, env.get_allocator());
+        x.aty(), env.get_allocator());
     }
   }
 

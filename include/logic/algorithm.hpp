@@ -28,15 +28,15 @@ CUDA bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
 }
 
 template<typename Allocator>
-CUDA TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z, AType aty = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+CUDA TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
-  return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), aty, a, allocator);
+  return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), aty, allocator);
 }
 
 template<typename Allocator>
-CUDA TFormula<Allocator> make_v_op_z(AVar v, Sig sig, logic_int z, AType aty = UNTYPED, Approx a = EXACT, const Allocator& allocator = Allocator()) {
+CUDA TFormula<Allocator> make_v_op_z(AVar v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
-  return F::make_binary(F::make_avar(v), sig, F::make_z(z), aty, a, allocator);
+  return F::make_binary(F::make_avar(v), sig, F::make_z(z), aty, allocator);
 }
 
 namespace impl {
@@ -197,8 +197,8 @@ CUDA battery::tuple<F,F> extract_ty(const F& f, AType ty) {
   }
   AType other_ty = type_of_conjunction<F>(other);
   return battery::make_tuple(
-    F::make_nary(AND, std::move(fty), ty, f.approx()),
-    F::make_nary(AND, std::move(other), other_ty, f.approx()));
+    F::make_nary(AND, std::move(fty), ty),
+    F::make_nary(AND, std::move(other), other_ty));
 }
 
 template <class F>
@@ -219,7 +219,7 @@ CUDA thrust::optional<F> de_morgan_law(Sig sig_neg, const F& f) {
       return {};
     }
   }
-  return F::make_nary(sig_neg, neg_seq, f.type(), f.approx());
+  return F::make_nary(sig_neg, neg_seq, f.type());
 }
 
 template <class F>
@@ -239,7 +239,7 @@ CUDA thrust::optional<F> negate(const F& f) {
       case SUBSETEQ:
       case SUPSET:
       case SUPSETEQ:
-        return F::make_unary(NOT, f, f.type(), f.approx());
+        return F::make_unary(NOT, f, f.type());
       case AND:
         return de_morgan_law(OR, f);
       case OR:
@@ -247,7 +247,7 @@ CUDA thrust::optional<F> negate(const F& f) {
       default:
         return {};
     }
-    return F::make_nary(neg_sig, f.seq(), f.type(), f.approx());
+    return F::make_nary(neg_sig, f.seq(), f.type());
   }
   return {};
 }
@@ -293,22 +293,21 @@ CUDA inline Sig converse_comparison(Sig sig) {
   return sig;
 }
 
-/** Given a predicate of the form `t <op> u` (e.g., `x + y <= z + 4`), it transforms it into an equivalent predicate of the form `s <op> k` where `k` is a constant (e.g., `x + y - (z + 4) <= 0`.
+/** Given a predicate of the form `t <op> u` (e.g., `x + y <= z + 4`), it transforms it into an equivalent predicate of the form `s <op> k` where `k` is a constant (e.g., `x + y - (z + 4) <= 0`).
 If the formula is not a predicate, it is returned unchanged. */
 template <class F>
 CUDA F move_constants_on_rhs(const F& f) {
   if(is_comparison(f) && !f.seq(1).is_constant()) {
     AType aty = f.type();
-    Approx appx = f.approx();
     if(f.seq(0).is_constant()) {
-      return F::make_binary(f.seq(1), converse_comparison(f.sig()), f.seq(0), aty, appx);
+      return F::make_binary(f.seq(1), converse_comparison(f.sig()), f.seq(0), aty);
     }
     else {
       return F::make_binary(
-        F::make_binary(f.seq(0), SUB, f.seq(1), aty, appx),
+        F::make_binary(f.seq(0), SUB, f.seq(1), aty),
         f.sig(),
         F::make_z(0),
-        aty, appx);
+        aty);
     }
   }
   return f;
