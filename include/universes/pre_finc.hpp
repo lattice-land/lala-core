@@ -37,70 +37,57 @@ struct PreFInc {
   template<class F>
   using iresult = IResult<value_type, F>;
 
-  /** Interpret a constant in the lattice of increasing floating-point numbers `FInc` according to the upset semantics (see universe.hpp for explanation).
-      Interpretations:
-        * Formulas of kind `F::Z` might be approximated (if the integer cannot be represented in a floating-point number because it is too large).
-        * Formulas of kind `F::R` might be approximated (the real number is represented by an interval [lb..ub]):
-            1. UNDER: \f$ x >= ub \f$ .
-            2. OVER: \f$ x >= lb \f$.
-            3. EXACT: Only possible if \f$ lb == ub \f$ and \f$ lb \f$ is representable in the type `value_type`.
-        * Formulas of kind `F::S` are not supported. */
-  template<class F, class Sort>
-  CUDA static iresult<F> interpret(const F& f, const Sort& sort, Approx appx) {
-    if(f.is(F::Z) && sort.is_real()) {
+private:
+  template<bool is_tell, class F>
+  CUDA static iresult<F> interpret(const F& f) {
+    if(f.is(F::Z)) {
       auto z = f.z();
-      if(z == bot() || z == top()) {
-        return iresult<F>(IError<F>(true, name, "Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.", f));
-      }
-      auto lb = battery::rd_cast<value_type>(z);
-      auto ub = battery::ru_cast<value_type>(z);
-      if(lb == ub) {
-        return iresult<F>(std::move(lb));
-      }
-      switch(appx) {
-        case UNDER: return iresult<F>(std::move(ub), IError<F>(false, name, "Constant of sort `Int` under-approximated as floating-point number.", f));
-        case OVER: return iresult<F>(std::move(lb), IError<F>(false, name, "Constant of sort `Int` over-approximated as floating-point number.", f));
-        default:
-          assert(appx == EXACT);
-          return iresult<F>(IError<F>(true, name, "Constant of sort `Int` cannot be interpreted exactly because it does not have an exact representation as a floating-point number (it is probably too large).", f));
-      }
-    }
-    else if(f.is(F::R) && sort.is_real()) {
-      auto lb = battery::rd_cast<value_type>(battery::get<0>(f.r()));
-      auto ub = battery::ru_cast<value_type>(battery::get<1>(f.r()));
-      if(lb == ub) {
-        return iresult<F>(std::move(lb));
+      // We do not consider the min and max values of integers to be infinities when they are part of the logical formula.
+      if constexpr(is_tell) {
+        return iresult<F>(battery::rd_cast<value_type, decltype(z), false>(z));
       }
       else {
-        switch(appx) {
-          case UNDER: return iresult<F>(std::move(ub));
-          case OVER: return iresult<F>(std::move(lb));
-          default:
-            assert(appx == EXACT);
-            return iresult<F>(IError<F>(true, name, "Constant of sort `Real` cannot be exactly interpreted by a floating-point number because the approximation of the constant is imprecise.", f));
-        }
+        return iresult<F>(battery::ru_cast<value_type, decltype(z), false>(z));
       }
     }
-    else if(f.is(F::B) && sort.is_real()) {
-      return iresult<F>(value_type(f.b() ? one() : zero()));
+    else if(f.is(F::R)) {
+      if constexpr(is_tell) {
+        return iresult<F>(battery::rd_cast<value_type>(battery::get<0>(f.r())));
+      }
+      else {
+        return iresult<F>(battery::ru_cast<value_type>(battery::get<1>(f.r())));
+      }
     }
-    return iresult<F>(IError<F>(true, name, "Only constant of sorts `Bool`, `Int` and `Real` can be interpreted by an integer-type.", f));
+    return iresult<F>(IError<F>(true, name, "Only a constant of sort `Int` or `Real` can be interpreted by a floating-point abstract universe.", f));
+  }
+
+public:
+  /** Interpret a constant in the lattice of increasing floating-point numbers `FInc` according to the upset semantics (see universe.hpp for explanation).
+      Interpretations:
+        * Formulas of kind `F::Z` might be over-approximated (if the integer cannot be represented in a floating-point number because it is too large).
+        * Formulas of kind `F::R` might be over-approximated to the lower bound of the interval (if the real number is represented by an interval [lb..ub] where lb != ub).
+        * Other kind of formulas are not supported. */
+  template<class F>
+  CUDA static iresult<F> interpret_tell(const F& f) {
+    return interpret<true>(f);
+  }
+
+  /** Same as `interpret_tell` but the constant is under-approximated instead. */
+  template<class F>
+  CUDA static iresult<F> interpret_ask(const F& f) {
+    return interpret<false>(f);
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
       Interpretations:
-        * Variables of type `CType::Bool` are always over-approximated (\f$ \mathbb{B} \subseteq \gamma(\bot) \f$).
-        * Variables of type `CType::Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\bot) \f$).
-        * Variables of type `CType::Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\bot) \f$. */
+        * Variables of type `Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\bot) \f$).
+        * Variables of type `Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\bot) \f$). */
   template<class F>
   CUDA static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
-    if(cty.is_bool() && f.is_over()) {
-      return iresult<F>(bot(), IError<F>(false, name, "Variable `" + vname + "` of sort `Bool` is over-approximated in a floating-point abstract universe.", f));
-    }
-    else if(cty.is_int() && f.is_over()) {
+    if(cty.is_int()) {
       return iresult<F>(bot(), IError<F>(false, name, "Variable `" + vname + "` of sort `Int` is over-approximated in a floating-point abstract universe.", f));
     }
     else if(cty.is_real()) {

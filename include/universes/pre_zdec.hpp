@@ -38,8 +38,15 @@ struct PreZDec {
   template <class F>
   using iresult = IResult<value_type, F>;
 
-  template <class F, class Sort>
-  CUDA static iresult<F> interpret(const F &f, const Sort &sort, Approx appx) { return dual_type::interpret(f, sort, dapprox(appx)); }
+  template <class F>
+  CUDA static iresult<F> interpret_tell(const F &f) {
+    return dual_type::interpret_ask(f);
+  }
+
+  template <class F>
+  CUDA static iresult<F> interpret_ask(const F &f) {
+    return dual_type::interpret_tell(f);
+  }
 
   template <class F>
   CUDA static iresult<F> interpret_type(const F &f) {

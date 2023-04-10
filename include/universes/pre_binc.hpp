@@ -35,55 +35,37 @@ struct PreBInc {
   template<class F>
   using iresult = IResult<value_type, F>;
 
-  /** Besides the type `CType::Bool`, Booleans can be over-approximated by arithmetic types in the logical formula, integer or floating-point numbers.
-   * `false` is given by the constant 0 and `true` by any other number. */
-  template<class F, class Sort>
-  CUDA static iresult<F> interpret(const F& f, const Sort& sort, Approx appx) {
-    if(f.is(F::B) && sort.is_bool()) {
+  /** Interpret a formula into an upset Boolean lattice.
+   * \return The result of the interpretation when the formula `f` is a constant of type `Bool`. Otherwise it returns an explanation of the error. */
+  template<class F>
+  CUDA static iresult<F> interpret_tell(const F& f) {
+    if(f.is(F::B)) {
       return iresult<F>(f.b());
     }
-    else if(f.is(F::Z)) {
-      auto z = f.z();
-      auto warning = IError<F>(false, name, "Integer constant interpreted as a Boolean (0 is false, everything else is true).", f);
-      if(z == 0) {
-        return iresult<F>(false, std::move(warning));
-      }
-      else {
-        return iresult<F>(true, std::move(warning));
-      }
-    }
-    else if(f.is(F::R) && sort.is_bool()) {
-      auto lb = battery::rd_cast<value_type>(battery::get<0>(f.r()));
-      auto ub = battery::ru_cast<value_type>(battery::get<1>(f.r()));
-      auto warning = IError<F>(false, name, "Real constant interpreted as a Boolean (0 is false, everything else is true).", f);
-      if(lb == ub && lb == 0) {
-        return iresult<F>(false, std::move(warning));
-      }
-      else {
-        return iresult<F>(true, std::move(warning));
-      }
-    }
-    return iresult<F>(IError<F>(true, name, "Only constant of types `CType::Bool`, `CType::Int` and `CType::Real` can be interpreted in a Boolean domain.", f));
+    return iresult<F>(IError<F>(true, name, "Only constant of types `Bool` can be interpreted in a Boolean domain.", f));
+  }
+
+  /** In this domain, the ask version of any constraint is the same as the tell version.
+   * This is because this domain can exactly represent Boolean values.
+  */
+  template<class F>
+  CUDA static iresult<F> interpret_ask(const F& f) {
+    return interpret_tell(f);
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
-   * Interpretations:
-        * Variables of type `CType::Bool` are interpreted exactly (\f$ \mathbb{B} = \gamma(\bot) \f$).
-        * Variables of type `CType::Int` are under-approximated  (\f$ \mathbb{Z} \supseteq \gamma(\bot) \f$).
-        * Variables of type `CType::Real` are under-approximated (\f$ \mathbb{R} \supseteq \gamma(\bot) \f$). */
+   * \return `bot()` if the type of the existentially quantified variable is `Bool`. Otherwise it returns an explanation of the error.
+  */
   template<class F>
   CUDA static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
-    const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
     if(cty.is_bool()) {
       return iresult<F>(bot());
     }
-    else if((cty.is_int() || cty.is_real()) && f.is_under()) {
-      return iresult<F>(bot(), IError<F>(false, name, "Constant of type `CType::Real` or `CType::Int` under-approximated by a Boolean.", f));
-    }
     else {
-      return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `CType::Bool` or under-approximated `CType::Int` or `CType::Real`.", f));
+      const auto& vname = battery::get<0>(f.exists());
+      return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `Bool`.", f));
     }
   }
 
