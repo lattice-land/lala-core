@@ -4,10 +4,10 @@
 #define CARTESIAN_PRODUCT_HPP
 
 #include "thrust/optional.h"
-#include "utility.hpp"
-#include "vector.hpp"
-#include "tuple.hpp"
-#include "variant.hpp"
+#include "battery/utility.hpp"
+#include "battery/vector.hpp"
+#include "battery/tuple.hpp"
+#include "battery/variant.hpp"
 #include "logic/logic.hpp"
 #include "universes/primitive_upset.hpp"
 

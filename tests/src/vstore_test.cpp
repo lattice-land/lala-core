@@ -1,17 +1,17 @@
 // Copyright 2021 Pierre Talbot
 
-#include "vstore.hpp"
-#include "cartesian_product.hpp"
-#include "interval.hpp"
+#include "lala/vstore.hpp"
+#include "lala/cartesian_product.hpp"
+#include "lala/interval.hpp"
 #include "abstract_testing.hpp"
 
 using zi = local::ZInc;
 using zd = local::ZDec;
 using Itv = Interval<zi>;
 using CP = CartesianProduct<zi, zd>;
-using ZStore = VStore<zi, StandardAllocator>;
-using CPStore = VStore<CP, StandardAllocator>;
-using IStore = VStore<Itv, StandardAllocator>;
+using ZStore = VStore<zi, standard_allocator>;
+using CPStore = VStore<CP, standard_allocator>;
+using IStore = VStore<Itv, standard_allocator>;
 
 TEST(VStoreTest, BotTopTests) {
   ZStore one = interpret_tell_to2<ZStore>("var int: x; constraint int_ge(x, 1);");
@@ -131,13 +131,13 @@ TEST(VStoreTest, InterpretationIStore) {
 }
 
 TEST(VStoreTest, AskOperation) {
-  VarEnv<StandardAllocator> env;
+  VarEnv<standard_allocator> env;
   ZStore store = interpret_tell_to<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);", env);
-  auto ask1 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 0); constraint int_ge(y, 1);"), env).value();
-  auto ask2 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(y, -1);"), env).value();
-  auto ask3 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 0); constraint int_ge(y, 2);"), env).value();
-  auto ask4 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 10); constraint int_ge(y, 2);"), env).value();
-  auto ask5 = store.interpret_ask_in(*parse_flatzinc_str<StandardAllocator>("constraint int_ge(x, 10);"), env).value();
+  auto ask1 = store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 0); constraint int_ge(y, 1);"), env).value();
+  auto ask2 = store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(y, -1);"), env).value();
+  auto ask3 = store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 0); constraint int_ge(y, 2);"), env).value();
+  auto ask4 = store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 10); constraint int_ge(y, 2);"), env).value();
+  auto ask5 = store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 10);"), env).value();
   EXPECT_TRUE(store.ask(ask1));
   EXPECT_TRUE(store.ask(ask2));
   EXPECT_FALSE(store.ask(ask3));

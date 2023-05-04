@@ -96,15 +96,15 @@ private:
   template<Sig sig, class A, class B>
   CUDA constexpr static local_type flat_fun(const Interval<A>& a, const Interval<B>& b) {
     return local_type(
-      LB2::template fun<sig>(typename A::flat_type<battery::LocalMemory>(a.lb()), typename B::flat_type<battery::LocalMemory>(b.lb())),
-      UB2::template fun<sig>(typename A::flat_type<battery::LocalMemory>(a.ub()), typename B::flat_type<battery::LocalMemory>(b.ub())));
+      LB2::template fun<sig>(typename A::flat_type<battery::local_memory>(a.lb()), typename B::flat_type<battery::local_memory>(b.lb())),
+      UB2::template fun<sig>(typename A::flat_type<battery::local_memory>(a.ub()), typename B::flat_type<battery::local_memory>(b.ub())));
   }
 
   template<Sig sig, class A>
   CUDA constexpr static local_type flat_fun(const Interval<A>& a) {
     return local_type(
-      LB2::template fun<sig>(typename A::flat_type<battery::LocalMemory>(a.lb())),
-      UB2::template fun<sig>(typename A::flat_type<battery::LocalMemory>(a.ub())));
+      LB2::template fun<sig>(typename A::flat_type<battery::local_memory>(a.lb())),
+      UB2::template fun<sig>(typename A::flat_type<battery::local_memory>(a.ub())));
   }
 
   template <bool is_tell, class F, class Env>
@@ -396,7 +396,7 @@ private:
 
   template<Sig sig, class R, class A, class B>
   CUDA constexpr static R flat_fun2(const A& a, const B& b) {
-    return R::template fun<sig>(typename A::flat_type<battery::LocalMemory>(a), typename B::flat_type<battery::LocalMemory>(b));
+    return R::template fun<sig>(typename A::flat_type<battery::local_memory>(a), typename B::flat_type<battery::local_memory>(b));
   }
 
 public:

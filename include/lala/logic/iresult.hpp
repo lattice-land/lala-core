@@ -3,13 +3,13 @@
 #ifndef IRESULT_HPP
 #define IRESULT_HPP
 
-#include "utility.hpp"
-#include "vector.hpp"
-#include "string.hpp"
-#include "string.hpp"
-#include "tuple.hpp"
-#include "variant.hpp"
-#include "logic/ast.hpp"
+#include "battery/utility.hpp"
+#include "battery/vector.hpp"
+#include "battery/string.hpp"
+#include "battery/string.hpp"
+#include "battery/tuple.hpp"
+#include "battery/variant.hpp"
+#include "ast.hpp"
 
 namespace lala {
 

@@ -1,11 +1,11 @@
 // Copyright 2022 Pierre Talbot
 
 #include <gtest/gtest.h>
-#include "logic/logic.hpp"
-#include "universes/primitive_upset.hpp"
-#include "universes/flat_universe.hpp"
-#include "allocator.hpp"
 #include "abstract_testing.hpp"
+#include "battery/allocator.hpp"
+#include "lala/logic/logic.hpp"
+#include "lala/universes/primitive_upset.hpp"
+#include "lala/universes/flat_universe.hpp"
 
 using namespace lala;
 using namespace battery;
@@ -29,7 +29,7 @@ TEST(PrimitiveUpsetTest, JoinMeetTest) {
 
 template <class L>
 void test_z_arithmetic() {
-  using F = typename L::flat_type<battery::LocalMemory>;
+  using F = typename L::flat_type<battery::local_memory>;
 
   generic_arithmetic_fun_test<F, L>(F(0));
 
@@ -112,8 +112,8 @@ TEST(PrimitiveUpsetTest, ZIncInterpretation) {
   must_interpret_to("constraint true;", ZI::bot());
   must_interpret_to("constraint false;", ZI::top());
 
-  VarEnv<StandardAllocator> env;
-  auto f = parse_flatzinc_str<StandardAllocator>("var int: x :: abstract(0);");
+  VarEnv<standard_allocator> env;
+  auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
   EXPECT_TRUE(f);
   env.interpret(*f);
   must_interpret_to(env, "constraint int_ge(x, 0);", ZI(0));
@@ -139,8 +139,8 @@ TEST(PrimitiveUpsetTest, ZDecInterpretation) {
   must_interpret_to("constraint true;", ZD::bot());
   must_interpret_to("constraint false;", ZD::top());
 
-  VarEnv<StandardAllocator> env;
-  auto f = parse_flatzinc_str<StandardAllocator>("var int: x :: abstract(0);");
+  VarEnv<standard_allocator> env;
+  auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
   EXPECT_TRUE(f);
   env.interpret(*f);
   must_interpret_to(env, "constraint int_le(x, 0);", ZD(0));

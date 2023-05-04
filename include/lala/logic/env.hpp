@@ -3,14 +3,14 @@
 #ifndef ENV_HPP
 #define ENV_HPP
 
-#include "utility.hpp"
-#include "vector.hpp"
-#include "string.hpp"
-#include "string.hpp"
-#include "tuple.hpp"
-#include "variant.hpp"
-#include "logic/ast.hpp"
-#include "logic/iresult.hpp"
+#include "battery/utility.hpp"
+#include "battery/vector.hpp"
+#include "battery/string.hpp"
+#include "battery/string.hpp"
+#include "battery/tuple.hpp"
+#include "battery/variant.hpp"
+#include "ast.hpp"
+#include "iresult.hpp"
 
 namespace lala {
 

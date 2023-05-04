@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
 #include "abstract_testing.hpp"
-#include "cartesian_product.hpp"
+#include "lala/cartesian_product.hpp"
 
 using zi = local::ZInc;
 using zd = local::ZDec;
@@ -70,13 +70,13 @@ TEST(CPTest, JoinMeetTest) {
 }
 
 TEST(CPTest, NoInterpret) {
-  VarEnv<StandardAllocator> env = init_env();
+  VarEnv<standard_allocator> env = init_env();
   must_error_tell<Itv>(env, "constraint int_ne(x, 10);");
   must_error_ask<Itv>(env, "constraint int_eq(x, 10);");
 }
 
 TEST(CPTest, ValidInterpret) {
-  VarEnv<StandardAllocator> env = init_env();
+  VarEnv<standard_allocator> env = init_env();
   must_interpret_to(env, "constraint int_ge(x, 10);", Itv(zi(10), zd::bot()), false);
   must_interpret_to(env, "constraint int_gt(x, 10);", Itv(zi(11), zd::bot()), false);
   must_interpret_to(env, "constraint int_le(x, 10);", Itv(zi::bot(), zd(10)), false);

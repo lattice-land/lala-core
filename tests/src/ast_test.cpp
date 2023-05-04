@@ -1,9 +1,9 @@
 // Copyright 2021 Pierre Talbot
 
 #include <gtest/gtest.h>
-#include "logic/logic.hpp"
-#include "allocator.hpp"
-#include "flatzinc_parser.hpp"
+#include "battery/allocator.hpp"
+#include "lala/logic/logic.hpp"
+#include "lala/flatzinc_parser.hpp"
 
 using namespace lala;
 using namespace battery;
@@ -25,12 +25,12 @@ TEST(VarTest, MakeVar) {
 
 template <class Env>
 auto interpret2(Env& env, const char* fzn) {
-  auto f = parse_flatzinc_str<StandardAllocator>(fzn);
+  auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   return env.interpret(*f);
 }
 
-void check_env_state1(VarEnv<StandardAllocator>& env) {
+void check_env_state1(VarEnv<standard_allocator>& env) {
   EXPECT_EQ(env.num_abstract_doms(), 0);
   EXPECT_EQ(env.num_vars(), 0);
   EXPECT_FALSE(interpret2(env, "var int: x;").has_value()); // Not typed.
@@ -38,7 +38,7 @@ void check_env_state1(VarEnv<StandardAllocator>& env) {
   EXPECT_EQ(env.num_vars(), 0);
 }
 
-void check_env_state2(VarEnv<StandardAllocator>& env) {
+void check_env_state2(VarEnv<standard_allocator>& env) {
   EXPECT_EQ(env.num_abstract_doms(), 1);
   EXPECT_EQ(env.num_vars(), 1);
   EXPECT_EQ(env.num_vars_in(0), 1);
@@ -51,7 +51,7 @@ void check_env_state2(VarEnv<StandardAllocator>& env) {
   EXPECT_FALSE(interpret2(env, "var int: x :: abstract(1);").has_value());
 }
 
-void check_env_state3(VarEnv<StandardAllocator>& env) {
+void check_env_state3(VarEnv<standard_allocator>& env) {
   EXPECT_EQ(env.num_abstract_doms(), 1);
   EXPECT_EQ(env.num_vars(), 2);
   EXPECT_EQ(env.num_vars_in(0), 2);
@@ -61,7 +61,7 @@ void check_env_state3(VarEnv<StandardAllocator>& env) {
   EXPECT_EQ(*(env.variable_of("y")->avar_of(0)), AVar(0, 1));
 }
 
-void check_env_state4(VarEnv<StandardAllocator>& env) {
+void check_env_state4(VarEnv<standard_allocator>& env) {
   EXPECT_EQ(env.num_abstract_doms(), 2);
   EXPECT_EQ(env.num_vars_in(1), 1);
   EXPECT_EQ(env.num_vars(), 3);
@@ -72,7 +72,7 @@ void check_env_state4(VarEnv<StandardAllocator>& env) {
   EXPECT_EQ(*(env.variable_of("z")->avar_of(1)), AVar(1, 0));
 }
 
-void check_env_state5(VarEnv<StandardAllocator>& env) {
+void check_env_state5(VarEnv<standard_allocator>& env) {
   EXPECT_EQ(env.num_abstract_doms(), 11);
   EXPECT_EQ(env.num_vars(), 4);
   EXPECT_EQ(env.num_vars_in(2), 0);
@@ -84,7 +84,7 @@ void check_env_state5(VarEnv<StandardAllocator>& env) {
 }
 
 TEST(AST, VarEnv) {
-  VarEnv<StandardAllocator> env;
+  VarEnv<standard_allocator> env;
   check_env_state1(env);
   auto snap1 = env.snapshot();
 
@@ -125,8 +125,8 @@ TEST(AST, VarEnv) {
 }
 
 TEST(AST, NumVars) {
-  using F = TFormula<StandardAllocator>;
-  auto var_x = LVar<StandardAllocator>("x");
+  using F = TFormula<standard_allocator>;
+  auto var_x = LVar<standard_allocator>("x");
   auto f1 = make_v_op_z(var_x, LEQ, 1);
   auto f2 = make_v_op_z(var_x, LEQ, 0);
   auto f3 = F::make_binary(f1, AND, f2);
@@ -136,9 +136,9 @@ TEST(AST, NumVars) {
 }
 
 TEST(AST, ExtractTy) {
-  using F = TFormula<StandardAllocator>;
-  auto var_x = LVar<StandardAllocator>("x");
-  auto var_y = LVar<StandardAllocator>("y");
+  using F = TFormula<standard_allocator>;
+  auto var_x = LVar<standard_allocator>("x");
+  auto var_y = LVar<standard_allocator>("y");
   auto f1 = F::make_binary(F::make_lvar(0, var_x), LEQ, F::make_z(10), 0);
   auto f2 = F::make_binary(F::make_lvar(0, var_x), LEQ, F::make_lvar(0, var_y), 1);
   auto f3 = F::make_binary(F::make_lvar(0, var_x), GEQ, F::make_z(0), 0);

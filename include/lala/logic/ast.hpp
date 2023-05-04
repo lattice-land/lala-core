@@ -3,15 +3,15 @@
 #ifndef AST_HPP
 #define AST_HPP
 
-#include "utility.hpp"
-#include "vector.hpp"
-#include "string.hpp"
-#include "tuple.hpp"
-#include "variant.hpp"
-#include "shared_ptr.hpp"
-#include "unique_ptr.hpp"
+#include "battery/utility.hpp"
+#include "battery/vector.hpp"
+#include "battery/string.hpp"
+#include "battery/tuple.hpp"
+#include "battery/variant.hpp"
+#include "battery/shared_ptr.hpp"
+#include "battery/unique_ptr.hpp"
 #include "thrust/optional.h"
-#include "logic/sort.hpp"
+#include "sort.hpp"
 
 namespace lala {
 

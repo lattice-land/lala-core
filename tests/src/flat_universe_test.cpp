@@ -1,9 +1,9 @@
 // Copyright 2022 Pierre Talbot
 
 #include <gtest/gtest.h>
-#include "logic/logic.hpp"
-#include "universes/flat_universe.hpp"
-#include "allocator.hpp"
+#include "lala/logic/logic.hpp"
+#include "lala/universes/flat_universe.hpp"
+#include "battery/allocator.hpp"
 #include "abstract_testing.hpp"
 
 using namespace lala;
@@ -60,8 +60,8 @@ TEST(FlatUniverseTest, ZFlatInterpretation) {
   must_interpret_to("constraint true;", ZF::bot());
   must_interpret_to("constraint false;", ZF::top());
 
-  VarEnv<StandardAllocator> env;
-  auto f = parse_flatzinc_str<StandardAllocator>("var int: x :: abstract(0);");
+  VarEnv<standard_allocator> env;
+  auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
   EXPECT_TRUE(f);
   env.interpret(*f);
   must_interpret_to(env, "constraint int_eq(x, 0);", ZF(0));

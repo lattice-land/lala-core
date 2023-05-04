@@ -3,18 +3,18 @@
 #ifndef COPY_DAG_HELPER_HPP
 #define COPY_DAG_HELPER_HPP
 
-#include "utility.hpp"
-#include "vector.hpp"
-#include "string.hpp"
-#include "string.hpp"
-#include "tuple.hpp"
-#include "variant.hpp"
+#include "battery/utility.hpp"
+#include "battery/vector.hpp"
+#include "battery/string.hpp"
+#include "battery/string.hpp"
+#include "battery/tuple.hpp"
+#include "battery/variant.hpp"
 #include "logic/ast.hpp"
 
 namespace lala {
 
 /** The dependencies list of the abstract domains DAG when copying abstract domains. */
-template<class Alloc = battery::StandardAllocator, class FastAlloc = Alloc>
+template<class Alloc = battery::standard_allocator, class FastAlloc = Alloc>
 class AbstractDeps
 {
 public:

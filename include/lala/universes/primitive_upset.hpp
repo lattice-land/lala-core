@@ -14,7 +14,7 @@
 #include "pre_bdec.hpp"
 #include "pre_fdec.hpp"
 #include "pre_zdec.hpp"
-#include "memory.hpp"
+#include "battery/memory.hpp"
 
 /** A pre-abstract universe is a lattice (with usual operations join, order, ...) equipped with a simple logical interpretation function and a next/prev functions.
     We consider totally ordered pre-abstract universes with an upset semantics.
@@ -78,12 +78,12 @@ using BDec = PrimitiveUpset<PreBDec, Mem>;
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
 namespace local {
-  using ZInc = ::lala::ZInc<int, battery::LocalMemory>;
-  using ZDec = ::lala::ZDec<int, battery::LocalMemory>;
-  using FInc = ::lala::FInc<double, battery::LocalMemory>;
-  using FDec = ::lala::FDec<double, battery::LocalMemory>;
-  using BInc = ::lala::BInc<battery::LocalMemory>;
-  using BDec = ::lala::BDec<battery::LocalMemory>;
+  using ZInc = ::lala::ZInc<int, battery::local_memory>;
+  using ZDec = ::lala::ZDec<int, battery::local_memory>;
+  using FInc = ::lala::FInc<double, battery::local_memory>;
+  using FDec = ::lala::FDec<double, battery::local_memory>;
+  using BInc = ::lala::BInc<battery::local_memory>;
+  using BDec = ::lala::BDec<battery::local_memory>;
 }
 
 namespace impl {
@@ -128,7 +128,7 @@ public:
   template<class M>
   using this_type2 = PrimitiveUpset<pre_universe, M>;
 
-  using local_type = this_type2<battery::LocalMemory>;
+  using local_type = this_type2<battery::local_memory>;
 
   template<class M>
   using flat_type = FlatUniverse<typename pre_universe::increasing_type, M>;
@@ -484,7 +484,7 @@ public:
   */
   template <Sig sig, class M>
   CUDA static constexpr local_type fun(const flat_type<M>& a) {
-    using local_flat_type = flat_type<battery::LocalMemory>;
+    using local_flat_type = flat_type<battery::local_memory>;
     local_flat_type r1(a);
     if(r1.is_top()) {
       return local_type::top();
@@ -502,7 +502,7 @@ public:
    */
   template<Sig sig, class M1, class M2>
   CUDA static constexpr local_type fun(const flat_type<M1>& a, const flat_type<M2>& b) {
-    using local_flat_type = flat_type<battery::LocalMemory>;
+    using local_flat_type = flat_type<battery::local_memory>;
     local_flat_type r1(a);
     local_flat_type r2(b);
     if(r1.is_top() || r2.is_top()) {
@@ -536,7 +536,7 @@ public:
   {
     using A = PrimitiveUpset<Pre1, Mem1>;
     using B = PrimitiveUpset<Pre2, Mem2>;
-    using local_flat_type = flat_type<battery::LocalMemory>;
+    using local_flat_type = flat_type<battery::local_memory>;
     local_flat_type r1(a);
     local_flat_type r2(b);
     if (r2 != B::pre_universe::zero())
@@ -566,7 +566,7 @@ public:
   {
     static_assert(pre_universe::is_supported_fun(sig), "Function unsupported by the current upset universe.");
     static_assert(sig == MIN || sig == MAX, "Only MIN and MAX are supported on Upset elements.");
-    using local_flat_type = flat_type<battery::LocalMemory>;
+    using local_flat_type = flat_type<battery::local_memory>;
     local_flat_type r1(a);
     local_flat_type r2(b);
     if (r1.is_top() || r2.is_top())
@@ -592,12 +592,12 @@ public:
 // Lattice operators
 
 template<class Pre, class M1, class M2>
-CUDA constexpr PrimitiveUpset<Pre, battery::LocalMemory> join(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr PrimitiveUpset<Pre, battery::local_memory> join(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::join(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr PrimitiveUpset<Pre, battery::LocalMemory> meet(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr PrimitiveUpset<Pre, battery::local_memory> meet(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::meet(a, b);
 }
 

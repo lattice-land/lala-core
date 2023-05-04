@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#include "interval.hpp"
 #include "abstract_testing.hpp"
+#include "lala/interval.hpp"
 
 using zi = local::ZInc;
 using zd = local::ZDec;
@@ -14,14 +14,14 @@ TEST(IntervalTest, BotTopTests) {
 }
 
 TEST(IntervalTest, NoInterpret) {
-  VarEnv<StandardAllocator> env = init_env();
+  VarEnv<standard_allocator> env = init_env();
   must_error_ask<Itv>(env, "constraint float_eq(x, 1111111111.0000000000001);");
   must_error_tell<Itv>(env, "constraint int_ne(x, 10);");
 }
 
 TEST(IntervalTest, ValidInterpret) {
-  // VarEnv<StandardAllocator> env = init_env();
-  VarEnv<StandardAllocator> env;
+  // VarEnv<standard_allocator> env = init_env();
+  VarEnv<standard_allocator> env;
   must_interpret_tell_to(env, "constraint int_eq(x, 10);", Itv(10, 10), false);
   must_interpret_ask_to(env, "constraint int_ne(x, 10);", Itv(zi(11), zd::bot()), false);
 }

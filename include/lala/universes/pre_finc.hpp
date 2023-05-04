@@ -110,12 +110,12 @@ public:
 
   /** \f$ \bot \f$ is represented by the floating-point negative infinity value. */
   CUDA static constexpr value_type bot() {
-    return battery::Limits<value_type>::bot();
+    return battery::limits<value_type>::bot();
   }
 
   /** \f$ \top \f$  is represented by the floating-point positive infinity value. */
   CUDA static constexpr value_type top() {
-    return battery::Limits<value_type>::top();
+    return battery::limits<value_type>::top();
   }
 
   /** \return \f$ x \sqcup y \f$ defined as \f$ \mathit{max}(x, y) \f$. */

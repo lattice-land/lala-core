@@ -81,7 +81,7 @@ public:
       Interpretations:
         * Formulas of kind `F::Z` are interpreted exactly: \f$ [\![ x:\mathbb{Z} \geq k:\mathbb{Z} ]\!] = k \f$.
         * Formulas of kind `F::R` are over-approximated: \f$ [\![ x:\mathbb{Z} \geq [l..u]:\mathbb{R} ]\!] = \lceil l \rceil \f$.
-          Note that all elements in \f$ [l..\lceil l \rceil[\f$ do not belong to \mathbb{Z}, so they can be safely ignored.
+          Note that all elements in \f$ [l..\lceil l \rceil[\f$ do not belong to \f$ \mathbb{Z} \f$, so they can be safely ignored.
       Examples:
         * \f$ [\![x >= [2.5..2.5]:R ]\!] = 3 \f$.
         * \f$ [\![x >= [2.9..3.1]:R ]\!] = 3 \f$.
@@ -124,12 +124,12 @@ public:
 
   /** \f$ \bot \f$ is represented by the minimal representable value of the underlying value type. */
   CUDA static constexpr value_type bot() {
-    return battery::Limits<value_type>::bot();
+    return battery::limits<value_type>::bot();
   }
 
   /** \f$ \top \f$ is represented by the maximal representable value of the underlying value type. */
   CUDA static constexpr value_type top() {
-    return battery::Limits<value_type>::top();
+    return battery::limits<value_type>::top();
   }
 
   /** \return \f$ x \sqcup y \f$ defined as \f$ \mathit{max}(x, y) \f$. */

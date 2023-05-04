@@ -21,8 +21,8 @@ using FFlat = FlatUniverse<PreFInc<VT>, Mem>;
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
 namespace local {
-  using ZFlat = ::lala::ZFlat<int, battery::LocalMemory>;
-  using FFlat = ::lala::FFlat<double, battery::LocalMemory>;
+  using ZFlat = ::lala::ZFlat<int, battery::local_memory>;
+  using FFlat = ::lala::FFlat<double, battery::local_memory>;
 }
 
 template<class PreUniverse, class Mem>
@@ -35,7 +35,7 @@ public:
   using memory_type = Mem;
   using this_type = FlatUniverse<pre_universe, memory_type>;
   template <class M> using this_type2 = FlatUniverse<pre_universe, M>;
-  using local_type = this_type2<battery::LocalMemory>;
+  using local_type = this_type2<battery::local_memory>;
 
   template<class F>
   using iresult = IResult<local_type, F>;
@@ -91,7 +91,7 @@ public:
 
   template <class M>
   CUDA constexpr FlatUniverse(const PrimitiveUpset<typename pre_universe::dual_type, M> &other)
-    : FlatUniverse(dual<PrimitiveUpset<pre_universe, battery::LocalMemory>>(other)) {}
+    : FlatUniverse(dual<PrimitiveUpset<pre_universe, battery::local_memory>>(other)) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
@@ -337,7 +337,7 @@ public:
 // Lattice operators
 
 template<class Pre, class M1, class M2>
-CUDA constexpr FlatUniverse<Pre, battery::LocalMemory> join(const FlatUniverse<Pre, M1>& a, const FlatUniverse<Pre, M2>& b) {
+CUDA constexpr FlatUniverse<Pre, battery::local_memory> join(const FlatUniverse<Pre, M1>& a, const FlatUniverse<Pre, M2>& b) {
   if(a == b) {
     return a;
   }
@@ -348,12 +348,12 @@ CUDA constexpr FlatUniverse<Pre, battery::LocalMemory> join(const FlatUniverse<P
     return a;
   }
   else {
-    return FlatUniverse<Pre, battery::LocalMemory>::top();
+    return FlatUniverse<Pre, battery::local_memory>::top();
   }
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr FlatUniverse<Pre, battery::LocalMemory> meet(const FlatUniverse<Pre, M1>& a, const FlatUniverse<Pre, M2>& b) {
+CUDA constexpr FlatUniverse<Pre, battery::local_memory> meet(const FlatUniverse<Pre, M1>& a, const FlatUniverse<Pre, M2>& b) {
   if(a == b) {
     return a;
   }
@@ -364,7 +364,7 @@ CUDA constexpr FlatUniverse<Pre, battery::LocalMemory> meet(const FlatUniverse<P
     return b;
   }
   else {
-    return FlatUniverse<Pre, battery::LocalMemory>::bot();
+    return FlatUniverse<Pre, battery::local_memory>::bot();
   }
 }
 

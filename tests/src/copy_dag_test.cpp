@@ -1,8 +1,8 @@
 // Copyright 2021 Pierre Talbot
 
 #include <gtest/gtest.h>
-#include "copy_dag_helper.hpp"
-#include "allocator.hpp"
+#include "lala/copy_dag_helper.hpp"
+#include "battery/allocator.hpp"
 
 using namespace lala;
 using namespace battery;
@@ -14,7 +14,7 @@ TEST(AST, AbstractDeps) {
     FakeAD(const FakeAD&, AbstractDeps<>&): atype(0) {}
     int aty() const { return atype; }
   };
-  StandardAllocator alloc;
+  standard_allocator alloc;
   shared_ptr<FakeAD> a(new(alloc) FakeAD, alloc);
   AbstractDeps deps;
   EXPECT_EQ(deps.size(), 0);

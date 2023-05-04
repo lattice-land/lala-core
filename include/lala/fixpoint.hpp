@@ -5,7 +5,7 @@
 
 #include "logic/logic.hpp"
 #include "universes/primitive_upset.hpp"
-#include "memory.hpp"
+#include "battery/memory.hpp"
 
 #ifdef __NVCC__
   #include <cooperative_groups.h>
@@ -22,8 +22,8 @@ public:
 
   template <class A>
   CUDA void iterate(A& a, local::BInc& has_changed) {
-    int n = a.num_refinements();
-    for(int i = 0; i < n; ++i) {
+    size_t n = a.num_refinements();
+    for(size_t i = 0; i < n; ++i) {
       a.refine(i, has_changed);
     }
   }
@@ -55,7 +55,7 @@ public:
  * - `a.refine(int, BInc&)`: call the ith refinement functions and set `has_changed` to `true` if `a` has changed. Note that if `a.is_top()` is `true`, then `has_changed` must stay false for all refinement functions.
  * - `a.num_refinements()`: return the number of refinement functions.
  * \tparam Group is a CUDA cooperative group class.
- * \tparam Memory is an atomic memory, that must be compatible with the cooperative group chosen (e.g., don't use AtomicMemoryBlock if the group contains multiple blocks). */
+ * \tparam Memory is an atomic memory, that must be compatible with the cooperative group chosen (e.g., don't use atomic_memory_block if the group contains multiple blocks). */
 template <class Group, class Memory>
 class AsynchronousIterationGPU {
 public:
@@ -96,8 +96,8 @@ public:
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
   #else
-    int n = a.num_refinements();
-    for (int t = group.thread_rank(); t < n; t += group.num_threads()) {
+    size_t n = a.num_refinements();
+    for (size_t t = group.thread_rank(); t < n; t += group.num_threads()) {
       a.refine(t, has_changed);
     }
   #endif
@@ -130,10 +130,10 @@ public:
 };
 
 template <class Allocator>
-using BlockAsynchronousIterationGPU = AsynchronousIterationGPU<cooperative_groups::thread_block, battery::AtomicMemoryBlock<Allocator>>;
+using BlockAsynchronousIterationGPU = AsynchronousIterationGPU<cooperative_groups::thread_block, battery::atomic_memory_block<Allocator>>;
 
 template <class Allocator>
-using GridAsynchronousIterationGPU = AsynchronousIterationGPU<cooperative_groups::grid_group, battery::AtomicMemoryDevice<Allocator>>;
+using GridAsynchronousIterationGPU = AsynchronousIterationGPU<cooperative_groups::grid_group, battery::atomic_memory_grid<Allocator>>;
 
 #endif
 
