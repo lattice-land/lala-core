@@ -96,6 +96,8 @@ class IResult {
 public:
   using allocator_type = typename F::allocator_type;
   using error_type = IError<F>;
+  using value_type = T;
+  using formula_type = F;
   using this_type = IResult<T, F>;
 
 private:
