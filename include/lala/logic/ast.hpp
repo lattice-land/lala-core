@@ -568,7 +568,10 @@ private:
   CUDA void print_sequence(bool print_atype) const {
     const auto& op = battery::get<0>(battery::get<n>(formula));
     const auto& children = battery::get<1>(battery::get<n>(formula));
-    assert(children.size() > 0);
+    if(children.size() == 0) {
+      ::battery::print(op);
+      return;
+    }
     if constexpr(n == Seq) {
       if(children.size() == 1) {
         if(op == ABS) printf("|");
