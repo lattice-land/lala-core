@@ -215,18 +215,26 @@ private:
     auto u = is_tell ? local_universe::interpret_tell(f, env) : local_universe::interpret_ask(f, env);
     if(u.has_value()) {
       TellType res(env.get_allocator());
-      auto var = var_in(f, env);
-      if(!var.has_value()) {
-        return std::move(iresult<F, Env>(IError<F>(true, name, "Undeclared variable.", f)).join_warnings(std::move(u)));
+      const auto& varf = var_in(f);
+      // When it is not necessary, we try to avoid using the environment.
+      // This is for instance useful when refinement operators add new constraints but do not have access to the environment (e.g., split()), and to avoid passing the environment around everywhere.
+      if(varf.is(F::V)) {
+        res.push_back(var_dom(varf.v().vid(), u.value()));
       }
-      if(!u.value().is_bot()) {
-        auto avar = var->avar_of(atype);
-        if(!avar.has_value()) {
-          return std::move(iresult<F, Env>(IError<F>(true, name,
-              "The variable was not declared in the current abstract element (but exists in other abstract elements).", f))
-            .join_warnings(std::move(u)));
+      else {
+        auto var = var_in(f, env);
+        if(!var.has_value()) {
+          return std::move(iresult<F, Env>(IError<F>(true, name, "Undeclared variable.", f)).join_warnings(std::move(u)));
         }
-        res.push_back(var_dom(avar->vid(), u.value()));
+        if(!u.value().is_bot()) {
+          auto avar = var->avar_of(atype);
+          if(!avar.has_value()) {
+            return std::move(iresult<F, Env>(IError<F>(true, name,
+                "The variable was not declared in the current abstract element (but exists in other abstract elements).", f))
+              .join_warnings(std::move(u)));
+          }
+          res.push_back(var_dom(avar->vid(), u.value()));
+        }
       }
       return std::move(iresult<F, Env>(std::move(res)).join_warnings(std::move(u)));
     }

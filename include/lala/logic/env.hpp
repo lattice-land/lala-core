@@ -25,7 +25,7 @@ struct Variable {
   bvector<AVar> avars;
 
   CUDA Variable(const bstring& name, const Sort<Allocator>& sort, AVar av, const Allocator& allocator = Allocator())
-    : name(name, allocator), sort(sort, allocator), avars(1, allocator)
+    : name(name, allocator), sort(sort, allocator), avars(allocator)
   {
     avars.push_back(av);
   }
