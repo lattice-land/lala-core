@@ -42,6 +42,10 @@ public:
   using iresult = IResult<this_type, F>;
 
   constexpr static const bool is_abstract_universe = true;
+  constexpr static const bool is_totally_ordered = false;
+  constexpr static const bool preserve_bot = LB::preserve_bot && UB::preserve_bot;
+  constexpr static const bool preserve_top = true;
+
   constexpr static const bool sequential = CP::sequential;
   constexpr static const char* name = "Interval";
 
@@ -268,6 +272,20 @@ public:
     else {
       return cp.deinterpret(x, env);
     }
+  }
+
+  /** Deinterpret the current value to a logical constant.
+   * The lower bound is deinterpreted, and it is up to the user to check that interval is a singleton.
+   * A special case is made for real numbers where the both bounds are used, since the logical interpretation uses interval.
+  */
+  template<class F>
+  CUDA F deinterpret() const {
+    F logical_lb = lb().template deinterpret<F>();
+    if(logical_lb.is(F::R)) {
+      F logical_ub = ub().template deinterpret<F>();
+      battery::get<1>(logical_lb.r()) = battery::get<0>(logical_ub.r());
+    }
+    return logical_lb;
   }
 
   CUDA void print() const {

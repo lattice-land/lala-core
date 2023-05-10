@@ -213,8 +213,14 @@ public:
     return F::make_binary(
       F::make_avar(avar),
       EQ,
-      pre_universe::template deinterpret<F>(value()),
+      deinterpret<F>(),
       avar.aty(), env.get_allocator());
+  }
+
+  /** Deinterpret the current value to a logical constant. */
+  template<class F>
+  CUDA F deinterpret() const {
+    return pre_universe::template deinterpret<F>(value());
   }
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
