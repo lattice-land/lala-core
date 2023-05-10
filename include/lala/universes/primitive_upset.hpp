@@ -289,14 +289,18 @@ public:
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function. */
   template<class Env>
   CUDA TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
-    using allocator_t = typename Env::allocator_type;
+    using F = TFormula<typename Env::allocator_type>;
     if(preserve_top && is_top()) {
-      return TFormula<allocator_t>::make_false();
+      return F::make_false();
     }
     else if(preserve_bot && is_bot()) {
-      return TFormula<allocator_t>::make_true();
+      return F::make_true();
     }
-    return make_v_op_z(avar, U::sig_order(), value(), avar.aty(), env.get_allocator());
+    return F::make_binary(
+      F::make_avar(avar),
+      U::sig_order(),
+      pre_universe::template deinterpret<F>(value()),
+      avar.aty(), env.get_allocator());
   }
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.

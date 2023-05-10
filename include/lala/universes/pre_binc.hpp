@@ -69,6 +69,14 @@ struct PreBInc {
     }
   }
 
+  /** Given a Boolean value, create a logical constant representing that value.
+   * Note that the lattice order has no influence here.
+  */
+  template<class F>
+  CUDA static F deinterpret(const value_type& v) {
+    return F::make_bool(v);
+  }
+
   /** The logical predicate symbol corresponding to the order of this pre-universe.
       We have \f$ a \leq_\mathit{BInc} b \Leftrightarrow a \leq b \f$.
       \return The logical symbol `LEQ`. */

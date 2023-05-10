@@ -112,6 +112,15 @@ public:
     }
   }
 
+  /** Given an Integer value, create a logical constant representing that value.
+   * Note that the lattice order has no influence here.
+   * \precondition `v != bot()` and `v != top()`.
+  */
+  template<class F>
+  CUDA static F deinterpret(const value_type& v) {
+    return F::make_z(v);
+  }
+
   /** The logical predicate symbol corresponding to the order of this pre-universe.
       We have \f$ a \leq_\mathit{ZInc} b \Leftrightarrow a \leq b \f$.
       \return The logical symbol `LEQ`. */

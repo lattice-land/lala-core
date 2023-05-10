@@ -367,6 +367,10 @@ public:
   CUDA static this_type make_true() { return TFormula(); }
   CUDA static this_type make_false() { return TFormula(Formula::template create<B>(false)); }
 
+  CUDA static this_type make_bool(logic_bool b, AType atype = UNTYPED) {
+    return this_type(atype, Formula::template create<B>(b));
+  }
+
   CUDA static this_type make_z(logic_int i, AType atype = UNTYPED) {
     return this_type(atype, Formula::template create<Z>(i));
   }

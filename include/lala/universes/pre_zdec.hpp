@@ -57,6 +57,11 @@ struct PreZDec {
     return r;
   }
 
+  template<class F>
+  CUDA static F deinterpret(const value_type& v) {
+    return dual_type::template deinterpret<F>(v);
+  }
+
   CUDA static constexpr Sig sig_order() { return GEQ; }
   CUDA static constexpr Sig sig_strict_order() { return GT; }
   CUDA static constexpr value_type bot() { return dual_type::top(); }

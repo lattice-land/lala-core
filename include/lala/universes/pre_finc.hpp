@@ -98,6 +98,16 @@ public:
     }
   }
 
+  /** Given a floating-point value, create a logical constant representing that value.
+   * The constant is represented by a singleton interval of `double` [v..v].
+   * Note that the lattice order has no influence here.
+   * \precondition `v != bot()` and `v != top()`.
+  */
+  template<class F>
+  CUDA static F deinterpret(const value_type& v) {
+    return F::make_real(v, v);
+  }
+
   /** The logical predicate symbol corresponding to the order of this pre-universe.
       We have \f$ a \leq_\mathit{FInc} b \Leftrightarrow a \leq b \f$.
       \return The logical symbol `LEQ`. */

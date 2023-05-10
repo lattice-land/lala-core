@@ -50,6 +50,11 @@ struct PreBDec {
     return r;
   }
 
+  template<class F>
+  CUDA static F deinterpret(const value_type& v) {
+    return dual_type::template deinterpret<F>(v);
+  }
+
   CUDA static constexpr Sig sig_order() { return GEQ; }
   CUDA static constexpr Sig sig_strict_order() { return GT; }
   CUDA static constexpr value_type bot() { return dual_type::top(); }
@@ -61,8 +66,8 @@ struct PreBDec {
   CUDA static constexpr value_type next(value_type x) { return dual_type::prev(x); }
   CUDA static constexpr value_type prev(value_type x) { return dual_type::next(x); }
   CUDA static constexpr bool is_supported_fun(Sig sig) { return dual_type::is_supported_fun(sig); }
-  template<Sig sig> CUDA static constexpr value_type fun(value_type x) { return dual_type::fun<sig>(x); }
-  template<Sig sig> CUDA static constexpr value_type fun(value_type x, value_type y) { return dual_type::fun<sig>(x, y); }
+  template<Sig sig> CUDA static constexpr value_type fun(value_type x) { return dual_type::template fun<sig>(x); }
+  template<Sig sig> CUDA static constexpr value_type fun(value_type x, value_type y) { return dual_type::template fun<sig>(x, y); }
 };
 
 } // namespace lala
