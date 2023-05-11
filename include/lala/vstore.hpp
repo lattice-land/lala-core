@@ -57,6 +57,9 @@ public:
   template<class F, class Env>
   using iresult = IResult<tell_type<typename Env::allocator_type>, F>;
 
+  template<class F, class Env> using iresult_tell = iresult<F, Env>;
+  template<class F, class Env> using iresult_ask = iresult<F, Env>;
+
   constexpr static const bool is_abstract_universe = false;
   constexpr static const char* name = "VStore";
 
