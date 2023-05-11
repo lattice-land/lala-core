@@ -297,10 +297,10 @@ public:
       return F::make_true();
     }
     return F::make_binary(
-      F::make_avar(avar),
-      U::sig_order(),
       deinterpret<F>(),
-      avar.aty(), env.get_allocator());
+      U::sig_order(),
+      F::make_avar(avar),
+      UNTYPED, env.get_allocator());
   }
 
   /** Deinterpret the current value to a logical constant. */

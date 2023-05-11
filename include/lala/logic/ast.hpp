@@ -51,11 +51,11 @@ public:
   }
 
   CUDA constexpr int aty() const {
-    return (value & ((1 << 8) - 1));
+    return is_untyped() ? -1 : (value & ((1 << 8) - 1));
   }
 
   CUDA constexpr int vid() const {
-    return value >> 8;
+    return is_untyped() ? -1 : value >> 8;
   }
 
   CUDA constexpr void type_as(AType aty) {

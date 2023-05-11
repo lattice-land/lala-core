@@ -268,31 +268,35 @@ private:
   template <bool is_tell, class F, class Env>
   CUDA iresult<F, Env> interpret_in_impl(const F& f, Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
-    if((f.is_untyped() || f.type() == aty())
-     && f.is(F::Seq) && f.sig() == AND)
-    {
-      const typename F::Sequence& seq = f.seq();
-      auto res = iresult<F, Env>(TellType(env.get_allocator()));
-      for(int i = 0; i < seq.size(); ++i) {
-        auto r = interpret_predicate<is_tell>(seq[i], env);
-        if(r.has_value()) {
-          for(int j = 0; j < r.value().size(); ++j) {
-            res.value().push_back(r.value()[j]);
+    if(f.is_untyped() || f.type() == aty()) {
+      if(f.is(F::Seq) && f.sig() == AND) {
+        const typename F::Sequence& seq = f.seq();
+        auto res = iresult<F, Env>(TellType(env.get_allocator()));
+        for(int i = 0; i < seq.size(); ++i) {
+          auto r = interpret_predicate<is_tell>(seq[i], env);
+          if(r.has_value()) {
+            for(int j = 0; j < r.value().size(); ++j) {
+              res.value().push_back(r.value()[j]);
+            }
+            res.join_warnings(std::move(r));
           }
-          res.join_warnings(std::move(r));
+          else {
+            return std::move(iresult<F, Env>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
+              .join_errors(std::move(r))
+              .join_warnings(std::move(res)));
+          }
         }
-        else {
-          return std::move(iresult<F, Env>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
-            .join_errors(std::move(r))
-            .join_warnings(std::move(res)));
-        }
+        return res;
       }
-      return res;
+      else {
+        return interpret_predicate<is_tell>(f, env);
+      }
     }
     else {
-      return interpret_predicate<is_tell>(f, env);
+      return iresult<F, Env>(IError<F>(true, name, "Interpretation of a formula with a different type.", f));
     }
   }
+
 public:
   /** The store of variables lattice expects a conjunctive formula \f$ c_1 \land \ldots \land c_n \f$ in which all components \f$ c_i \f$ are formulas with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
    *  If one component of the conjunction cannot be interpreted by the abstract universe, the whole formula is considered as uninterpretable.

@@ -281,7 +281,8 @@ CUDA thrust::optional<const typename Env::variable_type&> var_in(const F& f, con
   const auto& g = var_in(f);
   switch(g.index()) {
     case F::V:
-      return env[g.v()];
+      if(g.v().is_untyped()) { return {}; }
+      else { return env[g.v()]; }
     case F::E:
       return env.variable_of(battery::get<0>(g.exists()));
     case F::LV:
