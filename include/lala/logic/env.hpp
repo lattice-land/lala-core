@@ -66,6 +66,9 @@ public:
 
   using variable_type = Variable<Allocator>;
 
+  template <class Alloc2>
+  friend class VarEnv;
+
 private:
   bvector<variable_type> lvars;
   bvector<bvector<int>> avar2lvar;
