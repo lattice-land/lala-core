@@ -444,7 +444,7 @@ private:
   {
     if constexpr(i < n) {
       seq[i] = project<i>().deinterpret(x, env);
-      return deinterpret_<i+1, Allocator>(x, std::move(seq), env);
+      return deinterpret_<i+1, Env>(x, std::move(seq), env);
     }
     else {
       return TFormula<Allocator>::make_nary(
