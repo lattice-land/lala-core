@@ -122,12 +122,12 @@ public:
 
   /** Cartesian product initialized to \f$ (\bot_1, \ldots, \bot_n) \f$. */
   CUDA static constexpr local_type bot() {
-    return CartesianProduct(As::bot()...);
+    return local_type(As::bot()...);
   }
 
   /** Cartesian product initialized to \f$ (\top_1, \ldots, \top_n) \f$. */
   CUDA static constexpr local_type top() {
-    return CartesianProduct(As::top()...);
+    return local_type(As::top()...);
   }
 
 private:

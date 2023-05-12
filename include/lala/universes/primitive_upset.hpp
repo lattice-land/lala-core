@@ -134,7 +134,7 @@ public:
   using flat_type = FlatUniverse<typename pre_universe::increasing_type, M>;
 
   template<class F>
-  using iresult = IResult<this_type, F>;
+  using iresult = IResult<local_type, F>;
 
   constexpr static const bool is_abstract_universe = true;
   constexpr static const bool sequential = Mem::sequential;

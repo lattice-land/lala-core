@@ -31,6 +31,7 @@ public:
   using LB = U;
   using UB = typename LB::dual_type;
   using this_type = Interval<LB>;
+  using local_type = Interval<typename LB::local_type>;
   using CP = CartesianProduct<LB, UB>;
   using value_type = typename CP::value_type;
   using memory_type = typename CP::memory_type;
@@ -39,7 +40,7 @@ public:
   friend class Interval;
 
   template<class F>
-  using iresult = IResult<this_type, F>;
+  using iresult = IResult<local_type, F>;
 
   constexpr static const bool is_abstract_universe = true;
   constexpr static const bool is_totally_ordered = false;
@@ -49,7 +50,6 @@ public:
   constexpr static const bool sequential = CP::sequential;
   constexpr static const char* name = "Interval";
 
-  using local_type = Interval<typename LB::local_type>;
 
 private:
   using LB2 = typename LB::local_type;

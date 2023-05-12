@@ -544,8 +544,8 @@ CUDA auto meet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
   }
 }
 
-template<class L, class K, class Alloc>
-CUDA bool operator<=(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+template<class L, class K, class Alloc1, class Alloc2>
+CUDA bool operator<=(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 {
   if(b.is_top()) {
     return true;
@@ -566,8 +566,8 @@ CUDA bool operator<=(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
   return true;
 }
 
-template<class L, class K, class Alloc>
-CUDA bool operator<(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+template<class L, class K, class Alloc1, class Alloc2>
+CUDA bool operator<(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 {
   if(b.is_top()) {
     return !a.is_top();
@@ -597,20 +597,20 @@ CUDA bool operator<(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
   }
 }
 
-template<class L, class K, class Alloc>
-CUDA bool operator>=(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+template<class L, class K, class Alloc1, class Alloc2>
+CUDA bool operator>=(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 {
   return b <= a;
 }
 
-template<class L, class K, class Alloc>
-CUDA bool operator>(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+template<class L, class K, class Alloc1, class Alloc2>
+CUDA bool operator>(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 {
   return b < a;
 }
 
-template<class L, class K, class Alloc>
-CUDA bool operator==(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+template<class L, class K, class Alloc1, class Alloc2>
+CUDA bool operator==(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 {
   if(a.is_top()) {
     return b.is_top();
@@ -639,8 +639,8 @@ CUDA bool operator==(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
   return true;
 }
 
-template<class L, class K, class Alloc>
-CUDA bool operator!=(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+template<class L, class K, class Alloc1, class Alloc2>
+CUDA bool operator!=(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 {
   return !(a == b);
 }
