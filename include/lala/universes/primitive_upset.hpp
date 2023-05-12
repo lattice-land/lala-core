@@ -181,10 +181,10 @@ private:
 
 public:
   /** Similar to \f$[\![\mathit{true}]\!]\f$ if `preserve_bot` is true. */
-  CUDA static constexpr this_type bot() { return this_type(); }
+  CUDA static constexpr local_type bot() { return local_type(); }
 
   /** Similar to \f$[\![\mathit{false}]\!]\f$ if `preserve_top` is true. */
-  CUDA static constexpr this_type top() { return this_type(U::top()); }
+  CUDA static constexpr local_type top() { return local_type(U::top()); }
   /** Initialize an upset universe to bottom. */
   CUDA constexpr PrimitiveUpset(): val(U::bot()) {}
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */

@@ -118,7 +118,7 @@ private:
       local_type itv(cp_res.value());
       return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
     }
-    return std::move(cp_res).template map_error<this_type>();
+    return std::move(cp_res).template map_error<local_type>();
   }
 
 public:

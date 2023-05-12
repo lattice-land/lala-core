@@ -43,6 +43,9 @@ public:
     local_universe dom;
     var_dom() = default;
     CUDA var_dom(int idx, const local_universe& dom): idx(idx), dom(dom) {}
+
+    template <class VarDom>
+    CUDA var_dom(const VarDom& var_dom): idx(var_dom.idx), dom(var_dom.dom) {}
   };
 
   template <class Alloc>
@@ -485,7 +488,7 @@ public:
     if(is_top()) {
       return false;
     }
-    if(&ua != this) {
+    if((void*)&ua != (void*)this) {
       ua.data = data;
       ua.is_at_top.dtell_bot();
     }
