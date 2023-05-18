@@ -5,7 +5,7 @@
 
 #include "logic/logic.hpp"
 #include "universes/primitive_upset.hpp"
-#include "copy_dag_helper.hpp"
+#include "abstract_deps.hpp"
 
 namespace lala {
 
@@ -99,9 +99,9 @@ public:
 
   /** Copy the vstore `other` in the current element.
    *  `deps` can be empty and is not used besides to get the allocator (since this abstract domain does not have dependencies). */
-  template<class R, class Alloc2, class Alloc3>
-  CUDA VStore(const VStore<R, Alloc2>& other, const AbstractDeps<Alloc3, allocator_type>& deps)
-   : VStore(other, deps.get_fast_allocator()) {}
+  template<class R, class Alloc2, class... Allocators>
+  CUDA VStore(const VStore<R, Alloc2>& other, const AbstractDeps<Allocators...>& deps)
+   : VStore(other, deps.template get_allocator<allocator_type>()) {}
 
   CUDA VStore(this_type&& other):
     atype(other.atype), data(std::move(other.data)), is_at_top(other.is_at_top) {}

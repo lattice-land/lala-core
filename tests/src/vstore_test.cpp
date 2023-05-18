@@ -42,7 +42,7 @@ TEST(VStoreTest, JoinMeetTest) {
 
 TEST(VStoreTest, CopyConstructor) {
   ZStore vstore = interpret_tell_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
-  ZStore copy(vstore, AbstractDeps<>());
+  ZStore copy(vstore, AbstractDeps<standard_allocator>(standard_allocator{}));
   EXPECT_EQ(vstore.vars(), copy.vars());
   for(int i = 0; i < vstore.vars(); ++i) {
     EXPECT_EQ(vstore[i], copy[i]);
@@ -76,7 +76,7 @@ TEST(VStoreTest, SnapshotRestore) {
 
 TEST(VStoreTest, Extract) {
   ZStore vstore = interpret_tell_to2<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
-  ZStore copy(vstore, AbstractDeps<>());
+  ZStore copy(vstore, AbstractDeps<standard_allocator>(standard_allocator{}));
   local::BInc has_changed = local::BInc::bot();
   copy
     .tell(0, zi(2), has_changed)
