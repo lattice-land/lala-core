@@ -190,7 +190,7 @@ public:
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
   CUDA constexpr PrimitiveUpset(value_type x): val(x) {}
   CUDA constexpr PrimitiveUpset(const this_type& other): PrimitiveUpset(other.value()) {}
-  CUDA constexpr PrimitiveUpset(this_type&& other): val(std::move(other.val)) {}
+  constexpr PrimitiveUpset(this_type&& other) = default;
 
   template <class M>
   CUDA constexpr PrimitiveUpset(const this_type2<M>& other): PrimitiveUpset(other.value()) {}
