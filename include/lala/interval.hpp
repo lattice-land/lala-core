@@ -262,16 +262,7 @@ public:
 
   template<class Env>
   CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
-    using allocator_t = typename Env::allocator_type;
-    if(is_top()) {
-      return TFormula<allocator_t>::make_false();
-    }
-    else if(is_bot()) {
-      return TFormula<allocator_t>::make_true();
-    }
-    else {
-      return cp.deinterpret(x, env);
-    }
+    return cp.deinterpret(x, env);
   }
 
   /** Deinterpret the current value to a logical constant.

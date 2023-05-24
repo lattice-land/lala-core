@@ -78,16 +78,19 @@ public:
       deps.resize(battery::max((int)deps.size(), a->aty()+1));
       auto to_alloc = battery::get<typename A2::allocator_type>(allocators);
       allocator_type internal_alloc = battery::get<0>(allocators);
+      A2* a2 = static_cast<A2*>(to_alloc.allocate(sizeof(A2)));
+      new(a2) A2(*a, *this);
+      dep_holder<A2>* dep_hold = static_cast<dep_holder<A2>*>(internal_alloc.allocate(sizeof(dep_holder<A2>)));
+      new(dep_hold) dep_holder<A2>(a2);
       deps[a->aty()] = battery::unique_ptr<dep_erasure, allocator_type>(
-        new(internal_alloc) dep_holder<A2>(new(to_alloc) A2(*a, *this)),
-        internal_alloc);
+        dep_hold, internal_alloc);
       // NOTE: Since we are copying a DAG, `A(*a, *this)` or one of its dependency cannot create `deps[a->aty()]`.
     }
     return extract<A2>(a->aty());
   }
 
   template <class Alloc>
-  CUDA allocator_type get_allocator() const {
+  CUDA Alloc get_allocator() const {
     return battery::get<Alloc>(allocators);
   }
 };
