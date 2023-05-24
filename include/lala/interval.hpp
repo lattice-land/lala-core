@@ -125,6 +125,7 @@ public:
   /** Support the same language than the Cartesian product, and more:
    *    * `x == k` is over-approximated by interpreting `x == k` in both bounds.
    *    * `x in k` is over-approximated by interpreting `x in k` in both bounds.
+   *    * `var x:B` when the underlying universe is arithmetic and preserve concrete covers.
    * Therefore, the element `k` is always in \f$ \gamma(lb) \cap \gamma(ub) \f$. */
   template<class F, class Env>
   CUDA static iresult<F> interpret_tell(const F& f, const Env& env) {
@@ -136,6 +137,14 @@ public:
       if(cp_res.has_value()) {
         local_type itv(cp_res.value());
         return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
+      }
+    }
+    if constexpr(LB::preserve_concrete_covers && LB::is_arithmetic) {
+      if(f.is(F::E)) {
+        auto sort = f.sort();
+        if(sort.has_value() && sort->is_bool()) {
+          return local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one()));
+        }
       }
     }
     return forward_to_cp<true>(f, env);
