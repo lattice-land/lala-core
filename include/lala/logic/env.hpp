@@ -88,7 +88,8 @@ private:
     }
   }
 
-  CUDA AVar extends_vars(AType aty, const bstring& name, const Sort<Allocator>& sort) {
+  template <class Alloc2, class Alloc3>
+  CUDA AVar extends_vars(AType aty, const battery::string<Alloc2>& name, const Sort<Alloc3>& sort) {
     extends_abstract_doms(aty);
     AVar avar(aty, avar2lvar[aty].size());
     avar2lvar[aty].push_back(lvars.size());
@@ -203,7 +204,7 @@ public:
     }
   }
 
-  CUDA thrust::optional<const variable_type&> variable_of(const bstring& lv) const {
+  CUDA thrust::optional<const variable_type&> variable_of(const char* lv) const {
     for(int i = 0; i < lvars.size(); ++i) {
       if(lvars[i].name == lv) {
         return lvars[i];
@@ -212,7 +213,17 @@ public:
     return {};
   }
 
-  CUDA bool contains(const bstring& lv) const {
+  template <class Alloc2>
+  CUDA thrust::optional<const variable_type&> variable_of(const battery::string<Alloc2>& lv) const {
+    return variable_of(lv.data());
+  }
+
+  template <class Alloc2>
+  CUDA bool contains(const battery::string<Alloc2>& lv) const {
+    return contains(lv.data());
+  }
+
+  CUDA bool contains(const char* lv) const {
     return variable_of(lv).has_value();
   }
 

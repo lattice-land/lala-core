@@ -145,3 +145,9 @@ TEST(VStoreTest, AskOperation) {
   EXPECT_FALSE(store.ask(ask5));
 }
 
+TEST(VStoreTest, CopyAndAllocator) {
+  IStore vstore = interpret_tell_to2<IStore>("array[1..10] of var int: x;");
+  using stat_alloc = statistics_allocator<standard_allocator>;
+  using IStore2 = VStore<Itv, stat_alloc>;
+  IStore2 copy(vstore, AbstractDeps<stat_alloc>(stat_alloc{}));
+}

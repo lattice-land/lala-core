@@ -69,14 +69,14 @@ public:
   template<class A2, class A>
   CUDA abstract_ptr<A2> clone(const abstract_ptr<A>& a)
   {
+    auto to_alloc = battery::get<typename A2::allocator_type>(allocators);
     if(!a) {
-      return nullptr;
+      return abstract_ptr<A2>{to_alloc};
     }
     assert(a->aty() != UNTYPED); // Abstract domain must all have a unique identifier to be copied.
     // If the dependency is not in the list, we copy it and add it.
     if(deps.size() <= a->aty() || !static_cast<bool>(deps[a->aty()])) {
       deps.resize(battery::max((int)deps.size(), a->aty()+1));
-      auto to_alloc = battery::get<typename A2::allocator_type>(allocators);
       allocator_type internal_alloc = battery::get<0>(allocators);
       A2* a2 = static_cast<A2*>(to_alloc.allocate(sizeof(A2)));
       new(a2) A2(*a, *this);

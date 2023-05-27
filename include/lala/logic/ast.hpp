@@ -188,6 +188,11 @@ CUDA inline const char* string_of_sig(Sig sig) {
   CUDA inline constexpr bool is_modulo(Sig sig) {
     return sig == MOD || sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
   }
+
+  CUDA inline constexpr bool is_associative(Sig sig) {
+    return sig == ADD || sig == MUL || sig == AND || sig == OR || sig == EQUIV || sig == XOR
+      || sig == UNION || sig == INTERSECTION || sig == MAX || sig == MIN;
+  }
 }
 
 namespace battery {
@@ -406,8 +411,20 @@ public:
     return this_type(ty, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
-  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
-    return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, std::move(children))));
+  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator())
+  {
+    Sequence seq;
+    for(size_t i = 0; i < children.size(); ++i) {
+      if(children[i].is(Seq) && children[i].sig() == sig && children[i].type() == atype) {
+        for(size_t j = 0; j < children[i].seq().size(); ++j) {
+          seq.push_back(std::move(children[i].seq(j)));
+        }
+      }
+      else {
+        seq.push_back(std::move(children[i]));
+      }
+    }
+    return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, std::move(seq))));
   }
 
   CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
