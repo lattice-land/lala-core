@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#ifndef AST_HPP
-#define AST_HPP
+#ifndef LALA_CORE_AST_HPP
+#define LALA_CORE_AST_HPP
 
 #include "battery/utility.hpp"
 #include "battery/vector.hpp"
@@ -407,11 +407,11 @@ public:
     return this_type(ty, Formula::template create<LV>(std::move(lvar)));
   }
 
-  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, Sort<Allocator> ctype, const Allocator& allocator = Allocator()) {
+  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, Sort<Allocator> ctype) {
     return this_type(ty, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
-  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator())
+  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED)
   {
     Sequence seq;
     for(size_t i = 0; i < children.size(); ++i) {
@@ -428,14 +428,14 @@ public:
   }
 
   CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
-    return make_nary(sig, Sequence({std::move(child)}, allocator), atype, allocator);
+    return make_nary(sig, Sequence({std::move(child)}, allocator), atype);
   }
 
   CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
-    return make_nary(sig, Sequence({std::move(lhs), std::move(rhs)}, allocator), atype, allocator);
+    return make_nary(sig, Sequence({std::move(lhs), std::move(rhs)}, allocator), atype);
   }
 
-  CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+  CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED) {
     return this_type(atype, Formula::template create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
   }
 
@@ -586,7 +586,7 @@ public:
   }
 private:
   template<size_t n>
-  CUDA void print_sequence(bool print_atype) const {
+  CUDA void print_sequence(bool print_atype, bool top_level = false) const {
     const auto& op = battery::get<0>(battery::get<n>(formula));
     const auto& children = battery::get<1>(battery::get<n>(formula));
     if(children.size() == 0) {
@@ -598,7 +598,7 @@ private:
         if(op == ABS) printf("|");
         else if(op == CARD) printf("#(");
         else printf("%s(", string_of_sig(op));
-        children[0].print(print_atype);
+        children[0].print_impl(print_atype);
         if(op == ABS) printf("|");
         else if(op == CARD) printf(")");
         else printf(")");
@@ -614,7 +614,7 @@ private:
     }
     printf("(");
     for(int i = 0; i < children.size(); ++i) {
-      children[i].print(print_atype);
+      children[i].print_impl(print_atype);
       if(i < children.size() - 1) {
         if(!isprefix) {
           printf(" ");
@@ -625,12 +625,16 @@ private:
           printf(", ");
         }
       }
+      if constexpr(n == Seq) {
+        if(op == AND && top_level) {
+          printf("\n");
+        }
+      }
     }
     printf(")");
   }
 
-public:
-  CUDA void print(bool print_atype = true) const {
+  CUDA void print_impl(bool print_atype = true, bool top_level = false) const {
     switch(formula.index()) {
       case B:
         printf("%s", b() ? "true" : "false");
@@ -678,13 +682,17 @@ public:
         if(print_atype) { printf(")"); }
         break;
       }
-      case Seq: print_sequence<Seq>(print_atype); break;
-      case ESeq: print_sequence<ESeq>(print_atype); break;
+      case Seq: print_sequence<Seq>(print_atype, top_level); break;
+      case ESeq: print_sequence<ESeq>(print_atype, top_level); break;
       default: printf("print: formula not handled.\n"); assert(false); break;
     }
     if(print_atype) {
       printf(":%d", type_);
     }
+  }
+  public:
+  CUDA void print(bool print_atype = true) const {
+    print_impl(print_atype, true);
   }
 };
 

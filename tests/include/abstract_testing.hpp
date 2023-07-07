@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#ifndef GENERIC_UNIVERSE_TEST_HPP
-#define GENERIC_UNIVERSE_TEST_HPP
+#ifndef LALA_CORE_GENERIC_UNIVERSE_TEST_HPP
+#define LALA_CORE_GENERIC_UNIVERSE_TEST_HPP
 
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>

@@ -1,7 +1,7 @@
 // Copyright 2023 Pierre Talbot
 
-#ifndef PRE_FDEC_HPP
-#define PRE_FDEC_HPP
+#ifndef LALA_CORE_PRE_FDEC_HPP
+#define LALA_CORE_PRE_FDEC_HPP
 
 #include "../logic/logic.hpp"
 #include "pre_finc.hpp"

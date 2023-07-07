@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef TYPES_HPP
-#define TYPES_HPP
+#ifndef LALA_CORE_TYPES_HPP
+#define LALA_CORE_TYPES_HPP
 
 #include "battery/utility.hpp"
 #include "battery/vector.hpp"

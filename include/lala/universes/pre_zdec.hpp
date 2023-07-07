@@ -1,7 +1,7 @@
 // Copyright 2023 Pierre Talbot
 
-#ifndef PRE_ZDEC_HPP
-#define PRE_ZDEC_HPP
+#ifndef LALA_CORE_PRE_ZDEC_HPP
+#define LALA_CORE_PRE_ZDEC_HPP
 
 #include "../logic/logic.hpp"
 #include "pre_zinc.hpp"

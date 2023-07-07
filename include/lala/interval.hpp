@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#ifndef INTERVAL_HPP
-#define INTERVAL_HPP
+#ifndef LALA_CORE_INTERVAL_HPP
+#define LALA_CORE_INTERVAL_HPP
 
 #include "cartesian_product.hpp"
 #include "universes/flat_universe.hpp"

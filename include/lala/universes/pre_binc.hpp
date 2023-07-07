@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef PRE_BINC_HPP
-#define PRE_BINC_HPP
+#ifndef LALA_CORE_PRE_BINC_HPP
+#define LALA_CORE_PRE_BINC_HPP
 
 #include "../logic/logic.hpp"
 

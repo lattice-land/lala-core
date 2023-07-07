@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#ifndef VSTORE_HPP
-#define VSTORE_HPP
+#ifndef LALA_CORE_VSTORE_HPP
+#define LALA_CORE_VSTORE_HPP
 
 #include "logic/logic.hpp"
 #include "universes/primitive_upset.hpp"

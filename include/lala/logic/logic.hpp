@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef LOGIC_HPP
-#define LOGIC_HPP
+#ifndef LALA_CORE_LOGIC_HPP
+#define LALA_CORE_LOGIC_HPP
 
 #include "sort.hpp"
 #include "ast.hpp"

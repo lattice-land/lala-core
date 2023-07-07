@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#ifndef ENV_HPP
-#define ENV_HPP
+#ifndef LALA_CORE_ENV_HPP
+#define LALA_CORE_ENV_HPP
 
 #include "battery/utility.hpp"
 #include "battery/vector.hpp"

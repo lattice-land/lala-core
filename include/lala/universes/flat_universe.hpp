@@ -1,7 +1,7 @@
 // Copyright 2023 Pierre Talbot
 
-#ifndef FLAT_UNIVERSE_HPP
-#define FLAT_UNIVERSE_HPP
+#ifndef LALA_CORE_FLAT_UNIVERSE_HPP
+#define LALA_CORE_FLAT_UNIVERSE_HPP
 
 #include "primitive_upset.hpp"
 

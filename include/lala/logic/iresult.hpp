@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#ifndef IRESULT_HPP
-#define IRESULT_HPP
+#ifndef LALA_CORE_IRESULT_HPP
+#define LALA_CORE_IRESULT_HPP
 
 #include "battery/utility.hpp"
 #include "battery/vector.hpp"

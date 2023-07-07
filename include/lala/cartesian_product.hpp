@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#ifndef CARTESIAN_PRODUCT_HPP
-#define CARTESIAN_PRODUCT_HPP
+#ifndef LALA_CORE_CARTESIAN_PRODUCT_HPP
+#define LALA_CORE_CARTESIAN_PRODUCT_HPP
 
 #include "thrust/optional.h"
 #include "battery/utility.hpp"

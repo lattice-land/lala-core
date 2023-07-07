@@ -1,37 +1,22 @@
 cmake_minimum_required(VERSION 3.20)
 
-include(FetchContent)
-include(CMakePrintHelpers)
-
-# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24:
-# Fix found at https://github.com/ethereum/solidity/pull/13429
 if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
-  cmake_policy(SET CMP0135 NEW)
+cmake_policy(SET CMP0135 NEW)
 endif()
 
-project(lala-core LANGUAGES CUDA CXX)
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES native)
+endif()
+
+include(FetchContent)
+
+project(lala-core-test
+  VERSION 1.0.0
+  HOMEPAGE_URL "https://github.com/lattice-land/lala-core"
+  LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
 
-if(NOT DEFINED CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_STANDARD 20)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-endif()
-
-if(NOT DEFINED CMAKE_CUDA_STANDARD)
-    set(CMAKE_CUDA_STANDARD 20)
-    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-endif()
-
-# Cuda-battery dependency
-
-FetchContent_Declare(
-  cuda_battery
-  GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        develop
-)
-FetchContent_MakeAvailable(cuda_battery)
-
-# Lala-parsing dependency (just for tests).
+# Lala-parsing dependency.
 
 FetchContent_Declare(
   lala_parsing
@@ -40,23 +25,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(lala_parsing)
 
-# Thrust dependency
-
-FetchContent_Declare(
-  thrust
-  GIT_REPOSITORY "https://github.com/NVIDIA/thrust.git"
-  GIT_TAG        1.12.0
-)
-FetchContent_GetProperties(thrust)
-if(NOT thrust_POPULATED)
-    FetchContent_Populate(thrust)
-endif()
+# Testing
 
 # Google Test dependency
 
 FetchContent_Declare(
   googletest
-  URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
+  GIT_REPOSITORY "https://github.com/google/googletest"
+  GIT_TAG v1.13.0
 )
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -65,52 +41,22 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 include(GoogleTest)
 
-add_executable(ast_test src/ast_test.cpp)
-target_link_libraries(ast_test cuda_battery lala_parsing gtest_main)
-target_include_directories(ast_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_parsing_SOURCE_DIR}/include ${thrust_SOURCE_DIR} ${cpp-peglib_SOURCE_DIR})
-gtest_discover_tests(ast_test)
-
-add_executable(abstract_deps_test src/abstract_deps_test.cpp)
-target_link_libraries(abstract_deps_test cuda_battery gtest_main)
-target_include_directories(abstract_deps_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
-gtest_discover_tests(abstract_deps_test)
-
-add_executable(flat_universe_test src/flat_universe_test.cpp)
-target_link_libraries(flat_universe_test cuda_battery lala_parsing gtest_main)
-target_include_directories(flat_universe_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_parsing_SOURCE_DIR}/include ${thrust_SOURCE_DIR} ${cpp-peglib_SOURCE_DIR})
-gtest_discover_tests(flat_universe_test)
-
-add_executable(primitive_upset_test src/primitive_upset_test.cpp)
-target_link_libraries(primitive_upset_test cuda_battery lala_parsing gtest_main)
-target_include_directories(primitive_upset_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_parsing_SOURCE_DIR}/include ${thrust_SOURCE_DIR} ${cpp-peglib_SOURCE_DIR})
-gtest_discover_tests(primitive_upset_test)
-
-add_executable(cartesian_product_test src/cartesian_product_test.cpp)
-target_link_libraries(cartesian_product_test cuda_battery lala_parsing gtest_main)
-target_include_directories(cartesian_product_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_parsing_SOURCE_DIR}/include ${thrust_SOURCE_DIR} ${cpp-peglib_SOURCE_DIR})
-gtest_discover_tests(cartesian_product_test)
-
-add_executable(interval_test src/interval_test.cpp)
-target_link_libraries(interval_test cuda_battery lala_parsing gtest_main)
-target_include_directories(interval_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_parsing_SOURCE_DIR}/include ${thrust_SOURCE_DIR} ${cpp-peglib_SOURCE_DIR})
-gtest_discover_tests(interval_test)
-
-add_executable(vstore_test src/vstore_test.cpp)
-target_link_libraries(vstore_test cuda_battery lala_parsing gtest_main)
-target_include_directories(vstore_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_parsing_SOURCE_DIR}/include ${thrust_SOURCE_DIR} ${cpp-peglib_SOURCE_DIR})
-gtest_discover_tests(vstore_test)
-
-if(GPU)
-  set_source_files_properties(src/gpu_fixpoint_test.cpp PROPERTIES LANGUAGE CUDA)
-  add_executable(gpu_fixpoint_test src/gpu_fixpoint_test.cpp)
-  set_property(TARGET gpu_fixpoint_test PROPERTY CUDA_ARCHITECTURES 75)
-  set_property(TARGET gpu_fixpoint_test PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-  target_compile_options(gpu_fixpoint_test PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:
-      --expt-relaxed-constexpr
-      --compiler-options -frounding-math>
-    $<$<CONFIG:Debug>:-g -DDEBUG>)
-  target_include_directories(gpu_fixpoint_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include ${CMAKE_CURRENT_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include)
-  add_test(NAME gpu_fixpoint_test COMMAND compute-sanitizer --error-exitcode 1 $<TARGET_FILE:gpu_fixpoint_test>)
-endif()
-
+file(GLOB test_files src/*.cpp)
+foreach(file ${test_files})
+  cmake_path(GET file STEM test_name)
+  if(GPU)
+    set_source_files_properties(${file} PROPERTIES LANGUAGE CUDA)
+  endif()
+  add_executable(${test_name} ${file})
+  target_include_directories(${test_name} PRIVATE include)
+  if(${test_name} MATCHES ".*gpu$")
+    if(GPU)
+      target_link_libraries(${test_name} cuda_battery lala_core lala_parsing)
+      # We run the tests using compute-sanitizer to check for memory leaks.
+      add_test(NAME ${test_name} COMMAND compute-sanitizer --error-exitcode 1 $<TARGET_FILE:${test_name}>)
+    endif()
+  else()
+    target_link_libraries(${test_name} cuda_battery lala_core lala_parsing gtest_main)
+    gtest_discover_tests(${test_name})
+  endif()
+endforeach()

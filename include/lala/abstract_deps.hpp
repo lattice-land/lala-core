@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#ifndef ABSTRACT_DEPS_HPP
-#define ABSTRACT_DEPS_HPP
+#ifndef LALA_CORE_ABSTRACT_DEPS_HPP
+#define LALA_CORE_ABSTRACT_DEPS_HPP
 
 #include "battery/utility.hpp"
 #include "battery/vector.hpp"

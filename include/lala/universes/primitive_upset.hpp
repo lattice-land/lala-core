@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef PRIMITIVE_UPSET_HPP
-#define PRIMITIVE_UPSET_HPP
+#ifndef LALA_CORE_PRIMITIVE_UPSET_HPP
+#define LALA_CORE_PRIMITIVE_UPSET_HPP
 
 #include <type_traits>
 #include <utility>

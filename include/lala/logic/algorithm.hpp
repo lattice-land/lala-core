@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef ALGORITHM_HPP
-#define ALGORITHM_HPP
+#ifndef LALA_CORE_ALGORITHM_HPP
+#define LALA_CORE_ALGORITHM_HPP
 
 #include "ast.hpp"
 

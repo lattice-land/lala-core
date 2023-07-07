@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef FIXPOINT_HPP
-#define FIXPOINT_HPP
+#ifndef LALA_CORE_FIXPOINT_HPP
+#define LALA_CORE_FIXPOINT_HPP
 
 #include "logic/logic.hpp"
 #include "universes/primitive_upset.hpp"
@@ -104,13 +104,15 @@ public:
   }
 
   template <class A, class M>
-  CUDA void fixpoint(A& a, BInc<M>& has_changed) {
+  CUDA size_t fixpoint(A& a, BInc<M>& has_changed) {
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
+    return 0;
   #else
     reset();
     barrier();
-    for(int i = 1; changed[(i-1)%3]; ++i) {
+    size_t i;
+    for(i = 1; changed[(i-1)%3]; ++i) {
       iterate(a, changed[i%3]);
       changed[(i+1)%3].dtell_bot(); // reinitialize changed for the next iteration.
       barrier();
@@ -118,6 +120,7 @@ public:
     // It changes if we performed several iteration, or if the first iteration changed the abstract domain.
     has_changed.tell(changed[1]);
     has_changed.tell(changed[2]);
+    return i - 1;
   #endif
   }
 
