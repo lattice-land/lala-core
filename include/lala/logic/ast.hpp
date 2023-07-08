@@ -642,16 +642,17 @@ private:
       case Z:
         printf("%lld", z());
         break;
-      case R:
-        const auto& lb = battery::get<0>(r());
-        const auto& ub = battery::get<1>(r());
-        if(lb == ub) {
-          printf("%.50lf", lb);
+      case R: {
+        const auto& r_lb = battery::get<0>(r());
+        const auto& r_ub = battery::get<1>(r());
+        if(r_lb == r_ub) {
+          printf("%.50lf", r_lb);
         }
         else {
-          printf("[%.50lf..%.50lf]", battery::get<0>(r()), battery::get<1>(r()));
+          printf("[%.50lf..%.50lf]", r_lb, r_ub);
         }
         break;
+      }
       case S:
         printf("{");
         for(int i = 0; i < s().size(); ++i) {
