@@ -1,14 +1,5 @@
-cmake_minimum_required(VERSION 3.20)
-
-if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+cmake_minimum_required(VERSION 3.24)
 cmake_policy(SET CMP0135 NEW)
-endif()
-
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES native)
-endif()
-
-include(FetchContent)
 
 project(lala-core
   VERSION 1.0.0
@@ -18,10 +9,12 @@ option(GPU "GPU" ON)
 
 # Cuda-battery dependency
 
+include(FetchContent)
+
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        develop
+  GIT_TAG        main
 )
 FetchContent_MakeAvailable(cuda_battery)
 
@@ -42,12 +35,14 @@ endif()
 add_library(lala_core INTERFACE)
 target_include_directories(lala_core INTERFACE include)
 target_link_libraries(lala_core INTERFACE cuda_battery)
+target_compile_options(lala_core INTERFACE
+  $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress 20011,20014> # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
+)
 
 # Documentation
 
 find_package(Doxygen REQUIRED doxygen)
 
-# Options based on those of Halide: https://github.com/halide/Halide/blob/feb81a2a0f7bc39cfa499e4e1a7dfedbc5250aaa/doc/CMakeLists.txt
 set(DOXYGEN_PROJECT_NAME "Lattice land core library")
 set(DOXYGEN_BUILTIN_STL_SUPPORT YES)
 set(DOXYGEN_CASE_SENSE_NAMES NO)

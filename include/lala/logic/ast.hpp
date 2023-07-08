@@ -643,7 +643,14 @@ private:
         printf("%lld", z());
         break;
       case R:
-        printf("[%.50lf..%.50lf]", battery::get<0>(r()), battery::get<1>(r()));
+        const auto& lb = battery::get<0>(r());
+        const auto& ub = battery::get<1>(r());
+        if(lb == ub) {
+          printf("%.50lf", lb);
+        }
+        else {
+          printf("[%.50lf..%.50lf]", battery::get<0>(r()), battery::get<1>(r()));
+        }
         break;
       case S:
         printf("{");

@@ -1,22 +1,18 @@
-cmake_minimum_required(VERSION 3.20)
-
-if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+cmake_minimum_required(VERSION 3.24)
 cmake_policy(SET CMP0135 NEW)
-endif()
 
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   set(CMAKE_CUDA_ARCHITECTURES native)
 endif()
 
-include(FetchContent)
-
 project(lala-core-test
   VERSION 1.0.0
   HOMEPAGE_URL "https://github.com/lattice-land/lala-core"
   LANGUAGES CUDA CXX)
-option(GPU "GPU" ON)
 
 # Lala-parsing dependency.
+
+include(FetchContent)
 
 FetchContent_Declare(
   lala_parsing
@@ -51,12 +47,12 @@ foreach(file ${test_files})
   target_include_directories(${test_name} PRIVATE include)
   if(${test_name} MATCHES ".*gpu$")
     if(GPU)
-      target_link_libraries(${test_name} cuda_battery lala_core lala_parsing)
+      target_link_libraries(${test_name} lala_parsing)
       # We run the tests using compute-sanitizer to check for memory leaks.
       add_test(NAME ${test_name} COMMAND compute-sanitizer --error-exitcode 1 $<TARGET_FILE:${test_name}>)
     endif()
   else()
-    target_link_libraries(${test_name} cuda_battery lala_core lala_parsing gtest_main)
+    target_link_libraries(${test_name} lala_parsing gtest_main)
     gtest_discover_tests(${test_name})
   endif()
 endforeach()

@@ -3,8 +3,8 @@
 #include <random>
 #include <limits>
 #include <algorithm>
-#include "battery/allocator.hpp"
 #include "battery/memory.hpp"
+#include "battery/allocator.hpp"
 #include "lala/fixpoint.hpp"
 #include "lala/universes/primitive_upset.hpp"
 
