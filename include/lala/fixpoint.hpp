@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef LALA_CORE_FIXPOINT_HPP
-#define LALA_CORE_FIXPOINT_HPP
+#ifndef FIXPOINT_HPP
+#define FIXPOINT_HPP
 
 #include "logic/logic.hpp"
 #include "universes/primitive_upset.hpp"
@@ -56,11 +56,11 @@ public:
  * - `a.num_refinements()`: return the number of refinement functions.
  * \tparam Group is a CUDA cooperative group class.
  * \tparam Memory is an atomic memory, that must be compatible with the cooperative group chosen (e.g., don't use atomic_memory_block if the group contains multiple blocks). */
-template <class Group, class Memory>
+template <class Group, class Memory, class Allocator>
 class AsynchronousIterationGPU {
 public:
   using memory_type = Memory;
-  using allocator_type = typename memory_type::allocator_type;
+  using allocator_type = Allocator;
   using group_type = Group;
 private:
   using atomic_binc = BInc<memory_type>;
@@ -133,10 +133,10 @@ public:
 };
 
 template <class Allocator>
-using BlockAsynchronousIterationGPU = AsynchronousIterationGPU<cooperative_groups::thread_block, battery::atomic_memory_block<Allocator>>;
+using BlockAsynchronousIterationGPU = AsynchronousIterationGPU<cooperative_groups::thread_block, battery::atomic_memory_block, Allocator>;
 
 template <class Allocator>
-using GridAsynchronousIterationGPU = AsynchronousIterationGPU<cooperative_groups::grid_group, battery::atomic_memory_grid<Allocator>>;
+using GridAsynchronousIterationGPU = AsynchronousIterationGPU<cooperative_groups::grid_group, battery::atomic_memory_grid, Allocator>;
 
 #endif
 

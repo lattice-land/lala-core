@@ -31,59 +31,32 @@ public:
   }
 };
 
-template<class T, class Alloc, class... Args>
-__device__ T* make_block_unique(unique_ptr<T, Alloc>& ptr, Args&&... args) {
-  __shared__ T* raw_ptr;
-  auto block = cooperative_groups::this_thread_block();
-  invoke_one(block, [&](){
-    ptr = battery::make_unique<T, Alloc>(std::forward<Args>(args)...);
-    raw_ptr = ptr.get();
-  });
-  block.sync();
-  return raw_ptr;
-}
-
-__device__ void* grid_raw_ptr[2];
-__device__ int active_ptr = 0;
-
-template<class T, class Alloc, class... Args>
-__device__ T* make_grid_unique(unique_ptr<T, Alloc>& ptr, Args&&... args) {
-  auto grid = cooperative_groups::this_grid();
-  invoke_one(grid, [&](){
-    ptr = battery::make_unique<T, Alloc>(std::forward<Args>(args)...);
-    active_ptr = (active_ptr + 1) % 2;
-    grid_raw_ptr[active_ptr] = ptr.get();
-  });
-  grid.sync();
-  return static_cast<T*>(grid_raw_ptr[active_ptr]);
-}
-
 __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {
   using FP_engine = BlockAsynchronousIterationGPU<global_allocator>;
-  using Min = Minimum<atomic_memory_block<global_allocator>>;
+  using Min = Minimum<atomic_memory_block>;
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;
   auto block = cooperative_groups::this_thread_block();
-  FP_engine* fp = make_block_unique<FP_engine, global_allocator>(fp_engine, block);
-  Min* m = make_block_unique<Min, global_allocator>(minimum, g);
-  fp->fixpoint(*m);
-  invoke_one(block, [&](){
-    *result = m->extract();
+  FP_engine& fp = battery::make_unique_block<FP_engine, global_allocator>(fp_engine, block);
+  Min& m = battery::make_unique_block<Min, global_allocator>(minimum, g);
+  fp.fixpoint(m);
+  cooperative_groups::invoke_one(block, [&](){
+    *result = m.extract();
   });
   block.sync();
 }
 
 __global__ void minimum_kernel_on_grid(cpu_gpu_vec* g, int* result) {
   using FP_engine = GridAsynchronousIterationGPU<global_allocator>;
-  using Min = Minimum<atomic_memory_grid<global_allocator>>;
+  using Min = Minimum<atomic_memory_grid>;
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;
   auto grid = cooperative_groups::this_grid();
-  FP_engine* fp = make_grid_unique<FP_engine, global_allocator>(fp_engine, grid);
-  Min* m = make_grid_unique<Min, global_allocator>(minimum, g);
-  fp->fixpoint(*m);
-  invoke_one(grid, [&](){
-    *result = m->extract();
+  FP_engine& fp = battery::make_unique_grid<FP_engine, global_allocator>(fp_engine, grid);
+  Min& m = battery::make_unique_grid<Min, global_allocator>(minimum, g);
+  fp.fixpoint(m);
+  cooperative_groups::invoke_one(grid, [&](){
+    *result = m.extract();
   });
   grid.sync();
 }
@@ -109,9 +82,9 @@ void run_gpu_min(const std::vector<int>& v, cpu_gpu_vec_ptr g) {
     void* args[] = {&g_ptr, &res_ptr};
     dim3 dimBlock(BLOCK_SIZE, 1, 1);
     dim3 dimGrid(GRID_SIZE, 1, 1);
-    CUDIE(cudaLaunchCooperativeKernel((void*)minimum_kernel_on_grid, dimGrid, dimBlock, args));
+    CUDAEX(cudaLaunchCooperativeKernel((void*)minimum_kernel_on_grid, dimGrid, dimBlock, args));
   }
-  CUDIE(cudaDeviceSynchronize());
+  CUDAEX(cudaDeviceSynchronize());
   int cpu_res = *(std::min_element(v.begin(), v.end()));
   std::cout << "grid size: " << GRID_SIZE << " | block size: " << BLOCK_SIZE << " | gpu min: " << *gpu_res << " | cpu min: " << cpu_res << std::endl;
   assert(*gpu_res == cpu_res);
@@ -119,7 +92,7 @@ void run_gpu_min(const std::vector<int>& v, cpu_gpu_vec_ptr g) {
 
 int main() {
   std::vector<int> v = init_random_vector(1000000);
-  cpu_gpu_vec_ptr g = make_shared<cpu_gpu_vec, managed_allocator>(cpu_gpu_vec{v.data(), v.size()});
+  cpu_gpu_vec_ptr g = ::battery::make_shared<cpu_gpu_vec, managed_allocator>(v);
   run_gpu_min<1, 1>(v, g);
   run_gpu_min<1, 2>(v, g);
   run_gpu_min<1, 100>(v, g);
@@ -134,7 +107,6 @@ int main() {
     return 0;
   }
 
-  // Does not work yet.
   run_gpu_min<2, 1>(v, g);
   run_gpu_min<2, 100>(v, g);
   run_gpu_min<2, 256>(v, g);
