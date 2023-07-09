@@ -17,7 +17,7 @@ include(FetchContent)
 FetchContent_Declare(
   lala_parsing
   GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-  GIT_TAG        develop
+  GIT_TAG        main
 )
 FetchContent_MakeAvailable(lala_parsing)
 
@@ -40,19 +40,20 @@ include(GoogleTest)
 file(GLOB test_files src/*.cpp)
 foreach(file ${test_files})
   cmake_path(GET file STEM test_name)
-  if(GPU)
-    set_source_files_properties(${file} PROPERTIES LANGUAGE CUDA)
-  endif()
-  add_executable(${test_name} ${file})
-  target_include_directories(${test_name} PRIVATE include)
-  if(${test_name} MATCHES ".*gpu$")
+  # This condition to ignore GPU tests if GPU is not enabled.
+  if(NOT ((${test_name} MATCHES ".*gpu$") AND (NOT GPU)))
     if(GPU)
+      set_source_files_properties(${file} PROPERTIES LANGUAGE CUDA)
+    endif()
+    add_executable(${test_name} ${file})
+    target_include_directories(${test_name} PRIVATE include)
+    if(${test_name} MATCHES ".*gpu$")
       target_link_libraries(${test_name} lala_parsing)
       # We run the tests using compute-sanitizer to check for memory leaks.
       add_test(NAME ${test_name} COMMAND compute-sanitizer --error-exitcode 1 $<TARGET_FILE:${test_name}>)
+    else()
+      target_link_libraries(${test_name} lala_parsing gtest_main)
+      gtest_discover_tests(${test_name})
     endif()
-  else()
-    target_link_libraries(${test_name} lala_parsing gtest_main)
-    gtest_discover_tests(${test_name})
   endif()
 endforeach()
