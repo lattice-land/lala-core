@@ -64,6 +64,11 @@ public:
   template<class F, class Env> using iresult_ask = iresult<F, Env>;
 
   constexpr static const bool is_abstract_universe = false;
+  /** An abstract domain can, or not, further refined its inner elements.
+   * In the case it cannot refine its elements, you must be aware that formula might be over-approximated.
+   * When the domain of discourse is the integers, it might lead to over-approximating solutions and not exact solutions.
+  */
+  constexpr static const bool has_refinement = false;
   constexpr static const char* name = "VStore";
 
   template<class U2, class Alloc2>

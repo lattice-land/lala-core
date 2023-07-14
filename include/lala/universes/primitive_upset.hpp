@@ -374,7 +374,7 @@ private:
   }
 
   template<class F>
-  CUDA static iresult<F> interpret_tell_in(const F& f, const F& k) {
+  CUDA static iresult<F> interpret_tell_set(const F& f, const F& k) {
     const auto& set = k.s();
     if(set.size() == 0) {
       return top();
@@ -427,7 +427,7 @@ public:
             return iresult<F>(IError<F>(true, name, "The formula `k in x` is not supported in this abstract universe (`x in k` is supported).", f));
           }
           else { // `x in k` is equivalent to `x >= meet k` where `>=` is the lattice order `U::sig_order()`.
-            return interpret_tell_in(f, k);
+            return interpret_tell_set(f, k);
           }
         }
         else {
