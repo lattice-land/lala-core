@@ -9,6 +9,14 @@
 
 namespace lala {
 
+  struct NonAtomicExtraction {
+    static constexpr bool atoms = false;
+  };
+
+  struct AtomicExtraction {
+    static constexpr bool atoms = true;
+  };
+
 /** The variable store abstract domain is a _domain transformer_ built on top of an abstract universe `U`.
 Concretization function: \f$ \gamma(\rho) \sqcap_{x \in \pi(\rho)} \gamma_{U_x}(\rho(x)) \f$.
 The top element is smashed and the equality between two stores is represented by the following equivalence relation, for two stores \f$ S \f$ and \f$ T \f$:
@@ -488,10 +496,17 @@ public:
 
   /** Whenever `this` is different from `top`, we extract its data into `ua`.
    * For now, we suppose VStore is only used to store under-approximation, I'm not sure yet how we would interact with over-approximation. */
-  template<class U2, class Alloc2>
-  CUDA bool extract(VStore<U2, Alloc2>& ua) const {
+  template<class ExtractionStrategy = NonAtomicExtraction, class U2, class Alloc2>
+  CUDA bool extract(VStore<U2, Alloc2>& ua, const ExtractionStrategy& strategy = ExtractionStrategy()) const {
     if(is_top()) {
       return false;
+    }
+    if constexpr(ExtractionStrategy::atoms) {
+      for(int i = 0; i < data.size(); ++i) {
+        if(data[i].lb() < dual<typename universe_type::LB>(data[i].ub())) {
+          return false;
+        }
+      }
     }
     if((void*)&ua != (void*)this) {
       ua.data = data;
