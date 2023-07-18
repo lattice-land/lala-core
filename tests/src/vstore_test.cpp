@@ -151,3 +151,10 @@ TEST(VStoreTest, CopyAndAllocator) {
   using IStore2 = VStore<Itv, stat_alloc>;
   IStore2 copy(vstore, AbstractDeps<stat_alloc>(stat_alloc{}));
 }
+
+TEST(VStoreTest, Idempotence) {
+  check_interpret_idempotence<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 10);");
+  check_interpret_idempotence<CPStore>("var int: x; var int: y; constraint int_gt(x, 4); constraint int_lt(x, 6); constraint int_le(y, 1);");
+  check_interpret_idempotence<IStore>("array[1..10] of var int: x;");
+  check_interpret_idempotence<IStore>("array[1..10] of var 1..10: x;");
+}

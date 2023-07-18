@@ -64,11 +64,6 @@ public:
   template<class F, class Env> using iresult_ask = iresult<F, Env>;
 
   constexpr static const bool is_abstract_universe = false;
-  /** An abstract domain can, or not, further refined its inner elements.
-   * In the case it cannot refine its elements, you must be aware that formula might be over-approximated.
-   * When the domain of discourse is the integers, it might lead to over-approximating solutions and not exact solutions.
-  */
-  constexpr static const bool has_refinement = false;
   constexpr static const char* name = "VStore";
 
   template<class U2, class Alloc2>
@@ -334,7 +329,10 @@ public:
   template <class F, class Env>
   CUDA static IResult<this_type, F> interpret_tell(const F& f, Env& env, allocator_type alloc = allocator_type()) {
     auto snap = env.snapshot();
-    this_type store(env.extends_abstract_dom(), num_quantified_untyped_vars(f), alloc);
+    size_t ty = env.extends_abstract_dom();
+    this_type store(ty,
+      num_quantified_vars(f, UNTYPED) + num_quantified_vars(f, ty),
+      alloc);
     auto r = store.interpret_tell_in(f, env);
     if(r.has_value()) {
       store.tell(r.value());
@@ -497,6 +495,21 @@ public:
       ua.is_at_top.dtell_bot();
     }
     return true;
+  }
+
+  template<class Env>
+  CUDA TFormula<typename Env::allocator_type> deinterpret(const Env& env) const {
+    using F = TFormula<typename Env::allocator_type>;
+    typename F::Sequence seq{env.get_allocator()};
+    for(int i = 0; i < data.size(); ++i) {
+      AVar v(aty(), i);
+      seq.push_back(F::make_exists(aty(), env.name_of(v), env.sort_of(v)));
+      auto f = data[i].deinterpret(v, env);
+      f.type_as(aty());
+      map_avar_to_lvar(f, env);
+      seq.push_back(std::move(f));
+    }
+    return F::make_nary(AND, std::move(seq), aty());
   }
 };
 

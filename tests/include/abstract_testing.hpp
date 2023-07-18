@@ -371,4 +371,36 @@ void generic_arithmetic_fun_test(const A& a) {
   generic_binary_fun_test<POW, A, R>(a);
 }
 
+/** Check that $\llbracket . \rrbracket = \llbracket . \rrbracket \circ \rrbacket . \llbracket \circ \llbracket . \rrbracket. */
+template <class L>
+void check_interpret_idempotence(const char* fzn) {
+  VarEnv<standard_allocator> env1;
+  using F = TFormula<standard_allocator>;
+  auto f = parse_flatzinc_str<standard_allocator>(fzn);
+  EXPECT_TRUE(f);
+  f->print(true);
+  printf("\n");
+  auto r = L::interpret_tell(*f, env1);
+  if(!r.has_value()) {
+    r.print_diagnostics();
+  }
+  EXPECT_TRUE(r.has_value());
+
+  F f2 = r.value().deinterpret(env1);
+  f2.print(true);
+  printf("\n");
+  VarEnv<standard_allocator> env2;
+  auto r2 = L::interpret_tell(f2, env2);
+  if(!r2.has_value()) {
+    r2.print_diagnostics();
+  }
+  EXPECT_TRUE(r2.has_value());
+  EXPECT_EQ(r.value(), r2.value());
+
+  F f3 = r2.value().deinterpret(env2);
+  f3.print(true);
+  printf("\n");
+  EXPECT_EQ(f2, f3);
+}
+
 #endif

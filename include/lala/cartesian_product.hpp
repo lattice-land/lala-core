@@ -456,8 +456,7 @@ private:
       else {
         return TFormula<Allocator>::make_nary(
           AND,
-          std::move(seq),
-          UNTYPED, env.get_allocator());
+          std::move(seq));
       }
     }
   }
