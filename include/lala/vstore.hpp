@@ -251,6 +251,9 @@ private:
 
   template <bool is_tell, class F, class Env>
   CUDA iresult<F, Env> interpret_predicate(const F& f, Env& env) const {
+    if(f.type() != UNTYPED && f.type() != aty()) {
+      return iresult<F, Env>(IError<F>(true, name, "The predicate is not of the right type.", f));
+    }
     if constexpr(is_tell) {
       if(f.is(F::E)) {
         return interpret_existential(f, env);

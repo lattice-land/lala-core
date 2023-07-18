@@ -698,7 +698,8 @@ private:
       printf(":%d", type_);
     }
   }
-  public:
+
+public:
   CUDA void print(bool print_atype = true) const {
     print_impl(print_atype, true);
   }
