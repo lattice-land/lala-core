@@ -411,11 +411,12 @@ public:
     return this_type(ty, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
-  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED)
+  /** If `flatten` is `true` it will try to merge the children together to avoid nested formula. */
+  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, bool flatten=true)
   {
     Sequence seq;
     for(size_t i = 0; i < children.size(); ++i) {
-      if(children[i].is(Seq) && children[i].sig() == sig && children[i].type() == atype) {
+      if(flatten && children[i].is(Seq) && children[i].sig() == sig && children[i].type() == atype) {
         for(size_t j = 0; j < children[i].seq().size(); ++j) {
           seq.push_back(std::move(children[i].seq(j)));
         }
@@ -431,8 +432,8 @@ public:
     return make_nary(sig, Sequence({std::move(child)}, allocator), atype);
   }
 
-  CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
-    return make_nary(sig, Sequence({std::move(lhs), std::move(rhs)}, allocator), atype);
+  CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, const Allocator& allocator = Allocator(), bool flatten=true) {
+    return make_nary(sig, Sequence({std::move(lhs), std::move(rhs)}, allocator), atype, flatten);
   }
 
   CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED) {
