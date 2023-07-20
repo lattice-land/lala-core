@@ -126,27 +126,69 @@ TEST(IntervalTest, Multiplication) {
   EXPECT_EQ((Itv::fun<MUL>(Itv(10, -10), Itv(9, -9))), Itv(90, -90));
 }
 
-// TEST(IntervalTest, Division) {
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, -2), Itv(-9, -3))), Itv(6, 90));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, -2), Itv(3, 9))), Itv(-90, -6));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, -2), Itv(-9, 9))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, -2), Itv(9, -9))), Itv(90, -90));
+// Based on the table provided in (Leijen D. (2003). Division and Modulus for Computer Scientists).
+TEST(IntervalTest, GroundDivisionModulo) {
+  // Eucliden Division and Modulo
 
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(2, 10), Itv(-9, -3))), Itv(-90, -6));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(2, 10), Itv(3, 9))), Itv(6, 90));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(2, 10), Itv(-9, 9))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(2, 10), Itv(9, -9))), Itv(90, -90));
+  // a, b, qT, rT, qF, rF, qE, rE, qC, rC
+  std::vector<std::vector<int>> div_mod = {
+    {8, 3, 2, 2, 2, 2, 2, 2, 3, -1},
+    {8, -3, -2, 2, -3, -1, -2, 2, -2, 2},
+    {-8, 3, -2, -2, -3, 1, -3, 1, -2, -2},
+    {-8, -3, 2, -2, 2, -2, 3, 1, 3, 1},
+    {1, 2, 0, 1, 0, 1, 0, 1, 1, -1},
+    {1, -2, 0, 1, -1, -1, 0, 1, 0, 1},
+    {-1, 2, 0, -1, -1, 1, -1, 1, 0, -1},
+    {-1, -2, 0, -1, 0, -1, 1, 1, 1, 1}
+  };
 
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, 10), Itv(-9, -3))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, 10), Itv(3, 9))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, 10), Itv(-9, 9))), Itv(-90, 90));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(-10, 10), Itv(9, -9))), Itv::eq_zero());
+  for(int i = 0; i < div_mod.size(); ++i) {
+    Itv a(div_mod[i][0]);
+    Itv b(div_mod[i][1]);
+    EXPECT_EQ((Itv::fun<TDIV>(a, b)), (Itv(div_mod[i][2]))) << i;
+    EXPECT_EQ((Itv::fun<TMOD>(a, b)), (Itv(div_mod[i][3]))) << i;
+    EXPECT_EQ((Itv::fun<FDIV>(a, b)), (Itv(div_mod[i][4]))) << i;
+    EXPECT_EQ((Itv::fun<FMOD>(a, b)), (Itv(div_mod[i][5]))) << i;
+    EXPECT_EQ((Itv::fun<EDIV>(a, b)), (Itv(div_mod[i][6]))) << i;
+    EXPECT_EQ((Itv::fun<EMOD>(a, b)), (Itv(div_mod[i][7]))) << i;
+    EXPECT_EQ((Itv::fun<CDIV>(a, b)), (Itv(div_mod[i][8]))) << i;
+    EXPECT_EQ((Itv::fun<CMOD>(a, b)), (Itv(div_mod[i][9]))) << i;
+  }
 
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(-9, -3))), Itv(90, -90));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(3, 9))), Itv(90, -90));
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(-9, 9))), Itv::eq_zero());
-//   EXPECT_EQ((Itv::fun<EDIV>(Itv(10, -10), Itv(9, -9))), Itv(90, -90));
-// }
+  // std::vector<int> a = {1, 8, -1, -8};
+  // std::vector<int> b = {2, 3, -2, -3};
+  // for(int x : b) { printf("%d ", x); }
+  // printf("\n");
+  // for(int i = 0; i < a.size(); ++i) {
+  //   printf("%d | ", a[i]);
+  //   for(int j = 0; j < b.size(); ++j) {
+  //     printf("%d ", Itv::fun<EDIV>(Itv(a[i]), Itv(b[j])).lb().value());
+  //   }
+  //   printf("\n");
+  // }
+}
+
+TEST(IntervalTest, EuclideanDivision) {
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(1, 8), Itv(2, 3))), Itv(0, 4));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(1, 8), Itv(-3, 2))), Itv(-2, 4));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(1, 8), Itv(-2, 3))), Itv(-4, 2));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(1, 8), Itv(-3, -2))), Itv(-4, 0));
+
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 8), Itv(2, 3))), Itv(-1, 4));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 8), Itv(-3, 2))), Itv(-2, 4));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 8), Itv(-2, 3))), Itv(-4, 2));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 8), Itv(-3, -2))), Itv(-4, 1));
+
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, 1), Itv(2, 3))), Itv(-4, 0));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, 1), Itv(-3, 2))), Itv(-4, 3));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, 1), Itv(-2, 3))), Itv(-3, 4));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, 1), Itv(-3, -2))), Itv(0, 4));
+
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, -1), Itv(2, 3))), Itv(-4, -1));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, -1), Itv(-3, 2))), Itv(-4, 3));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, -1), Itv(-2, 3))), Itv(-3, 4));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, -1), Itv(-3, -2))), Itv(1, 4));
+}
 
 TEST(IntervalTest, Width) {
   EXPECT_EQ(Itv(0,0).width(), Itv(0,0));

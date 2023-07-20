@@ -99,7 +99,6 @@ namespace impl {
 
   template <class T>
   inline constexpr bool is_primitive_upset_v = is_primitive_upset<T>::value;
-
 }
 
 /** This function is useful when we need to convert a value to its dual.

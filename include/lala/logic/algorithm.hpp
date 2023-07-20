@@ -223,14 +223,30 @@ CUDA thrust::optional<F> de_morgan_law(Sig sig_neg, const F& f) {
 }
 
 template <class F>
+CUDA thrust::optional<F> negate_eq(const F& f) {
+  assert(f.is_binary() && f.sig() == EQ);
+  if(f.seq(0).is(F::B)) {
+    auto b = f.seq(0);
+    b.b() = !b.b();
+    return F::make_binary(b, EQ, f.seq(1), f.type(), f.seq().get_allocator());
+  }
+  else if(f.seq(1).is(F::B)) {
+    auto b = f.seq(1);
+    b.b() = !b.b();
+    return F::make_binary(f.seq(0), EQ, b, f.type(), f.seq().get_allocator());
+  }
+  return F::make_nary(NEQ, f.seq(), f.type());
+}
+
+template <class F>
 CUDA thrust::optional<F> negate(const F& f) {
   if(f.is(F::Seq)) {
     Sig neg_sig;
     switch(f.sig()) {
+      case EQ: return negate_eq(f);
       // Total order predicates can be reversed.
       case LEQ: neg_sig = GT; break;
       case GEQ: neg_sig = LT; break;
-      case EQ: neg_sig = NEQ; break;
       case NEQ: neg_sig = EQ; break;
       case LT: neg_sig = GEQ; break;
       case GT: neg_sig = LEQ; break;

@@ -479,6 +479,8 @@ public:
   CUDA constexpr static local_type div(const Interval<L>& l, const Interval<K>& k) {
     auto a = typename Interval<L>::local_type(l);
     auto b = typename Interval<K>::local_type(k);
+    // Below, you can find cases where a or b are top, similar to multiplication above, but this has bugs and need to be studied in more depth.
+    if(a.is_top() || b.is_top()) { return top(); }
     using UB_K = typename Interval<K>::UB::local_type;
     constexpr auto leq_zero = UB_K::leq_k(UB_K::pre_universe::zero());
     // Interval division, [al..au] / [bl..bu]
@@ -498,10 +500,10 @@ public:
         else {
           if constexpr(L::preserve_concrete_covers && K::preserve_concrete_covers) { // In the discrete case, division can be more precise.
             switch(sign(a)) {
-              case PP: return div2<divsig>(a.ub2(), reverse(b));
+              case PP: return div2<divsig>(a.ub2(), b);
               case NP: return local_type(
-                meet(LB2::template guarded_div<divsig>(a.lb(), b.lb()), LB2::template guarded_div<divsig>(a.ub(), b.ub())),
-                meet(UB2::template guarded_div<divsig>(a.lb(), b.ub()), UB2::template guarded_div<divsig>(a.ub(), b.lb())));
+                meet(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
+                meet(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
               case NN: return div2<divsig>(a.lb2(), b);
               case PN: return (a.as_product().is_top()) ? top() : eq_zero();
             }

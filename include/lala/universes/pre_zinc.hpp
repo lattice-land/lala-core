@@ -72,6 +72,9 @@ private:
         return iresult<F>(battery::ru_cast<value_type>(battery::get<1>(f.r())));
       }
     }
+    else if(f.is(F::B)) {
+      return iresult<F>(f.b() ? one() : zero());
+    }
     return iresult<F>(IError<F>(true, name, "Only constant of sorts `Int` and `Real` can be interpreted by an integer abstract universe.", f));
   }
 
