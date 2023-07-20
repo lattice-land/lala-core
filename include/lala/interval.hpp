@@ -504,7 +504,7 @@ public:
               case NP: return local_type(
                 meet(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
                 meet(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
-              case NN: return div2<divsig>(a.lb2(), b);
+              case NN: return reverse(div2<divsig>(a.lb2(), b));
               case PN: return (a.as_product().is_top()) ? top() : eq_zero();
             }
           }
@@ -514,7 +514,7 @@ public:
         }
       case NN:
         switch(sign(a)) {
-          case PP: return div2<divsig>(reverse(a), reverse(b));
+          case PP: return reverse(div2<divsig>(a, b));
           case NP: return div2<divsig>(reverse(a), b.ub2());
           case NN: return div2<divsig>(reverse(a), b);
           case PN:
