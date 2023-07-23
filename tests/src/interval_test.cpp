@@ -188,6 +188,21 @@ TEST(IntervalTest, EuclideanDivision) {
   EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, -1), Itv(-3, 2))), Itv(-4, 3));
   EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, -1), Itv(-2, 3))), Itv(-3, 4));
   EXPECT_EQ((Itv::fun<EDIV>(Itv(-8, -1), Itv(-3, -2))), Itv(1, 4));
+
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(0, 1), Itv(0, 1))), Itv(0, 1));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(0, 1), Itv(0, 0))), Itv::top());
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(0, 1), Itv(1, 1))), Itv(0, 1));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(0, 1), Itv(-1, 1))), Itv(-1, 1));
+
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 1), Itv(0, 1))), Itv(-1, 1));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 1), Itv(0, 0))), Itv::top());
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 1), Itv(1, 1))), Itv(-1, 1));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 1), Itv(-1, 1))), Itv(-1, 1));
+
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 0), Itv(0, 1))), Itv(-1, 0));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 0), Itv(0, 0))), Itv::top());
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 0), Itv(1, 1))), Itv(-1, 0));
+  EXPECT_EQ((Itv::fun<EDIV>(Itv(-1, 0), Itv(-1, 1))), Itv(-1, 1));
 }
 
 TEST(IntervalTest, Width) {

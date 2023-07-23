@@ -406,12 +406,6 @@ private:
     return flat_fun<MUL>(a, b);
   }
 
-  template<Sig divsig, class A, class B>
-  CUDA constexpr static local_type div2(const A& a, const B& b) {
-    return local_type(LB2::template guarded_div<divsig>(a.lb(), b.lb()),
-                     UB2::template guarded_div<divsig>(a.ub(), b.ub()));
-  }
-
   template<Sig sig, class R, class A, class B>
   CUDA constexpr static R flat_fun2(const A& a, const B& b) {
     return R::template fun<sig>(typename A::flat_type<battery::local_memory>(a), typename B::flat_type<battery::local_memory>(b));
@@ -475,6 +469,15 @@ public:
     return top();
   }
 
+private:
+  /** For division, we cannot change the type of the bounds due to its importance in the underlying domain (usually PrimitiveUpset) when computing with zeroes. */
+  template<Sig divsig, class AL, class AU, class BL, class BU>
+  CUDA constexpr static local_type div2(const AL& al, const AU& au, const BL& bl, const BU& bu) {
+    return local_type(LB2::template guarded_div<divsig>(al, bl),
+                     UB2::template guarded_div<divsig>(au, bu));
+  }
+
+public:
   template<Sig divsig, class L, class K>
   CUDA constexpr static local_type div(const Interval<L>& l, const Interval<K>& k) {
     auto a = typename Interval<L>::local_type(l);
@@ -488,23 +491,23 @@ public:
       case PP:
         if(b.ub() >= leq_zero) { return top(); }  // b is a singleton equal to zero.
         switch(sign(a)) {
-          case PP: return div2<divsig>(a, reverse(b));
-          case NP: return div2<divsig>(a, b.lb2());
-          case NN: return div2<divsig>(a, b);
+          case PP: return div2<divsig>(a.lb(), a.ub(), b.ub(), b.lb());
+          case NP: return div2<divsig>(a.lb(), a.ub(), b.lb(), b.lb());
+          case NN: return div2<divsig>(a.lb(), a.ub(), b.lb(), b.ub());
           case PN:
             if(a.as_product().is_top()) { return top(); }
-            else { return div2<divsig>(a, b.ub2()); }
+            else { return div2<divsig>(a.lb(), a.ub(), b.ub(), b.ub()); }
         }
       case NP:
         if(a.is_top()) { return top(); }
         else {
           if constexpr(L::preserve_concrete_covers && K::preserve_concrete_covers) { // In the discrete case, division can be more precise.
             switch(sign(a)) {
-              case PP: return div2<divsig>(a.ub2(), b);
+              case PP: return div2<divsig>(a.ub(), a.ub(), b.lb(), b.ub());
               case NP: return local_type(
                 meet(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
                 meet(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
-              case NN: return reverse(div2<divsig>(a.lb2(), b));
+              case NN: return div2<divsig>(a.lb(), a.lb(), b.ub(), b.lb());
               case PN: return (a.as_product().is_top()) ? top() : eq_zero();
             }
           }
@@ -514,20 +517,20 @@ public:
         }
       case NN:
         switch(sign(a)) {
-          case PP: return reverse(div2<divsig>(a, b));
-          case NP: return div2<divsig>(reverse(a), b.ub2());
-          case NN: return div2<divsig>(reverse(a), b);
+          case PP: return div2<divsig>(a.ub(), a.lb(), b.ub(), b.lb());
+          case NP: return div2<divsig>(a.ub(), a.lb(), b.ub(), b.ub());
+          case NN: return div2<divsig>(a.ub(), a.lb(), b.lb(), b.ub());
           case PN:
             if(a.as_product().is_top()) { return top(); }
-            else { return div2<divsig>(reverse(a), b.lb2()); }
+            else { return div2<divsig>(a.ub(), a.lb(), b.lb(), b.lb()); }
         }
       case PN:
         if(b.as_product().is_top()) { return top(); }
         if constexpr(L::preserve_concrete_covers && K::preserve_concrete_covers) {
           switch(sign(a)) {
-            case PP: return div2<divsig>(a.lb2(), reverse(b));
+            case PP: return div2<divsig>(a.lb(), a.lb(), b.ub(), b.lb());
             case NP: return eq_zero();
-            case NN: return div2<divsig>(a.ub2(), reverse(b));
+            case NN: return div2<divsig>(a.ub(), a.ub(), b.ub(), b.lb());
             case PN:
               if(a.as_product().is_top()) { return top(); }
               else {
