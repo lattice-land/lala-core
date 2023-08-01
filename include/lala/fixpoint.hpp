@@ -21,7 +21,7 @@ public:
   CUDA void barrier() {}
 
   template <class A>
-  CUDA void iterate(A& a, local::BInc& has_changed) {
+  CUDA NI void iterate(A& a, local::BInc& has_changed) {
     size_t n = a.num_refinements();
     for(size_t i = 0; i < n; ++i) {
       a.refine(i, has_changed);
@@ -29,7 +29,7 @@ public:
   }
 
   template <class A>
-  CUDA void fixpoint(A& a, local::BInc& has_changed) {
+  CUDA NI void fixpoint(A& a, local::BInc& has_changed) {
     local::BInc changed(true);
     while(changed) {
       changed.dtell_bot();
@@ -39,7 +39,7 @@ public:
   }
 
   template <class A>
-  CUDA local::BInc fixpoint(A& a) {
+  CUDA NI local::BInc fixpoint(A& a) {
     local::BInc has_changed(false);
     fixpoint(a, has_changed);
     return has_changed;
@@ -72,14 +72,14 @@ private:
     assert(0);
   }
 
-  CUDA void reset() {
+  CUDA NI void reset() {
     changed[0].tell_top();
     changed[1].dtell_bot();
     changed[2].dtell_bot();
   }
 
 public:
-  CUDA AsynchronousIterationGPU(const Group& group, const allocator_type& alloc = allocator_type()):
+  CUDA NI AsynchronousIterationGPU(const Group& group, const allocator_type& alloc = allocator_type()):
     group(group), changed(3, alloc)
   {}
 
@@ -92,7 +92,7 @@ public:
   }
 
   template <class A, class M>
-  CUDA void iterate(A& a, BInc<M>& has_changed) {
+  CUDA NI void iterate(A& a, BInc<M>& has_changed) {
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
   #else
@@ -104,7 +104,7 @@ public:
   }
 
   template <class A, class M>
-  CUDA size_t fixpoint(A& a, BInc<M>& has_changed) {
+  CUDA NI size_t fixpoint(A& a, BInc<M>& has_changed) {
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
     return 0;
@@ -125,7 +125,7 @@ public:
   }
 
   template <class A>
-  CUDA local::BInc fixpoint(A& a) {
+  CUDA NI local::BInc fixpoint(A& a) {
     local::BInc has_changed(false);
     fixpoint(a, has_changed);
     return has_changed;

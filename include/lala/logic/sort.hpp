@@ -37,18 +37,18 @@ struct Sort {
   Tag tag;
   battery::unique_ptr<this_type, allocator_type> sub;
 
-  CUDA Sort(Tag tag): tag(tag) {
+  CUDA NI Sort(Tag tag): tag(tag) {
     assert(tag != Set);
   }
 
-  CUDA Sort(Tag tag, Sort&& sub_ty, const allocator_type& alloc = allocator_type())
+  CUDA NI Sort(Tag tag, Sort&& sub_ty, const allocator_type& alloc = allocator_type())
    : tag(tag), sub(battery::allocate_unique<this_type>(alloc, std::move(sub_ty)))
   {
     assert(tag == Set);
   }
 
   template<class Alloc2>
-  CUDA Sort(const Sort<Alloc2>& other, const allocator_type& alloc = allocator_type())
+  CUDA NI Sort(const Sort<Alloc2>& other, const allocator_type& alloc = allocator_type())
    : tag(static_cast<Tag>(other.tag))
   {
     if(other.sub) {
@@ -57,18 +57,18 @@ struct Sort {
     }
   }
 
-  CUDA Sort(const this_type& other): Sort(other, other.sub.get_allocator()) {}
+  CUDA NI Sort(const this_type& other): Sort(other, other.sub.get_allocator()) {}
 
   Sort& operator=(const this_type& other) = default;
   Sort(Sort&&) = default;
   Sort& operator=(Sort&&) = default;
 
-  CUDA bool is_bool() const { return tag == Bool; }
-  CUDA bool is_int() const { return tag == Int; }
-  CUDA bool is_real() const { return tag == Real; }
-  CUDA bool is_set() const { return tag == Set; }
+  CUDA NI bool is_bool() const { return tag == Bool; }
+  CUDA NI bool is_int() const { return tag == Int; }
+  CUDA NI bool is_real() const { return tag == Real; }
+  CUDA NI bool is_set() const { return tag == Set; }
 
-  CUDA void print() const {
+  CUDA NI void print() const {
     switch(tag) {
       case Bool: printf("B"); break;
       case Int: printf("Z"); break;
@@ -80,7 +80,7 @@ struct Sort {
 };
 
 template <class Alloc1, class Alloc2>
-CUDA inline bool operator==(const Sort<Alloc1>& lhs, const Sort<Alloc2>& rhs) {
+CUDA NI bool operator==(const Sort<Alloc1>& lhs, const Sort<Alloc2>& rhs) {
   if(lhs.tag == rhs.tag) {
     if(lhs.tag == Sort<Alloc1>::Set) {
       return *(lhs.sub) == *(rhs.sub);

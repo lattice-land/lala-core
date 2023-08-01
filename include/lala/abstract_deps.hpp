@@ -35,31 +35,31 @@ public:
 
 private:
   struct dep_erasure {
-    CUDA virtual ~dep_erasure() {}
+    CUDA NI virtual ~dep_erasure() {}
   };
 
   template <class A>
   struct dep_holder : dep_erasure {
     abstract_ptr<A> a;
-    CUDA dep_holder(A* ptr): a(ptr, ptr->get_allocator()) {}
-    CUDA virtual ~dep_holder() {}
+    CUDA NI dep_holder(A* ptr): a(ptr, ptr->get_allocator()) {}
+    CUDA NI virtual ~dep_holder() {}
   };
 
   allocators_type allocators;
   battery::vector<battery::unique_ptr<dep_erasure, allocator_type>, allocator_type> deps;
 
 public:
-  CUDA AbstractDeps(const Allocators&... allocators)
+  CUDA NI AbstractDeps(const Allocators&... allocators)
   : allocators(allocators...)
   , deps(battery::get<0>(this->allocators))
   {}
 
-  CUDA size_t size() const {
+  CUDA NI size_t size() const {
     return deps.size();
   }
 
   template<class A>
-  CUDA abstract_ptr<A> extract(AType aty) {
+  CUDA NI abstract_ptr<A> extract(AType aty) {
     assert(aty != UNTYPED);
     assert(deps.size() > aty);
     assert(deps[aty]);
@@ -67,7 +67,7 @@ public:
   }
 
   template<class A2, class A>
-  CUDA abstract_ptr<A2> clone(const abstract_ptr<A>& a)
+  CUDA NI abstract_ptr<A2> clone(const abstract_ptr<A>& a)
   {
     auto to_alloc = battery::get<typename A2::allocator_type>(allocators);
     if(!a) {
@@ -90,7 +90,7 @@ public:
   }
 
   template <class Alloc>
-  CUDA Alloc get_allocator() const {
+  CUDA NI Alloc get_allocator() const {
     return battery::get<Alloc>(allocators);
   }
 };

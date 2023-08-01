@@ -152,7 +152,7 @@ public:
 
   /** A pre-interpreted formula `x >= value` ready to use.
    * This is mainly for optimization purpose to avoid calling `interpret` each time we need it. */
-  CUDA static constexpr this_type geq_k(value_type k) {
+  CUDA NI static constexpr this_type geq_k(value_type k) {
     if constexpr(increasing && is_arithmetic) {
       return this_type(k);
     }
@@ -163,7 +163,7 @@ public:
     }
   }
 
-  CUDA static constexpr this_type leq_k(value_type k) {
+  CUDA NI static constexpr this_type leq_k(value_type k) {
     if constexpr(!increasing && is_arithmetic) {
       return this_type(k);
     }
@@ -287,7 +287,7 @@ public:
   If `U` preserves bottom `true` is returned whenever \f$ a = \bot \f$, if it preserves top `false` is returned whenever \f$ a = \top \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function. */
   template<class Env>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
+  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
     using F = TFormula<typename Env::allocator_type>;
     if(preserve_top && is_top()) {
       return F::make_false();
@@ -304,19 +304,19 @@ public:
 
   /** Deinterpret the current value to a logical constant. */
   template<class F>
-  CUDA F deinterpret() const {
+  CUDA NI F deinterpret() const {
     return pre_universe::template deinterpret<F>(value());
   }
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
    * For this abstract universe, it always returns `true` since the current element \f$ a \f$ is an exact representation of \f$ \rrbracket a \llbracket \f$. */
-  CUDA constexpr bool extract(local_type& ua) const {
+  CUDA NI constexpr bool extract(local_type& ua) const {
     ua.val = value();
     return true;
   }
 
   /** Print the current element. */
-  CUDA void print() const {
+  CUDA NI void print() const {
     if(is_bot()) {
       printf("\u22A5");
     }
@@ -331,7 +331,7 @@ public:
 private:
   /** Interpret a formula of the form `k <sig> x`. */
   template<class F>
-  CUDA static iresult<F> interpret_tell_k_op_x(const F& f, const F& k, Sig sig) {
+  CUDA NI static iresult<F> interpret_tell_k_op_x(const F& f, const F& k, Sig sig) {
     auto r = pre_universe::interpret_tell(k);
     if(!r.has_value()) {
       return r;
@@ -354,7 +354,7 @@ private:
 
   /** Interpret a formula of the form `k <sig> x`. */
   template<class F>
-  CUDA static iresult<F> interpret_ask_k_op_x(const F& f, const F& k, Sig sig) {
+  CUDA NI static iresult<F> interpret_ask_k_op_x(const F& f, const F& k, Sig sig) {
     auto r = pre_universe::interpret_ask(k);
     if(!r.has_value()) {
       return r;
@@ -373,7 +373,7 @@ private:
   }
 
   template<class F>
-  CUDA static iresult<F> interpret_tell_set(const F& f, const F& k) {
+  CUDA NI static iresult<F> interpret_tell_set(const F& f, const F& k) {
     const auto& set = k.s();
     if(set.size() == 0) {
       return top();
@@ -398,7 +398,7 @@ public:
    * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom) depending on the underlying pre-universe.
    */
   template<class F, class Env>
-  CUDA static iresult<F> interpret_tell(const F& f, const Env&) {
+  CUDA NI static iresult<F> interpret_tell(const F& f, const Env&) {
     if(f.is_true()) {
       if constexpr(preserve_bot) {
         return bot();
@@ -444,7 +444,7 @@ public:
    * The symbol <op> is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`.
    */
   template<class F, class Env>
-  CUDA static iresult<F> interpret_ask(const F& f, const Env&) {
+  CUDA NI static iresult<F> interpret_ask(const F& f, const Env&) {
     if(f.is_true()) {
       return bot();
     }
@@ -492,7 +492,7 @@ public:
    * \remark The result of the function is always over-approximated (or exact when possible).
   */
   template <Sig sig, class M>
-  CUDA static constexpr local_type fun(const flat_type<M>& a) {
+  CUDA NI static constexpr local_type fun(const flat_type<M>& a) {
     using local_flat_type = flat_type<battery::local_memory>;
     local_flat_type r1(a);
     if(r1.is_top()) {
@@ -510,7 +510,7 @@ public:
    * \remark The result of the function is always over-approximated (or exact when possible).
    */
   template<Sig sig, class M1, class M2>
-  CUDA static constexpr local_type fun(const flat_type<M1>& a, const flat_type<M2>& b) {
+  CUDA NI static constexpr local_type fun(const flat_type<M1>& a, const flat_type<M2>& b) {
     using local_flat_type = flat_type<battery::local_memory>;
     local_flat_type r1(a);
     local_flat_type r2(b);
@@ -540,7 +540,7 @@ public:
    *  -      | -      | -          | bot()
    */
   template<Sig sig, class Pre1, class Mem1, class Pre2, class Mem2>
-  CUDA static constexpr local_type guarded_div(
+  CUDA NI static constexpr local_type guarded_div(
     const PrimitiveUpset<Pre1, Mem1>& a, const PrimitiveUpset<Pre2, Mem2>& b)
   {
     using A = PrimitiveUpset<Pre1, Mem1>;
@@ -571,7 +571,7 @@ public:
   }
 
   template <Sig sig, class M1, class M2>
-  CUDA static constexpr local_type fun(const this_type2<M1> &a, const this_type2<M2> &b)
+  CUDA NI static constexpr local_type fun(const this_type2<M1> &a, const this_type2<M2> &b)
   {
     static_assert(pre_universe::is_supported_fun(sig), "Function unsupported by the current upset universe.");
     static_assert(sig == MIN || sig == MAX, "Only MIN and MAX are supported on Upset elements.");

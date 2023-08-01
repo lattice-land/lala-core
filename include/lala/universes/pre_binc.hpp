@@ -38,7 +38,7 @@ struct PreBInc {
   /** Interpret a formula into an upset Boolean lattice.
    * \return The result of the interpretation when the formula `f` is a constant of type `Bool`. Otherwise it returns an explanation of the error. */
   template<class F>
-  CUDA static iresult<F> interpret_tell(const F& f) {
+  CUDA NI static iresult<F> interpret_tell(const F& f) {
     if(f.is(F::B)) {
       return iresult<F>(f.b());
     }
@@ -49,7 +49,7 @@ struct PreBInc {
    * This is because this domain can exactly represent Boolean values.
   */
   template<class F>
-  CUDA static iresult<F> interpret_ask(const F& f) {
+  CUDA NI static iresult<F> interpret_ask(const F& f) {
     return interpret_tell(f);
   }
 
@@ -57,7 +57,7 @@ struct PreBInc {
    * \return `bot()` if the type of the existentially quantified variable is `Bool`. Otherwise it returns an explanation of the error.
   */
   template<class F>
-  CUDA static iresult<F> interpret_type(const F& f) {
+  CUDA NI static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
     const auto& cty = battery::get<1>(f.exists());
     if(cty.is_bool()) {
@@ -73,7 +73,7 @@ struct PreBInc {
    * Note that the lattice order has no influence here.
   */
   template<class F>
-  CUDA static F deinterpret(const value_type& v) {
+  CUDA NI static F deinterpret(const value_type& v) {
     return F::make_bool(v);
   }
 

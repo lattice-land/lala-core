@@ -39,17 +39,17 @@ struct PreZDec {
   using iresult = IResult<value_type, F>;
 
   template <class F>
-  CUDA static iresult<F> interpret_tell(const F &f) {
+  CUDA NI static iresult<F> interpret_tell(const F &f) {
     return dual_type::interpret_ask(f);
   }
 
   template <class F>
-  CUDA static iresult<F> interpret_ask(const F &f) {
+  CUDA NI static iresult<F> interpret_ask(const F &f) {
     return dual_type::interpret_tell(f);
   }
 
   template <class F>
-  CUDA static iresult<F> interpret_type(const F &f) {
+  CUDA NI static iresult<F> interpret_type(const F &f) {
     auto r = dual_type::interpret_type(f);
     if (r.has_value() && r.value() == dual_type::bot()) {
       return std::move(r).map(bot());
@@ -58,7 +58,7 @@ struct PreZDec {
   }
 
   template<class F>
-  CUDA static F deinterpret(const value_type& v) {
+  CUDA NI static F deinterpret(const value_type& v) {
     return dual_type::template deinterpret<F>(v);
   }
 
