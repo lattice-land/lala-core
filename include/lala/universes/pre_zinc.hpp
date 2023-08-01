@@ -56,7 +56,7 @@ struct PreZInc {
 
 private:
   template<bool is_tell, class F>
-  CUDA NI static iresult<F> interpret(const F& f) {
+  CUDA static iresult<F> interpret(const F& f) {
     if(f.is(F::Z)) {
       auto z = f.z();
       if(z == bot() || z == top()) {
@@ -90,20 +90,20 @@ public:
         * \f$ [\![x >= [2.9..3.1]:R ]\!] = 3 \f$.
       */
   template<class F>
-  CUDA NI static iresult<F> interpret_tell(const F& f) {
+  CUDA static iresult<F> interpret_tell(const F& f) {
     return interpret<true>(f);
   }
 
   /** Similar to `interpret_tell` but the formula is under-approximated, in particular: \f$ [\![ x:\mathbb{Z} \geq [l..u]:\mathbb{R} ]\!] = \lceil u \rceil \f$. */
   template<class F>
-  CUDA NI static iresult<F> interpret_ask(const F& f) {
+  CUDA static iresult<F> interpret_ask(const F& f) {
     return interpret<false>(f);
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
       Variables of type `Int` are interpreted exactly (\f$ \mathbb{Z} = \gamma(\bot) \f$). */
   template<class F>
-  CUDA NI static iresult<F> interpret_type(const F& f) {
+  CUDA static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
     const auto& sort = battery::get<1>(f.exists());
     if(sort.is_int()) {
@@ -120,7 +120,7 @@ public:
    * \precondition `v != bot()` and `v != top()`.
   */
   template<class F>
-  CUDA NI static F deinterpret(const value_type& v) {
+  CUDA static F deinterpret(const value_type& v) {
     return F::make_z(v);
   }
 

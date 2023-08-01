@@ -9,7 +9,7 @@ namespace lala {
 
 /** \return `true` if the formula `f` has the shape `variable <sig> constant`. */
 template<class Allocator, class ExtendedSig>
-CUDA NI bool is_v_op_constant(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
+CUDA bool is_v_op_constant(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
   using F = TFormula<Allocator, ExtendedSig>;
   return f.is(F::Seq)
     && f.sig() == sig
@@ -19,7 +19,7 @@ CUDA NI bool is_v_op_constant(const TFormula<Allocator, ExtendedSig>& f, Sig sig
 
 /** \return `true` if the formula `f` has the shape `variable op integer constant`, e.g., `x < 4`. */
 template<class Allocator, class ExtendedSig>
-CUDA NI bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
+CUDA bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
   using F = TFormula<Allocator, ExtendedSig>;
   return f.is(F::Seq)
     && f.sig() == sig
@@ -28,23 +28,23 @@ CUDA NI bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
 }
 
 template<typename Allocator>
-CUDA NI TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
+CUDA TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), aty, allocator);
 }
 
 template<typename Allocator>
-CUDA NI TFormula<Allocator> make_v_op_z(AVar v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
+CUDA TFormula<Allocator> make_v_op_z(AVar v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   return F::make_binary(F::make_avar(v), sig, F::make_z(z), aty, allocator);
 }
 
 namespace impl {
   template<typename Allocator, typename ExtendedSig>
-  CUDA NI const TFormula<Allocator, ExtendedSig>& var_in_impl(const TFormula<Allocator, ExtendedSig>& f, bool& found);
+  CUDA const TFormula<Allocator, ExtendedSig>& var_in_impl(const TFormula<Allocator, ExtendedSig>& f, bool& found);
 
   template<size_t n, typename Allocator, typename ExtendedSig>
-  CUDA NI const TFormula<Allocator, ExtendedSig>& find_var_in_seq(const TFormula<Allocator, ExtendedSig>& f, bool& found) {
+  CUDA const TFormula<Allocator, ExtendedSig>& find_var_in_seq(const TFormula<Allocator, ExtendedSig>& f, bool& found) {
     const auto& children = battery::get<1>(battery::get<n>(f.data()));
     for(int i = 0; i < children.size(); ++i) {
       const auto& subformula = var_in_impl(children[i], found);
@@ -56,7 +56,7 @@ namespace impl {
   }
 
   template<typename Allocator, typename ExtendedSig>
-  CUDA NI const TFormula<Allocator, ExtendedSig>& var_in_impl(const TFormula<Allocator, ExtendedSig>& f, bool& found)
+  CUDA const TFormula<Allocator, ExtendedSig>& var_in_impl(const TFormula<Allocator, ExtendedSig>& f, bool& found)
   {
     using F = TFormula<Allocator, ExtendedSig>;
     switch(f.index()) {
@@ -76,7 +76,7 @@ namespace impl {
   }
 
   template<size_t n, class F>
-  CUDA NI int num_vars_in_seq(const F& f) {
+  CUDA int num_vars_in_seq(const F& f) {
     const auto& children = battery::get<1>(battery::get<n>(f.data()));
     int total = 0;
     for(int i = 0; i < children.size(); ++i) {
@@ -86,10 +86,10 @@ namespace impl {
   }
 
   template<class F>
-  CUDA NI int num_qf_vars(const F& f, bool type_filter, AType aty);
+  CUDA int num_qf_vars(const F& f, bool type_filter, AType aty);
 
   template<size_t n, class F>
-  CUDA NI int num_qf_vars_in_seq(const F& f, bool type_filter, AType aty) {
+  CUDA int num_qf_vars_in_seq(const F& f, bool type_filter, AType aty) {
     const auto& children = battery::get<1>(battery::get<n>(f.data()));
     int total = 0;
     for(int i = 0; i < children.size(); ++i) {
@@ -99,7 +99,7 @@ namespace impl {
   }
 
   template<class F>
-  CUDA NI int num_qf_vars(const F& f, bool type_filter, AType aty) {
+  CUDA int num_qf_vars(const F& f, bool type_filter, AType aty) {
     switch(f.index()) {
       case F::E:
         if(type_filter) {
@@ -118,7 +118,7 @@ namespace impl {
 /** \return The first variable occurring in the formula, or any other subformula if the formula does not contain a variable.
     It returns either a logical variable, an abstract variable or a quantifier. */
 template<typename Allocator, typename ExtendedSig>
-CUDA NI const TFormula<Allocator, ExtendedSig>& var_in(const TFormula<Allocator, ExtendedSig>& f) {
+CUDA const TFormula<Allocator, ExtendedSig>& var_in(const TFormula<Allocator, ExtendedSig>& f) {
   bool found = false;
   return impl::var_in_impl(f, found);
 }
@@ -126,7 +126,7 @@ CUDA NI const TFormula<Allocator, ExtendedSig>& var_in(const TFormula<Allocator,
 /** \return The number of variables occurring in the formula `F` including existential quantifier, logical variables and abstract variables.
  * Each occurrence of a variable is added up (duplicates are counted). */
 template<class F>
-CUDA NI int num_vars(const F& f)
+CUDA int num_vars(const F& f)
 {
   switch(f.index()) {
     case F::V:
@@ -141,18 +141,18 @@ CUDA NI int num_vars(const F& f)
 
 /** \return The number of existential quantifiers. */
 template<class F>
-CUDA NI int num_quantified_vars(const F& f) {
+CUDA int num_quantified_vars(const F& f) {
   return impl::num_qf_vars(f, false, UNTYPED);
 }
 
 /** \return The number of variables occurring in an existential quantifier that have type `aty`. */
 template<class F>
-CUDA NI int num_quantified_vars(const F& f, AType aty) {
+CUDA int num_quantified_vars(const F& f, AType aty) {
   return impl::num_qf_vars(f, true, aty);
 }
 
 template<class F>
-CUDA NI AType type_of_conjunction(const typename F::Sequence& seq) {
+CUDA AType type_of_conjunction(const typename F::Sequence& seq) {
   AType ty = UNTYPED;
   for(int i = 0; i < seq.size(); ++i) {
     if(seq[i].type() == UNTYPED) {
@@ -170,7 +170,7 @@ CUDA NI AType type_of_conjunction(const typename F::Sequence& seq) {
 
 /** Given a conjunctive formula `f` of the form \f$ c_1 \land ... \land c_n \f$, it returns a pair \f$ \langle c_i \land .. \land c_j, c_k \land ... \land c_l \rangle \f$ such that the first component contains all formulas with the type `ty`, and the second component, all other formulas. */
 template<class F>
-CUDA NI battery::tuple<F,F> extract_ty(const F& f, AType ty) {
+CUDA battery::tuple<F,F> extract_ty(const F& f, AType ty) {
   assert(f.is(F::Seq));
   const auto& seq = f.seq();
   typename F::Sequence fty;
@@ -202,12 +202,12 @@ CUDA NI battery::tuple<F,F> extract_ty(const F& f, AType ty) {
 }
 
 template <class F>
-CUDA NI thrust::optional<F> negate(const F& f);
+CUDA thrust::optional<F> negate(const F& f);
 
 /** not(f1 \/ ... \/ fn) --> not(f1) /\ ... /\ not(fn)
     not(f1 /\ ... /\ fn) --> not(f1) \/ ... \/ not(fn) */
 template <class F>
-CUDA NI thrust::optional<F> de_morgan_law(Sig sig_neg, const F& f) {
+CUDA thrust::optional<F> de_morgan_law(Sig sig_neg, const F& f) {
   auto seq = f.seq();
   typename F::Sequence neg_seq(seq.size());
   for(int i = 0; i < f.seq().size(); ++i) {
@@ -223,7 +223,7 @@ CUDA NI thrust::optional<F> de_morgan_law(Sig sig_neg, const F& f) {
 }
 
 template <class F>
-CUDA NI thrust::optional<F> negate_eq(const F& f) {
+CUDA thrust::optional<F> negate_eq(const F& f) {
   assert(f.is_binary() && f.sig() == EQ);
   if(f.seq(0).is(F::B)) {
     auto b = f.seq(0);
@@ -239,7 +239,7 @@ CUDA NI thrust::optional<F> negate_eq(const F& f) {
 }
 
 template <class F>
-CUDA NI thrust::optional<F> negate(const F& f) {
+CUDA thrust::optional<F> negate(const F& f) {
   if(f.is(F::Seq)) {
     Sig neg_sig;
     switch(f.sig()) {
@@ -270,7 +270,7 @@ CUDA NI thrust::optional<F> negate(const F& f) {
 
 /** True for the operators <=, <, >, >=, =, !=, subset, subseteq, supset, supseteq */
 template <class F>
-CUDA NI bool is_comparison(const F& f) {
+CUDA bool is_comparison(const F& f) {
   if(f.is(F::Seq)) {
     switch(f.sig()) {
       case LEQ:
@@ -290,7 +290,7 @@ CUDA NI bool is_comparison(const F& f) {
 }
 
 /** Returns the converse of a comparison operator (see `is_comparison`). */
-CUDA NI inline Sig converse_comparison(Sig sig) {
+CUDA inline Sig converse_comparison(Sig sig) {
   switch(sig) {
     case LEQ: return GEQ;
     case GEQ: return LEQ;
@@ -312,7 +312,7 @@ CUDA NI inline Sig converse_comparison(Sig sig) {
 /** Given a predicate of the form `t <op> u` (e.g., `x + y <= z + 4`), it transforms it into an equivalent predicate of the form `s <op> k` where `k` is a constant (e.g., `x + y - (z + 4) <= 0`).
 If the formula is not a predicate, it is returned unchanged. */
 template <class F>
-CUDA NI F move_constants_on_rhs(const F& f) {
+CUDA F move_constants_on_rhs(const F& f) {
   if(is_comparison(f) && !f.seq(1).is_constant()) {
     AType aty = f.type();
     if(f.seq(0).is_constant()) {
@@ -331,7 +331,7 @@ CUDA NI F move_constants_on_rhs(const F& f) {
 
 /** Given a formula `f`, we transform all occurrences of `AVar` into logical variables. */
 template <class F, class Env>
-CUDA NI void map_avar_to_lvar(F& f, const Env& env) {
+CUDA void map_avar_to_lvar(F& f, const Env& env) {
   switch(f.index()) {
     case F::V:
       f = F::make_lvar(f.v().aty(), env.name_of(f.v()));

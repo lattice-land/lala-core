@@ -133,7 +133,7 @@ public:
 private:
   /** Interpret the formula in the component `i`. */
   template<bool is_tell, size_t i, class F, class Env>
-  CUDA NI static iresult<F> interpret_one(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret_one(const F& f, const Env& env) {
     auto one = is_tell ? type_of<i>::interpret_tell(f, env) :  type_of<i>::interpret_ask(f, env);
     if(one.has_value()) {
       auto res = bot();
@@ -147,7 +147,7 @@ private:
   }
 
   template<bool is_tell, size_t i = 0, class F, class Env>
-  CUDA NI static IResult<bool, F> interpret_all(const F& f, local_type& res, bool empty, const Env& env) {
+  CUDA static IResult<bool, F> interpret_all(const F& f, local_type& res, bool empty, const Env& env) {
     if constexpr(i == n) {
       if(empty) {
         return IResult<bool, F>(IError<F>(true, name, "No component of this Cartesian product can interpret this formula.", f));
@@ -173,7 +173,7 @@ private:
   }
 
   template<bool is_tell, class F, class Env>
-  CUDA NI static iresult<F> interpret(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret(const F& f, const Env& env) {
     local_type cp = bot();
     if(f.is(F::Seq) && f.sig() == AND) {
       iresult<F> res(bot());
@@ -191,23 +191,23 @@ private:
 
 public:
   template<size_t i, class F, class Env>
-  CUDA NI static iresult<F> interpret_one_tell(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret_one_tell(const F& f, const Env& env) {
     return interpret_one<true, i>(f, env);
   }
 
   template<size_t i, class F, class Env>
-  CUDA NI static iresult<F> interpret_one_ask(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret_one_ask(const F& f, const Env& env) {
     return interpret_one<false, i>(f, env);
   }
 
   /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
   template<class F, class Env>
-  CUDA NI static iresult<F> interpret_tell(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret_tell(const F& f, const Env& env) {
     return interpret<true>(f, env);
   }
 
   template<class F, class Env>
-  CUDA NI static iresult<F> interpret_ask(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret_ask(const F& f, const Env& env) {
     return interpret<false>(f, env);
   }
 
@@ -416,30 +416,30 @@ public:
 
   /** Given a product \f$ (x_1, \ldots, x_n) \f$, returns \f$ (f(x_1), \ldots, f(x_n)) \f$. */
   template<Sig sig, class... Bs>
-  CUDA NI static constexpr auto fun(const CartesianProduct<Bs...>& a) {
+  CUDA static constexpr auto fun(const CartesianProduct<Bs...>& a) {
     return fun_<sig>(a, impl::index_sequence_of(a));
   }
 
   /** Given two product \f$ (x_1, \ldots, x_n) \f$ and \f$ (y_1, \ldots, y_n) \f$, returns \f$ (f(x_1, y_1), \ldots, f(x_n, y_n)) \f$.
       If either the left or right operand is not a product, returns \f$ (f(x_1, c), \ldots, f(x_n, c)) \f$ or  \f$ (f(c, y_1), \ldots, f(c, y_n)) \f$. */
   template<Sig sig, class... As2, class... Bs>
-  CUDA NI static constexpr auto fun(const CartesianProduct<As2...>& a, const CartesianProduct<Bs...>& b) {
+  CUDA static constexpr auto fun(const CartesianProduct<As2...>& a, const CartesianProduct<Bs...>& b) {
     return fun_<sig>(a, b, impl::index_sequence_of(a, b));
   }
 
   template<Sig sig, class... As2, class B>
-  CUDA NI static constexpr auto fun(const CartesianProduct<As2...>& a, const B& b) {
+  CUDA static constexpr auto fun(const CartesianProduct<As2...>& a, const B& b) {
     return fun_left<sig>(a, b, impl::index_sequence_of(a));
   }
 
   template<Sig sig, class A, class... Bs>
-  CUDA NI static constexpr auto fun(const A& a, const CartesianProduct<Bs...>& b) {
+  CUDA static constexpr auto fun(const A& a, const CartesianProduct<Bs...>& b) {
     return fun_right<sig>(a, b, impl::index_sequence_of(b));
   }
 
 private:
   template<size_t i, class Env, class Allocator = typename Env::allocator_type>
-  CUDA NI TFormula<Allocator> deinterpret_(AVar x,
+  CUDA TFormula<Allocator> deinterpret_(AVar x,
     typename TFormula<Allocator>::Sequence& seq, const Env& env) const
   {
     if constexpr(i < n) {
@@ -463,7 +463,7 @@ private:
 
 public:
   template<class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
+  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
     using allocator_t = typename Env::allocator_type;
     typename TFormula<allocator_t>::Sequence seq(env.get_allocator());
     return deinterpret_<0, Env>(x, seq, env);
@@ -471,7 +471,7 @@ public:
 
 private:
   template<size_t i = 0>
-  CUDA NI void print_() const {
+  CUDA void print_() const {
     if constexpr(i < n) {
       project<i>().print();
       if constexpr(i < n - 1) {
@@ -482,7 +482,7 @@ private:
   }
 
 public:
-  CUDA NI void print() const {
+  CUDA void print() const {
     print_();
   }
 };

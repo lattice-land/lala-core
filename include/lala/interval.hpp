@@ -112,7 +112,7 @@ private:
   }
 
   template <bool is_tell, class F, class Env>
-  CUDA NI static iresult<F> forward_to_cp(const F& f, const Env& env) {
+  CUDA static iresult<F> forward_to_cp(const F& f, const Env& env) {
     auto cp_res = is_tell ? CP::interpret_tell(f, env) : CP::interpret_ask(f, env);
     if(cp_res.has_value()) {
       local_type itv(cp_res.value());
@@ -128,7 +128,7 @@ public:
    *    * `var x:B` when the underlying universe is arithmetic and preserve concrete covers.
    * Therefore, the element `k` is always in \f$ \gamma(lb) \cap \gamma(ub) \f$. */
   template<class F, class Env>
-  CUDA NI static iresult<F> interpret_tell(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret_tell(const F& f, const Env& env) {
     if(f.is_binary() &&
       (f.sig() == EQ ||
       (f.sig() == IN && f.seq(1).is(F::S))))
@@ -154,7 +154,7 @@ public:
    *    * `x != k` is under-approximated by interpreting `x != k` in the lower bound.
    *    * `x == k` is interpreted by over-approximating `x == k` in both bounds and then verifying both bounds are the same. */
   template<class F, class Env>
-  CUDA NI static iresult<F> interpret_ask(const F& f, const Env& env) {
+  CUDA static iresult<F> interpret_ask(const F& f, const Env& env) {
     if(f.is_binary() && f.sig() == NEQ) {
       auto lb = LB::interpret_ask(f, env);
       if(lb.has_value()) {
@@ -270,7 +270,7 @@ public:
   }
 
   template<class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
+  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
     return cp.deinterpret(x, env);
   }
 
@@ -279,7 +279,7 @@ public:
    * A special case is made for real numbers where the both bounds are used, since the logical interpretation uses interval.
   */
   template<class F>
-  CUDA NI F deinterpret() const {
+  CUDA F deinterpret() const {
     F logical_lb = lb().template deinterpret<F>();
     if(logical_lb.is(F::R)) {
       F logical_ub = ub().template deinterpret<F>();
@@ -288,7 +288,7 @@ public:
     return logical_lb;
   }
 
-  CUDA NI void print() const {
+  CUDA void print() const {
     printf("[");
     lb().print();
     printf("..");
@@ -382,7 +382,7 @@ private:
 
   /** The sign function is monotone w.r.t. the order of `Interval<A>` and `bounds_sign`. */
   template<class A>
-  CUDA NI constexpr static bounds_sign sign(const Interval<A>& a) {
+  CUDA constexpr static bounds_sign sign(const Interval<A>& a) {
     if(a.lb() >= LB2::geq_k(LB2::pre_universe::zero())) {
       if(a.ub() > UB2::leq_k(UB2::pre_universe::zero())) {
         return PN;
@@ -402,18 +402,18 @@ private:
   }
 
   template<class A, class B>
-  CUDA NI constexpr static local_type mul2(const Interval<A>& a, const Interval<B>& b) {
+  CUDA constexpr static local_type mul2(const Interval<A>& a, const Interval<B>& b) {
     return flat_fun<MUL>(a, b);
   }
 
   template<Sig sig, class R, class A, class B>
-  CUDA NI constexpr static R flat_fun2(const A& a, const B& b) {
+  CUDA constexpr static R flat_fun2(const A& a, const B& b) {
     return R::template fun<sig>(typename A::flat_type<battery::local_memory>(a), typename B::flat_type<battery::local_memory>(b));
   }
 
 public:
   template<class L, class K>
-  CUDA NI constexpr static local_type mul(const Interval<L>& l, const Interval<K>& k) {
+  CUDA constexpr static local_type mul(const Interval<L>& l, const Interval<K>& k) {
     auto a = typename Interval<L>::local_type(l);
     auto b = typename Interval<K>::local_type(k);
     // Interval multiplication case, [al..au] * [bl..bu]
@@ -472,14 +472,14 @@ public:
 private:
   /** For division, we cannot change the type of the bounds due to its importance in the underlying domain (usually PrimitiveUpset) when computing with zeroes. */
   template<Sig divsig, class AL, class AU, class BL, class BU>
-  CUDA NI constexpr static local_type div2(const AL& al, const AU& au, const BL& bl, const BU& bu) {
+  CUDA constexpr static local_type div2(const AL& al, const AU& au, const BL& bl, const BU& bu) {
     return local_type(LB2::template guarded_div<divsig>(al, bl),
                      UB2::template guarded_div<divsig>(au, bu));
   }
 
 public:
   template<Sig divsig, class L, class K>
-  CUDA NI constexpr static local_type div(const Interval<L>& l, const Interval<K>& k) {
+  CUDA constexpr static local_type div(const Interval<L>& l, const Interval<K>& k) {
     auto a = typename Interval<L>::local_type(l);
     auto b = typename Interval<K>::local_type(k);
     // Below, you can find cases where a or b are top, similar to multiplication above, but this has bugs and need to be studied in more depth.
@@ -575,7 +575,7 @@ public:
   }
 
   template<Sig sig, class L, class K>
-  CUDA NI constexpr static local_type fun(const Interval<L>& x, const Interval<K>& y) {
+  CUDA constexpr static local_type fun(const Interval<L>& x, const Interval<K>& y) {
     if constexpr(sig == ADD) { return add(x, y); }
     else if constexpr(sig == SUB) { return sub(x, y); }
     else if constexpr(sig == MUL) { return mul(x, y); }

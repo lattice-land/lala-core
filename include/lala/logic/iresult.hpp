@@ -28,20 +28,20 @@ private:
   battery::vector<IError<F>, allocator_type> suberrors;
   bool fatal;
 
-  CUDA NI void print_indent(int indent) const {
+  CUDA void print_indent(int indent) const {
     for(int i = 0; i < indent; ++i) {
       printf(" ");
     }
   }
 
-  CUDA NI void print_line(const char* line, int indent) const {
+  CUDA void print_line(const char* line, int indent) const {
     print_indent(indent);
     printf("%s", line);
   }
 
 public:
   // If fatal is false, it is considered as a warning.
-  CUDA NI IError(bool fatal, battery::string<allocator_type> ad_name,
+  CUDA IError(bool fatal, battery::string<allocator_type> ad_name,
     battery::string<allocator_type> description,
     F uninterpretable_formula,
     AType aty = UNTYPED)
@@ -52,12 +52,12 @@ public:
      fatal(fatal)
   {}
 
-  CUDA NI this_type& add_suberror(IError<F>&& suberror) {
+  CUDA this_type& add_suberror(IError<F>&& suberror) {
     suberrors.push_back(suberror);
     return *this;
   }
 
-  CUDA NI void print(int indent = 0) const {
+  CUDA void print(int indent = 0) const {
     if(fatal) {
       print_line("[error] ", indent);
     }
@@ -85,7 +85,7 @@ public:
     }
   }
 
-  CUDA NI bool is_fatal() const { return fatal; }
+  CUDA bool is_fatal() const { return fatal; }
 };
 
 /** This class is used in abstract domains to represent the result of an interpretation.
@@ -111,7 +111,7 @@ private:
   warnings_type warnings;
 
   template <class U>
-  CUDA NI static result_type map_result(battery::variant<U, error_type>&& other) {
+  CUDA static result_type map_result(battery::variant<U, error_type>&& other) {
     if(other.index() == 0) {
       return result_type::template create<0>(T(std::move(battery::get<0>(other))));
     }
@@ -124,53 +124,53 @@ public:
   template <class U, class F2>
   friend class IResult;
 
-  CUDA NI IResult(this_type&& other): result(std::move(other.result)), warnings(std::move(other.warnings)) {}
+  CUDA IResult(this_type&& other): result(std::move(other.result)), warnings(std::move(other.warnings)) {}
 
-  CUDA NI IResult(T&& data):
+  CUDA IResult(T&& data):
     result(result_type::template create<0>(std::move(data))) {}
 
-  CUDA NI IResult(T&& data, error_type&& warning):
+  CUDA IResult(T&& data, error_type&& warning):
     result(result_type::template create<0>(std::move(data)))
   {
     assert(!warning.is_fatal());
     push_warning(std::move(warning));
   }
 
-  CUDA NI this_type& push_warning(error_type&& warning) {
+  CUDA this_type& push_warning(error_type&& warning) {
     warnings.push_back(std::move(warning));
     return *this;
   }
 
-  CUDA NI IResult(error_type&& error):
+  CUDA IResult(error_type&& error):
     result(result_type::template create<1>(std::move(error))) {}
 
   template<class U>
-  CUDA NI IResult(IResult<U, F>&& map): result(map_result(std::move(map.result))),
+  CUDA IResult(IResult<U, F>&& map): result(map_result(std::move(map.result))),
     warnings(std::move(map.warnings)) {}
 
-  CUDA NI this_type& operator=(this_type&& other) {
+  CUDA this_type& operator=(this_type&& other) {
     result = std::move(other.result);
     warnings = std::move(other.warnings);
     return *this;
   }
 
-  CUDA NI bool has_value() const {
+  CUDA bool has_value() const {
     return result.index() == 0;
   }
 
-  CUDA NI const T& value() const {
+  CUDA const T& value() const {
     return battery::get<0>(result);
   }
 
   template<class U>
-  CUDA NI IResult<U, F> map_error() && {
+  CUDA IResult<U, F> map_error() && {
     auto r = IResult<U, F>(std::move(error()));
     r.warnings = std::move(warnings);
     return std::move(r);
   }
 
   template<class U>
-  CUDA NI IResult<U, F> map(U&& data2) && {
+  CUDA IResult<U, F> map(U&& data2) && {
     if(has_value()) {
       auto r = IResult<U, F>(std::move(data2));
       r.warnings = std::move(warnings);
@@ -182,7 +182,7 @@ public:
   }
 
   template<class U>
-  CUDA NI this_type& join_warnings(IResult<U, F>&& other) {
+  CUDA this_type& join_warnings(IResult<U, F>&& other) {
     for(int i = 0; i < other.warnings.size(); ++i) {
       warnings.push_back(std::move(other.warnings[i]));
     }
@@ -190,7 +190,7 @@ public:
   }
 
   template<class U>
-  CUDA NI this_type& join_errors(IResult<U, F>&& other) {
+  CUDA this_type& join_errors(IResult<U, F>&& other) {
     if(!other.has_value()) {
       if(has_value()) {
         result = result_type::template create<1>(std::move(other.error()));
@@ -202,23 +202,23 @@ public:
     return join_warnings(std::move(other));
   }
 
-  CUDA NI T& value() {
+  CUDA T& value() {
     return battery::get<0>(result);
   }
 
-  CUDA NI const error_type& error() const {
+  CUDA const error_type& error() const {
     return battery::get<1>(result);
   }
 
-  CUDA NI error_type& error() {
+  CUDA error_type& error() {
     return battery::get<1>(result);
   }
 
-  CUDA NI bool has_warning() const {
+  CUDA bool has_warning() const {
     return warnings.size() > 0;
   }
 
-  CUDA NI void print_diagnostics() const {
+  CUDA void print_diagnostics() const {
     if(has_value()) {
       printf("successfully interpreted\n");
     }

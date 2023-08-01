@@ -39,7 +39,7 @@ struct PreFInc {
 
 private:
   template<bool is_tell, class F>
-  CUDA NI static iresult<F> interpret(const F& f) {
+  CUDA static iresult<F> interpret(const F& f) {
     if(f.is(F::Z)) {
       auto z = f.z();
       // We do not consider the min and max values of integers to be infinities when they are part of the logical formula.
@@ -68,13 +68,13 @@ public:
         * Formulas of kind `F::R` might be over-approximated to the lower bound of the interval (if the real number is represented by an interval [lb..ub] where lb != ub).
         * Other kind of formulas are not supported. */
   template<class F>
-  CUDA NI static iresult<F> interpret_tell(const F& f) {
+  CUDA static iresult<F> interpret_tell(const F& f) {
     return interpret<true>(f);
   }
 
   /** Same as `interpret_tell` but the constant is under-approximated instead. */
   template<class F>
-  CUDA NI static iresult<F> interpret_ask(const F& f) {
+  CUDA static iresult<F> interpret_ask(const F& f) {
     return interpret<false>(f);
   }
 
@@ -83,7 +83,7 @@ public:
         * Variables of type `Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\bot) \f$).
         * Variables of type `Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\bot) \f$). */
   template<class F>
-  CUDA NI static iresult<F> interpret_type(const F& f) {
+  CUDA static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());

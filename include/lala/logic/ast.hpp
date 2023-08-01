@@ -271,18 +271,18 @@ private:
 
 public:
   /** By default, we initialize the formula to `true`. */
-  CUDA NI TFormula(): type_(UNTYPED), formula(Formula::template create<B>(true)) {}
-  CUDA NI TFormula(Formula&& formula): type_(UNTYPED), formula(std::move(formula)) {}
-  CUDA NI TFormula(AType uid, Formula&& formula): type_(uid), formula(std::move(formula)) {}
+  CUDA TFormula(): type_(UNTYPED), formula(Formula::template create<B>(true)) {}
+  CUDA TFormula(Formula&& formula): type_(UNTYPED), formula(std::move(formula)) {}
+  CUDA TFormula(AType uid, Formula&& formula): type_(uid), formula(std::move(formula)) {}
 
-  CUDA NI TFormula(const this_type& other): type_(other.type_), formula(other.formula) {}
-  CUDA NI TFormula(this_type&& other): type_(other.type_), formula(std::move(other.formula)) {}
+  CUDA TFormula(const this_type& other): type_(other.type_), formula(other.formula) {}
+  CUDA TFormula(this_type&& other): type_(other.type_), formula(std::move(other.formula)) {}
 
   template <class Alloc2, class ExtendedSig2>
   friend class TFormula;
 
   template <class Alloc2, class ExtendedSig2>
-  CUDA NI TFormula(const TFormula<Alloc2, ExtendedSig2>& other, const Allocator& allocator = Allocator())
+  CUDA TFormula(const TFormula<Alloc2, ExtendedSig2>& other, const Allocator& allocator = Allocator())
     : type_(other.type_), formula(Formula::template create<B>(true))
   {
     switch(other.formula.index()) {
@@ -314,36 +314,36 @@ public:
     }
   }
 
-  CUDA NI void swap(this_type& other) {
+  CUDA void swap(this_type& other) {
     ::battery::swap(type_, other.type_);
     ::battery::swap(formula, other.formula);
   }
 
-  CUDA NI this_type& operator=(const this_type& rhs) {
+  CUDA this_type& operator=(const this_type& rhs) {
     this_type(rhs).swap(*this);
     return *this;
   }
 
-  CUDA NI this_type& operator=(this_type&& rhs) {
+  CUDA this_type& operator=(this_type&& rhs) {
     this_type(std::move(rhs)).swap(*this);
     return *this;
   }
 
-  CUDA NI Formula& data() { return formula; }
-  CUDA NI const Formula& data() const { return formula; }
-  CUDA NI AType type() const { return type_; }
-  CUDA NI void type_as(AType ty) {
+  CUDA Formula& data() { return formula; }
+  CUDA const Formula& data() const { return formula; }
+  CUDA AType type() const { return type_; }
+  CUDA void type_as(AType ty) {
     type_ = ty;
     if(is(V)) {
       v().type_as(ty);
     }
   }
 
-  CUDA NI constexpr bool is_untyped() const {
+  CUDA constexpr bool is_untyped() const {
     return type() == UNTYPED;
   }
 
-  CUDA NI thrust::optional<Sort<allocator_type>> sort() const {
+  CUDA thrust::optional<Sort<allocator_type>> sort() const {
     using sort_t = Sort<allocator_type>;
     switch(formula.index()) {
       case B: return sort_t(sort_t::Bool);
@@ -369,50 +369,50 @@ public:
     return {};
   }
 
-  CUDA NI static this_type make_true() { return TFormula(); }
-  CUDA NI static this_type make_false() { return TFormula(Formula::template create<B>(false)); }
+  CUDA static this_type make_true() { return TFormula(); }
+  CUDA static this_type make_false() { return TFormula(Formula::template create<B>(false)); }
 
-  CUDA NI static this_type make_bool(logic_bool b, AType atype = UNTYPED) {
+  CUDA static this_type make_bool(logic_bool b, AType atype = UNTYPED) {
     return this_type(atype, Formula::template create<B>(b));
   }
 
-  CUDA NI static this_type make_z(logic_int i, AType atype = UNTYPED) {
+  CUDA static this_type make_z(logic_int i, AType atype = UNTYPED) {
     return this_type(atype, Formula::template create<Z>(i));
   }
 
   /** Create a term representing a real number which is approximated by interval [lb..ub].
       By default the real number is supposedly over-approximated. */
-  CUDA NI static this_type make_real(double lb, double ub, AType atype = UNTYPED) {
+  CUDA static this_type make_real(double lb, double ub, AType atype = UNTYPED) {
     return this_type(atype, Formula::template create<R>(battery::make_tuple(lb, ub)));
   }
 
-  CUDA NI static this_type make_real(logic_real r, AType atype = UNTYPED) {
+  CUDA static this_type make_real(logic_real r, AType atype = UNTYPED) {
     return this_type(atype, Formula::template create<R>(r));
   }
 
-  CUDA NI static this_type make_set(LogicSet set, AType atype = UNTYPED) {
+  CUDA static this_type make_set(LogicSet set, AType atype = UNTYPED) {
     return this_type(atype, Formula::template create<S>(std::move(set)));
   }
 
   /** The type of the formula is embedded in `v`. */
-  CUDA NI static this_type make_avar(AVar v) {
+  CUDA static this_type make_avar(AVar v) {
     return this_type(v.aty(), Formula::template create<V>(v));
   }
 
-  CUDA NI static this_type make_avar(AType ty, int vid) {
+  CUDA static this_type make_avar(AType ty, int vid) {
     return make_avar(AVar(ty, vid));
   }
 
-  CUDA NI static this_type make_lvar(AType ty, LVar<Allocator> lvar) {
+  CUDA static this_type make_lvar(AType ty, LVar<Allocator> lvar) {
     return this_type(ty, Formula::template create<LV>(std::move(lvar)));
   }
 
-  CUDA NI static this_type make_exists(AType ty, LVar<Allocator> lvar, Sort<Allocator> ctype) {
+  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, Sort<Allocator> ctype) {
     return this_type(ty, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
   /** If `flatten` is `true` it will try to merge the children together to avoid nested formula. */
-  CUDA NI static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, bool flatten=true)
+  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, bool flatten=true)
   {
     Sequence seq;
     for(size_t i = 0; i < children.size(); ++i) {
@@ -428,79 +428,79 @@ public:
     return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, std::move(seq))));
   }
 
-  CUDA NI static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
+  CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
     return make_nary(sig, Sequence({std::move(child)}, allocator), atype);
   }
 
-  CUDA NI static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, const Allocator& allocator = Allocator(), bool flatten=true) {
+  CUDA static this_type make_binary(TFormula lhs, Sig sig, TFormula rhs, AType atype = UNTYPED, const Allocator& allocator = Allocator(), bool flatten=true) {
     return make_nary(sig, Sequence({std::move(lhs), std::move(rhs)}, allocator), atype, flatten);
   }
 
-  CUDA NI static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED) {
+  CUDA static this_type make_nary(ExtendedSig esig, Sequence children, AType atype = UNTYPED) {
     return this_type(atype, Formula::template create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
   }
 
-  CUDA NI int index() const {
+  CUDA int index() const {
     return formula.index();
   }
 
-  CUDA NI bool is(int kind) const {
+  CUDA bool is(int kind) const {
     return formula.index() == kind;
   }
 
-  CUDA NI bool is_true() const {
+  CUDA bool is_true() const {
     return (is(B) && b()) || (is(Z) && z() != 0);
   }
 
-  CUDA NI bool is_false() const {
+  CUDA bool is_false() const {
     return (is(B) && !b()) || (is(Z) && z() == 0);
   }
 
-  CUDA NI bool is_constant() const {
+  CUDA bool is_constant() const {
     return is(B) || is(Z) || is(R) || is(S);
   }
 
-  CUDA NI bool is_variable() const {
+  CUDA bool is_variable() const {
     return is(LV) || is(V);
   }
 
-  CUDA NI bool is_binary() const {
+  CUDA bool is_binary() const {
     return is(Seq) && seq().size() == 2;
   }
 
-  CUDA NI logic_bool b() const {
+  CUDA logic_bool b() const {
     return battery::get<B>(formula);
   }
 
-  CUDA NI logic_int z() const {
+  CUDA logic_int z() const {
     return battery::get<Z>(formula);
   }
 
-  CUDA NI const logic_real& r() const {
+  CUDA const logic_real& r() const {
     return battery::get<R>(formula);
   }
 
-  CUDA NI const LogicSet& s() const {
+  CUDA const LogicSet& s() const {
     return battery::get<S>(formula);
   }
 
-  CUDA NI AVar v() const {
+  CUDA AVar v() const {
     return battery::get<V>(formula);
   }
 
-  CUDA NI const LVar<Allocator>& lv() const {
+  CUDA const LVar<Allocator>& lv() const {
     return battery::get<LV>(formula);
   }
 
-  CUDA NI const Existential& exists() const {
+  CUDA const Existential& exists() const {
     return battery::get<E>(formula);
   }
 
-  CUDA NI Sig sig() const {
+  CUDA Sig sig() const {
     return battery::get<0>(battery::get<Seq>(formula));
   }
 
-  CUDA NI bool is_logical() const {
+  CUDA bool is_logical() const {
     if(is(Seq)) {
       Sig s = sig();
       return s == AND || s == OR || s == IMPLY
@@ -509,85 +509,85 @@ public:
     return false;
   }
 
-  CUDA NI const ExtendedSig& esig() const {
+  CUDA const ExtendedSig& esig() const {
     return battery::get<0>(battery::get<ESeq>(formula));
   }
 
-  CUDA NI const Sequence& seq() const {
+  CUDA const Sequence& seq() const {
     return battery::get<1>(battery::get<Seq>(formula));
   }
 
-  CUDA NI const this_type& seq(size_t i) const {
+  CUDA const this_type& seq(size_t i) const {
     return seq()[i];
   }
 
-  CUDA NI const Sequence& eseq() const {
+  CUDA const Sequence& eseq() const {
     return battery::get<1>(battery::get<ESeq>(formula));
   }
 
-  CUDA NI const this_type& eseq(size_t i) const {
+  CUDA const this_type& eseq(size_t i) const {
     return eseq()[i];
   }
 
-  CUDA NI logic_bool& b() {
+  CUDA logic_bool& b() {
     return battery::get<B>(formula);
   }
 
-  CUDA NI logic_int& z() {
+  CUDA logic_int& z() {
     return battery::get<Z>(formula);
   }
 
-  CUDA NI logic_real& r() {
+  CUDA logic_real& r() {
     return battery::get<R>(formula);
   }
 
-  CUDA NI LogicSet& s() {
+  CUDA LogicSet& s() {
     return battery::get<S>(formula);
   }
 
-  CUDA NI AVar& v() {
+  CUDA AVar& v() {
     return battery::get<V>(formula);
   }
 
-  CUDA NI Sig& sig() {
+  CUDA Sig& sig() {
     return battery::get<0>(battery::get<Seq>(formula));
   }
 
-  CUDA NI ExtendedSig& esig() {
+  CUDA ExtendedSig& esig() {
     return battery::get<0>(battery::get<ESeq>(formula));
   }
 
-  CUDA NI Sequence& seq() {
+  CUDA Sequence& seq() {
     return battery::get<1>(battery::get<Seq>(formula));
   }
 
-  CUDA NI this_type& seq(size_t i) {
+  CUDA this_type& seq(size_t i) {
     return seq()[i];
   }
 
-  CUDA NI Sequence& eseq() {
+  CUDA Sequence& eseq() {
     return battery::get<1>(battery::get<ESeq>(formula));
   }
 
-  CUDA NI this_type& eseq(size_t i) {
+  CUDA this_type& eseq(size_t i) {
     return eseq()[i];
   }
 
-  CUDA NI this_type map_sig(Sig sig) const {
+  CUDA this_type map_sig(Sig sig) const {
     assert(is(Seq));
     this_type f = *this;
     f.sig() = sig;
     return std::move(f);
   }
 
-  CUDA NI this_type map_atype(AType aty) const {
+  CUDA this_type map_atype(AType aty) const {
     this_type f = *this;
     f.type_as(aty);
     return std::move(f);
   }
 private:
   template<size_t n>
-  CUDA NI void print_sequence(bool print_atype, bool top_level = false) const {
+  CUDA void print_sequence(bool print_atype, bool top_level = false) const {
     const auto& op = battery::get<0>(battery::get<n>(formula));
     const auto& children = battery::get<1>(battery::get<n>(formula));
     if(children.size() == 0) {
@@ -635,7 +635,7 @@ private:
     printf(")");
   }
 
-  CUDA NI void print_impl(bool print_atype = true, bool top_level = false) const {
+  CUDA void print_impl(bool print_atype = true, bool top_level = false) const {
     switch(formula.index()) {
       case B:
         printf("%s", b() ? "true" : "false");
@@ -701,13 +701,13 @@ private:
   }
 
 public:
-  CUDA NI void print(bool print_atype = true) const {
+  CUDA void print(bool print_atype = true) const {
     print_impl(print_atype, true);
   }
 };
 
 template<typename Allocator, typename ExtendedSig>
-CUDA NI bool operator==(const TFormula<Allocator, ExtendedSig>& lhs, const TFormula<Allocator, ExtendedSig>& rhs) {
+CUDA bool operator==(const TFormula<Allocator, ExtendedSig>& lhs, const TFormula<Allocator, ExtendedSig>& rhs) {
   return lhs.type() == rhs.type() && lhs.data() == rhs.data();
 }
 
