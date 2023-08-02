@@ -128,7 +128,7 @@ public:
    *    * `var x:B` when the underlying universe is arithmetic and preserve concrete covers.
    * Therefore, the element `k` is always in \f$ \gamma(lb) \cap \gamma(ub) \f$. */
   template<class F, class Env>
-  CUDA static iresult<F> interpret_tell(const F& f, const Env& env) {
+  CUDA NI static iresult<F> interpret_tell(const F& f, const Env& env) {
     if(f.is_binary() &&
       (f.sig() == EQ ||
       (f.sig() == IN && f.seq(1).is(F::S))))
@@ -154,7 +154,7 @@ public:
    *    * `x != k` is under-approximated by interpreting `x != k` in the lower bound.
    *    * `x == k` is interpreted by over-approximating `x == k` in both bounds and then verifying both bounds are the same. */
   template<class F, class Env>
-  CUDA static iresult<F> interpret_ask(const F& f, const Env& env) {
+  CUDA NI static iresult<F> interpret_ask(const F& f, const Env& env) {
     if(f.is_binary() && f.sig() == NEQ) {
       auto lb = LB::interpret_ask(f, env);
       if(lb.has_value()) {
@@ -279,7 +279,7 @@ public:
    * A special case is made for real numbers where the both bounds are used, since the logical interpretation uses interval.
   */
   template<class F>
-  CUDA F deinterpret() const {
+  CUDA NI F deinterpret() const {
     F logical_lb = lb().template deinterpret<F>();
     if(logical_lb.is(F::R)) {
       F logical_ub = ub().template deinterpret<F>();
@@ -288,7 +288,7 @@ public:
     return logical_lb;
   }
 
-  CUDA void print() const {
+  CUDA NI void print() const {
     printf("[");
     lb().print();
     printf("..");
@@ -296,7 +296,7 @@ public:
     printf("]");
   }
 
-  CUDA constexpr static bool is_supported_fun(Sig sig) {
+  CUDA NI constexpr static bool is_supported_fun(Sig sig) {
     switch(sig) {
       case ABS: return CP::is_supported_fun(NEG);
       case SUB: return CP::is_supported_fun(ADD) && CP::is_supported_fun(NEG);

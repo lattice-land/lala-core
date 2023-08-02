@@ -177,7 +177,7 @@ public:
 
 private:
   template <class F, class Env>
-  CUDA iresult<F, Env> interpret_existential(const F& f, Env& env) const {
+  CUDA NI iresult<F, Env> interpret_existential(const F& f, Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
     assert(f.is(F::E));
     auto u = local_universe::interpret_tell(f, env);
@@ -207,7 +207,7 @@ private:
 
   /** Interpret a predicate without variables. */
   template <class F, class Env>
-  CUDA iresult<F, Env> interpret_zero_predicate(const F& f, const Env& env) const {
+  CUDA NI iresult<F, Env> interpret_zero_predicate(const F& f, const Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
     if(f.is_true()) {
       return std::move(iresult<F, Env>(TellType(env.get_allocator())));
@@ -224,7 +224,7 @@ private:
 
   /** Interpret a predicate with a single variable occurrence. */
   template <bool is_tell, class F, class Env>
-  CUDA iresult<F, Env> interpret_unary_predicate(const F& f, const Env& env) const {
+  CUDA NI iresult<F, Env> interpret_unary_predicate(const F& f, const Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
     auto u = is_tell ? local_universe::interpret_tell(f, env) : local_universe::interpret_ask(f, env);
     if(u.has_value()) {
@@ -258,7 +258,7 @@ private:
   }
 
   template <bool is_tell, class F, class Env>
-  CUDA iresult<F, Env> interpret_predicate(const F& f, Env& env) const {
+  CUDA NI iresult<F, Env> interpret_predicate(const F& f, Env& env) const {
     if(f.type() != UNTYPED && f.type() != aty()) {
       return iresult<F, Env>(IError<F>(true, name, "The predicate is not of the right type.", f));
     }
@@ -280,7 +280,7 @@ private:
   }
 
   template <bool is_tell, class F, class Env>
-  CUDA iresult<F, Env> interpret_in_impl(const F& f, Env& env) const {
+  CUDA NI iresult<F, Env> interpret_in_impl(const F& f, Env& env) const {
     using TellType = tell_type<typename Env::allocator_type>;
     if(f.is_untyped() || f.type() == aty()) {
       if(f.is(F::Seq) && f.sig() == AND) {
@@ -325,7 +325,7 @@ public:
    * The store will only be equivalent when considering the `env` structure.
   */
   template <class F, class Env>
-  CUDA iresult<F, Env> interpret_tell_in(const F& f, Env& env) const {
+  CUDA NI iresult<F, Env> interpret_tell_in(const F& f, Env& env) const {
     auto snap = env.snapshot();
     auto r = interpret_in_impl<true>(f, env);
     if(!r.has_value()) {
@@ -338,7 +338,7 @@ public:
    * All the existentially quantified variables must be untyped.
    * The UID of the store will be an UID that is free in `env`. */
   template <class F, class Env>
-  CUDA static IResult<this_type, F> interpret_tell(const F& f, Env& env, allocator_type alloc = allocator_type()) {
+  CUDA NI static IResult<this_type, F> interpret_tell(const F& f, Env& env, allocator_type alloc = allocator_type()) {
     auto snap = env.snapshot();
     size_t ty = env.extends_abstract_dom();
     this_type store(ty,
@@ -357,7 +357,7 @@ public:
 
   /** Similar to `interpret_tell_in` but do not support existential quantifier. */
   template <class F, class Env>
-  CUDA iresult<F, Env> interpret_ask_in(const F& f, const Env& env) const {
+  CUDA NI iresult<F, Env> interpret_ask_in(const F& f, const Env& env) const {
     return interpret_in_impl<false>(f, env);
   }
 
@@ -516,7 +516,7 @@ public:
   }
 
   template<class Env>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(const Env& env) const {
+  CUDA NI TFormula<typename Env::allocator_type> deinterpret(const Env& env) const {
     using F = TFormula<typename Env::allocator_type>;
     typename F::Sequence seq{env.get_allocator()};
     for(int i = 0; i < data.size(); ++i) {

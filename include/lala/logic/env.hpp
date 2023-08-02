@@ -24,20 +24,20 @@ struct Variable {
   Sort<Allocator> sort;
   bvector<AVar> avars;
 
-  CUDA Variable(const bstring& name, const Sort<Allocator>& sort, AVar av, const Allocator& allocator = Allocator())
+  CUDA NI Variable(const bstring& name, const Sort<Allocator>& sort, AVar av, const Allocator& allocator = Allocator())
     : name(name, allocator), sort(sort, allocator), avars(allocator)
   {
     avars.push_back(av);
   }
 
   template <class Alloc2>
-  CUDA Variable(const Variable<Alloc2>& other, const Allocator& allocator = Allocator())
+  CUDA NI Variable(const Variable<Alloc2>& other, const Allocator& allocator = Allocator())
     : name(other.name, allocator)
     , sort(other.sort, allocator)
     , avars(other.avars, allocator)
   {}
 
-  CUDA thrust::optional<AVar> avar_of(AType aty) const {
+  CUDA NI thrust::optional<AVar> avar_of(AType aty) const {
     for(int i = 0; i < avars.size(); ++i) {
       if(avars[i].aty() == aty) {
         return avars[i];
@@ -74,14 +74,14 @@ private:
   bvector<bvector<int>> avar2lvar;
 
 public:
-  CUDA AType extends_abstract_dom() {
+  CUDA NI AType extends_abstract_dom() {
     avar2lvar.push_back(bvector<int>(get_allocator()));
     return avar2lvar.size() - 1;
   }
 
 private:
 
-  CUDA void extends_abstract_doms(AType aty) {
+  CUDA NI void extends_abstract_doms(AType aty) {
     assert(aty != UNTYPED);
     while(aty >= avar2lvar.size()) {
       extends_abstract_dom();
@@ -89,7 +89,7 @@ private:
   }
 
   template <class Alloc2, class Alloc3>
-  CUDA AVar extends_vars(AType aty, const battery::string<Alloc2>& name, const Sort<Alloc3>& sort) {
+  CUDA NI AVar extends_vars(AType aty, const battery::string<Alloc2>& name, const Sort<Alloc3>& sort) {
     extends_abstract_doms(aty);
     AVar avar(aty, avar2lvar[aty].size());
     avar2lvar[aty].push_back(lvars.size());
@@ -98,7 +98,7 @@ private:
   }
 
   template <class F>
-  CUDA iresult<F> interpret_existential(const F& f) {
+  CUDA NI iresult<F> interpret_existential(const F& f) {
     const auto& vname = battery::get<0>(f.exists());
     if(f.type() == UNTYPED) {
       return iresult<F>(IError<F>(true, name, "Untyped abstract type: variable `" + vname + "` has no abstract type.", f));
@@ -114,7 +114,7 @@ private:
   }
 
   template <class F>
-  CUDA iresult<F> interpret_lv(const F& f) {
+  CUDA NI iresult<F> interpret_lv(const F& f) {
     const auto& vname = f.lv();
     auto var = variable_of(vname);
     if(var.has_value()) {
@@ -184,7 +184,7 @@ public:
    *    - Variable occurrence.
    * It returns an abstract variable (`AVar`) corresponding to the variable created (existential) or already presents (occurrence). */
   template <class F>
-  CUDA iresult<F> interpret(const F& f) {
+  CUDA NI iresult<F> interpret(const F& f) {
     if(f.is(F::E)) {
       return interpret_existential(f);
     }
@@ -204,7 +204,7 @@ public:
     }
   }
 
-  CUDA thrust::optional<const variable_type&> variable_of(const char* lv) const {
+  CUDA NI thrust::optional<const variable_type&> variable_of(const char* lv) const {
     for(int i = 0; i < lvars.size(); ++i) {
       if(lvars[i].name == lv) {
         return lvars[i];
@@ -256,7 +256,7 @@ public:
   };
 
   /** Save the state of the environment. */
-  CUDA snapshot_type snapshot() const {
+  CUDA NI snapshot_type snapshot() const {
     snapshot_type snap;
     for(int i = 0; i < lvars.size(); ++i) {
       snap.lvars_snap.push_back(lvars[i].avars.size());
@@ -268,7 +268,7 @@ public:
   }
 
   /** Restore the environment to its previous state `snap`. */
-  CUDA void restore(const snapshot_type& snap) {
+  CUDA NI void restore(const snapshot_type& snap) {
     assert(lvars.size() >= snap.lvars_snap.size());
     assert(avar2lvar.size() >= snap.avar2lvar_snap.size());
     while(lvars.size() > snap.lvars_snap.size()) {
@@ -288,7 +288,7 @@ public:
 
 /** Given a formula `f` and an environment, return the first variable occurring in `f` or `{}` if `f` has no variable in `env`. */
 template <class F, class Env>
-CUDA thrust::optional<const typename Env::variable_type&> var_in(const F& f, const Env& env) {
+CUDA NI thrust::optional<const typename Env::variable_type&> var_in(const F& f, const Env& env) {
   const auto& g = var_in(f);
   switch(g.index()) {
     case F::V:

@@ -67,7 +67,7 @@ public:
   }
 
   template<class A2, class A>
-  CUDA abstract_ptr<A2> clone(const abstract_ptr<A>& a)
+  CUDA NI abstract_ptr<A2> clone(const abstract_ptr<A>& a)
   {
     auto to_alloc = battery::get<typename A2::allocator_type>(allocators);
     if(!a) {

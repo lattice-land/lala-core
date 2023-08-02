@@ -39,7 +39,7 @@ struct PreFInc {
 
 private:
   template<bool is_tell, class F>
-  CUDA static iresult<F> interpret(const F& f) {
+  CUDA NI static iresult<F> interpret(const F& f) {
     if(f.is(F::Z)) {
       auto z = f.z();
       // We do not consider the min and max values of integers to be infinities when they are part of the logical formula.
@@ -83,7 +83,7 @@ public:
         * Variables of type `Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\bot) \f$).
         * Variables of type `Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\bot) \f$). */
   template<class F>
-  CUDA static iresult<F> interpret_type(const F& f) {
+  CUDA NI static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
@@ -168,7 +168,7 @@ public:
     return battery::nextafter(x, bot());
   }
 
-  CUDA static constexpr bool is_supported_fun(Sig sig) {
+  CUDA NI static constexpr bool is_supported_fun(Sig sig) {
     switch(sig) {
       case NEG:
       case ABS:
@@ -201,7 +201,7 @@ public:
   }
 
   template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x, value_type y) {
+  CUDA NI static constexpr value_type fun(value_type x, value_type y) {
     static_assert(is_supported_fun(sig), "Unsupported binary function.");
     switch(sig) {
       case ADD: return battery::add_down(x, y);

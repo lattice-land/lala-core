@@ -202,7 +202,7 @@ public:
   `true` is returned whenever \f$ a = \bot \f$, and `false` is returned whenever \f$ a = \top \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function. */
   template<class Env>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
+  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
     using F = TFormula<typename Env::allocator_type>;
     if(is_top()) {
       return F::make_false();
@@ -219,7 +219,7 @@ public:
 
   /** Deinterpret the current value to a logical constant. */
   template<class F>
-  CUDA F deinterpret() const {
+  CUDA NI F deinterpret() const {
     return pre_universe::template deinterpret<F>(value());
   }
 
@@ -231,7 +231,7 @@ public:
   }
 
   /** Print the current element. */
-  CUDA void print() const {
+  CUDA NI void print() const {
     if(is_bot()) {
       printf("\u22A5");
     }
@@ -247,7 +247,7 @@ public:
   /** Expects a predicate of the form `x = k` or `k = x`, where `x` is any variable's name, and `k` a constant.
       Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom). */
   template<class F, class Env>
-  CUDA static iresult<F> interpret_tell(const F& f, const Env& env) {
+  CUDA NI static iresult<F> interpret_tell(const F& f, const Env& env) {
     if(f.is_true()) {
       return bot();
     }
@@ -293,7 +293,7 @@ public:
 
   /** Same as `interpret_tell` without the support for existential quantifier. */
   template<class F, class Env>
-  CUDA static iresult<F> interpret_ask(const F& f, const Env& env) {
+  CUDA NI static iresult<F> interpret_ask(const F& f, const Env& env) {
     if(f.is(F::E)) {
       return iresult<F>(IError<F>(true, name,
         "Only interpretation of binary formulas of the form `t1 = t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));

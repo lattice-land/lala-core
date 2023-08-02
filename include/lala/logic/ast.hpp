@@ -106,7 +106,7 @@ enum Sig {
   ///@}
 };
 
-CUDA inline const char* string_of_sig(Sig sig) {
+CUDA NI inline const char* string_of_sig(Sig sig) {
   switch(sig) {
     case NEG: return "-";
     case ABS: return "abs";
@@ -177,19 +177,19 @@ CUDA inline const char* string_of_sig(Sig sig) {
     }
   }
 
-  CUDA inline constexpr bool is_prefix(Sig sig) {
+  CUDA NI inline constexpr bool is_prefix(Sig sig) {
     return sig == ABS || sig == SQRT || sig == EXP || sig == LN || sig == NROOT || sig == LOG || sig == SIN || sig == COS || sig == TAN || sig == ASIN || sig == ACOS || sig == ATAN || sig == SINH || sig == COSH || sig == TANH || sig == ASINH || sig == ACOSH || sig == ATANH || sig == MIN || sig == MAX || sig == COMPLEMENT || sig == CARD || sig == HULL || sig == CONVEX || sig == ITE || sig == MAXIMIZE || sig == MINIMIZE;
   }
 
-  CUDA inline constexpr bool is_division(Sig sig) {
+  CUDA NI inline constexpr bool is_division(Sig sig) {
     return sig == DIV || sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
   }
 
-  CUDA inline constexpr bool is_modulo(Sig sig) {
+  CUDA NI inline constexpr bool is_modulo(Sig sig) {
     return sig == MOD || sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
   }
 
-  CUDA inline constexpr bool is_associative(Sig sig) {
+  CUDA NI inline constexpr bool is_associative(Sig sig) {
     return sig == ADD || sig == MUL || sig == AND || sig == OR || sig == EQUIV || sig == XOR
       || sig == UNION || sig == INTERSECTION || sig == MAX || sig == MIN;
   }
@@ -197,7 +197,7 @@ CUDA inline const char* string_of_sig(Sig sig) {
 
 namespace battery {
   template<>
-  CUDA inline void print(const lala::Sig& sig) {
+  CUDA NI inline void print(const lala::Sig& sig) {
     printf("%s", lala::string_of_sig(sig));
   }
 }
@@ -282,7 +282,7 @@ public:
   friend class TFormula;
 
   template <class Alloc2, class ExtendedSig2>
-  CUDA TFormula(const TFormula<Alloc2, ExtendedSig2>& other, const Allocator& allocator = Allocator())
+  CUDA NI TFormula(const TFormula<Alloc2, ExtendedSig2>& other, const Allocator& allocator = Allocator())
     : type_(other.type_), formula(Formula::template create<B>(true))
   {
     switch(other.formula.index()) {
@@ -343,7 +343,7 @@ public:
     return type() == UNTYPED;
   }
 
-  CUDA thrust::optional<Sort<allocator_type>> sort() const {
+  CUDA NI thrust::optional<Sort<allocator_type>> sort() const {
     using sort_t = Sort<allocator_type>;
     switch(formula.index()) {
       case B: return sort_t(sort_t::Bool);
@@ -412,7 +412,7 @@ public:
   }
 
   /** If `flatten` is `true` it will try to merge the children together to avoid nested formula. */
-  CUDA static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, bool flatten=true)
+  CUDA NI static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, bool flatten=true)
   {
     Sequence seq;
     for(size_t i = 0; i < children.size(); ++i) {
@@ -500,7 +500,7 @@ public:
     return battery::get<0>(battery::get<Seq>(formula));
   }
 
-  CUDA bool is_logical() const {
+  CUDA NI bool is_logical() const {
     if(is(Seq)) {
       Sig s = sig();
       return s == AND || s == OR || s == IMPLY
@@ -573,21 +573,22 @@ public:
     return eseq()[i];
   }
 
-  CUDA this_type map_sig(Sig sig) const {
+  CUDA NI this_type map_sig(Sig sig) const {
     assert(is(Seq));
     this_type f = *this;
     f.sig() = sig;
     return std::move(f);
   }
 
-  CUDA this_type map_atype(AType aty) const {
+  CUDA NI this_type map_atype(AType aty) const {
     this_type f = *this;
     f.type_as(aty);
     return std::move(f);
   }
+
 private:
   template<size_t n>
-  CUDA void print_sequence(bool print_atype, bool top_level = false) const {
+  CUDA NI void print_sequence(bool print_atype, bool top_level = false) const {
     const auto& op = battery::get<0>(battery::get<n>(formula));
     const auto& children = battery::get<1>(battery::get<n>(formula));
     if(children.size() == 0) {
@@ -635,7 +636,7 @@ private:
     printf(")");
   }
 
-  CUDA void print_impl(bool print_atype = true, bool top_level = false) const {
+  CUDA NI void print_impl(bool print_atype = true, bool top_level = false) const {
     switch(formula.index()) {
       case B:
         printf("%s", b() ? "true" : "false");

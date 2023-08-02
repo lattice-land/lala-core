@@ -41,7 +41,7 @@ private:
 
 public:
   // If fatal is false, it is considered as a warning.
-  CUDA IError(bool fatal, battery::string<allocator_type> ad_name,
+  CUDA NI IError(bool fatal, battery::string<allocator_type> ad_name,
     battery::string<allocator_type> description,
     F uninterpretable_formula,
     AType aty = UNTYPED)
@@ -52,12 +52,12 @@ public:
      fatal(fatal)
   {}
 
-  CUDA this_type& add_suberror(IError<F>&& suberror) {
+  CUDA NI this_type& add_suberror(IError<F>&& suberror) {
     suberrors.push_back(suberror);
     return *this;
   }
 
-  CUDA void print(int indent = 0) const {
+  CUDA NI void print(int indent = 0) const {
     if(fatal) {
       print_line("[error] ", indent);
     }
@@ -148,7 +148,7 @@ public:
   CUDA IResult(IResult<U, F>&& map): result(map_result(std::move(map.result))),
     warnings(std::move(map.warnings)) {}
 
-  CUDA this_type& operator=(this_type&& other) {
+  CUDA NI this_type& operator=(this_type&& other) {
     result = std::move(other.result);
     warnings = std::move(other.warnings);
     return *this;
@@ -163,14 +163,14 @@ public:
   }
 
   template<class U>
-  CUDA IResult<U, F> map_error() && {
+  CUDA NI IResult<U, F> map_error() && {
     auto r = IResult<U, F>(std::move(error()));
     r.warnings = std::move(warnings);
     return std::move(r);
   }
 
   template<class U>
-  CUDA IResult<U, F> map(U&& data2) && {
+  CUDA NI IResult<U, F> map(U&& data2) && {
     if(has_value()) {
       auto r = IResult<U, F>(std::move(data2));
       r.warnings = std::move(warnings);
@@ -182,7 +182,7 @@ public:
   }
 
   template<class U>
-  CUDA this_type& join_warnings(IResult<U, F>&& other) {
+  CUDA NI this_type& join_warnings(IResult<U, F>&& other) {
     for(int i = 0; i < other.warnings.size(); ++i) {
       warnings.push_back(std::move(other.warnings[i]));
     }
@@ -190,7 +190,7 @@ public:
   }
 
   template<class U>
-  CUDA this_type& join_errors(IResult<U, F>&& other) {
+  CUDA NI this_type& join_errors(IResult<U, F>&& other) {
     if(!other.has_value()) {
       if(has_value()) {
         result = result_type::template create<1>(std::move(other.error()));
@@ -218,7 +218,7 @@ public:
     return warnings.size() > 0;
   }
 
-  CUDA void print_diagnostics() const {
+  CUDA NI void print_diagnostics() const {
     if(has_value()) {
       printf("successfully interpreted\n");
     }

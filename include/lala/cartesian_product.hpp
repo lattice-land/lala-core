@@ -133,7 +133,7 @@ public:
 private:
   /** Interpret the formula in the component `i`. */
   template<bool is_tell, size_t i, class F, class Env>
-  CUDA static iresult<F> interpret_one(const F& f, const Env& env) {
+  CUDA NI static iresult<F> interpret_one(const F& f, const Env& env) {
     auto one = is_tell ? type_of<i>::interpret_tell(f, env) :  type_of<i>::interpret_ask(f, env);
     if(one.has_value()) {
       auto res = bot();
@@ -147,7 +147,7 @@ private:
   }
 
   template<bool is_tell, size_t i = 0, class F, class Env>
-  CUDA static IResult<bool, F> interpret_all(const F& f, local_type& res, bool empty, const Env& env) {
+  CUDA NI static IResult<bool, F> interpret_all(const F& f, local_type& res, bool empty, const Env& env) {
     if constexpr(i == n) {
       if(empty) {
         return IResult<bool, F>(IError<F>(true, name, "No component of this Cartesian product can interpret this formula.", f));
@@ -173,7 +173,7 @@ private:
   }
 
   template<bool is_tell, class F, class Env>
-  CUDA static iresult<F> interpret(const F& f, const Env& env) {
+  CUDA NI static iresult<F> interpret(const F& f, const Env& env) {
     local_type cp = bot();
     if(f.is(F::Seq) && f.sig() == AND) {
       iresult<F> res(bot());
@@ -439,7 +439,7 @@ public:
 
 private:
   template<size_t i, class Env, class Allocator = typename Env::allocator_type>
-  CUDA TFormula<Allocator> deinterpret_(AVar x,
+  CUDA NI TFormula<Allocator> deinterpret_(AVar x,
     typename TFormula<Allocator>::Sequence& seq, const Env& env) const
   {
     if constexpr(i < n) {
@@ -471,7 +471,7 @@ public:
 
 private:
   template<size_t i = 0>
-  CUDA void print_() const {
+  CUDA NI void print_() const {
     if constexpr(i < n) {
       project<i>().print();
       if constexpr(i < n - 1) {

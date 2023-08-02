@@ -56,7 +56,7 @@ struct PreZInc {
 
 private:
   template<bool is_tell, class F>
-  CUDA static iresult<F> interpret(const F& f) {
+  CUDA NI static iresult<F> interpret(const F& f) {
     if(f.is(F::Z)) {
       auto z = f.z();
       if(z == bot() || z == top()) {
@@ -103,7 +103,7 @@ public:
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
       Variables of type `Int` are interpreted exactly (\f$ \mathbb{Z} = \gamma(\bot) \f$). */
   template<class F>
-  CUDA static iresult<F> interpret_type(const F& f) {
+  CUDA NI static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
     const auto& sort = battery::get<1>(f.exists());
     if(sort.is_int()) {
@@ -175,7 +175,7 @@ public:
     return x - (x != top() && x != bot());
   }
 
-  CUDA static constexpr bool is_supported_fun(Sig sig) {
+  CUDA NI static constexpr bool is_supported_fun(Sig sig) {
     switch(sig) {
       case NEG:
       case ABS:
@@ -220,7 +220,7 @@ public:
 
   /** `fun: value_type X value_type -> ZInc` is similar to its unary version but with an arity of 2. */
   template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x, value_type y) {
+  CUDA NI static constexpr value_type fun(value_type x, value_type y) {
     static_assert(
       sig == ADD || sig == SUB || sig == MUL || sig == TDIV || sig == TMOD || sig == FDIV || sig == FMOD || sig == CDIV || sig == CMOD || sig == EDIV || sig == EMOD || sig == POW || sig == MIN || sig == MAX || sig == EQ || sig == NEQ || sig == LEQ || sig == GEQ || sig == LT || sig == GT,
       "Unsupported binary function.");

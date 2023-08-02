@@ -57,7 +57,7 @@ struct PreBInc {
    * \return `bot()` if the type of the existentially quantified variable is `Bool`. Otherwise it returns an explanation of the error.
   */
   template<class F>
-  CUDA static iresult<F> interpret_type(const F& f) {
+  CUDA NI static iresult<F> interpret_type(const F& f) {
     assert(f.is(F::E));
     const auto& cty = battery::get<1>(f.exists());
     if(cty.is_bool()) {
@@ -113,7 +113,7 @@ struct PreBInc {
    \return `false`. */
   CUDA static constexpr value_type prev(value_type x) { return false; }
 
-  CUDA static constexpr bool is_supported_fun(Sig sig) {
+  CUDA NI static constexpr bool is_supported_fun(Sig sig) {
     switch(sig) {
       case AND:
       case OR:
@@ -139,7 +139,7 @@ struct PreBInc {
   }
 
   template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x, value_type y) {
+  CUDA NI static constexpr value_type fun(value_type x, value_type y) {
     static_assert(sig == AND || sig == OR || sig == IMPLY || sig == EQUIV || sig == XOR,
       "Unsupported binary function.");
     switch(sig) {
