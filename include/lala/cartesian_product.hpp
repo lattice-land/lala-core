@@ -137,7 +137,7 @@ private:
     auto one = is_tell ? type_of<i>::interpret_tell(f, env) :  type_of<i>::interpret_ask(f, env);
     if(one.has_value()) {
       auto res = bot();
-      project<i>(res).tell(one.value());
+      res.template project<i>().tell(one.value());
       return one.map(std::move(res));
     }
     else {
@@ -489,7 +489,7 @@ public:
 
 /// Similar to `cp.template project<i>()`, just to avoid the ".template" syntax.
 template<size_t i, class... As>
-CUDA constexpr const typename CartesianProduct<As...>::type_of<i>&
+CUDA constexpr const typename CartesianProduct<As...>::template type_of<i>&
 project(const CartesianProduct<As...>& cp) {
   return cp.template project<i>();
 }

@@ -29,7 +29,7 @@ TEST(PrimitiveUpsetTest, JoinMeetTest) {
 
 template <class L>
 void test_z_arithmetic() {
-  using F = typename L::flat_type<battery::local_memory>;
+  using F = L::template flat_type<battery::local_memory>;
 
   generic_arithmetic_fun_test<F, L>(F(0));
 

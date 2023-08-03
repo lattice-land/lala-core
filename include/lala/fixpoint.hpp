@@ -7,7 +7,7 @@
 #include "universes/primitive_upset.hpp"
 #include "battery/memory.hpp"
 
-#ifdef __NVCC__
+#ifdef __CUDACC__
   #include <cooperative_groups.h>
 #endif
 
@@ -46,7 +46,7 @@ public:
   }
 };
 
-#ifdef __NVCC__
+#ifdef __CUDACC__
 
 /** A simple form of fixpoint computation based on Kleene fixpoint.
  * At each iteration, the refinement operations \f$ f_1, \ldots, f_n \f$ are composed by parallel composition \f$ f = f_1 \| \ldots \| f_n \f$ meaning they are executed in parallel by different threads.

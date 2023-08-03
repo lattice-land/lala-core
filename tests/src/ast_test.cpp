@@ -9,7 +9,7 @@ using namespace lala;
 using namespace battery;
 
 TEST(VarTest, MakeVar) {
-  int n = 6;
+  constexpr int n = 6;
   int types[n] = {0, 0, 1, 1, 13, (1 << 8) - 1};
   int var_ids[n] = {0, 1, 0, 1, 124, (1 << 23) - 1};
   for(int i = 0; i < n; ++i) {

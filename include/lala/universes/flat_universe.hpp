@@ -62,7 +62,7 @@ public:
   }
 
 private:
-  using atomic_type = typename memory_type::atomic_type<value_type>;
+  using atomic_type = memory_type::template atomic_type<value_type>;
   atomic_type val;
 
 public:
