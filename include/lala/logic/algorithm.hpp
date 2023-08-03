@@ -284,6 +284,7 @@ CUDA NI bool is_comparison(const F& f) {
       case SUPSET:
       case SUPSETEQ:
         return true;
+      default: break;
     }
   }
   return false;
