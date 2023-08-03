@@ -36,7 +36,7 @@ add_library(lala_core INTERFACE)
 target_include_directories(lala_core INTERFACE include)
 target_link_libraries(lala_core INTERFACE cuda_battery)
 target_compile_options(lala_core INTERFACE
-  "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-diag-suppress 20011,20014>" # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
+  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-diag-suppress 20011,20014>" # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
 )
 
 # Documentation
