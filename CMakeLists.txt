@@ -14,7 +14,7 @@ include(FetchContent)
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        main
+  GIT_TAG        nvidia_bug4220100
 )
 FetchContent_MakeAvailable(cuda_battery)
 
