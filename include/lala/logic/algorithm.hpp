@@ -202,12 +202,12 @@ CUDA NI battery::tuple<F,F> extract_ty(const F& f, AType ty) {
 }
 
 template <class F>
-CUDA NI std::optional<F> negate(const F& f);
+CUDA NI thrust::optional<F> negate(const F& f);
 
 /** not(f1 \/ ... \/ fn) --> not(f1) /\ ... /\ not(fn)
     not(f1 /\ ... /\ fn) --> not(f1) \/ ... \/ not(fn) */
 template <class F>
-CUDA NI std::optional<F> de_morgan_law(Sig sig_neg, const F& f) {
+CUDA NI thrust::optional<F> de_morgan_law(Sig sig_neg, const F& f) {
   auto seq = f.seq();
   typename F::Sequence neg_seq(seq.size());
   for(int i = 0; i < f.seq().size(); ++i) {
@@ -223,7 +223,7 @@ CUDA NI std::optional<F> de_morgan_law(Sig sig_neg, const F& f) {
 }
 
 template <class F>
-CUDA NI std::optional<F> negate_eq(const F& f) {
+CUDA NI thrust::optional<F> negate_eq(const F& f) {
   assert(f.is_binary() && f.sig() == EQ);
   if(f.seq(0).is(F::B)) {
     auto b = f.seq(0);
@@ -239,7 +239,7 @@ CUDA NI std::optional<F> negate_eq(const F& f) {
 }
 
 template <class F>
-CUDA NI std::optional<F> negate(const F& f) {
+CUDA NI thrust::optional<F> negate(const F& f) {
   if(f.is(F::Seq)) {
     Sig neg_sig;
     switch(f.sig()) {

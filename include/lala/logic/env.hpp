@@ -37,7 +37,7 @@ struct Variable {
     , avars(other.avars, allocator)
   {}
 
-  CUDA NI std::optional<AVar> avar_of(AType aty) const {
+  CUDA NI thrust::optional<AVar> avar_of(AType aty) const {
     for(int i = 0; i < avars.size(); ++i) {
       if(avars[i].aty() == aty) {
         return avars[i];
@@ -204,7 +204,7 @@ public:
     }
   }
 
-  CUDA NI std::optional<const variable_type> variable_of(const char* lv) const {
+  CUDA NI thrust::optional<const variable_type&> variable_of(const char* lv) const {
     for(int i = 0; i < lvars.size(); ++i) {
       if(lvars[i].name == lv) {
         return lvars[i];
@@ -214,7 +214,7 @@ public:
   }
 
   template <class Alloc2>
-  CUDA std::optional<const variable_type> variable_of(const battery::string<Alloc2>& lv) const {
+  CUDA thrust::optional<const variable_type&> variable_of(const battery::string<Alloc2>& lv) const {
     return variable_of(lv.data());
   }
 
@@ -288,7 +288,7 @@ public:
 
 /** Given a formula `f` and an environment, return the first variable occurring in `f` or `{}` if `f` has no variable in `env`. */
 template <class F, class Env>
-CUDA NI std::optional<const typename Env::variable_type> var_in(const F& f, const Env& env) {
+CUDA NI thrust::optional<const typename Env::variable_type&> var_in(const F& f, const Env& env) {
   const auto& g = var_in(f);
   switch(g.index()) {
     case F::V:

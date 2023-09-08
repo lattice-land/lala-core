@@ -13,14 +13,21 @@ include(FetchContent)
 
 if(LOCAL_DEPS)
   FetchContent_Declare(cuda_battery SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cuda-battery/")
+  FetchContent_Declare(thrust SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../thrust/")
 else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
     GIT_TAG        v1.1.0
   )
+
+  FetchContent_Declare(
+    thrust
+    GIT_REPOSITORY "https://github.com/NVIDIA/thrust.git"
+    GIT_TAG        1.2.0
+  )
 endif()
-FetchContent_MakeAvailable(cuda_battery)
+FetchContent_MakeAvailable(cuda_battery thrust)
 
 # Preparing the library
 

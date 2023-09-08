@@ -229,7 +229,7 @@ private:
     auto u = is_tell ? local_universe::interpret_tell(f, env) : local_universe::interpret_ask(f, env);
     if(u.has_value()) {
       TellType res(env.get_allocator());
-      auto varf = var_in(f);
+      const auto& varf = var_in(f);
       // When it is not necessary, we try to avoid using the environment.
       // This is for instance useful when refinement operators add new constraints but do not have access to the environment (e.g., split()), and to avoid passing the environment around everywhere.
       if(varf.is(F::V)) {
