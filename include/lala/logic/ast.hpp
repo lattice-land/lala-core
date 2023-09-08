@@ -3,6 +3,7 @@
 #ifndef LALA_CORE_AST_HPP
 #define LALA_CORE_AST_HPP
 
+#include <optional>
 #include "battery/utility.hpp"
 #include "battery/vector.hpp"
 #include "battery/string.hpp"
@@ -10,7 +11,6 @@
 #include "battery/variant.hpp"
 #include "battery/shared_ptr.hpp"
 #include "battery/unique_ptr.hpp"
-#include "thrust/optional.h"
 #include "sort.hpp"
 
 namespace lala {
@@ -343,7 +343,7 @@ public:
     return type() == UNTYPED;
   }
 
-  CUDA NI thrust::optional<Sort<allocator_type>> sort() const {
+  CUDA NI std::optional<Sort<allocator_type>> sort() const {
     using sort_t = Sort<allocator_type>;
     switch(formula.index()) {
       case B: return sort_t(sort_t::Bool);

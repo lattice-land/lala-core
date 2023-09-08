@@ -2,33 +2,25 @@ cmake_minimum_required(VERSION 3.24)
 cmake_policy(SET CMP0135 NEW)
 
 project(lala-core
-  VERSION 1.0.0
   HOMEPAGE_URL "https://github.com/lattice-land/lala-core"
   LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
+option(LOCAL_DEPS "LOCAL_DEPS" OFF)
 
 # Cuda-battery dependency
 
 include(FetchContent)
 
-FetchContent_Declare(
-  cuda_battery
-  GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        main
-)
-FetchContent_MakeAvailable(cuda_battery)
-
-# Thrust dependency
-
-FetchContent_Declare(
-  thrust
-  GIT_REPOSITORY "https://github.com/NVIDIA/thrust.git"
-  GIT_TAG        1.12.0
-)
-FetchContent_GetProperties(thrust)
-if(NOT thrust_POPULATED)
-    FetchContent_Populate(thrust)
+if(LOCAL_DEPS)
+  FetchContent_Declare(cuda_battery SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cuda-battery/")
+else()
+  FetchContent_Declare(
+    cuda_battery
+    GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
+    GIT_TAG        v1.1.0
+  )
 endif()
+FetchContent_MakeAvailable(cuda_battery)
 
 # Preparing the library
 
@@ -43,7 +35,7 @@ target_compile_options(lala_core INTERFACE
 
 find_package(Doxygen REQUIRED doxygen)
 
-set(DOXYGEN_PROJECT_NAME "Lattice land core library")
+set(DOXYGEN_PROJECT_NAME "Lattice Land Core Library")
 set(DOXYGEN_BUILTIN_STL_SUPPORT YES)
 set(DOXYGEN_CASE_SENSE_NAMES NO)
 set(DOXYGEN_CLASS_DIAGRAMS NO)

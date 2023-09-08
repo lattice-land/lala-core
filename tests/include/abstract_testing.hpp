@@ -5,7 +5,6 @@
 
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
-#include "thrust/optional.h"
 #include "lala/logic/logic.hpp"
 #include "lala/universes/primitive_upset.hpp"
 #include "lala/flatzinc_parser.hpp"
