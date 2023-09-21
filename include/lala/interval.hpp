@@ -347,7 +347,9 @@ public:
   CUDA constexpr static local_type abs(const Interval<L>& x) {
     switch(sign(x)) {
       case PP: return x;
-      case NP: return local_type(join(LB2::geq_k(LB2::pre_universe::zero()), x.lb()), x.ub());
+      case NP: return local_type(   // [0..max(-lb, ub)]
+        LB2::geq_k(LB2::pre_universe::zero()),
+        meet(dual<UB2>(LB2::template fun<ABS>(typename L::template flat_type<battery::local_memory>(x.lb()))), x.ub()));
       case NN: return neg(x);
       case PN: return local_type(x.lb(), meet(UB2::leq_k(UB2::pre_universe::zero()), x.ub()));
     }
@@ -607,7 +609,7 @@ public:
       "Median function is only defined for totally ordered arithmetic intervals.");
     auto x = sub(ub2(), lb2());
     return
-      add(lb2(), meet(div<TDIV>(x, local_type(2,2)), div<CDIV>(x, local_type(2,2))));
+      add(lb2(), meet(div<FDIV>(x, local_type(2,2)), div<CDIV>(x, local_type(2,2))));
   }
 };
 

@@ -82,6 +82,7 @@ TEST(IntervalTest, Absolute) {
   EXPECT_EQ((Itv::fun<ABS>(Itv(-10, 10))), Itv(0, 10));
   EXPECT_EQ((Itv::fun<ABS>(Itv(10, -10))), Itv(10, 0));
   EXPECT_EQ((Itv::fun<ABS>(Itv(-10, -5))), Itv(5, 10));
+  EXPECT_EQ((Itv::fun<ABS>(Itv(-15, 5))), Itv(0, 15));
 }
 
 TEST(IntervalTest, Addition) {

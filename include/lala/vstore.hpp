@@ -494,10 +494,11 @@ public:
     return true;
   }
 
-  /** Whenever `this` is different from `top`, we extract its data into `ua`.
-   * For now, we suppose VStore is only used to store under-approximation, I'm not sure yet how we would interact with over-approximation. */
-  template<class ExtractionStrategy = NonAtomicExtraction, class U2, class Alloc2>
-  CUDA bool extract(VStore<U2, Alloc2>& ua, const ExtractionStrategy& strategy = ExtractionStrategy()) const {
+  /**  An abstract element is extractable when it is not equal to top.
+   * If the strategy is `atoms`, we check the domains are singleton.
+   */
+  template<class ExtractionStrategy = NonAtomicExtraction>
+  CUDA bool is_extractable(const ExtractionStrategy& strategy = ExtractionStrategy()) const {
     if(is_top()) {
       return false;
     }
@@ -508,11 +509,18 @@ public:
         }
       }
     }
+    return true;
+  }
+
+  /** Whenever `this` is different from `top`, we extract its data into `ua`.
+   * \pre `is_extractable()` must be `true`.
+   * For now, we suppose VStore is only used to store under-approximation, I'm not sure yet how we would interact with over-approximation. */
+  template<class U2, class Alloc2>
+  CUDA void extract(VStore<U2, Alloc2>& ua) const {
     if((void*)&ua != (void*)this) {
       ua.data = data;
       ua.is_at_top.dtell_bot();
     }
-    return true;
   }
 
   template<class Env>

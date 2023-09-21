@@ -81,7 +81,8 @@ TEST(VStoreTest, Extract) {
   copy
     .tell(0, zi(2), has_changed)
     .tell(1, zi::top(), has_changed);
-  EXPECT_TRUE(vstore.extract(copy));
+  EXPECT_TRUE(vstore.is_extractable());
+  vstore.extract(copy);
   for(int i = 0; i < 2; ++i) {
     EXPECT_EQ(copy[i], vstore[i]);
   }
