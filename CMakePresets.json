@@ -9,7 +9,13 @@
     {
       "name": "default",
       "hidden": true,
-      "binaryDir": "${sourceDir}/build/${presetName}"
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "LALA_CORE_BUILD_TESTS": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
     },
     {
       "name": "default-gpu",
@@ -92,7 +98,8 @@
       "description": "Build the project with a CPU compiler such as GCC.",
       "inherits": [
         "default-cpu",
-        "debug"
+        "debug",
+        "verbose"
       ]
     },
     {
