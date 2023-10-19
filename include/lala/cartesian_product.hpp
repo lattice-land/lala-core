@@ -3,7 +3,6 @@
 #ifndef LALA_CORE_CARTESIAN_PRODUCT_HPP
 #define LALA_CORE_CARTESIAN_PRODUCT_HPP
 
-#include "thrust/optional.h"
 #include "battery/utility.hpp"
 #include "battery/vector.hpp"
 #include "battery/tuple.hpp"

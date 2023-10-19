@@ -18,21 +18,14 @@ include(FetchContent)
 
 if(LOCAL_DEPS)
   FetchContent_Declare(cuda_battery SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cuda-battery/")
-  FetchContent_Declare(thrust SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../thrust/")
 else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
     GIT_TAG        v1.2.0
   )
-
-  FetchContent_Declare(
-    thrust
-    GIT_REPOSITORY "https://github.com/NVIDIA/thrust.git"
-    GIT_TAG        1.2.0
-  )
 endif()
-FetchContent_MakeAvailable(cuda_battery thrust)
+FetchContent_MakeAvailable(cuda_battery)
 
 # Preparing the library
 
@@ -79,7 +72,7 @@ file(GLOB cpu_test_files tests/src/*_test.cpp)
 foreach(file ${cpu_test_files})
   cmake_path(GET file STEM test_name)
   add_executable(${test_name} ${file})
-  target_include_directories(${test_name} PRIVATE tests/include)
+  target_include_directories(${test_name} PRIVATE /usr/local/cuda/include tests/include)
   target_link_libraries(${test_name} lala_parsing gtest_main)
   gtest_discover_tests(${test_name})
 endforeach()

@@ -10,8 +10,8 @@
 #include "battery/variant.hpp"
 #include "battery/shared_ptr.hpp"
 #include "battery/unique_ptr.hpp"
-#include "thrust/optional.h"
 #include "sort.hpp"
+#include <thrust/optional.h>
 
 namespace lala {
 
