@@ -11,7 +11,7 @@
 #include "battery/shared_ptr.hpp"
 #include "battery/unique_ptr.hpp"
 #include "sort.hpp"
-#include <thrust/optional.h>
+#include "thrust/optional.h"
 
 namespace lala {
 

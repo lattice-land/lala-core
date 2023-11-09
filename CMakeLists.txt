@@ -18,21 +18,31 @@ include(FetchContent)
 
 if(LOCAL_DEPS)
   FetchContent_Declare(cuda_battery SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cuda-battery/")
+  FetchContent_Declare(cccl SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cccl/")
 else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
     GIT_TAG        v1.2.0
   )
+  FetchContent_Declare(
+    cccl
+    GIT_REPOSITORY "https://github.com/NVIDIA/cccl.git"
+    GIT_TAG        v2.2.0
+  )
+
 endif()
-FetchContent_MakeAvailable(cuda_battery)
+FetchContent_MakeAvailable(cuda_battery cccl)
 
 # Preparing the library
 
 if(NOT LALA_CORE_BUILD_TESTS) # For tests, lala_core will be built through lala_parsing (which depends on lala_core).
+  if(NOT CUDA_PATH)
+    set(CUDA_PATH "/usr/local/cuda")
+  endif()
   add_library(lala_core INTERFACE)
-  target_include_directories(lala_core INTERFACE include)
-  target_link_libraries(lala_core INTERFACE cuda_battery)
+  target_include_directories(lala_core INTERFACE "${CUDA_PATH}/include" include)
+  target_link_libraries(lala_core INTERFACE cuda_battery CCCL::CCCL)
   target_compile_options(lala_core INTERFACE
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-diag-suppress 20011,20014>" # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
   )
@@ -61,7 +71,7 @@ else()
   FetchContent_Declare(
     lala_parsing
     GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-    GIT_TAG        v1.0.0
+    GIT_TAG        v1.0.2
   )
 endif()
 FetchContent_MakeAvailable(lala_parsing)
@@ -72,7 +82,7 @@ file(GLOB cpu_test_files tests/src/*_test.cpp)
 foreach(file ${cpu_test_files})
   cmake_path(GET file STEM test_name)
   add_executable(${test_name} ${file})
-  target_include_directories(${test_name} PRIVATE /usr/local/cuda/include tests/include)
+  target_include_directories(${test_name} PRIVATE tests/include)
   target_link_libraries(${test_name} lala_parsing gtest_main)
   gtest_discover_tests(${test_name})
 endforeach()
