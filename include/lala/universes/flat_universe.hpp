@@ -202,7 +202,7 @@ public:
   `true` is returned whenever \f$ a = \bot \f$, and `false` is returned whenever \f$ a = \top \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function. */
   template<class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
+  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env, bool deinterpret_lvar = false) const {
     using F = TFormula<typename Env::allocator_type>;
     if(is_top()) {
       return F::make_false();
@@ -211,10 +211,10 @@ public:
       return F::make_true();
     }
     return F::make_binary(
-      F::make_avar(avar),
+      deinterpret_lvar ? F::make_lvar(UNTYPED, env[avar].name) : F::make_avar(avar),
       EQ,
       deinterpret<F>(),
-      avar.aty(), env.get_allocator());
+      UNTYPED, env.get_allocator());
   }
 
   /** Deinterpret the current value to a logical constant. */

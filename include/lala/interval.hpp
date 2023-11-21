@@ -156,7 +156,8 @@ public:
 
   /** Support the same language than the Cartesian product, and more:
    *    * `x != k` is under-approximated by interpreting `x != k` in the lower bound.
-   *    * `x == k` is interpreted by over-approximating `x == k` in both bounds and then verifying both bounds are the same. */
+   *    * `x == k` is interpreted by over-approximating `x == k` in both bounds and then verifying both bounds are the same.
+   *    * `x in {[l..u]} is interpreted by under-approximating `x >= l` and `x <= u`. */
   template<class F, class Env>
   CUDA NI static iresult<F> interpret_ask(const F& f, const Env& env) {
     if(f.is_binary() && f.sig() == NEQ) {
@@ -178,6 +179,35 @@ public:
             return iresult<F>(IError<F>(true, name, "When interpreting equality, the underlying bounds LB and UB failed to agree on the same value.", f));
           }
         }
+      }
+    }
+    else if(f.is_binary() && f.sig() == IN && f.seq(0).is_variable()
+     && f.seq(1).is(F::S) && f.seq(1).s().size() == 1)
+    {
+      const auto& lb = battery::get<0>(f.seq(1).s()[0]);
+      const auto& ub = battery::get<1>(f.seq(1).s()[0]);
+      if(lb == ub) {
+        auto r = interpret_ask(F::make_binary(f.seq(0), EQ, lb), env);
+        if(r.has_value()) {
+          return std::move(r);
+        }
+        else {
+          return std::move(iresult<F>(IError<F>(true, name, "Failed to interpret the decomposition of set membership `x in {[v..v]}` into equality `x == v`.", f))
+            .join_errors(std::move(r)));
+        }
+      }
+      auto lb_r = LB::interpret_ask(F::make_binary(f.seq(0), geq_of_constant(lb), lb), env);
+      auto ub_r = UB::interpret_ask(F::make_binary(f.seq(0), leq_of_constant(ub), ub), env);
+      if(lb_r.has_value() && ub_r.has_value()) {
+        return std::move(
+          iresult<F>(local_type(lb_r.value(), ub_r.value()))
+           .join_warnings(std::move(lb_r))
+           .join_warnings(std::move(ub_r)));
+      }
+      else {
+        return std::move(iresult<F>(IError<F>(true, name, "Failed to interpret the decomposition of set membership `x in {[l..u]}` into `x >= l /\\ x <= u`.", f))
+          .join_errors(std::move(lb_r))
+          .join_errors(std::move(ub_r)));
       }
     }
     return forward_to_cp<false>(f, env);
@@ -274,8 +304,18 @@ public:
   }
 
   template<class Env>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
-    return cp.deinterpret(x, env);
+  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env, bool deinterpret_lvar = false) const {
+    using F = TFormula<typename Env::allocator_type>;
+    if(lb().is_top() || ub().is_top() || lb().is_bot() || ub().is_bot()) {
+      return cp.deinterpret(x, env, deinterpret_lvar);
+    }
+    F logical_lb = lb().template deinterpret<F>();
+    F logical_ub = ub().template deinterpret<F>();
+    logic_set<F> logical_set(1, env.get_allocator());
+    logical_set[0] = battery::make_tuple(std::move(logical_lb), std::move(logical_ub));
+    F set = F::make_set(std::move(logical_set));
+    F var = deinterpret_lvar ? F::make_lvar(UNTYPED, env[x].name) : F::make_avar(x);
+    return F::make_binary(var, IN, std::move(set), UNTYPED, env.get_allocator());
   }
 
   /** Deinterpret the current value to a logical constant.

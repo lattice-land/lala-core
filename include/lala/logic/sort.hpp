@@ -104,12 +104,12 @@ using logic_int = long long int;
 using logic_real = battery::tuple<double, double>;
 
 /** A set is parametric in a universe of discourse.
-    For instance, `logic_set<logic_int>` is a set of integers.
+    For instance, `logic_set<F>`, with F representing an integer constant, is a set of integers.
     Sets are defined in extension: we explicitly list the values belonging to the set.
     To avoid using too much memory with large sets, we use an interval representation, e.g., \f$ \{1..3, 5..5, 10..12\} = \{1, 2, 3, 5, 10, 11, 12\} \f$.
     When sets occur in intervals, they are ordered by set inclusion, e.g., \f$ \{\{1..2\}..\{1..4\}\} = \{\{1,2\}, \{1,2,3\}, \{1,2,4\}, \{1,2,3,4\}\} \f$. */
-template<class F, class Allocator>
-using logic_set = battery::vector<battery::tuple<F, F>, Allocator>;
+template<class F>
+using logic_set = battery::vector<battery::tuple<F, F>, typename F::allocator_type>;
 
 }
 

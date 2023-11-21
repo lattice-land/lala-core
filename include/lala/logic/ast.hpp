@@ -225,7 +225,7 @@ public:
   using this_type = TFormula<Allocator, ExtendedSig>;
   using Sequence = battery::vector<this_type, Allocator>;
   using Existential = battery::tuple<LVar<Allocator>, Sort<Allocator>>;
-  using LogicSet = logic_set<this_type, allocator_type>;
+  using LogicSet = logic_set<this_type>;
   using Formula = battery::variant<
     logic_bool, ///< Representation of Booleans.
     logic_int, ///< Representation of integers.
@@ -586,6 +586,37 @@ public:
     return std::move(f);
   }
 
+  /** In-place map of each leaf of the formula to a new leaf according to `fun`. */
+  template <class Fun>
+  CUDA NI void inplace_map(Fun fun) {
+    switch(formula.index()) {
+      case Seq: {
+        for(int i = 0; i < seq().size(); ++i) {
+          seq(i).inplace_map(fun);
+        }
+        break;
+      }
+      case ESeq: {
+        for(int i = 0; i < eseq().size(); ++i) {
+          eseq(i).inplace_map(fun);
+        }
+        break;
+      }
+      default: {
+        fun(*this);
+        break;
+      }
+    }
+  }
+
+  /** Map of each leaf of the formula to a new leaf according to `fun`. */
+  template <class Fun>
+  CUDA NI this_type map(Fun fun) {
+    this_type copy(*this);
+    copy.inplace_map([&](this_type& f){ f = fun(f); });
+    return std::move(copy);
+  }
+
 private:
   template<size_t n>
   CUDA NI void print_sequence(bool print_atype, bool top_level = false) const {
@@ -710,6 +741,11 @@ public:
 template<typename Allocator, typename ExtendedSig>
 CUDA bool operator==(const TFormula<Allocator, ExtendedSig>& lhs, const TFormula<Allocator, ExtendedSig>& rhs) {
   return lhs.type() == rhs.type() && lhs.data() == rhs.data();
+}
+
+template<typename Allocator, typename ExtendedSig>
+CUDA bool operator!=(const TFormula<Allocator, ExtendedSig>& lhs, const TFormula<Allocator, ExtendedSig>& rhs) {
+  return !(lhs == rhs);
 }
 
 } // namespace lala

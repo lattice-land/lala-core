@@ -285,9 +285,11 @@ public:
 
   /** \return \f$ x \geq i \f$ where `x` is a variable's name and `i` the current value.
   If `U` preserves bottom `true` is returned whenever \f$ a = \bot \f$, if it preserves top `false` is returned whenever \f$ a = \top \f$.
-  We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function. */
+  We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function.
+  \param deinterpret_lvar When true, we use the string representation of the variable (LVar) instead of its abstract variable (AVar).
+  */
   template<class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
+  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env, bool deinterpret_lvar = false) const {
     using F = TFormula<typename Env::allocator_type>;
     if(preserve_top && is_top()) {
       return F::make_false();
@@ -298,7 +300,7 @@ public:
     return F::make_binary(
       deinterpret<F>(),
       U::sig_order(),
-      F::make_avar(avar),
+      deinterpret_lvar ? F::make_lvar(UNTYPED, env[avar].name) : F::make_avar(avar),
       UNTYPED, env.get_allocator());
   }
 
@@ -429,9 +431,12 @@ public:
             return interpret_tell_set(f, k);
           }
         }
-        else {
+        else if(is_comparison(f)) {
           Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
           return interpret_tell_k_op_x(f, k, sig);
+        }
+        else {
+          return iresult<F>(IError<F>(true, name, "This symbol is not supported.", f));
         }
       }
       else {
@@ -464,8 +469,13 @@ public:
           return iresult<F>(IError<F>(true, name, "Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
         }
         const auto& k = f.seq(idx_constant);
-        Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
-        return interpret_ask_k_op_x(f, k, sig);
+        if(is_comparison(f)) {
+          Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
+          return interpret_ask_k_op_x(f, k, sig);
+        }
+        else {
+          return iresult<F>(IError<F>(true, name, "This symbol is not supported.", f));
+        }
       }
       else {
         return iresult<F>(IError<F>(true, name, "Only binary constraints are supported.", f));

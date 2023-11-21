@@ -27,23 +27,47 @@ CUDA NI bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
     && f.seq(1).is(F::Z);
 }
 
-template<typename Allocator>
+/** \return `true` if the formula `f` has the shape `variable = variable` or `variable <=> variable`. */
+template<class Allocator, class ExtendedSig>
+CUDA NI bool is_var_equality(const TFormula<Allocator, ExtendedSig>& f) {
+  using F = TFormula<Allocator, ExtendedSig>;
+  return f.is(F::Seq)
+    && (f.sig() == EQ || f.sig() == EQUIV)
+    && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
+    && (f.seq(1).is(F::LV) || f.seq(1).is(F::V));
+}
+
+template<class Allocator>
 CUDA NI TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), aty, allocator);
 }
 
-template<typename Allocator>
+template<class Allocator>
 CUDA NI TFormula<Allocator> make_v_op_z(AVar v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   return F::make_binary(F::make_avar(v), sig, F::make_z(z), aty, allocator);
 }
 
+template <class Allocator>
+CUDA Sig geq_of_constant(const TFormula<Allocator>& f) {
+  using F = TFormula<Allocator>;
+  assert(f.is(F::S) || f.is(F::Z) || f.is(F::R));
+  return f.is(F::S) ? SUPSETEQ : GEQ;
+}
+
+template <class Allocator>
+CUDA Sig leq_of_constant(const TFormula<Allocator>& f) {
+  using F = TFormula<Allocator>;
+  assert(f.is(F::S) || f.is(F::Z) || f.is(F::R));
+  return f.is(F::S) ? SUBSETEQ : LEQ;
+}
+
 namespace impl {
-  template<typename Allocator, typename ExtendedSig>
+  template<class Allocator, class ExtendedSig>
   CUDA NI const TFormula<Allocator, ExtendedSig>& var_in_impl(const TFormula<Allocator, ExtendedSig>& f, bool& found);
 
-  template<size_t n, typename Allocator, typename ExtendedSig>
+  template<size_t n, class Allocator, class ExtendedSig>
   CUDA NI const TFormula<Allocator, ExtendedSig>& find_var_in_seq(const TFormula<Allocator, ExtendedSig>& f, bool& found) {
     const auto& children = battery::get<1>(battery::get<n>(f.data()));
     for(int i = 0; i < children.size(); ++i) {
@@ -55,7 +79,7 @@ namespace impl {
     return f;
   }
 
-  template<typename Allocator, typename ExtendedSig>
+  template<class Allocator, class ExtendedSig>
   CUDA NI const TFormula<Allocator, ExtendedSig>& var_in_impl(const TFormula<Allocator, ExtendedSig>& f, bool& found)
   {
     using F = TFormula<Allocator, ExtendedSig>;
