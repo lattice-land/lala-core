@@ -16,7 +16,6 @@ void test_simplification(
   const char* simplifier_formula,
   const char* expected_simplified_formula)
 {
-  VarEnv<standard_allocator> store_env;
   VarEnv<standard_allocator> env;
 
   // Can be interpreted in IStore.
@@ -26,19 +25,17 @@ void test_simplification(
 
   f2.print();
 
-  auto istore = battery::make_shared<IStore, standard_allocator>(std::move(IStore::interpret_tell(f1, store_env).value()));
+  auto istore = battery::make_shared<IStore, standard_allocator>(std::move(IStore::interpret_tell(f1, env).value()));
 
   Simplifier<IStore, standard_allocator> simplifier{
     env.extends_abstract_dom(),
     istore,
-    store_env,
     env
   };
 
-  auto r = simplifier.interpret_tell_in(f2);
+  auto r = simplifier.interpret_tell_in(f2, env);
   EXPECT_TRUE(r.has_value());
   simplifier.tell(std::move(r.value()));
-
   local::BInc has_changed = GaussSeidelIteration{}.fixpoint(simplifier);
   EXPECT_TRUE(has_changed);
 

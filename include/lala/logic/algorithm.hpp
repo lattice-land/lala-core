@@ -356,19 +356,19 @@ CUDA NI F move_constants_on_rhs(const F& f) {
 
 /** Given a formula `f`, we transform all occurrences of `AVar` into logical variables. */
 template <class F, class Env>
-CUDA NI void map_avar_to_lvar(F& f, const Env& env) {
+CUDA NI void map_avar_to_lvar(F& f, const Env& env, bool erase_type = false) {
   switch(f.index()) {
     case F::V:
-      f = F::make_lvar(f.v().aty(), env.name_of(f.v()));
+      f = F::make_lvar(erase_type ? UNTYPED : f.v().aty(), env.name_of(f.v()));
       break;
     case F::Seq:
       for(int i = 0; i < f.seq().size(); ++i) {
-        map_avar_to_lvar(f.seq(i), env);
+        map_avar_to_lvar(f.seq(i), env, erase_type);
       }
       break;
     case F::ESeq:
       for(int i = 0; i < f.eseq().size(); ++i) {
-        map_avar_to_lvar(f.eseq(i), env);
+        map_avar_to_lvar(f.eseq(i), env, erase_type);
       }
       break;
     default: break;

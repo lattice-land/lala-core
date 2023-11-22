@@ -46,9 +46,9 @@ void check_env_state2(VarEnv<standard_allocator>& env) {
   EXPECT_TRUE(env.contains("x"));
   EXPECT_TRUE(env.variable_of("x").has_value());
   EXPECT_EQ(*(env.variable_of("x")->avar_of(0)), AVar(0, 0));
-  EXPECT_FALSE(interpret2(env, "var int: x;").has_value());
-  EXPECT_FALSE(interpret2(env, "var int: x :: abstract(0);").has_value());
-  EXPECT_FALSE(interpret2(env, "var int: x :: abstract(1);").has_value());
+  EXPECT_FALSE(interpret2(env, "var int: x;").has_value()); // untyped.
+  EXPECT_TRUE(interpret2(env, "var int: x :: abstract(0);").has_value());
+  EXPECT_FALSE(interpret2(env, "var float: x;").has_value()); // different sort.
 }
 
 void check_env_state3(VarEnv<standard_allocator>& env) {
@@ -75,6 +75,7 @@ void check_env_state4(VarEnv<standard_allocator>& env) {
 void check_env_state5(VarEnv<standard_allocator>& env) {
   EXPECT_EQ(env.num_abstract_doms(), 11);
   EXPECT_EQ(env.num_vars(), 4);
+  EXPECT_EQ(env.num_vars_in(1), 2);
   EXPECT_EQ(env.num_vars_in(2), 0);
   EXPECT_EQ(env.num_vars_in(9), 0);
   EXPECT_EQ(env.num_vars_in(10), 1);
@@ -106,11 +107,14 @@ TEST(AST, VarEnv) {
   check_env_state4(env);
   auto snap4 = env.snapshot();
 
+  EXPECT_TRUE(interpret2(env, "var int: x :: abstract(1);").has_value());
   auto w = interpret2(env, "var bool: w :: abstract(10);");
   EXPECT_TRUE(w.has_value());
   EXPECT_EQ(w.value(), AVar(10, 0));
   check_env_state5(env);
   auto snap5 = env.snapshot();
+
+  printf("Start restoring snapshots...\n");
 
   env.restore(snap5);
   check_env_state5(env);

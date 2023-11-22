@@ -18,7 +18,7 @@ namespace lala {
  *  4. Removing variable equality by tracking equivalence classes.
  *
  * The simplified formula can be obtained by calling `deinterpret()`.
- * Given a solution to the simplified formula, the extended model (with the variables deleted) can be obtained by calling `project()` on the deleted variables.
+ * Given a solution to the simplified formula, the extended model (with the variables deleted) can be obtained by calling `representative()` to obtain the representative variable of each equivalence class.
  */
 template<class A, class Allocator>
 class Simplifier {
@@ -42,8 +42,6 @@ private:
   AType atype;
   abstract_ptr<sub_type> sub;
   // The variable environment in which the formula has been initially interpreted.
-  const VarEnv<allocator_type>& sub_env;
-  // New variable environment after the preprocessing.
   VarEnv<allocator_type>& env;
   // Read-only conjunctive formula, where each is treated independently.
   formula_sequence formulas;
@@ -61,17 +59,16 @@ private:
 public:
   CUDA Simplifier(AType atype
     , abstract_ptr<sub_type> sub
-    , const VarEnv<allocator_type>& sub_env
     , VarEnv<allocator_type>& env
     , const allocator_type& alloc = allocator_type())
-   : atype(atype), sub(sub), sub_env(sub_env), env(env)
+   : atype(atype), sub(sub), env(env)
    , formulas(alloc), simplified_formulas(alloc)
    , eliminated_variables(alloc), eliminated_formulas(alloc)
    , equivalence_classes(alloc), constants(alloc)
   {}
 
   CUDA Simplifier(this_type&& other)
-    : atype(other.atype), sub(std::move(other.sub)), sub_env(other.sub_env), env(other.env)
+    : atype(other.atype), sub(std::move(other.sub)), env(other.env)
     , formulas(std::move(other.formulas)), simplified_formulas(std::move(other.simplified_formulas))
     , eliminated_variables(std::move(other.eliminated_variables)), eliminated_formulas(std::move(other.eliminated_formulas))
     , equivalence_classes(std::move(other.equivalence_classes)), constants(std::move(other.constants))
@@ -81,7 +78,6 @@ public:
   CUDA Simplifier(const Simplifier<A2, Alloc2>& other, AbstractDeps<Allocators...>& deps)
    : atype(other.atype)
    , sub(deps.template clone<A>(other.sub))
-   , sub_env(other.sub_env)
    , env(other.env)
    , formulas(other.formulas, deps.template get_allocator<allocator_type>())
    , simplified_formulas(other.simplified_formulas, deps.template get_allocator<allocator_type>())
@@ -120,7 +116,7 @@ private:
   CUDA NI iresult<F> interpret_in_impl(const F& f) const {
     iresult<F> res{tell_type{get_allocator()}};
     if(f.is(F::E)) {
-      auto avar = env.interpret(f.map_atype(atype));
+      auto avar = env.interpret(f.map_atype(aty()));
       if(avar.has_value()) {
         res.value().num_vars++;
         return std::move(res);
@@ -155,12 +151,9 @@ private:
   }
 
 public:
-  /** The environment `env` should be empty and this abstract domain will take care of existential quantifiers.
-   * After refining this abstract element, its deinterpretation will create a new formula in which some variables might be eliminated.
-   * The eliminated variables will still be accessible through this domain using `project`.
-  */
-  template <class F>
-  CUDA NI iresult_tell<F> interpret_tell_in(const F& f) const {
+  template <class F, class Env>
+  CUDA NI iresult_tell<F> interpret_tell_in(const F& f, Env& env) const {
+    assert(&this->env == &env);
     auto snap = env.snapshot();
     auto r = interpret_in_impl(f);
     if(!r.has_value()) {
@@ -183,37 +176,36 @@ public:
   }
 
 private:
-  CUDA AVar to_sub_var(int vid) const {
-    return sub_env.variable_of(env[vid].name).value().avars[0];
-  }
-
   // Return the abstract variable of the subdomain from the abstract variable `x` of this domain.
-  // It works by turning `x` into a logical variable, and then using `sub_env` to retrieve the abstract variable of the subdomain.
+  // In the environment, all variables should have been interpreted by the sub-domain, and we assume avars[0] contains the sub abstract variable.
   CUDA AVar to_sub_var(AVar x) const {
-    return to_sub_var(x.vid());
+    return env[x].avars[0];
   }
 
-  CUDA AVar from_sub_var(AVar x) const {
-    return env.variable_of(sub_env[x].name).value().avars[0];
+  CUDA AVar to_sub_var(int vid) const {
+    return to_sub_var(AVar{aty(), vid});
   }
 
   // `f` must be a formula from `formulas`.
   CUDA AVar var_of(const TFormula<allocator_type>& f) const {
     using F = TFormula<allocator_type>;
     if(f.is(F::LV)) {
-      return env.variable_of(f.lv()).value().avars[0];
+      assert(env.variable_of(f.lv()).has_value());
+      assert(env.variable_of(f.lv())->avar_of(aty()).has_value());
+      return env.variable_of(f.lv())->avar_of(aty()).value();
     }
     else {
       assert(f.is(F::V));
-      return from_sub_var(f.v());
+      assert(env[f.v()].avar_of(aty()).has_value());
+      return env[f.v()].avar_of(aty()).value();
     }
   }
 
 public:
   /** Return the representative variable of the equivalence class of the variable with the name `vname`. */
   CUDA const LVar<allocator_type>& representative(const LVar<allocator_type>& vname) const {
-    int rep = equivalence_classes[env.variable_of(vname).value().avars[0].vid()];
-    return env[AVar(aty(), rep)].name;
+    int rep = equivalence_classes[env.variable_of(vname)->avar_of(aty()).vid()];
+    return env.name_of(AVar(aty(), rep));
   }
 
 private:
@@ -249,7 +241,7 @@ private:
     }
     else {
       // Eliminate entailed formulas.
-      auto r = sub->interpret_ask_in(formulas[i], sub_env);
+      auto r = sub->interpret_ask_in(formulas[i], env);
       if(r.has_value()) {
         if(sub->ask(r.value())) {
           eliminate(eliminated_formulas, i, has_changed);
@@ -266,8 +258,9 @@ private:
             return constants[x.vid()].template deinterpret<F>();
           }
           else if(equivalence_classes[x.vid()] != x.vid()) {
-            return F::make_lvar(UNTYPED, env[AVar(aty(), equivalence_classes[x.vid()])].name);
+            return F::make_lvar(UNTYPED, env.name_of(AVar{aty(), equivalence_classes[x.vid()]}));
           }
+          return f.map_atype(UNTYPED);
         }
         return f;
       });
@@ -327,7 +320,9 @@ public:
       if(equivalence_classes[i] == i && !eliminated_variables.test(i)) {
         const auto& x = env[AVar(aty(), i)];
         seq.push_back(F::make_exists(UNTYPED, x.name, x.sort));
-        seq.push_back(constants[i].deinterpret(AVar(aty(), i), env, true));
+        auto domain_constraint = constants[i].deinterpret(AVar(aty(), i), env);
+        map_avar_to_lvar(domain_constraint, env, true);
+        seq.push_back(domain_constraint);
       }
     }
 

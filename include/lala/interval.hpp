@@ -304,17 +304,17 @@ public:
   }
 
   template<class Env>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env, bool deinterpret_lvar = false) const {
+  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
     using F = TFormula<typename Env::allocator_type>;
     if(lb().is_top() || ub().is_top() || lb().is_bot() || ub().is_bot()) {
-      return cp.deinterpret(x, env, deinterpret_lvar);
+      return cp.deinterpret(x, env);
     }
     F logical_lb = lb().template deinterpret<F>();
     F logical_ub = ub().template deinterpret<F>();
     logic_set<F> logical_set(1, env.get_allocator());
     logical_set[0] = battery::make_tuple(std::move(logical_lb), std::move(logical_ub));
     F set = F::make_set(std::move(logical_set));
-    F var = deinterpret_lvar ? F::make_lvar(UNTYPED, env[x].name) : F::make_avar(x);
+    F var = F::make_avar(x);
     return F::make_binary(var, IN, std::move(set), UNTYPED, env.get_allocator());
   }
 

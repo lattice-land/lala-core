@@ -286,10 +286,9 @@ public:
   /** \return \f$ x \geq i \f$ where `x` is a variable's name and `i` the current value.
   If `U` preserves bottom `true` is returned whenever \f$ a = \bot \f$, if it preserves top `false` is returned whenever \f$ a = \top \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function.
-  \param deinterpret_lvar When true, we use the string representation of the variable (LVar) instead of its abstract variable (AVar).
   */
   template<class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env, bool deinterpret_lvar = false) const {
+  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
     using F = TFormula<typename Env::allocator_type>;
     if(preserve_top && is_top()) {
       return F::make_false();
@@ -300,7 +299,7 @@ public:
     return F::make_binary(
       deinterpret<F>(),
       U::sig_order(),
-      deinterpret_lvar ? F::make_lvar(UNTYPED, env[avar].name) : F::make_avar(avar),
+      F::make_avar(avar),
       UNTYPED, env.get_allocator());
   }
 

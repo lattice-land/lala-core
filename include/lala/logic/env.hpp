@@ -92,25 +92,39 @@ private:
   CUDA NI AVar extends_vars(AType aty, const battery::string<Alloc2>& name, const Sort<Alloc3>& sort) {
     extends_abstract_doms(aty);
     AVar avar(aty, avar2lvar[aty].size());
-    avar2lvar[aty].push_back(lvars.size());
-    lvars.push_back(Variable(name, sort, avar, get_allocator()));
+    // We first verify the variable doesn't already exist.
+    auto lvar_idx = lvar_index_of(name.data());
+    if(lvar_idx.has_value()) {
+      auto avar_opt = lvars[*lvar_idx].avar_of(aty);
+      if(avar_opt.has_value()) {
+        return *avar_opt;
+      }
+      else {
+        lvars[*lvar_idx].avars.push_back(avar);
+      }
+    }
+    else {
+      lvar_idx = {lvars.size()};
+      lvars.push_back(Variable(name, sort, avar, get_allocator()));
+    }
+    avar2lvar[aty].push_back(*lvar_idx);
     return avar;
   }
 
+  // Variable redeclaration does not lead to an error, instead the abstract type of the variable is added to the abstract variables list (`avars`) of the variable.
   template <class F>
   CUDA NI iresult<F> interpret_existential(const F& f) {
     const auto& vname = battery::get<0>(f.exists());
     if(f.type() == UNTYPED) {
       return iresult<F>(IError<F>(true, name, "Untyped abstract type: variable `" + vname + "` has no abstract type.", f));
     }
-    if(contains(vname)) {
-      return iresult<F>(IError<F>(true, name, "Invalid redeclaration: variable `" + vname + "` has already been declared.", f));
+    auto var = variable_of(vname);
+    if(var.has_value()) {
+      if(var->sort != battery::get<1>(f.exists())) {
+        return iresult<F>(IError<F>(true, name, "Invalid redeclaration with different sort: variable `" + vname + "` has already been declared and the sort does not coincide.", f));
+      }
     }
-    else {
-      AType aty = f.type();
-      const Sort<Allocator>& sort = battery::get<1>(f.exists());
-      return iresult<F>(extends_vars(aty, vname, sort));
-    }
+    return iresult<F>(extends_vars(f.type(), vname, battery::get<1>(f.exists())));
   }
 
   template <class F>
@@ -139,6 +153,15 @@ private:
     else {
       return iresult<F>(IError<F>(true, name, "Undeclared variable `" + vname + "`.", f));
     }
+  }
+
+  CUDA NI thrust::optional<int> lvar_index_of(const char* lv) const {
+    for(int i = 0; i < lvars.size(); ++i) {
+      if(lvars[i].name == lv) {
+        return i;
+      }
+    }
+    return {};
   }
 
 public:
@@ -205,12 +228,13 @@ public:
   }
 
   CUDA NI thrust::optional<const variable_type&> variable_of(const char* lv) const {
-    for(int i = 0; i < lvars.size(); ++i) {
-      if(lvars[i].name == lv) {
-        return lvars[i];
-      }
+    auto r = lvar_index_of(lv);
+    if(r.has_value()) {
+      return lvars[*r];
     }
-    return {};
+    else {
+      return {};
+    }
   }
 
   template <class Alloc2>
