@@ -41,8 +41,9 @@ public:
 private:
   AType atype;
   abstract_ptr<sub_type> sub;
-  // The variable environment in which the formula has been initially interpreted.
-  VarEnv<allocator_type>& env;
+  // We keep a copy of the variable environment in which the formula has been initially interpreted.
+  // This is necessary to project the variables and ask constraints in the subdomain during refinement.
+  VarEnv<allocator_type> env;
   // Read-only conjunctive formula, where each is treated independently.
   formula_sequence formulas;
   // Write-only (accessed in only 1 thread because this is not a parallel lattice entity) conjunctive formula, the main operation is a map between formulas and simplified_formulas.
@@ -59,9 +60,8 @@ private:
 public:
   CUDA Simplifier(AType atype
     , abstract_ptr<sub_type> sub
-    , VarEnv<allocator_type>& env
     , const allocator_type& alloc = allocator_type())
-   : atype(atype), sub(sub), env(env)
+   : atype(atype), sub(sub), env(alloc)
    , formulas(alloc), simplified_formulas(alloc)
    , eliminated_variables(alloc), eliminated_formulas(alloc)
    , equivalence_classes(alloc), constants(alloc)
@@ -74,17 +74,15 @@ public:
     , equivalence_classes(std::move(other.equivalence_classes)), constants(std::move(other.constants))
   {}
 
-  template<class A2, class Alloc2, class... Allocators>
-  CUDA Simplifier(const Simplifier<A2, Alloc2>& other, AbstractDeps<Allocators...>& deps)
+  struct light_copy_tag {};
+
+  // This return a light copy of `other`, basically just keeping the equivalence classes and the environment to be able to print solutions and call `representative`.
+  template<class A2, class Alloc2>
+  CUDA Simplifier(const Simplifier<A2, Alloc2>& other, light_copy_tag tag, abstract_ptr<sub_type> sub, const allocator_type& alloc = allocator_type())
    : atype(other.atype)
-   , sub(deps.template clone<A>(other.sub))
-   , env(other.env)
-   , formulas(other.formulas, deps.template get_allocator<allocator_type>())
-   , simplified_formulas(other.simplified_formulas, deps.template get_allocator<allocator_type>())
-   , eliminated_variables(other.eliminated_variables, deps.template get_allocator<allocator_type>())
-   , eliminated_formulas(other.eliminated_formulas, deps.template get_allocator<allocator_type>())
-   , equivalence_classes(other.equivalence_classes, deps.template get_allocator<allocator_type>())
-   , constants(other.constants, deps.template get_allocator<allocator_type>())
+   , sub(sub)
+   , env(other.env, alloc)
+   , equivalence_classes(other.equivalence_classes, alloc)
   {}
 
   CUDA allocator_type get_allocator() const {
@@ -103,8 +101,9 @@ public:
   struct tell_type {
     int num_vars;
     formula_sequence formulas;
+    VarEnv<allocator_type> env;
     tell_type(const allocator_type& alloc = allocator_type())
-      : num_vars(0), formulas(alloc)
+      : num_vars(0), formulas(alloc), env(alloc)
     {}
   };
 
@@ -112,57 +111,48 @@ public:
   template<class F> using iresult_tell = iresult<F>;
 
 private:
-  template <class F>
-  CUDA NI iresult<F> interpret_in_impl(const F& f) const {
-    iresult<F> res{tell_type{get_allocator()}};
+  template <class F, class Env>
+  CUDA NI void interpret_in_impl(const F& f, Env& env, iresult<F>& res) const {
+    if(res.is_error()) {
+      return;
+    }
     if(f.is(F::E)) {
       auto avar = env.interpret(f.map_atype(aty()));
       if(avar.has_value()) {
         res.value().num_vars++;
-        return std::move(res);
       }
       else {
-        return std::move(avar).template map_error<tell_type>();
+        res = std::move(avar).template map_error<tell_type>();
       }
     }
     else if(f.is(F::Seq) && f.sig() == AND) {
       const auto& seq = f.seq();
       for(int i = 0; i < seq.size(); ++i) {
-        auto r = interpret_in_impl(seq[i]);
-        if(r.has_value()) {
-          res.value().num_vars += r.value().num_vars;
-          for(int j = 0; j < r.value().formulas.size(); ++j) {
-            res.value().formulas.push_back(r.value().formulas[j]);
-          }
-          res.join_warnings(std::move(r));
-        }
-        else {
-          return std::move(iresult<F>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
-            .join_errors(std::move(r))
-            .join_warnings(std::move(res)));
-        }
+        interpret_in_impl(seq[i], env, res);
       }
-      return res;
     }
     else {
       res.value().formulas.push_back(f);
-      return res;
     }
   }
 
 public:
   template <class F, class Env>
   CUDA NI iresult_tell<F> interpret_tell_in(const F& f, Env& env) const {
-    assert(&this->env == &env);
     auto snap = env.snapshot();
-    auto r = interpret_in_impl(f);
-    if(!r.has_value()) {
+    iresult_tell<F> res{get_allocator()};
+    interpret_in_impl(f, env, res);
+    if(!res.has_value()) {
       env.restore(snap);
     }
-    return std::move(r);
+    else {
+      res.value().env = env;
+    }
+    return std::move(res);
   }
 
   CUDA this_type& tell(tell_type&& t) {
+    env = std::move(t.env);
     eliminated_variables.resize(t.num_vars);
     eliminated_formulas.resize(t.formulas.size());
     constants.resize(t.num_vars);
@@ -204,8 +194,8 @@ private:
 public:
   /** Return the representative variable of the equivalence class of the variable with the name `vname`. */
   CUDA const LVar<allocator_type>& representative(const LVar<allocator_type>& vname) const {
-    int rep = equivalence_classes[env.variable_of(vname)->avar_of(aty()).vid()];
-    return env.name_of(AVar(aty(), rep));
+    int rep = equivalence_classes[env.variable_of(vname)->avar_of(aty())->vid()];
+    return env.name_of(AVar{aty(), rep});
   }
 
 private:
@@ -288,6 +278,20 @@ public:
     }
   }
 
+  CUDA int num_eliminated_variables() const {
+    int keep = 0;
+    for(int i = 0; i < equivalence_classes.size(); ++i) {
+      if(equivalence_classes[i] == i && !eliminated_variables.test(i)) {
+        ++keep;
+      }
+    }
+    return equivalence_classes.size() - keep;
+  }
+
+  CUDA int num_eliminated_formulas() const {
+    return eliminated_formulas.count();
+  }
+
   CUDA NI TFormula<allocator_type> deinterpret() {
     using F = TFormula<allocator_type>;
     typename F::Sequence seq{get_allocator()};
@@ -318,7 +322,7 @@ public:
     // Deinterpret the existential quantifiers (only one per equivalence classes), and the domain of each variable.
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       if(equivalence_classes[i] == i && !eliminated_variables.test(i)) {
-        const auto& x = env[AVar(aty(), i)];
+        const auto& x = env[AVar{aty(), i}];
         seq.push_back(F::make_exists(UNTYPED, x.name, x.sort));
         auto domain_constraint = constants[i].deinterpret(AVar(aty(), i), env);
         map_avar_to_lvar(domain_constraint, env, true);

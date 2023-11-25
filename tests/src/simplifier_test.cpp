@@ -29,8 +29,7 @@ void test_simplification(
 
   Simplifier<IStore, standard_allocator> simplifier{
     env.extends_abstract_dom(),
-    istore,
-    env
+    istore
   };
 
   auto r = simplifier.interpret_tell_in(f2, env);

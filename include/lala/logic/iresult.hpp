@@ -162,6 +162,10 @@ public:
     return battery::get<0>(result);
   }
 
+  CUDA bool is_error() const {
+    return !has_value();
+  }
+
   template<class U>
   CUDA NI IResult<U, F> map_error() && {
     auto r = IResult<U, F>(std::move(error()));

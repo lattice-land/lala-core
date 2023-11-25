@@ -181,6 +181,12 @@ public:
     return *this;
   }
 
+  CUDA this_type& operator=(const this_type& other) {
+    lvars = other.lvars;
+    avar2lvar = other.avar2lvar;
+    return *this;
+  }
+
   CUDA allocator_type get_allocator() const {
     return lvars.get_allocator();
   }
