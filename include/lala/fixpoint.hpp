@@ -29,13 +29,16 @@ public:
   }
 
   template <class A>
-  CUDA void fixpoint(A& a, local::BInc& has_changed) {
+  CUDA size_t fixpoint(A& a, local::BInc& has_changed) {
+    size_t iterations = 0;
     local::BInc changed(true);
     while(changed) {
       changed.dtell_bot();
       iterate(a, changed);
       has_changed.tell(changed);
+      iterations++;
     }
+    return iterations;
   }
 
   template <class A>

@@ -199,9 +199,11 @@ public:
     return env.name_of(AVar{aty(), rep});
   }
 
-  /** Project the abstract universe of `vname` taking into account simplifications (representative variable and constant). */
+  /** Project the abstract universe of `vname` taking into account simplifications (representative variable and constant).
+   * We return a copy due to A and B might not have the same universe_type representation.
+   */
   template <class B, class Env>
-  CUDA const universe_type& project(const LVar<allocator_type>& vname, const Env& benv, const B& b) const {
+  CUDA universe_type project(const LVar<allocator_type>& vname, const Env& benv, const B& b) const {
     int rep = equivalence_classes[env.variable_of(vname)->avar_of(aty())->vid()];
     const auto& rep_name = env.name_of(AVar{aty(), rep});
     const auto& variable = benv.variable_of(rep_name);
