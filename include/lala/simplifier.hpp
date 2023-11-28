@@ -83,6 +83,7 @@ public:
    , sub(sub)
    , env(other.env, alloc)
    , equivalence_classes(other.equivalence_classes, alloc)
+   , constants(other.constants, alloc)
   {}
 
   CUDA allocator_type get_allocator() const {
@@ -196,6 +197,31 @@ public:
   CUDA const LVar<allocator_type>& representative(const LVar<allocator_type>& vname) const {
     int rep = equivalence_classes[env.variable_of(vname)->avar_of(aty())->vid()];
     return env.name_of(AVar{aty(), rep});
+  }
+
+  /** Project the abstract universe of `vname` taking into account simplifications (representative variable and constant). */
+  template <class B, class Env>
+  CUDA const universe_type& project(const LVar<allocator_type>& vname, const Env& benv, const B& b) const {
+    int rep = equivalence_classes[env.variable_of(vname)->avar_of(aty())->vid()];
+    const auto& rep_name = env.name_of(AVar{aty(), rep});
+    const auto& variable = benv.variable_of(rep_name);
+    if(variable.has_value()) {
+      return b.project(variable->avars[0]);
+    }
+    else {
+      return constants[rep];
+    }
+  }
+
+  template <class Env>
+  CUDA const Sort<allocator_type>& sort_of(const LVar<allocator_type>& vname, const Env& benv) const {
+    const auto& variable = benv.variable_of(representative(vname));
+    if(variable.has_value()) {
+      return variable->sort;
+    }
+    else {
+      return env.variable_of(vname)->sort;
+    }
   }
 
 private:
