@@ -193,36 +193,19 @@ private:
   }
 
 public:
-  /** Return the representative variable of the equivalence class of the variable with the name `vname`. */
-  CUDA const LVar<allocator_type>& representative(const LVar<allocator_type>& vname) const {
-    int rep = equivalence_classes[env.variable_of(vname)->avar_of(aty())->vid()];
-    return env.name_of(AVar{aty(), rep});
-  }
-
-  /** Project the abstract universe of `vname` taking into account simplifications (representative variable and constant).
-   * We return a copy due to A and B might not have the same universe_type representation.
-   */
-  template <class B, class Env>
-  CUDA universe_type project(const LVar<allocator_type>& vname, const Env& benv, const B& b) const {
-    int rep = equivalence_classes[env.variable_of(vname)->avar_of(aty())->vid()];
+  /** Print the abstract universe of `vname` taking into account simplifications (representative variable and constant).
+  */
+  template <class Alloc, class B, class Env>
+  CUDA void print_variable(const LVar<Alloc>& vname, const Env& benv, const B& b) const {
+    const auto& local_var = *(env.variable_of(vname));
+    int rep = equivalence_classes[local_var.avar_of(aty())->vid()];
     const auto& rep_name = env.name_of(AVar{aty(), rep});
-    const auto& variable = benv.variable_of(rep_name);
-    if(variable.has_value()) {
-      return b.project(variable->avars[0]);
+    const auto& benv_variable = benv.variable_of(rep_name);
+    if(benv_variable.has_value()) {
+      benv_variable->sort.print_value(b.project(benv_variable->avars[0]));
     }
     else {
-      return constants[rep];
-    }
-  }
-
-  template <class Env>
-  CUDA const Sort<allocator_type>& sort_of(const LVar<allocator_type>& vname, const Env& benv) const {
-    const auto& variable = benv.variable_of(representative(vname));
-    if(variable.has_value()) {
-      return variable->sort;
-    }
-    else {
-      return env.variable_of(vname)->sort;
+      local_var.sort.print_value(constants[rep]);
     }
   }
 

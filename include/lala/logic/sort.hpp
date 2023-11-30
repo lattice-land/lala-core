@@ -77,6 +77,21 @@ struct Sort {
       default: assert(false); // "Sort: Unknown type".
     }
   }
+
+  template <class U>
+  CUDA NI void print_value(const U& u) const {
+    if(is_bool()) {
+      if(u <= U::eq_zero()) {
+        printf("false");
+      }
+      else {
+        printf("true");
+      }
+    }
+    else {
+      u.lb().print();
+    }
+  }
 };
 
 template <class Alloc1, class Alloc2>
