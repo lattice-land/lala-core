@@ -358,7 +358,7 @@ public:
   /** Similar to `interpret_tell_in` but do not support existential quantifier. */
   template <class F, class Env>
   CUDA NI iresult<F, Env> interpret_ask_in(const F& f, const Env& env) const {
-    return interpret_in_impl<false>(f, env);
+    return const_cast<this_type*>(this)->interpret_in_impl<false>(f, const_cast<Env&>(env));
   }
 
   /** The projection must stay const, otherwise the user might tell new information in the universe, but we need to know in case we reach `top`. */
