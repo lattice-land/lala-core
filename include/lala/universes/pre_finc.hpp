@@ -34,31 +34,30 @@ struct PreFInc {
   CUDA constexpr static value_type zero() { return 0.0; }
   CUDA constexpr static value_type one() { return 1.0; }
 
-  template<class F>
-  using iresult = IResult<value_type, F>;
-
 private:
-  template<bool is_tell, class F>
-  CUDA NI static iresult<F> interpret(const F& f) {
+  template<bool diagnose, bool is_tell, class F>
+  CUDA NI static bool interpret(const F& f, value_type& k, IDiagnostics& diagnostics) {
     if(f.is(F::Z)) {
       auto z = f.z();
       // We do not consider the min and max values of integers to be infinities when they are part of the logical formula.
       if constexpr(is_tell) {
-        return iresult<F>(battery::rd_cast<value_type, decltype(z), false>(z));
+        k = battery::rd_cast<value_type, decltype(z), false>(z);
       }
       else {
-        return iresult<F>(battery::ru_cast<value_type, decltype(z), false>(z));
+        k = battery::ru_cast<value_type, decltype(z), false>(z);
       }
+      return true;
     }
     else if(f.is(F::R)) {
       if constexpr(is_tell) {
-        return iresult<F>(battery::rd_cast<value_type>(battery::get<0>(f.r())));
+        k = battery::rd_cast<value_type>(battery::get<0>(f.r()));
       }
       else {
-        return iresult<F>(battery::ru_cast<value_type>(battery::get<1>(f.r())));
+        k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
       }
+      return true;
     }
-    return iresult<F>(IError<F>(true, name, "Only a constant of sort `Int` or `Real` can be interpreted by a floating-point abstract universe.", f));
+    RETURN_INTERPRETATION_ERROR("Only a constant of sort `Int` or `Real` can be interpreted by a floating-point abstract universe.")
   }
 
 public:
@@ -67,34 +66,36 @@ public:
         * Formulas of kind `F::Z` might be over-approximated (if the integer cannot be represented in a floating-point number because it is too large).
         * Formulas of kind `F::R` might be over-approximated to the lower bound of the interval (if the real number is represented by an interval [lb..ub] where lb != ub).
         * Other kind of formulas are not supported. */
-  template<class F>
-  CUDA static iresult<F> interpret_tell(const F& f) {
-    return interpret<true>(f);
+  template<bool diagnose, class F>
+  CUDA static bool interpret_tell(const F& f, value_type& k, IDiagnostics& diagnostics) {
+    return interpret<diagnose, true>(f, k, diagnostics);
   }
 
   /** Same as `interpret_tell` but the constant is under-approximated instead. */
-  template<class F>
-  CUDA static iresult<F> interpret_ask(const F& f) {
-    return interpret<false>(f);
+  template<bool diagnose, class F>
+  CUDA static bool interpret_ask(const F& f, value_type& k, IDiagnostics& diagnostics) {
+    return interpret<diagnose, false>(f, k, diagnostics);
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
       Interpretations:
         * Variables of type `Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\bot) \f$).
         * Variables of type `Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\bot) \f$). */
-  template<class F>
-  CUDA NI static iresult<F> interpret_type(const F& f) {
+  template<bool diagnose, class F>
+  CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
     if(cty.is_int()) {
-      return iresult<F>(bot(), IError<F>(false, name, "Variable `" + vname + "` of sort `Int` is over-approximated in a floating-point abstract universe.", f));
+      k = bot();
+      RETURN_INTERPRETATION_WARNING("Variable `" + vname + "` of sort `Int` is over-approximated in a floating-point abstract universe.");
     }
     else if(cty.is_real()) {
-      return iresult<F>(bot());
+      k = bot();
+      return true;
     }
     else {
-      return iresult<F>(IError<F>(true, name, "Variable `" + vname + "` can only be of sort `Real`, or be over-approximated if the sort is `Bool` or `Int`.", f));
+      RETURN_INTERPRETATION_ERROR("Variable `" + vname + "` can only be of sort `Real`, or be over-approximated if the sort is `Bool` or `Int`.");
     }
   }
 

@@ -35,26 +35,24 @@ struct PreZDec {
   CUDA constexpr static value_type zero() { return 0; }
   CUDA constexpr static value_type one() { return 1; }
 
-  template <class F>
-  using iresult = IResult<value_type, F>;
-
-  template <class F>
-  CUDA static iresult<F> interpret_tell(const F &f) {
-    return dual_type::interpret_ask(f);
+  template <bool diagnose, class F>
+  CUDA static bool interpret_tell(const F &f, value_type& tell, IDiagnostics& diagnostics) {
+    return dual_type::template interpret_ask<diagnose>(f, tell, diagnostics);
   }
 
-  template <class F>
-  CUDA static iresult<F> interpret_ask(const F &f) {
-    return dual_type::interpret_tell(f);
+  template <bool diagnose, class F>
+  CUDA static bool interpret_ask(const F &f, value_type& ask, IDiagnostics& diagnostics) {
+    return dual_type::template interpret_tell<diagnose>(f, ask, diagnostics);
   }
 
-  template <class F>
-  CUDA static iresult<F> interpret_type(const F &f) {
-    auto r = dual_type::interpret_type(f);
-    if (r.has_value() && r.value() == dual_type::bot()) {
-      return std::move(r).map(bot());
+  template <bool diagnose, class F>
+  CUDA static bool interpret_type(const F &f, value_type& k, IDiagnostics& diagnostics) {
+    bool res = dual_type::template interpret_type<diagnose>(f, k, diagnostics);
+    // We reverse top and bottom due to the dual interpretation.
+    if (res && k == dual_type::bot()) {
+      k = bot();
     }
-    return r;
+    return res;
   }
 
   template<class F>

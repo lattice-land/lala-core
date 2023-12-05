@@ -37,8 +37,6 @@ public:
   template <class M> using this_type2 = FlatUniverse<pre_universe, M>;
   using local_type = this_type2<battery::local_memory>;
 
-  template<class F>
-  using iresult = IResult<local_type, F>;
   static_assert(pre_universe::increasing);
   static_assert(pre_universe::preserve_bot && pre_universe::preserve_top,
     "The Flat lattice construction reuse the bottom and top elements of the pre-universe.\
@@ -246,16 +244,15 @@ public:
 public:
   /** Expects a predicate of the form `x = k` or `k = x`, where `x` is any variable's name, and `k` a constant.
       Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom). */
-  template<class F, class Env>
-  CUDA NI static iresult<F> interpret_tell(const F& f, const Env& env) {
-    if(f.is_true()) {
-      return bot();
-    }
-    else if(f.is_false()) {
-      return top();
-    }
-    else if(f.is(F::E)) {
-      return pre_universe::interpret_type(f);
+  template<bool diagnose = false, class F, class Env, class M2>
+  CUDA NI static bool interpret_tell(const F& f, const Env& env, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+    if(f.is(F::E)) {
+      value_type k;
+      bool res = pre_universe::template interpret_type<diagnose>(f, k, diagnostics);
+      if(res) {
+        tell.tell(k);
+      }
+      return res;
     }
     else {
       if(f.is_binary() && f.sig() == EQ) {
@@ -264,32 +261,26 @@ public:
         if(idx_constant + idx_variable == 1) {
           const auto& k = f.seq(idx_constant);
           const auto& x = f.seq(idx_variable);
-          auto t = pre_universe::interpret_tell(k);
-          auto a = pre_universe::interpret_ask(k);
-          if(t.has_value()) {
-            if(a.has_value()) {
-              if(a.value() == t.value()) {
-                return t;
+          value_type t;
+          if(pre_universe::template interpret_tell<diagnose>(k, t, diagnostics)) {
+            value_type a;
+            if(pre_universe::template interpret_ask<diagnose>(k, a, diagnostics)) {
+              if(a == t) {
+                tell.tell(t);
+                return true;
               }
               else {
-                return std::move(iresult<F>(IError<F>(true, name, "The constant has no exact interpretation which is required in this abstract universe.", f))
-                  .join_errors(std::move(t))
-                  .join_errors(std::move(a)));
+                RETURN_INTERPRETATION_ERROR("The constant has no exact interpretation which is required in this abstract universe.");
               }
             }
-            else {
-              return a;
-            }
           }
-          else {
-            return t;
-          }
+          return false;
         }
       }
-      return iresult<F>(IError<F>(true, name,
-        "Only interpretations of existential quantifier and binary formulas of the form `t1 = t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
+      RETURN_INTERPRETATION_ERROR(
+        "Only interpretations of existential quantifier and binary formulas of the form `t1 = t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.");
     }
-  }
+  }c
 
   /** Same as `interpret_tell` without the support for existential quantifier. */
   template<class F, class Env>

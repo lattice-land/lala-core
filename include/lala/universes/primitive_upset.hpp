@@ -331,66 +331,71 @@ public:
 
 private:
   /** Interpret a formula of the form `k <sig> x`. */
-  template<class F>
-  CUDA NI static iresult<F> interpret_tell_k_op_x(const F& f, const F& k, Sig sig) {
-    auto r = pre_universe::interpret_tell(k);
-    if(!r.has_value()) {
-      return r;
-    }
-    else if(sig == EQ || sig == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
-      return r;
-    }
-    else if(sig == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
-      if constexpr(preserve_concrete_covers) {
-        return std::move(r).map(pre_universe::next(r.value()));
+  template<bool diagnose = false, class F, class M2>
+  CUDA NI static bool interpret_tell_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+    value_type value = pre_universe::bot();
+    bool res = pre_universe::interpret_tell(k, value, diagnostics);
+    if(res) {
+      if(sig == EQ || sig == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
+        tell.tell(value);
+      }
+      else if(sig == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
+        if constexpr(preserve_concrete_covers) {
+          tell.tell(pre_universe::next(value));
+        }
+        else {
+          tell.tell(value);
+        }
       }
       else {
-        return r;
+        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the tell language of this universe.");
       }
     }
-    else {
-      return iresult<F>(IError<F>(true, name, "The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the language of this universe.", f));
-    }
+    return res;
   }
 
   /** Interpret a formula of the form `k <sig> x`. */
-  template<class F>
-  CUDA NI static iresult<F> interpret_ask_k_op_x(const F& f, const F& k, Sig sig) {
-    auto r = pre_universe::interpret_ask(k);
-    if(!r.has_value()) {
-      return r;
+  template<bool diagnose = false, class F, class M2>
+  CUDA NI static bool interpret_ask_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+    value_type value = pre_universe::bot();
+    bool res = pre_universe::interpret_ask(k, value, diagnostics);
+    if(res) {
+      if(sig == U::sig_order()) {
+        tell.tell(value);
+      }
+      else if(sig == NEQ || sig == U::sig_strict_order()) {
+        // We could actually do a little bit better in the case of FInc/FDec.
+        // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
+        tell.tell(pre_universe::next(value));
+      }
+      else {
+        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the ask language of this universe.");
+      }
     }
-    else if(sig == U::sig_order()) {
-      return r;
-    }
-    else if(sig == NEQ || sig == U::sig_strict_order()) {
-      // We could actually do a little bit better in the case of FInc/FDec.
-      // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
-      return std::move(r).map(pre_universe::next(r.value()));
-    }
-    else {
-      return iresult<F>(IError<F>(true, name, "The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the ask language of this universe.", f));
-    }
+    return res;
   }
 
-  template<class F>
-  CUDA NI static iresult<F> interpret_tell_set(const F& f, const F& k) {
+  template<bool diagnose = false, class F, class M2>
+  CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M2>& tell, IDiagnostics& diagnostics) {
     const auto& set = k.s();
     if(set.size() == 0) {
-      return top();
+      tell.tell_top();
+      return true;
     }
     value_type meet_s = pre_universe::top();
     constexpr int bound_index = increasing ? 0 : 1;
+    // We interpret each component of the set and take the meet of all the results.
     for(int i = 0; i < set.size(); ++i) {
       auto bound = battery::get<bound_index>(set[i]);
-      auto res = pre_universe::interpret_tell(bound);
-      if(!res.has_value()) {
-        return std::move(iresult<F>(IError<F>(true, name, "Could not interpret an element of a set in the interval's bound.", f))
-          .join_errors(std::move(res)));
+      value_type set_element = pre_universe::bot();
+      bool res = pre_universe::template interpret_tell<diagnose>(bound, set_element, diagnostics);
+      if(!res) {
+        return false;
       }
-      meet_s = pre_universe::meet(meet_s, res.value());
+      meet_s = pre_universe::meet(meet_s, set_element);
     }
-    return iresult<F>(this_type(meet_s));
+    tell.tell(meet_s);
+    return true;
   }
 
 public:
@@ -398,48 +403,42 @@ public:
    * The symbol <op> is expected to be `U::sig_order()`, `U::sig_strict_order()` and `=`.
    * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom) depending on the underlying pre-universe.
    */
-  template<class F, class Env>
-  CUDA NI static iresult<F> interpret_tell(const F& f, const Env&) {
-    if(f.is_true()) {
-      if constexpr(preserve_bot) {
-        return bot();
+  template<bool diagnose = false, class F, class Env, class M2>
+  CUDA NI static bool interpret_tell(const F& f, const Env&, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+    if(f.is(F::E)) {
+      typename U2::value_type val;
+      bool res = pre_universe::template interpret_type<diagnose>(f, val, diagnostics);
+      if(res) {
+        tell.tell(typename PrimitiveUpset<U2, M2>::local_type(val));
       }
-      else {
-        return iresult<F>(IError<F>(true, name, "Bottom is not preserved, hence we cannot over-approximate `true`.", f));
-      }
-    }
-    else if(f.is_false()) {
-      return top();
-    }
-    else if(f.is(F::E)) {
-      return pre_universe::interpret_type(f);
+      return res;
     }
     else {
       if(f.is_binary()) {
         int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
         int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
         if(idx_constant + idx_variable != 1) {
-          return iresult<F>(IError<F>(true, name, "Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
+          RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.")
         }
         const auto& k = f.seq(idx_constant);
         if(f.sig() == IN) {
           if(idx_constant == 0) { // `k in x` is equivalent to `{k} \subseteq x`.
-            return iresult<F>(IError<F>(true, name, "The formula `k in x` is not supported in this abstract universe (`x in k` is supported).", f));
+            RETURN_INTERPRETATION_ERROR("The formula `k in x` is not supported in this abstract universe (`x in k` is supported).")
           }
           else { // `x in k` is equivalent to `x >= meet k` where `>=` is the lattice order `U::sig_order()`.
-            return interpret_tell_set(f, k);
+            return interpret_tell_set<diagnose>(f, k, tell, diagnostics);
           }
         }
         else if(is_comparison(f)) {
           Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
-          return interpret_tell_k_op_x(f, k, sig);
+          return interpret_tell_k_op_x<diagnose>(f, k, sig, tell, diagnostics);
         }
         else {
-          return iresult<F>(IError<F>(true, name, "This symbol is not supported.", f));
+          RETURN_INTERPRETATION_ERROR("This symbol is not supported.")
         }
       }
       else {
-        return iresult<F>(IError<F>(true, name, "Only binary constraints are supported.", f));
+        RETURN_INTERPRETATION_ERROR("Only binary constraints are supported.")
       }
     }
   }
@@ -447,38 +446,25 @@ public:
   /** Expects a predicate of the form `x <op> k` or `k <op> x`, where `x` is any variable's name, and `k` a constant.
    * The symbol <op> is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`.
    */
-  template<class F, class Env>
-  CUDA NI static iresult<F> interpret_ask(const F& f, const Env&) {
-    if(f.is_true()) {
-      return bot();
-    }
-    else if(f.is_false()) {
-      if constexpr(preserve_top) {
-        return top();
+  template<bool diagnose = false, class F, class Env, class M2>
+  CUDA NI static bool interpret_ask(const F& f, const Env&, this_type2<M2>& ask, IDiagnostics& diagnostics) {
+    if(f.is_binary()) {
+      int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
+      int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
+      if(idx_constant + idx_variable != 1) {
+        RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.");
+      }
+      const auto& k = f.seq(idx_constant);
+      if(is_comparison(f)) {
+        Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
+        return interpret_ask_k_op_x<diagnose>(f, k, sig, ask, diagnostics);
       }
       else {
-        return iresult<F>(IError<F>(true, name, "Top is not preserved, hence we cannot under-approximate `false`.", f));
+        RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
       }
     }
     else {
-      if(f.is_binary()) {
-        int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
-        int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
-        if(idx_constant + idx_variable != 1) {
-          return iresult<F>(IError<F>(true, name, "Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
-        }
-        const auto& k = f.seq(idx_constant);
-        if(is_comparison(f)) {
-          Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
-          return interpret_ask_k_op_x(f, k, sig);
-        }
-        else {
-          return iresult<F>(IError<F>(true, name, "This symbol is not supported.", f));
-        }
-      }
-      else {
-        return iresult<F>(IError<F>(true, name, "Only binary constraints are supported.", f));
-      }
+      RETURN_INTERPRETATION_ERROR("Only binary constraints are supported.");
     }
   }
 

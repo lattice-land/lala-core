@@ -51,31 +51,30 @@ struct PreZInc {
   CUDA constexpr static value_type zero() { return 0; }
   CUDA constexpr static value_type one() { return 1; }
 
-  template<class F>
-  using iresult = IResult<value_type, F>;
-
 private:
-  template<bool is_tell, class F>
-  CUDA NI static iresult<F> interpret(const F& f) {
+  template<bool diagnose, bool is_tell, class F>
+  CUDA NI static bool interpret(const F& f, value_type& k, IDiagnostics& diagnostics) {
     if(f.is(F::Z)) {
       auto z = f.z();
       if(z == bot() || z == top()) {
-        return iresult<F>(IError<F>(true, name, "Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.", f));
+        RETURN_INTERPRETATION_ERROR("Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.");
       }
-      return iresult<F>(z);
+      return k = z;
     }
     else if(f.is(F::R)) {
       if constexpr(is_tell) {
-        return iresult<F>(battery::ru_cast<value_type>(battery::get<0>(f.r())));
+        k = battery::ru_cast<value_type>(battery::get<0>(f.r()));
       }
       else {
-        return iresult<F>(battery::ru_cast<value_type>(battery::get<1>(f.r())));
+        k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
       }
+      return true;
     }
     else if(f.is(F::B)) {
-      return iresult<F>(f.b() ? one() : zero());
+      k = f.b() ? one() : zero();
+      return true;
     }
-    return iresult<F>(IError<F>(true, name, "Only constant of sorts `Int` and `Real` can be interpreted by an integer abstract universe.", f));
+    RETURN_INTERPRETATION_ERROR("Only constant of sorts `Int` and `Real` can be interpreted by an integer abstract universe.");
   }
 
 public:
@@ -88,30 +87,32 @@ public:
       Examples:
         * \f$ [\![x >= [2.5..2.5]:R ]\!] = 3 \f$.
         * \f$ [\![x >= [2.9..3.1]:R ]\!] = 3 \f$.
-      */
-  template<class F>
-  CUDA static iresult<F> interpret_tell(const F& f) {
-    return interpret<true>(f);
+  */
+  template<bool diagnose, class F>
+  CUDA static bool interpret_tell(const F& f, value_type& tell, IDiagnostics& diagnostics) {
+    return interpret<diagnose, true>(f, tell, diagnostics);
   }
 
   /** Similar to `interpret_tell` but the formula is under-approximated, in particular: \f$ [\![ x:\mathbb{Z} \geq [l..u]:\mathbb{R} ]\!] = \lceil u \rceil \f$. */
-  template<class F>
-  CUDA static iresult<F> interpret_ask(const F& f) {
-    return interpret<false>(f);
+  template<bool diagnose, class F>
+  CUDA static bool interpret_ask(const F& f, value_type& ask, IDiagnostics& diagnostics) {
+    return interpret<diagnose, false>(f, ask, diagnostics);
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
-      Variables of type `Int` are interpreted exactly (\f$ \mathbb{Z} = \gamma(\bot) \f$). */
-  template<class F>
-  CUDA NI static iresult<F> interpret_type(const F& f) {
+      Variables of type `Int` are interpreted exactly (\f$ \mathbb{Z} = \gamma(\bot) \f$).
+      Note that we assume there is no overflow, that might be taken into account the future. */
+  template<bool diagnose, class F>
+  CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
     assert(f.is(F::E));
     const auto& sort = battery::get<1>(f.exists());
     if(sort.is_int()) {
-      return iresult<F>(bot());
+      k = bot();
+      return true;
     }
     else {
       const auto& vname = battery::get<0>(f.exists());
-      return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `Int`.", f));
+      RETURN_INTERPRETATION_ERROR("The type of `" + vname + "` can only be `Int`.")
     }
   }
 

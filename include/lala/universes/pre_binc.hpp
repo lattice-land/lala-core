@@ -32,40 +32,39 @@ struct PreBInc {
   CUDA constexpr static value_type zero() { return false; }
   CUDA constexpr static value_type one() { return true; }
 
-  template<class F>
-  using iresult = IResult<value_type, F>;
-
   /** Interpret a formula into an upset Boolean lattice.
    * \return The result of the interpretation when the formula `f` is a constant of type `Bool`. Otherwise it returns an explanation of the error. */
-  template<class F>
-  CUDA static iresult<F> interpret_tell(const F& f) {
+  template<bool diagnose, class F>
+  CUDA static bool interpret_tell(const F& f, value_type& tell, IDiagnostics& diagnostics) {
     if(f.is(F::B)) {
-      return iresult<F>(f.b());
+      tell = f.b();
+      return true;
     }
-    return iresult<F>(IError<F>(true, name, "Only constant of types `Bool` can be interpreted in a Boolean domain.", f));
+    RETURN_INTERPRETATION_ERROR("Only constant of types `Bool` can be interpreted in a Boolean domain.");
   }
 
   /** In this domain, the ask version of any constraint is the same as the tell version.
    * This is because this domain can exactly represent Boolean values.
   */
-  template<class F>
-  CUDA static iresult<F> interpret_ask(const F& f) {
-    return interpret_tell(f);
+  template<bool diagnose, class F>
+  CUDA static bool interpret_ask(const F& f, value_type& ask, IDiagnostics& diagnostics) {
+    return interpret_tell<diagnose>(f, ask, diagnostics);
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
    * \return `bot()` if the type of the existentially quantified variable is `Bool`. Otherwise it returns an explanation of the error.
   */
-  template<class F>
-  CUDA NI static iresult<F> interpret_type(const F& f) {
+  template<bool diagnose, class F>
+  CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
     assert(f.is(F::E));
     const auto& cty = battery::get<1>(f.exists());
     if(cty.is_bool()) {
-      return iresult<F>(bot());
+      k = bot();
+      return true;
     }
     else {
       const auto& vname = battery::get<0>(f.exists());
-      return iresult<F>(IError<F>(true, name, "The type of `" + vname + "` can only be `Bool`.", f));
+      RETURN_INTERPRETATION_ERROR("The type of `" + vname + "` can only be `Bool`.");
     }
   }
 

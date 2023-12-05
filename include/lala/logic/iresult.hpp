@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#ifndef LALA_CORE_IRESULT_HPP
-#define LALA_CORE_IRESULT_HPP
+#ifndef LALA_CORE_IDIAGNOSTICS_HPP
+#define LALA_CORE_IDIAGNOSTICS_HPP
 
 #include "battery/utility.hpp"
 #include "battery/vector.hpp"
@@ -13,19 +13,21 @@
 
 namespace lala {
 
-/** The representation of an error (or warning) obtained when interpreting a formula in an abstract universe or domain. */
-template<class F>
-class IError {
+/** `IDiagnostics` is used in abstract domains to diagnose why a formula cannot be interpreted (error) or if it was interpreted by under- or over-approximation (warnings).
+    If the abstract domain cannot interpret the formula, it must explain why.
+    This is similar to compilation errors in compiler. */
+template<class F, class Allocator = typename F::allocator_type>
+class IDiagnostics {
 public:
   using allocator_type = typename F::allocator_type;
-  using this_type = IError<F>;
+  using this_type = IDiagnostics<F>;
 
 private:
   battery::string<allocator_type> ad_name;
   battery::string<allocator_type> description;
   F uninterpretable_formula;
   AType aty;
-  battery::vector<IError<F>, allocator_type> suberrors;
+  battery::vector<IDiagnostics<F>, allocator_type> suberrors;
   bool fatal;
 
   CUDA void print_indent(int indent) const {
@@ -41,7 +43,7 @@ private:
 
 public:
   // If fatal is false, it is considered as a warning.
-  CUDA NI IError(bool fatal, battery::string<allocator_type> ad_name,
+  CUDA NI IDiagnostics(battery::string<allocator_type> ad_name,
     battery::string<allocator_type> description,
     F uninterpretable_formula,
     AType aty = UNTYPED)
@@ -52,7 +54,7 @@ public:
      fatal(fatal)
   {}
 
-  CUDA NI this_type& add_suberror(IError<F>&& suberror) {
+  CUDA NI this_type& add_suberror(IDiagnostics<F>&& suberror) {
     suberrors.push_back(suberror);
     return *this;
   }
@@ -88,153 +90,17 @@ public:
   CUDA bool is_fatal() const { return fatal; }
 };
 
-/** This class is used in abstract domains to represent the result of an interpretation.
-    If the abstract domain cannot interpret the formula, it must explain why.
-    This is similar to compilation errors in compiler. */
-template <class T, class F>
-class IResult {
-public:
-  using allocator_type = typename F::allocator_type;
-  using error_type = IError<F>;
-  using value_type = T;
-  using formula_type = F;
-  using this_type = IResult<T, F>;
+#define RETURN_INTERPRETATION_ERROR(msg) \
+  if constexpr(diagnose) { \
+    diagnostics.add_suberror(IDiagnostics<F>(true, name, (msg), f)); \
+  } \
+  return false;
 
-private:
-  using warnings_type = battery::vector<error_type, allocator_type>;
-
-  using result_type = battery::variant<
-    T,
-    error_type>;
-
-  result_type result;
-  warnings_type warnings;
-
-  template <class U>
-  CUDA static result_type map_result(battery::variant<U, error_type>&& other) {
-    if(other.index() == 0) {
-      return result_type::template create<0>(T(std::move(battery::get<0>(other))));
-    }
-    else {
-      return result_type::template create<1>(std::move(battery::get<1>(other)));
-    }
-  }
-
-public:
-  template <class U, class F2>
-  friend class IResult;
-
-  CUDA IResult(this_type&& other): result(std::move(other.result)), warnings(std::move(other.warnings)) {}
-
-  CUDA IResult(T&& data):
-    result(result_type::template create<0>(std::move(data))) {}
-
-  CUDA IResult(T&& data, error_type&& warning):
-    result(result_type::template create<0>(std::move(data)))
-  {
-    assert(!warning.is_fatal());
-    push_warning(std::move(warning));
-  }
-
-  CUDA this_type& push_warning(error_type&& warning) {
-    warnings.push_back(std::move(warning));
-    return *this;
-  }
-
-  CUDA IResult(error_type&& error):
-    result(result_type::template create<1>(std::move(error))) {}
-
-  template<class U>
-  CUDA IResult(IResult<U, F>&& map): result(map_result(std::move(map.result))),
-    warnings(std::move(map.warnings)) {}
-
-  CUDA NI this_type& operator=(this_type&& other) {
-    result = std::move(other.result);
-    warnings = std::move(other.warnings);
-    return *this;
-  }
-
-  CUDA bool has_value() const {
-    return result.index() == 0;
-  }
-
-  CUDA const T& value() const {
-    return battery::get<0>(result);
-  }
-
-  CUDA bool is_error() const {
-    return !has_value();
-  }
-
-  template<class U>
-  CUDA NI IResult<U, F> map_error() && {
-    auto r = IResult<U, F>(std::move(error()));
-    r.warnings = std::move(warnings);
-    return std::move(r);
-  }
-
-  template<class U>
-  CUDA NI IResult<U, F> map(U&& data2) && {
-    if(has_value()) {
-      auto r = IResult<U, F>(std::move(data2));
-      r.warnings = std::move(warnings);
-      return std::move(r);
-    }
-    else {
-      return std::move(*this).template map_error<U>();
-    }
-  }
-
-  template<class U>
-  CUDA NI this_type& join_warnings(IResult<U, F>&& other) {
-    for(int i = 0; i < other.warnings.size(); ++i) {
-      warnings.push_back(std::move(other.warnings[i]));
-    }
-    return *this;
-  }
-
-  template<class U>
-  CUDA NI this_type& join_errors(IResult<U, F>&& other) {
-    if(!other.has_value()) {
-      if(has_value()) {
-        result = result_type::template create<1>(std::move(other.error()));
-      }
-      else {
-        error().add_suberror(std::move(other.error()));
-      }
-    }
-    return join_warnings(std::move(other));
-  }
-
-  CUDA T& value() {
-    return battery::get<0>(result);
-  }
-
-  CUDA const error_type& error() const {
-    return battery::get<1>(result);
-  }
-
-  CUDA error_type& error() {
-    return battery::get<1>(result);
-  }
-
-  CUDA bool has_warning() const {
-    return warnings.size() > 0;
-  }
-
-  CUDA NI void print_diagnostics() const {
-    if(has_value()) {
-      printf("successfully interpreted\n");
-    }
-    else {
-      error().print();
-    }
-    printf("\n");
-    for(int i = 0; i < warnings.size(); ++i) {
-      warnings[i].print();
-    }
-  }
-};
+#define RETURN_INTERPRETATION_WARNING(msg) \
+  if constexpr(diagnose) { \
+    diagnostics.add_suberror(IDiagnostics<F>(false, name, (msg), f)); \
+  } \
+  return true;
 
 }
 
