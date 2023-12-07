@@ -30,11 +30,6 @@ Any finite store \f$ \langle x_1, \ldots, x_n \rangle \f$ should be seen as the 
 This semantics has implication when joining or merging two elements.
 For instance, \f$ \langle 1 \rangle.\mathit{dtell}(\langle \bot, 4 \rangle) \f$ will be equal to bottom, in that case represented by \f$ \langle \bot \rangle \f$.
 
-Limitation:
-  - The size of the variable store is fixed at initialization and cannot be modified afterwards.
-    The reason is that resizing an array does not easily fit the PCCP model of computation.
-  - You can only tell store that are smaller or equal in size (unless the extra elements are set to bottom).
-
 Template parameters:
   - `U` is the type of the abstract universe.
   - `Allocator` is the allocator of the underlying array of universes. */
@@ -47,13 +42,13 @@ public:
   using this_type = VStore<universe_type, allocator_type>;
 
   struct var_dom {
-    int idx;
+    AVar avar;
     local_universe dom;
     var_dom() = default;
-    CUDA var_dom(int idx, const local_universe& dom): idx(idx), dom(dom) {}
+    CUDA var_dom(AVar avar, const local_universe& dom): avar(avar), dom(dom) {}
 
     template <class VarDom>
-    CUDA var_dom(const VarDom& var_dom): idx(var_dom.idx), dom(var_dom.dom) {}
+    CUDA var_dom(const VarDom& var_dom): avar(var_dom.avar), dom(var_dom.dom) {}
   };
 
   template <class Alloc>
@@ -64,12 +59,6 @@ public:
 
   template <class Alloc = allocator_type>
   using snapshot_type = battery::vector<local_universe, Alloc>;
-
-  template<class F, class Env>
-  using iresult = IResult<tell_type<typename Env::allocator_type>, F>;
-
-  template<class F, class Env> using iresult_tell = iresult<F, Env>;
-  template<class F, class Env> using iresult_ask = iresult<F, Env>;
 
   constexpr static const bool is_abstract_universe = false;
   constexpr static const char* name = "VStore";
@@ -90,9 +79,9 @@ public:
     : atype(other.atype), data(other.data), is_at_top(other.is_at_top)
   {}
 
-  /** Initialize a store with `size` bottom elements. The size cannot be changed later on. */
-  CUDA VStore(AType atype, size_t size, const allocator_type& alloc = allocator_type())
-   : atype(atype), data(size, alloc), is_at_top(false)
+  /** Initialize an empty store. */
+  CUDA VStore(AType atype, const allocator_type& alloc = allocator_type())
+   : atype(atype), data(alloc), is_at_top(false)
   {}
 
   template<class R>
@@ -122,8 +111,7 @@ public:
     return atype;
   }
 
-  /** Returns the number of variables currently represented by this abstract element.
-   * This value does not change. */
+  /** Returns the number of variables currently represented by this abstract element. */
   CUDA size_t vars() const {
     return data.size();
   }
@@ -131,14 +119,14 @@ public:
   CUDA static this_type bot(AType atype = UNTYPED,
     const allocator_type& alloc = allocator_type())
   {
-    return VStore(atype, 0, alloc);
+    return VStore(atype, alloc);
   }
 
   /** A special symbolic element representing top. */
   CUDA static this_type top(AType atype = UNTYPED,
     const allocator_type& alloc = allocator_type())
   {
-    return std::move(VStore(atype, 0, alloc).tell_top());
+    return std::move(VStore(atype, alloc).tell_top());
   }
 
   /** `true` if at least one element is equal to top in the store, `false` otherwise. */
@@ -146,7 +134,7 @@ public:
     return is_at_top;
   }
 
-  /** The bottom element of a store of `n` variables, is when all variables are at bottom, or the store is empty.
+  /** The bottom element of a store of `n` variables is when all variables are at bottom, or the store is empty.
    * We do not expect to use this operation a lot, so its complexity is linear in the number of variables. */
   CUDA local::BDec is_bot() const {
     if(is_at_top) { return false; }
@@ -166,7 +154,9 @@ public:
 
   template <class Alloc>
   CUDA this_type& restore(const snapshot_type<Alloc>& snap) {
-    assert(snap.size() == data.size());
+    while(snap.size() < data.size()) {
+      data.pop_back();
+    }
     is_at_top.dtell_bot();
     for(int i = 0; i < snap.size(); ++i) {
       data[i].dtell(snap[i]);
@@ -176,189 +166,133 @@ public:
   }
 
 private:
-  template <class F, class Env>
-  CUDA NI iresult<F, Env> interpret_existential(const F& f, Env& env) const {
-    using TellType = tell_type<typename Env::allocator_type>;
+  template <bool diagnose, class F, class Env, class Alloc2>
+  CUDA NI bool interpret_existential(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
     assert(f.is(F::E));
-    auto u = local_universe::interpret_tell(f, env);
-    if(u.has_value()) {
-      if(env.num_vars_in(atype) >= vars()) {
-        return iresult<F, Env>(IError<F>(true, name, "The variable could not be interpreted because the store is full.", f));
-      }
-      auto avar = env.interpret(f.map_atype(atype));
-      if(avar.has_value()) {
-        if(u.value().is_bot()) {
-          return std::move(iresult<F, Env>(TellType(env.get_allocator())).join_warnings(std::move(u)));
-        }
-        else {
-          TellType res(env.get_allocator());
-          res.push_back(var_dom(avar.value().vid(), u.value()));
-          return std::move(iresult<F, Env>(std::move(res)).join_warnings(std::move(u)));
-        }
-      }
-      else {
-        return std::move(avar).template map_error<TellType>();
+    var_dom k;
+    if(local_universe::template interpret_tell<diagnose>(f, env, k.dom, diagnostics)) {
+      if(env.interpret(f.map_atype(atype), k.avar, diagnostics)) {
+        tell.push_back(k);
+        return true;
       }
     }
-    else {
-      return std::move(u).template map_error<TellType>();
-    }
+    return false;
   }
 
   /** Interpret a predicate without variables. */
-  template <class F, class Env>
-  CUDA NI iresult<F, Env> interpret_zero_predicate(const F& f, const Env& env) const {
-    using TellType = tell_type<typename Env::allocator_type>;
+  template <bool diagnose, class F, class Env, class Alloc2>
+  CUDA NI bool interpret_zero_predicate(const F& f, const Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
     if(f.is_true()) {
-      return std::move(iresult<F, Env>(TellType(env.get_allocator())));
+      return true;
     }
     else if(f.is_false()) {
-      TellType res(env.get_allocator());
-      res.push_back(var_dom(-1, U::top()));
-      return std::move(iresult<F, Env>(std::move(res)));
+      tell.push_back(var_dom(AVar{}, U::top()));
+      return true;
     }
     else {
-      return std::move(iresult<F, Env>(IError<F>(true, name, "Only `true` and `false` can be interpreted in the store without being named.", f)));
+      RETURN_INTERPRETATION_ERROR("Only `true` and `false` can be interpreted in the store without being named.");
     }
   }
 
   /** Interpret a predicate with a single variable occurrence. */
-  template <bool is_tell, class F, class Env>
-  CUDA NI iresult<F, Env> interpret_unary_predicate(const F& f, const Env& env) const {
-    using TellType = tell_type<typename Env::allocator_type>;
-    auto u = is_tell ? local_universe::interpret_tell(f, env) : local_universe::interpret_ask(f, env);
-    if(u.has_value()) {
-      TellType res(env.get_allocator());
+  template <bool diagnose, bool is_tell, class F, class Env, class Alloc2>
+  CUDA NI bool interpret_unary_predicate(const F& f, const Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+    local_universe u;
+    bool res = is_tell
+      ? local_universe::template interpret_tell<diagnose>(f, env, u, diagnostics)
+      : local_universe::template interpret_ask<diagnose>(f, env, u, diagnostics);
+    if(res) {
       const auto& varf = var_in(f);
       // When it is not necessary, we try to avoid using the environment.
       // This is for instance useful when refinement operators add new constraints but do not have access to the environment (e.g., split()), and to avoid passing the environment around everywhere.
       if(varf.is(F::V)) {
-        res.push_back(var_dom(varf.v().vid(), u.value()));
+        tell.push_back(var_dom(varf.v().vid(), u.value()));
       }
       else {
         auto var = var_in(f, env);
         if(!var.has_value()) {
-          return std::move(iresult<F, Env>(IError<F>(true, name, "Undeclared variable.", f)).join_warnings(std::move(u)));
+          RETURN_INTERPRETATION_ERROR("Undeclared variable.");
         }
-        if(!u.value().is_bot()) {
-          auto avar = var->avar_of(atype);
-          if(!avar.has_value()) {
-            return std::move(iresult<F, Env>(IError<F>(true, name,
-                "The variable was not declared in the current abstract element (but exists in other abstract elements).", f))
-              .join_warnings(std::move(u)));
-          }
-          res.push_back(var_dom(avar->vid(), u.value()));
+        auto avar = var->avar_of(atype);
+        if(!avar.has_value()) {
+          RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
         }
+        tell.push_back(var_dom(*avar, u));
       }
-      return std::move(iresult<F, Env>(std::move(res)).join_warnings(std::move(u)));
+      return true;
     }
     else {
-      return std::move(iresult<F, Env>(IError<F>(true, name, "Could not interpret a unary predicate in the underlying abstract universe.", f)).join_errors(std::move(u)));
+      RETURN_INTERPRETATION_ERROR("Could not interpret a unary predicate in the underlying abstract universe.");
     }
   }
 
-  template <bool is_tell, class F, class Env>
-  CUDA NI iresult<F, Env> interpret_predicate(const F& f, Env& env) const {
+  template <bool diagnose, bool is_tell, class F, class Env, class Alloc2>
+  CUDA NI bool interpret_predicate(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
     if(f.type() != UNTYPED && f.type() != aty()) {
-      return iresult<F, Env>(IError<F>(true, name, "The predicate is not of the right type.", f));
+      RETURN_INTERPRETATION_ERROR("The abstract type of this predicate does not match the one of the current abstract element.");
     }
     if constexpr(is_tell) {
       if(f.is(F::E)) {
-        return interpret_existential(f, env);
+        return interpret_existential<diagnose>(f, env, tell, diagnostics);
       }
     }
-    if(f.is(F::Seq) && f.sig() == AND) {
-      return interpret_in_impl<is_tell>(f, env);
-    }
-    else {
-      switch(num_vars(f)) {
-        case 0: return interpret_zero_predicate(f, env);
-        case 1: return interpret_unary_predicate<is_tell>(f, env);
-        default: return iresult<F, Env>(IError<F>(true, name, "Interpretation of n-ary predicate is not supported in VStore.", f));
-      }
+    switch(num_vars(f)) {
+      case 0: return interpret_zero_predicate<diagnose>(f, env, tell, diagnostics);
+      case 1: return interpret_unary_predicate<diagnose, is_tell>(f, env, tell, diagnostics);
+      default: RETURN_INTERPRETATION_ERROR("Interpretation of n-ary predicate is not supported in VStore.");
     }
   }
 
-  template <bool is_tell, class F, class Env>
-  CUDA NI iresult<F, Env> interpret_in_impl(const F& f, Env& env) const {
-    using TellType = tell_type<typename Env::allocator_type>;
+  template <bool diagnose, bool is_tell, class F, class Env, class Alloc2>
+  CUDA NI bool interpret_in_impl(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
     if(f.is_untyped() || f.type() == aty()) {
-      if(f.is(F::Seq) && f.sig() == AND) {
-        const typename F::Sequence& seq = f.seq();
-        auto res = iresult<F, Env>(TellType(env.get_allocator()));
-        for(int i = 0; i < seq.size(); ++i) {
-          auto r = interpret_predicate<is_tell>(seq[i], env);
-          if(r.has_value()) {
-            for(int j = 0; j < r.value().size(); ++j) {
-              res.value().push_back(r.value()[j]);
-            }
-            res.join_warnings(std::move(r));
-          }
-          else {
-            return std::move(iresult<F, Env>(IError<F>(true, name, "Could not interpret a component of the conjunction", f))
-              .join_errors(std::move(r))
-              .join_warnings(std::move(res)));
-          }
-        }
-        return res;
-      }
-      else {
-        return interpret_predicate<is_tell>(f, env);
-      }
+      return interpret_predicate<diagnose, is_tell>(f, env, tell, diagnostics);
     }
     else {
-      return iresult<F, Env>(IError<F>(true, name, "Interpretation of a formula with a different type.", f));
+      return RETURN_INTERPRETATION_ERROR("Interpretation of a formula with a different type.");
     }
   }
 
 public:
-  /** The store of variables lattice expects a conjunctive formula \f$ c_1 \land \ldots \land c_n \f$ in which all components \f$ c_i \f$ are formulas with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
-   *  If one component of the conjunction cannot be interpreted by the abstract universe, the whole formula is considered as uninterpretable.
+  /** The store of variables lattice expects a formula with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
    *
    * Variables must be existentially quantified before a formula containing variables can be interpreted.
-   * Variables are immediately assigned to an index of `VStore` and initialized to \f$ \bot_U \f$, if the universe's interpretation is different from bottom, the result of the VStore interpretation need to be `tell` later on in the store.
+   * Variables are immediately assigned to an index of `VStore` and initialized to \f$ \bot_U \f$.
    * Shadowing/redeclaration of variables with existential quantifier is not supported.
-   * Variable mappings are added to the environment only if `interpret(f).has_value()`.
+   * The variable mapping is added to the environment only if the interpretation succeeds.
 
    * There is a small quirk: different stores might be produced if quantifiers do not appear in the same order.
    * This is because we attribute the first available index to variables when interpreting the quantifier.
-   * The store will only be equivalent when considering the `env` structure.
+   * In that case, the store will only be equivalent modulo the `env` structure.
   */
-  template <class F, class Env>
-  CUDA NI iresult<F, Env> interpret_tell_in(const F& f, Env& env) const {
-    auto snap = env.snapshot();
-    auto r = interpret_in_impl<true>(f, env);
-    if(!r.has_value()) {
-      env.restore(snap);
-    }
-    return std::move(r);
+  template <bool diagnose = false, class F, class Env, class Alloc2>
+  CUDA NI bool interpret_tell_in(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+    return interpret_in_impl<diagnose, true>(f, env, tell, diagnostics);
   }
 
-  /** The static version of interpret creates a store with exactly the number of existentially quantified variables occurring in `f`.
+  /** The static version of interpret creates a store, interpret `f` and tell the result in the newly created store.
    * All the existentially quantified variables must be untyped.
    * The UID of the store will be an UID that is free in `env`. */
-  template <class F, class Env>
-  CUDA NI static IResult<this_type, F> interpret_tell(const F& f, Env& env, allocator_type alloc = allocator_type()) {
+  template <bool diagnose = false, class F, class Env, class Alloc2 = allocator_type>
+  CUDA NI static bool interpret_tell(const F& f, Env& env, IDiagnostics<F>& diagnostics, allocator_type alloc = allocator_type(), Alloc2 alloc2 = Alloc2()) {
     auto snap = env.snapshot();
     size_t ty = env.extends_abstract_dom();
-    this_type store(ty,
-      num_quantified_vars(f, UNTYPED) + num_quantified_vars(f, ty),
-      alloc);
-    auto r = store.interpret_tell_in(f, env);
-    if(r.has_value()) {
-      store.tell(r.value());
-      return std::move(r).map(std::move(store));
+    this_type store(ty, alloc);
+    tell_type<Alloc2> tell(alloc2);
+    if(store.interpret_tell_in(f, env, tell, diagnostics)) {
+      store.tell(tell);
+      return true;
     }
     else {
       env.restore(snap);
-      return std::move(r).template map_error<this_type>();
+      return false;
     }
   }
 
-  /** Similar to `interpret_tell_in` but do not support existential quantifier. */
-  template <class F, class Env>
-  CUDA NI iresult<F, Env> interpret_ask_in(const F& f, const Env& env) const {
-    return const_cast<this_type*>(this)->interpret_in_impl<false>(f, const_cast<Env&>(env));
+  /** Similar to `interpret_tell_in` but do not support existential quantifier and therefore leaves `env` unchanged. */
+  template <bool diagnose = false, class F, class Env, class Alloc2>
+  CUDA NI bool interpret_ask_in(const F& f, const Env& env, ask_type<Alloc2>& ask, IDiagnostics<F>& diagnostics) const {
+    return const_cast<this_type*>(this)->interpret_in_impl<diagnose, false>(f, const_cast<Env&>(env), ask, diagnostics);
   }
 
   /** The projection must stay const, otherwise the user might tell new information in the universe, but we need to know in case we reach `top`. */
@@ -378,52 +312,63 @@ public:
     return *this;
   }
 
-  /** Given an abstract variable `v`, `tell(VID(v), dom)` will update the domain of this variable with the new information `dom`. */
+  /** Given an abstract variable `v`, `tell(VID(v), dom)` will update the domain of this variable with the new information `dom`.
+   * This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store.
+  */
   CUDA this_type& tell(int x, const universe_type& dom) {
+    assert(x < data.size());
     data[x].tell(dom);
     is_at_top.tell(data[x].is_top());
     return *this;
   }
 
+  /** This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store. */
   template <class Mem>
   CUDA this_type& tell(int x, const universe_type& dom, BInc<Mem>& has_changed) {
+    assert(x < data.size());
     data[x].tell(dom, has_changed);
     is_at_top.tell(data[x].is_top());
     return *this;
   }
 
+  /** This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store. */
   CUDA this_type& tell(AVar x, const universe_type& dom) {
     assert(x.aty() == aty());
     return tell(x.vid(), dom);
   }
 
+  /** This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store. */
   template <class Mem>
   CUDA this_type& tell(AVar x, const universe_type& dom, BInc<Mem>& has_changed) {
     assert(x.aty() == aty());
     return tell(x.vid(), dom, has_changed);
   }
 
-  template <class Alloc2>
-  CUDA this_type& tell(const tell_type<Alloc2>& t) {
-    if(t.size() > 0 && t[0].idx == -1) {
-      return tell_top();
+  /** This tell method can grow the store if required, and therefore do not satisfy the PCCP model.
+   * /!\ It should not be used in parallel.
+  */
+  template <class Alloc2, class Mem>
+  CUDA this_type& tell(const tell_type<Alloc2>& t, BInc<Mem>& has_changed) {
+    if(t.size() > 0 && t[0].avar == AVar{}) {
+      is_at_top.tell(local::BInc(true), has_changed);
+      return *this;
+    }
+    if(t.back().avar.vid() >= data.size()) {
+      data.resize(t.back().avar.vid()+1);
     }
     for(int i = 0; i < t.size(); ++i) {
-      tell(t[i].idx, t[i].dom);
+      tell(t[i].avar, t[i].dom, has_changed);
     }
     return *this;
   }
 
-  template <class Alloc2, class Mem>
-  CUDA this_type& tell(const tell_type<Alloc2>& t, BInc<Mem>& has_changed) {
-    if(t.size() > 0 && t[0].idx == -1) {
-      is_at_top.tell(local::BInc(true), has_changed);
-      return *this;
-    }
-    for(int i = 0; i < t.size(); ++i) {
-      tell(t[i].idx, t[i].dom, has_changed);
-    }
-    return *this;
+  /** This tell method can grow the store if required, and therefore do not satisfy the PCCP model.
+   * /!\ It should not be used in parallel.
+  */
+  template <class Alloc2>
+  CUDA this_type& tell(const tell_type<Alloc2>& t) {
+    local::BInc has_changed;
+    return tell(t, has_changed);
   }
 
   /** Precondition: `other` must be smaller or equal in size than the current store. */
@@ -487,7 +432,7 @@ public:
   template <class Alloc2>
   CUDA local::BInc ask(const ask_type<Alloc2>& t) const {
     for(int i = 0; i < t.size(); ++i) {
-      if(!(data[t[i].idx] >= t[i].dom)) {
+      if(!(data[t[i].avar.vid()] >= t[i].dom)) {
         return false;
       }
     }

@@ -39,9 +39,6 @@ public:
   template <class A>
   friend class Interval;
 
-  template<class F>
-  using iresult = IResult<local_type, F>;
-
   constexpr static const bool is_abstract_universe = true;
   constexpr static const bool is_totally_ordered = false;
   constexpr static const bool preserve_bot = LB::preserve_bot && UB::preserve_bot;
@@ -115,71 +112,39 @@ private:
       UB2::template fun<sig>(typename A::template flat_type<battery::local_memory>(a.ub())));
   }
 
-  template <bool is_tell, class F, class Env>
-  CUDA static iresult<F> forward_to_cp(const F& f, const Env& env) {
-    auto cp_res = is_tell ? CP::interpret_tell(f, env) : CP::interpret_ask(f, env);
-    if(cp_res.has_value()) {
-      local_type itv(cp_res.value());
-      return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
-    }
-    return std::move(cp_res).template map_error<local_type>();
-  }
-
 public:
   /** Support the same language than the Cartesian product, and more:
-   *    * `x == k` is over-approximated by interpreting `x == k` in both bounds.
-   *    * `x in k` is over-approximated by interpreting `x in k` in both bounds.
    *    * `var x:B` when the underlying universe is arithmetic and preserve concrete covers.
    * Therefore, the element `k` is always in \f$ \gamma(lb) \cap \gamma(ub) \f$. */
-  template<class F, class Env>
-  CUDA NI static iresult<F> interpret_tell(const F& f, const Env& env) {
-    if(f.is_binary() &&
-      (f.sig() == EQ ||
-      (f.sig() == IN && f.seq(1).is(F::S))))
-    {
-      auto cp_res = CP::interpret_tell(f, env);
-      if(cp_res.has_value()) {
-        local_type itv(cp_res.value());
-        return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(cp_res)));
-      }
-    }
+  template<bool diagnose, class F, class Env, class U2>
+  CUDA NI static bool interpret_tell(const F& f, const Env& env, Interval<U2>& k, IDiagnostics<F>& diagnostics) {
     if constexpr(LB::preserve_concrete_covers && LB::is_arithmetic) {
       if(f.is(F::E)) {
         auto sort = f.sort();
         if(sort.has_value() && sort->is_bool()) {
-          return local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one()));
+          k.tell(local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one())));
         }
       }
     }
-    return forward_to_cp<true>(f, env);
+    return CP::template interpret_tell<diagnose>(f, env, k.cp, diagnostics);
   }
 
   /** Support the same language than the Cartesian product, and more:
    *    * `x != k` is under-approximated by interpreting `x != k` in the lower bound.
    *    * `x == k` is interpreted by over-approximating `x == k` in both bounds and then verifying both bounds are the same.
    *    * `x in {[l..u]} is interpreted by under-approximating `x >= l` and `x <= u`. */
-  template<class F, class Env>
-  CUDA NI static iresult<F> interpret_ask(const F& f, const Env& env) {
+  template<bool diagnose, class F, class Env, class U2>
+  CUDA NI static bool interpret_ask(const F& f, const Env& env, Interval<U2>& k, IDiagnostics<F>& diagnostics) {
     if(f.is_binary() && f.sig() == NEQ) {
-      auto lb = LB::interpret_ask(f, env);
-      if(lb.has_value()) {
-        local_type itv(lb.value(), UB::bot());
-        return std::move(iresult<F>(std::move(itv)).join_warnings(std::move(lb)));
-      }
+      return LB::interpret_ask(f, env, k.lb(), diagnostics);
     }
     else if(f.is_binary() && f.sig() == EQ) {
-      auto lb = LB::interpret_tell(f, env);
-      if(lb.has_value()) {
-        auto ub = UB::interpret_tell(f, env);
-        if(ub.has_value()) {
-          if(lb.value() == ub.value()) {
-            return iresult<F>(local_type(lb.value(), ub.value()));
-          }
-          else {
-            return iresult<F>(IError<F>(true, name, "When interpreting equality, the underlying bounds LB and UB failed to agree on the same value.", f));
-          }
-        }
-      }
+      local_type itv = local_type::bot();
+      CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
+        "When interpreting equality, the underlying bounds LB and UB failed to agree on the same value.",
+        (LB::interpret_tell(f, env, itv.lb(), diagnostics) &&
+         UB::interpret_tell(f, env, itv.ub(), diagnostics)),
+        (k.tell(itv)));
     }
     else if(f.is_binary() && f.sig() == IN && f.seq(0).is_variable()
      && f.seq(1).is(F::S) && f.seq(1).s().size() == 1)
@@ -187,31 +152,23 @@ public:
       const auto& lb = battery::get<0>(f.seq(1).s()[0]);
       const auto& ub = battery::get<1>(f.seq(1).s()[0]);
       if(lb == ub) {
-        auto r = interpret_ask(F::make_binary(f.seq(0), EQ, lb), env);
-        if(r.has_value()) {
-          return std::move(r);
-        }
-        else {
-          return std::move(iresult<F>(IError<F>(true, name, "Failed to interpret the decomposition of set membership `x in {[v..v]}` into equality `x == v`.", f))
-            .join_errors(std::move(r)));
-        }
+        CALL_WITH_ERROR_CONTEXT(
+          "Failed to interpret the decomposition of set membership `x in {[v..v]}` into equality `x == v`.",
+          (interpret_ask<diagnose>(F::make_binary(f.seq(0), EQ, lb), env, k, diagnostics)));
       }
-      auto lb_r = LB::interpret_ask(F::make_binary(f.seq(0), geq_of_constant(lb), lb), env);
-      auto ub_r = UB::interpret_ask(F::make_binary(f.seq(0), leq_of_constant(ub), ub), env);
-      if(lb_r.has_value() && ub_r.has_value()) {
-        return std::move(
-          iresult<F>(local_type(lb_r.value(), ub_r.value()))
-           .join_warnings(std::move(lb_r))
-           .join_warnings(std::move(ub_r)));
-      }
-      else {
-        return std::move(iresult<F>(IError<F>(true, name, "Failed to interpret the decomposition of set membership `x in {[l..u]}` into `x >= l /\\ x <= u`.", f))
-          .join_errors(std::move(lb_r))
-          .join_errors(std::move(ub_r)));
-      }
+      CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
+        "Failed to interpret the decomposition of set membership `x in {[l..u]}` into `x >= l /\\ x <= u`.",
+        (LB::interpret_ask(F::make_binary(f.seq(0), geq_of_constant(lb), lb), env, itv.lb(), diagnostics) &&
+         UB::interpret_ask(F::make_binary(f.seq(0), leq_of_constant(ub), ub), env, itv.ub(), diagnostics)),
+        (k.tell(itv))
+      );
     }
-    return forward_to_cp<false>(f, env);
+    return CP::template interpret_ask<diagnose>(f, env, k.cp, diagnostics);
   }
+
+  /** You must use the lattice interface (tell methods) to modify the lower and upper bounds, if you use assignment you violate the PCCP model. */
+  CUDA constexpr LB& lb() { return project<0>(cp); }
+  CUDA constexpr UB& ub() { return project<1>(cp); }
 
   CUDA constexpr const LB& lb() const { return project<0>(cp); }
   CUDA constexpr const UB& ub() const { return project<1>(cp); }

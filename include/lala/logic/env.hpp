@@ -112,46 +112,49 @@ private:
   }
 
   // Variable redeclaration does not lead to an error, instead the abstract type of the variable is added to the abstract variables list (`avars`) of the variable.
-  template <class F>
-  CUDA NI iresult<F> interpret_existential(const F& f) {
+  template <bool diagnose = false, class F>
+  CUDA NI bool interpret_existential(const F& f, AVar& avar, IDiagnostics<F>& diagnostics) {
     const auto& vname = battery::get<0>(f.exists());
     if(f.type() == UNTYPED) {
-      return iresult<F>(IError<F>(true, name, "Untyped abstract type: variable `" + vname + "` has no abstract type.", f));
+      RETURN_INTERPRETATION_ERROR("Untyped abstract type: variable `" + vname + "` has no abstract type.");
     }
     auto var = variable_of(vname);
     if(var.has_value()) {
       if(var->sort != battery::get<1>(f.exists())) {
-        return iresult<F>(IError<F>(true, name, "Invalid redeclaration with different sort: variable `" + vname + "` has already been declared and the sort does not coincide.", f));
+        RETURN_INTERPRETATION_ERROR("Invalid redeclaration with different sort: variable `" + vname + "` has already been declared and the sort does not coincide.");
       }
     }
-    return iresult<F>(extends_vars(f.type(), vname, battery::get<1>(f.exists())));
+    avar = extends_vars(f.type(), vname, battery::get<1>(f.exists()));
+    return true;
   }
 
-  template <class F>
-  CUDA NI iresult<F> interpret_lv(const F& f) {
+  template <bool diagnose = false, class F>
+  CUDA NI bool interpret_lv(const F& f, AVar& avar, IDiagnostics<F>& diagnostics) {
     const auto& vname = f.lv();
     auto var = variable_of(vname);
     if(var.has_value()) {
       if(f.type() != UNTYPED) {
         auto avar = var->avar_of(f.type());
         if(avar.has_value()) {
-          return AVar(*avar);
+          avar = AVar(*avar);
+          return true;
         }
         else {
-          return iresult<F>(IError<F>(true, name, "Variable `" + vname + "` has not been declared in the abstract domain `" + fstring<F>::from_int(f.type()) + "`.", f));
+          RETURN_INTERPRETATION_ERROR("Variable `" + vname + "` has not been declared in the abstract domain `" + fstring<F>::from_int(f.type()) + "`.");
         }
       }
       else {
         if(var->avars.size() == 1) {
-          return AVar(var->avars[0]);
+          avar = AVar(var->avars[0]);
+          return true;
         }
         else {
-          return iresult<F>(IError<F>(true, name, "Variable occurrence `" + vname + "` is untyped, but exists in multiple abstract domains.", f));
+          RETURN_INTERPRETATION_ERROR("Variable occurrence `" + vname + "` is untyped, but exists in multiple abstract domains.");
         }
       }
     }
     else {
-      return iresult<F>(IError<F>(true, name, "Undeclared variable `" + vname + "`.", f));
+      RETURN_INTERPRETATION_ERROR("Undeclared variable `" + vname + "`.");
     }
   }
 
@@ -212,24 +215,25 @@ public:
    *    - Existential formula with a valid abstract type (`f.type() != UNTYPED`).
    *    - Variable occurrence.
    * It returns an abstract variable (`AVar`) corresponding to the variable created (existential) or already presents (occurrence). */
-  template <class F>
-  CUDA NI iresult<F> interpret(const F& f) {
+  template <bool diagnose = false, class F>
+  CUDA NI bool interpret(const F& f, AVar& avar, IDiagnostics<F>& diagnostics) {
     if(f.is(F::E)) {
-      return interpret_existential(f);
+      return interpret_existential<diagnose>(f, avar, diagnostics);
     }
     else if(f.is(F::LV)) {
-      return interpret_lv(f);
+      return interpret_lv<diagnose>(f, avar, diagnostics);
     }
     else if(f.is(F::V)) {
       if(contains(f.v())) {
-        return f.v();
+        avar = f.v();
+        return true;
       }
       else {
-        return iresult<F>(IError<F>(true, name, "Undeclared abstract variable `" + fstring<F>::from_int(f.v().aty()) + ", " + fstring<F>::from_int(f.v().vid()) + "`.", f));
+        RETURN_INTERPRETATION_ERROR("Undeclared abstract variable `" + fstring<F>::from_int(f.v().aty()) + ", " + fstring<F>::from_int(f.v().vid()) + "`.");
       }
     }
     else {
-      return iresult<F>(IError<F>(true, name, "Unsupported formula: `VarEnv` can only interpret quantifiers and occurrences of variables.", f));
+      RETURN_INTERPRETATION_ERROR("Unsupported formula: `VarEnv` can only interpret quantifiers and occurrences of variables.");
     }
   }
 

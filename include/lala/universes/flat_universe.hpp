@@ -278,18 +278,17 @@ public:
         }
       }
       RETURN_INTERPRETATION_ERROR(
-        "Only interpretations of existential quantifier and binary formulas of the form `t1 = t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.");
+        "Tell interpretation only supports existential quantifier and binary formulas of the form `t1 = t2` where t1 is a constant and t2 is a variable (or conversely).");
     }
-  }c
+  }
 
   /** Same as `interpret_tell` without the support for existential quantifier. */
-  template<class F, class Env>
-  CUDA NI static iresult<F> interpret_ask(const F& f, const Env& env) {
+  template<bool diagnose = false, class F, class Env, class M2>
+  CUDA NI static bool interpret_ask(const F& f, const Env& env, this_type2<M2>& ask, IDiagnostics& diagnostics) {
     if(f.is(F::E)) {
-      return iresult<F>(IError<F>(true, name,
-        "Only interpretation of binary formulas of the form `t1 = t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.", f));
+      RETURN_INTERPRETATION_ERROR("Ask interpretation only supports binary formulas of the form `t1 = t2` where t1 is a constant and t2 is a variable (or conversely).")
     }
-    return interpret_tell(f, env);
+    return interpret_tell<diagnose>(f, env, ask, diagnostics);
   }
 
   CUDA static constexpr bool is_supported_fun(Sig sig) {

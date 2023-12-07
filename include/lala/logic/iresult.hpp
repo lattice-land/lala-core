@@ -43,20 +43,41 @@ private:
 
 public:
   // If fatal is false, it is considered as a warning.
-  CUDA NI IDiagnostics(battery::string<allocator_type> ad_name,
+  CUDA NI IDiagnostics(bool fatal,
+    battery::string<allocator_type> ad_name,
     battery::string<allocator_type> description,
     F uninterpretable_formula,
     AType aty = UNTYPED)
-   : ad_name(std::move(ad_name)),
+   : fatal(fatal),
+     ad_name(std::move(ad_name)),
      description(std::move(description)),
      uninterpretable_formula(std::move(uninterpretable_formula)),
-     aty(aty),
-     fatal(fatal)
+     aty(aty)
   {}
 
   CUDA NI this_type& add_suberror(IDiagnostics<F>&& suberror) {
-    suberrors.push_back(suberror);
+    suberrors.push_back(std::move(suberror));
     return *this;
+  }
+
+  CUDA size_t num_suberrors() const {
+    return suberrors.size();
+  }
+
+  /** This operator moves all `suberrors[i..(n-1)]` as a suberror of `suberrors[i-1]`.
+   * If only warnings are present, the `suberrors[i-1]` is converted into a warning.
+   */
+  CUDA void merge(size_t i) {
+    assert(i > 0);
+    assert(i <= suberrors.size());
+    if(i > suberrors.size()) {
+      suberrors[i-1].fatal = false;
+    }
+    for(int j = i; j < suberrors.size(); ++j) {
+      suberrors[i-1].fatal |= suberrors[j].is_fatal();
+      suberrors[i-1].add_suberror(std::move(suberrors[j]));
+    }
+    suberrors.resize(i);
   }
 
   CUDA NI void print(int indent = 0) const {
@@ -101,6 +122,26 @@ public:
     diagnostics.add_suberror(IDiagnostics<F>(false, name, (msg), f)); \
   } \
   return true;
+
+
+/** This macro creates a high-level error message that is possibly erased if `call` does not lead to any error.
+ * If `call` leads to errors, these errors are moved as suberrors of the high-level error message.
+ * Additionally, `merge` is executed if `call` does not lead to any error.
+ */
+#define CALL_WITH_ERROR_CONTEXT_WITH_MERGE(msg, call, merge) \
+  size_t error_context = diagnostics.num_suberrors(); \
+  if constexpr(diagnose) { \
+    diagnostics.add_suberror(IDiagnostic<F>(true, name, (msg), f)); \
+  } \
+  bool res = call; \
+  if constexpr(diagnose) { \
+    diagnostics.merge(error_context); \
+  } \
+  if(res) { merge; } \
+  return res;
+
+#define CALL_WITH_ERROR_CONTEXT(msg, call) \
+  CALL_WITH_ERROR_CONTEXT_WITH_MERGE(msg, call, {})
 
 }
 

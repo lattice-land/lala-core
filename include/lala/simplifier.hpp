@@ -108,48 +108,21 @@ public:
     {}
   };
 
-  template<class F> using iresult = IResult<tell_type, F>;
-  template<class F> using iresult_tell = iresult<F>;
-
-private:
-  template <class F, class Env>
-  CUDA NI void interpret_in_impl(const F& f, Env& env, iresult<F>& res) const {
-    if(res.is_error()) {
-      return;
-    }
-    if(f.is(F::E)) {
-      auto avar = env.interpret(f.map_atype(aty()));
-      if(avar.has_value()) {
-        res.value().num_vars++;
-      }
-      else {
-        res = std::move(avar).template map_error<tell_type>();
-      }
-    }
-    else if(f.is(F::Seq) && f.sig() == AND) {
-      const auto& seq = f.seq();
-      for(int i = 0; i < seq.size(); ++i) {
-        interpret_in_impl(seq[i], env, res);
-      }
-    }
-    else {
-      res.value().formulas.push_back(f);
-    }
-  }
-
 public:
-  template <class F, class Env>
-  CUDA NI iresult_tell<F> interpret_tell_in(const F& f, Env& env) const {
-    auto snap = env.snapshot();
-    iresult_tell<F> res{get_allocator()};
-    interpret_in_impl(f, env, res);
-    if(!res.has_value()) {
-      env.restore(snap);
+  template <bool diagnose = false, class F, class Env>
+  CUDA NI bool interpret_tell_in(const F& f, Env& env, tell_type& tell, IDiagnostics& diagnostics) const {
+    if(f.is(F::E)) {
+      AVar avar;
+      if(env.interpret(f.map_atype(aty()), avar, diagnostics)) {
+        tell.num_vars++;
+        return true;
+      }
+      return false;
     }
     else {
-      res.value().env = env;
+      tell.formulas.push_back(f);
+      return true;
     }
-    return std::move(res);
   }
 
   CUDA this_type& tell(tell_type&& t) {

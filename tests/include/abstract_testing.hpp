@@ -21,7 +21,9 @@ inline VarEnv<standard_allocator> init_env() {
   VarEnv<standard_allocator> env;
   auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
   EXPECT_TRUE(f);
-  env.interpret(*f);
+  AVar avar;
+  IDiagnostics<F> diagnostics;
+  env.interpret(*f, avar, diagnostics);
   return std::move(env);
 }
 

@@ -71,9 +71,6 @@ public:
 
   template<class...Bs> friend class CartesianProduct;
 
-  template<class F>
-  using iresult = IResult<local_type, F>;
-
   using value_type = battery::tuple<typename As::value_type...>;
 
   constexpr static const bool is_abstract_universe = true;
@@ -131,92 +128,55 @@ public:
 
 private:
   /** Interpret the formula in the component `i`. */
-  template<bool is_tell, size_t i, class F, class Env>
-  CUDA NI static iresult<F> interpret_one(const F& f, const Env& env) {
-    auto one = is_tell ? type_of<i>::interpret_tell(f, env) :  type_of<i>::interpret_ask(f, env);
-    if(one.has_value()) {
-      auto res = bot();
-      res.template project<i>().tell(one.value());
-      return one.map(std::move(res));
-    }
-    else {
-      auto res = iresult<F>(IError<F>(true, name, "The requested component of this Cartesian product cannot interpret this formula.", f));
-      return res.join_errors(std::move(one));
-    }
+  template<bool diagnose, bool is_tell, size_t i, class F, class Env, class... Bs>
+  CUDA NI static bool interpret_one(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
+    return is_tell
+      ? type_of<i>::template interpret_tell<diagnose>(f, env, k.template project<i>(), diagnostics)
+      : type_of<i>::template interpret_ask<diagnose>(f, env, k.template project<i>(), diagnostics);
   }
 
-  template<bool is_tell, size_t i = 0, class F, class Env>
-  CUDA NI static IResult<bool, F> interpret_all(const F& f, local_type& res, bool empty, const Env& env) {
+  template<bool diagnose, bool is_tell, size_t i = 0, class F, class Env, class... Bs>
+  CUDA NI static bool interpret_all(const F& f, CartesianProduct<Bs...>& k, bool empty, const Env& env, IDiagnostics<F>& diagnostics) {
     if constexpr(i == n) {
-      if(empty) {
-        return IResult<bool, F>(IError<F>(true, name, "No component of this Cartesian product can interpret this formula.", f));
-      }
-      else {
-        return IResult<bool, F>(true);
-      }
+      return !empty;
     }
     else {
-      auto one = is_tell ? type_of<i>::interpret_tell(f, env) : type_of<i>::interpret_ask(f, env);
-      if(one.has_value()) {
-        res.template project<i>().tell(one.value());
-        return std::move(interpret_all<is_tell, i+1>(f, res, false, env).join_warnings(std::move(one)));
-      }
-      else {
-        auto r = interpret_all<is_tell, i+1>(f, res, empty, env);
-        if(!r.has_value()) {
-          r.join_errors(std::move(one));
-        }
-        return std::move(r);
-      }
+      bool res = interpret_one<diagnose, is_tell, i>(f, env, k, diagnostics);
+      return interpret_all<diagnose, is_tell, i+1>(f, k, empty && !res, env, diagnostics);
     }
   }
 
-  template<bool is_tell, class F, class Env>
-  CUDA NI static iresult<F> interpret(const F& f, const Env& env) {
-    local_type cp = bot();
-    if(f.is(F::Seq) && f.sig() == AND) {
-      iresult<F> res(bot());
-      for(int i = 0; i < f.seq().size(); ++i) {
-        auto r = interpret_all<is_tell>(f.seq(i), cp, true, env);
-        if(!r.has_value()) {
-          return std::move(r).template map_error<local_type>();
-        }
-        res.join_warnings(std::move(r));
-      }
-      return std::move(res).map(std::move(cp));
-    }
-    return interpret_all<is_tell>(f, cp, true, env).map(std::move(cp));
+  template<bool diagnose, bool is_tell, class F, class Env, class... Bs>
+  CUDA NI static bool interpret(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
+    CALL_WITH_ERROR_CONTEXT(
+      "No component of this Cartesian product can interpret this formula.",
+      (interpret_all<diagnose, is_tell>(f, k, true, env, diagnostics))
+    );
   }
 
 public:
-  template<size_t i, class F, class Env>
-  CUDA static iresult<F> interpret_one_tell(const F& f, const Env& env) {
-    return interpret_one<true, i>(f, env);
+  template<size_t i, bool diagnose = false, class F, class Env, class... Bs>
+  CUDA static bool interpret_one_tell(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
+    return interpret_one<diagnose, true, i>(f, env, k, diagnostics);
   }
 
-  template<size_t i, class F, class Env>
-  CUDA static iresult<F> interpret_one_ask(const F& f, const Env& env) {
-    return interpret_one<false, i>(f, env);
+  template<size_t i, bool diagnose = false, class F, class Env, class... Bs>
+  CUDA static bool interpret_one_ask(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
+    return interpret_one<diagnose, false, i>(f, env, k, diagnostics);
   }
 
   /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
-  template<class F, class Env>
-  CUDA static iresult<F> interpret_tell(const F& f, const Env& env) {
-    return interpret<true>(f, env);
+  template<bool diagnose, class F, class Env, class... Bs>
+  CUDA static bool interpret_tell(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
+    return interpret<diagnose, true>(f, env, k, diagnostics);
   }
 
-  template<class F, class Env>
-  CUDA static iresult<F> interpret_ask(const F& f, const Env& env) {
-    return interpret<false>(f, env);
+  template<bool diagnose, class F, class Env, class... Bs>
+  CUDA static bool interpret_ask(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
+    return interpret<diagnose, false>(f, env, k, diagnostics);
   }
 
 private:
-  // The non-const version must stay private, otherwise it violates the PCCP model since the caller might not check if the updated value is strictly greater w.r.t. lattice order.
-  template<size_t i>
-  CUDA constexpr type_of<i>& project() {
-    return battery::get<i>(val);
-  }
-
   template<size_t... I>
   CUDA constexpr value_type value_(std::index_sequence<I...>) const {
     return value_type(project<I>().value()...);
@@ -233,6 +193,12 @@ private:
   }
 
 public:
+  /** You must use the lattice interface (tell methods) to modify the projected type, if you use assignment you violate the PCCP model. */
+  template<size_t i>
+  CUDA constexpr type_of<i>& project() {
+    return battery::get<i>(val);
+  }
+
   template<size_t i>
   CUDA constexpr const type_of<i>& project() const {
     return battery::get<i>(val);
