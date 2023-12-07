@@ -42,6 +42,8 @@ private:
   }
 
 public:
+  CUDA NI IDiagnostics(): fatal(false), aty(-2) {} // special value indicating it is a top-level diagnostics.
+
   // If fatal is false, it is considered as a warning.
   CUDA NI IDiagnostics(bool fatal,
     battery::string<allocator_type> ad_name,
@@ -56,6 +58,7 @@ public:
   {}
 
   CUDA NI this_type& add_suberror(IDiagnostics<F>&& suberror) {
+    fatal |= suberror.is_fatal();
     suberrors.push_back(std::move(suberror));
     return *this;
   }
@@ -81,27 +84,33 @@ public:
   }
 
   CUDA NI void print(int indent = 0) const {
-    if(fatal) {
-      print_line("[error] ", indent);
+    // If it is not a top-level error, we print it, otherwise all errors are listed as `suberrors`.
+    if(aty != -2) {
+      if(fatal) {
+        print_line("[error] ", indent);
+      }
+      else {
+        print_line("[warning] ", indent);
+      }
+      printf("Uninterpretable formula.\n");
+      print_indent(indent);
+      printf("  Abstract domain: %s\n", ad_name.data());
+      print_line("  Abstract type: ", indent);
+      if(aty == UNTYPED) {
+        printf("untyped\n");
+      }
+      else {
+        printf("%d\n", aty);
+      }
+      print_line("  Formula: ", indent);
+      uninterpretable_formula.print(true);
+      printf("\n");
+      print_indent(indent);
+      printf("  Description: %s\n", description.data());
     }
     else {
-      print_line("[warning] ", indent);
+      indent -= 2;
     }
-    printf("Uninterpretable formula.\n");
-    print_indent(indent);
-    printf("  Abstract domain: %s\n", ad_name.data());
-    print_line("  Abstract type: ", indent);
-    if(aty == UNTYPED) {
-      printf("untyped\n");
-    }
-    else {
-      printf("%d\n", aty);
-    }
-    print_line("  Formula: ", indent);
-    uninterpretable_formula.print(true);
-    printf("\n");
-    print_indent(indent);
-    printf("  Description: %s\n", description.data());
     for(int i = 0; i < suberrors.size(); ++i) {
       suberrors[i].print(indent + 2);
       printf("\n");
@@ -109,6 +118,14 @@ public:
   }
 
   CUDA bool is_fatal() const { return fatal; }
+  CUDA bool has_warning() const {
+    for(int i = 0; i < suberrors.size(); ++i) {
+      if(!suberrors[i].is_fatal()) {
+        return true;
+      }
+    }
+    return false;
+  }
 };
 
 #define RETURN_INTERPRETATION_ERROR(msg) \
@@ -128,20 +145,20 @@ public:
  * If `call` leads to errors, these errors are moved as suberrors of the high-level error message.
  * Additionally, `merge` is executed if `call` does not lead to any error.
  */
-#define CALL_WITH_ERROR_CONTEXT_WITH_MERGE(msg, call, merge) \
+#define CALL_WITH_ERROR_CONTEXT_WITH_MERGE(MSG, CALL, MERGE) \
   size_t error_context = diagnostics.num_suberrors(); \
   if constexpr(diagnose) { \
-    diagnostics.add_suberror(IDiagnostic<F>(true, name, (msg), f)); \
+    diagnostics.add_suberror(IDiagnostics<F>(true, name, (MSG), f)); \
   } \
-  bool res = call; \
+  bool res = CALL; \
   if constexpr(diagnose) { \
     diagnostics.merge(error_context); \
   } \
-  if(res) { merge; } \
+  if(res) { MERGE; } \
   return res;
 
-#define CALL_WITH_ERROR_CONTEXT(msg, call) \
-  CALL_WITH_ERROR_CONTEXT_WITH_MERGE(msg, call, {})
+#define CALL_WITH_ERROR_CONTEXT(MSG, CALL) \
+  CALL_WITH_ERROR_CONTEXT_WITH_MERGE(MSG, CALL, {})
 
 }
 

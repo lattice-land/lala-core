@@ -63,7 +63,9 @@ TEST(FlatUniverseTest, ZFlatInterpretation) {
   VarEnv<standard_allocator> env;
   auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
   EXPECT_TRUE(f);
-  env.interpret(*f);
+  AVar avar;
+  IDiagnostics<F> diagnostics;
+  EXPECT_TRUE(env.interpret(*f, avar, diagnostics));
   must_interpret_to(env, "constraint int_eq(x, 0);", ZF(0));
   must_error<ZF>(env, "constraint int_ne(x, 1);");
 }

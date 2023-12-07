@@ -329,19 +329,19 @@ public:
 private:
   /** Interpret a formula of the form `k <sig> x`. */
   template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_tell_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+  CUDA NI static bool interpret_tell_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics<F>& diagnostics) {
     value_type value = pre_universe::bot();
-    bool res = pre_universe::interpret_tell(k, value, diagnostics);
+    bool res = pre_universe::template interpret_tell<diagnose>(k, value, diagnostics);
     if(res) {
       if(sig == EQ || sig == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
-        tell.tell(value);
+        tell.tell(local_type(value));
       }
       else if(sig == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
         if constexpr(preserve_concrete_covers) {
-          tell.tell(pre_universe::next(value));
+          tell.tell(local_type(pre_universe::next(value)));
         }
         else {
-          tell.tell(value);
+          tell.tell(local_type(value));
         }
       }
       else {
@@ -353,17 +353,17 @@ private:
 
   /** Interpret a formula of the form `k <sig> x`. */
   template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_ask_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+  CUDA NI static bool interpret_ask_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics<F>& diagnostics) {
     value_type value = pre_universe::bot();
-    bool res = pre_universe::interpret_ask(k, value, diagnostics);
+    bool res = pre_universe::template interpret_ask<diagnose>(k, value, diagnostics);
     if(res) {
       if(sig == U::sig_order()) {
-        tell.tell(value);
+        tell.tell(local_type(value));
       }
       else if(sig == NEQ || sig == U::sig_strict_order()) {
         // We could actually do a little bit better in the case of FInc/FDec.
         // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
-        tell.tell(pre_universe::next(value));
+        tell.tell(local_type(pre_universe::next(value)));
       }
       else {
         RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the ask language of this universe.");
@@ -373,7 +373,7 @@ private:
   }
 
   template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+  CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M2>& tell, IDiagnostics<F>& diagnostics) {
     const auto& set = k.s();
     if(set.size() == 0) {
       tell.tell_top();
@@ -391,7 +391,7 @@ private:
       }
       meet_s = pre_universe::meet(meet_s, set_element);
     }
-    tell.tell(meet_s);
+    tell.tell(local_type(meet_s));
     return true;
   }
 
@@ -401,12 +401,12 @@ public:
    * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom) depending on the underlying pre-universe.
    */
   template<bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret_tell(const F& f, const Env&, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+  CUDA NI static bool interpret_tell(const F& f, const Env&, this_type2<M2>& tell, IDiagnostics<F>& diagnostics) {
     if(f.is(F::E)) {
-      typename U2::value_type val;
+      typename U::value_type val;
       bool res = pre_universe::template interpret_type<diagnose>(f, val, diagnostics);
       if(res) {
-        tell.tell(typename PrimitiveUpset<U2, M2>::local_type(val));
+        tell.tell(local_type(val));
       }
       return res;
     }
@@ -444,7 +444,7 @@ public:
    * The symbol <op> is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`.
    */
   template<bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret_ask(const F& f, const Env&, this_type2<M2>& ask, IDiagnostics& diagnostics) {
+  CUDA NI static bool interpret_ask(const F& f, const Env&, this_type2<M2>& ask, IDiagnostics<F>& diagnostics) {
     if(f.is_binary()) {
       int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
       int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);

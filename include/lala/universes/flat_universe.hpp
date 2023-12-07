@@ -245,12 +245,12 @@ public:
   /** Expects a predicate of the form `x = k` or `k = x`, where `x` is any variable's name, and `k` a constant.
       Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom). */
   template<bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret_tell(const F& f, const Env& env, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+  CUDA NI static bool interpret_tell(const F& f, const Env& env, this_type2<M2>& tell, IDiagnostics<F>& diagnostics) {
     if(f.is(F::E)) {
       value_type k;
       bool res = pre_universe::template interpret_type<diagnose>(f, k, diagnostics);
       if(res) {
-        tell.tell(k);
+        tell.tell(local_type(k));
       }
       return res;
     }
@@ -266,7 +266,7 @@ public:
             value_type a;
             if(pre_universe::template interpret_ask<diagnose>(k, a, diagnostics)) {
               if(a == t) {
-                tell.tell(t);
+                tell.tell(local_type(t));
                 return true;
               }
               else {
@@ -284,7 +284,7 @@ public:
 
   /** Same as `interpret_tell` without the support for existential quantifier. */
   template<bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret_ask(const F& f, const Env& env, this_type2<M2>& ask, IDiagnostics& diagnostics) {
+  CUDA NI static bool interpret_ask(const F& f, const Env& env, this_type2<M2>& ask, IDiagnostics<F>& diagnostics) {
     if(f.is(F::E)) {
       RETURN_INTERPRETATION_ERROR("Ask interpretation only supports binary formulas of the form `t1 = t2` where t1 is a constant and t2 is a variable (or conversely).")
     }

@@ -23,18 +23,18 @@ inline VarEnv<standard_allocator> init_env() {
   EXPECT_TRUE(f);
   AVar avar;
   IDiagnostics<F> diagnostics;
-  env.interpret(*f, avar, diagnostics);
+  EXPECT_TRUE(env.interpret(*f, avar, diagnostics));
   return std::move(env);
 }
 
 namespace impl {
   template <bool is_tell, class L>
-  IResult<L, F> interpretation(const F& f, VarEnv<standard_allocator>& env) {
+  bool interpretation(const F& f, VarEnv<standard_allocator>& env, L& value, IDiagnostics<F>& diagnostics) {
     if constexpr(is_tell) {
-      return L::interpret_tell(f, env);
+      return L::template interpret_tell<true>(f, env, value, diagnostics);
     }
     else {
-      return L::interpret_ask(f, env);
+      return L::template interpret_ask<true>(f, env, value, diagnostics);
     }
   }
 
@@ -44,12 +44,13 @@ namespace impl {
     EXPECT_TRUE(f);
     std::cout << (is_tell ? "tell" : "ask") << ": ";
     f->print(true);
-    IResult<L, F> r = interpretation<is_tell, L>(*f, env);
-    if(!r.has_value()) {
-      r.print_diagnostics();
+    IDiagnostics<F> diagnostics;
+    L value{L::bot()};
+    if(!interpretation<is_tell, L>(*f, env, value, diagnostics)) {
+      diagnostics.print();
+      EXPECT_TRUE(false) << "The formula should be interpretable.";
     }
-    EXPECT_TRUE(r.has_value());
-    return std::move(r.value());
+    return value;
   }
 }
 
@@ -115,12 +116,13 @@ void interpret_and_tell(L& a, const char* fzn, VarEnv<standard_allocator>& env) 
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   f->print(true);
-  auto r = a.interpret_tell_in(*f, env);
-  if(!r.has_value()) {
-    r.print_diagnostics();
+  IDiagnostics<F> diagnostics;
+  typename L::template tell_type<standard_allocator> tell;
+  if(!a.template interpret_tell_in<true>(*f, env, tell, diagnostics)) {
+    diagnostics.print();
   }
   local::BInc has_changed;
-  a.tell(std::move(r.value()), has_changed);
+  a.tell(std::move(tell), has_changed);
   EXPECT_TRUE(has_changed);
 }
 
@@ -130,11 +132,12 @@ void interpret_and_ask(L& a, const char* fzn, bool expect) {
   EXPECT_TRUE(f);
   f->print(true);
   auto env = init_env();
-  auto r = a.interpret_ask_in(*f, env);
-  if(!r.has_value()) {
-    r.print_diagnostics();
+  IDiagnostics<F> diagnostics;
+  typename L::template ask_type<standard_allocator> ask;
+  if(!a.template interpret_ask_in<true>(*f, env, ask, diagnostics)) {
+    diagnostics.print();
   }
-  EXPECT_EQ(a.ask(std::move(r.value())), expect);
+  EXPECT_EQ(a.ask(std::move(ask)), expect);
 }
 
 namespace impl {
@@ -146,14 +149,14 @@ namespace impl {
     std::cout << (is_tell ? "tell" : "ask") << ": ";
     f->print(true);
     std::cout << std::endl;
-    IResult<L, F> r = interpretation<is_tell, L>(*f, env);
-    std::cout << fzn << std::endl;
-    if(!r.has_value()) {
-      r.print_diagnostics();
+    IDiagnostics<F> diagnostics;
+    L value{L::bot()};
+    if(!interpretation<is_tell, L>(*f, env, value, diagnostics)) {
+      diagnostics.print();
+      EXPECT_TRUE(false) << "The formula should be interpretable: " << fzn;
     }
-    EXPECT_TRUE(r.has_value());
-    EXPECT_EQ(r.has_warning(), has_warning);
-    EXPECT_EQ(r.value(), expect);
+    EXPECT_EQ(diagnostics.has_warning(), has_warning);
+    EXPECT_EQ(value, expect);
   }
 
   template<bool is_tell, class L>
@@ -198,17 +201,18 @@ void must_interpret_to(const char* fzn, const L& expect, bool has_warning = fals
 namespace impl {
   template<bool is_tell, class L>
   void must_error(VarEnv<standard_allocator>& env, const char* fzn) {
-    using F = TFormula<standard_allocator>;
     auto f = parse_flatzinc_str<standard_allocator>(fzn);
     EXPECT_TRUE(f);
     std::cout << (is_tell ? "tell" : "ask") << ": ";
     f->print(true);
-    IResult<L, F> r = interpretation<is_tell, L>(*f, env);
-    std::cout << fzn << std::endl;
-    if(r.has_value()) {
-      std::cout << r.value() << std::endl;
+
+    IDiagnostics<F> diagnostics;
+    L value{L::bot()};
+    if(interpretation<is_tell, L>(*f, env, value, diagnostics)) {
+      EXPECT_TRUE(false) << "The formula should not be interpretable: ";
+      value.print();
+      printf("\n");
     }
-    EXPECT_FALSE(r.has_value());
   }
 
   template<bool is_tell, class L>
@@ -372,6 +376,22 @@ void generic_arithmetic_fun_test(const A& a) {
   generic_binary_fun_test<POW, A, R>(a);
 }
 
+  template <bool diagnose = false, class F, class Env, class Alloc2 = allocator_type>
+  CUDA NI static std::optional<this_type> interpret_tell(const F& f, Env& env, IDiagnostics<F>& diagnostics, allocator_type alloc = allocator_type(), Alloc2 alloc2 = Alloc2()) {
+    auto snap = env.snapshot();
+    size_t ty = env.extends_abstract_dom();
+    this_type store(ty, alloc);
+    tell_type<Alloc2> tell(alloc2);
+    if(store.interpret_tell_in(f, env, tell, diagnostics)) {
+      store.tell(tell);
+      return {store};
+    }
+    else {
+      env.restore(snap);
+      return {};
+    }
+  }
+
 /** Check that $\llbracket . \rrbracket = \llbracket . \rrbracket \circ \rrbacket . \llbracket \circ \llbracket . \rrbracket. */
 template <class L>
 void check_interpret_idempotence(const char* fzn) {
@@ -381,24 +401,27 @@ void check_interpret_idempotence(const char* fzn) {
   EXPECT_TRUE(f);
   f->print(true);
   printf("\n");
-  auto r = L::interpret_tell(*f, env1);
-  if(!r.has_value()) {
-    r.print_diagnostics();
-  }
-  EXPECT_TRUE(r.has_value());
 
-  F f2 = r.value().deinterpret(env1);
+  IDiagnostics<F> diagnostics;
+  L value{L::bot()};
+  if(!L::template interpret_tell<true>(*f, env1, value, diagnostics)) {
+    diagnostics.print();
+    EXPECT_TRUE(false) << "The formula should be interpretable.";
+  }
+
+  F f2 = value.deinterpret(env1);
   f2.print(true);
   printf("\n");
   VarEnv<standard_allocator> env2;
-  auto r2 = L::interpret_tell(f2, env2);
-  if(!r2.has_value()) {
-    r2.print_diagnostics();
+  IDiagnostics<F> diagnostics2;
+  L value2{L::bot()};
+  if(!L::interpret_tell(f2, env2, value2, diagnostics2)) {
+    diagnostics2.print();
+    EXPECT_TRUE(false) << "Deinterpreted formulas should be (re)-interpretable.";
   }
-  EXPECT_TRUE(r2.has_value());
-  EXPECT_EQ(r.value(), r2.value());
+  EXPECT_EQ(value, value2);
 
-  F f3 = r2.value().deinterpret(env2);
+  F f3 = value2.deinterpret(env2);
   f3.print(true);
   printf("\n");
   EXPECT_EQ(f2, f3);

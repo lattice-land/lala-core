@@ -6,6 +6,7 @@
 #include "logic/logic.hpp"
 #include "universes/primitive_upset.hpp"
 #include "abstract_deps.hpp"
+#include <optional>
 
 namespace lala {
 
@@ -206,7 +207,7 @@ private:
       // When it is not necessary, we try to avoid using the environment.
       // This is for instance useful when refinement operators add new constraints but do not have access to the environment (e.g., split()), and to avoid passing the environment around everywhere.
       if(varf.is(F::V)) {
-        tell.push_back(var_dom(varf.v().vid(), u.value()));
+        tell.push_back(var_dom(varf.v(), u));
       }
       else {
         auto var = var_in(f, env);
@@ -244,12 +245,12 @@ private:
   }
 
   template <bool diagnose, bool is_tell, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_in_impl(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+  CUDA NI bool interpret_impl(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
     if(f.is_untyped() || f.type() == aty()) {
       return interpret_predicate<diagnose, is_tell>(f, env, tell, diagnostics);
     }
     else {
-      return RETURN_INTERPRETATION_ERROR("Interpretation of a formula with a different type.");
+      RETURN_INTERPRETATION_ERROR("Interpretation of a formula with a different type.");
     }
   }
 
@@ -266,33 +267,14 @@ public:
    * In that case, the store will only be equivalent modulo the `env` structure.
   */
   template <bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_tell_in(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
-    return interpret_in_impl<diagnose, true>(f, env, tell, diagnostics);
+  CUDA NI bool interpret_tell(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+    return interpret_impl<diagnose, true>(f, env, tell, diagnostics);
   }
 
-  /** The static version of interpret creates a store, interpret `f` and tell the result in the newly created store.
-   * All the existentially quantified variables must be untyped.
-   * The UID of the store will be an UID that is free in `env`. */
-  template <bool diagnose = false, class F, class Env, class Alloc2 = allocator_type>
-  CUDA NI static bool interpret_tell(const F& f, Env& env, IDiagnostics<F>& diagnostics, allocator_type alloc = allocator_type(), Alloc2 alloc2 = Alloc2()) {
-    auto snap = env.snapshot();
-    size_t ty = env.extends_abstract_dom();
-    this_type store(ty, alloc);
-    tell_type<Alloc2> tell(alloc2);
-    if(store.interpret_tell_in(f, env, tell, diagnostics)) {
-      store.tell(tell);
-      return true;
-    }
-    else {
-      env.restore(snap);
-      return false;
-    }
-  }
-
-  /** Similar to `interpret_tell_in` but do not support existential quantifier and therefore leaves `env` unchanged. */
+  /** Similar to `interpret_tell` but do not support existential quantifier and therefore leaves `env` unchanged. */
   template <bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_ask_in(const F& f, const Env& env, ask_type<Alloc2>& ask, IDiagnostics<F>& diagnostics) const {
-    return const_cast<this_type*>(this)->interpret_in_impl<diagnose, false>(f, const_cast<Env&>(env), ask, diagnostics);
+  CUDA NI bool interpret_ask(const F& f, const Env& env, ask_type<Alloc2>& ask, IDiagnostics<F>& diagnostics) const {
+    return const_cast<this_type*>(this)->interpret_impl<diagnose, false>(f, const_cast<Env&>(env), ask, diagnostics);
   }
 
   /** The projection must stay const, otherwise the user might tell new information in the universe, but we need to know in case we reach `top`. */

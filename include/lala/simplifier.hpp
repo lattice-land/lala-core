@@ -99,18 +99,19 @@ public:
     return equivalence_classes.size();
   }
 
+  template <class Alloc>
   struct tell_type {
     int num_vars;
     formula_sequence formulas;
-    VarEnv<allocator_type> env;
-    tell_type(const allocator_type& alloc = allocator_type())
+    VarEnv<Alloc> env;
+    tell_type(const Alloc& alloc = Alloc())
       : num_vars(0), formulas(alloc), env(alloc)
     {}
   };
 
 public:
-  template <bool diagnose = false, class F, class Env>
-  CUDA NI bool interpret_tell_in(const F& f, Env& env, tell_type& tell, IDiagnostics& diagnostics) const {
+  template <bool diagnose = false, class F, class Env, class Alloc2>
+  CUDA NI bool interpret_tell(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
     if(f.is(F::E)) {
       AVar avar;
       if(env.interpret(f.map_atype(aty()), avar, diagnostics)) {
@@ -125,7 +126,8 @@ public:
     }
   }
 
-  CUDA this_type& tell(tell_type&& t) {
+  template <class Alloc2>
+  CUDA this_type& tell(tell_type<Alloc2>&& t) {
     env = std::move(t.env);
     eliminated_variables.resize(t.num_vars);
     eliminated_formulas.resize(t.formulas.size());
@@ -215,9 +217,10 @@ private:
     }
     else {
       // Eliminate entailed formulas.
-      auto r = sub->interpret_ask_in(formulas[i], env);
-      if(r.has_value()) {
-        if(sub->ask(r.value())) {
+      IDiagnostics<F> diagnostics;
+      typename sub_type::template ask_type<allocator_type> ask;
+      if(sub->interpret_ask(formulas[i], env, ask, diagnostics)) {
+        if(sub->ask(ask)) {
           eliminate(eliminated_formulas, i, has_changed);
           return;
         }

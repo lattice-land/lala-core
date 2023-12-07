@@ -115,7 +115,9 @@ TEST(PrimitiveUpsetTest, ZIncInterpretation) {
   VarEnv<standard_allocator> env;
   auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
   EXPECT_TRUE(f);
-  env.interpret(*f);
+  AVar avar;
+  IDiagnostics<F> diagnostics;
+  EXPECT_TRUE(env.interpret(*f, avar, diagnostics));
   must_interpret_to(env, "constraint int_ge(x, 0);", ZI(0));
   must_interpret_to(env, "constraint int_ge(x, -10);", ZI(-10));
   must_interpret_to(env, "constraint int_ge(x, 10);", ZI(10));
@@ -142,7 +144,9 @@ TEST(PrimitiveUpsetTest, ZDecInterpretation) {
   VarEnv<standard_allocator> env;
   auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
   EXPECT_TRUE(f);
-  env.interpret(*f);
+  AVar avar;
+  IDiagnostics<F> diagnostics;
+  EXPECT_TRUE(env.interpret(*f, avar, diagnostics));
   must_interpret_to(env, "constraint int_le(x, 0);", ZD(0));
   must_interpret_to(env, "constraint int_le(x, -10);", ZD(-10));
   must_interpret_to(env, "constraint int_le(x, 10);", ZD(10));

@@ -459,6 +459,12 @@ project(const CartesianProduct<As...>& cp) {
   return cp.template project<i>();
 }
 
+template<size_t i, class... As>
+CUDA constexpr typename CartesianProduct<As...>::template type_of<i>&
+project(CartesianProduct<As...>& cp) {
+  return cp.template project<i>();
+}
+
 // Lattice operators
 namespace impl {
   template<class A, class B, size_t... I>

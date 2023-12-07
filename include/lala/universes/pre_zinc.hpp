@@ -53,7 +53,7 @@ struct PreZInc {
 
 private:
   template<bool diagnose, bool is_tell, class F>
-  CUDA NI static bool interpret(const F& f, value_type& k, IDiagnostics& diagnostics) {
+  CUDA NI static bool interpret(const F& f, value_type& k, IDiagnostics<F>& diagnostics) {
     if(f.is(F::Z)) {
       auto z = f.z();
       if(z == bot() || z == top()) {
@@ -89,13 +89,13 @@ public:
         * \f$ [\![x >= [2.9..3.1]:R ]\!] = 3 \f$.
   */
   template<bool diagnose, class F>
-  CUDA static bool interpret_tell(const F& f, value_type& tell, IDiagnostics& diagnostics) {
+  CUDA static bool interpret_tell(const F& f, value_type& tell, IDiagnostics<F>& diagnostics) {
     return interpret<diagnose, true>(f, tell, diagnostics);
   }
 
   /** Similar to `interpret_tell` but the formula is under-approximated, in particular: \f$ [\![ x:\mathbb{Z} \geq [l..u]:\mathbb{R} ]\!] = \lceil u \rceil \f$. */
   template<bool diagnose, class F>
-  CUDA static bool interpret_ask(const F& f, value_type& ask, IDiagnostics& diagnostics) {
+  CUDA static bool interpret_ask(const F& f, value_type& ask, IDiagnostics<F>& diagnostics) {
     return interpret<diagnose, false>(f, ask, diagnostics);
   }
 
@@ -103,7 +103,7 @@ public:
       Variables of type `Int` are interpreted exactly (\f$ \mathbb{Z} = \gamma(\bot) \f$).
       Note that we assume there is no overflow, that might be taken into account the future. */
   template<bool diagnose, class F>
-  CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
+  CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics<F>& diagnostics) {
     assert(f.is(F::E));
     const auto& sort = battery::get<1>(f.exists());
     if(sort.is_int()) {

@@ -5,6 +5,8 @@
 #include "lala/logic/logic.hpp"
 #include "lala/flatzinc_parser.hpp"
 
+#include <optional>
+
 using namespace lala;
 using namespace battery;
 
@@ -24,10 +26,17 @@ TEST(VarTest, MakeVar) {
 }
 
 template <class Env>
-auto interpret2(Env& env, const char* fzn) {
+std::optional<AVar> interpret2(Env& env, const char* fzn) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
-  return env.interpret(*f);
+  AVar avar;
+  IDiagnostics<TFormula<standard_allocator>> diagnostics;
+  if(env.interpret(*f, avar, diagnostics)) {
+    return {avar};
+  }
+  else {
+    return {};
+  }
 }
 
 void check_env_state1(VarEnv<standard_allocator>& env) {

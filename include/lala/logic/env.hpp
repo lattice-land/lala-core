@@ -55,9 +55,6 @@ public:
   using allocator_type = Allocator;
   using this_type = VarEnv<Allocator>;
 
-  template<class F>
-  using iresult = IResult<AVar, F>;
-
   constexpr static const char* name = "VarEnv";
 
   template<class T>

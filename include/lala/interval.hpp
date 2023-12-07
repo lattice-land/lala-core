@@ -135,11 +135,11 @@ public:
    *    * `x in {[l..u]} is interpreted by under-approximating `x >= l` and `x <= u`. */
   template<bool diagnose, class F, class Env, class U2>
   CUDA NI static bool interpret_ask(const F& f, const Env& env, Interval<U2>& k, IDiagnostics<F>& diagnostics) {
+    local_type itv = local_type::bot();
     if(f.is_binary() && f.sig() == NEQ) {
       return LB::interpret_ask(f, env, k.lb(), diagnostics);
     }
     else if(f.is_binary() && f.sig() == EQ) {
-      local_type itv = local_type::bot();
       CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
         "When interpreting equality, the underlying bounds LB and UB failed to agree on the same value.",
         (LB::interpret_tell(f, env, itv.lb(), diagnostics) &&
@@ -158,8 +158,8 @@ public:
       }
       CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
         "Failed to interpret the decomposition of set membership `x in {[l..u]}` into `x >= l /\\ x <= u`.",
-        (LB::interpret_ask(F::make_binary(f.seq(0), geq_of_constant(lb), lb), env, itv.lb(), diagnostics) &&
-         UB::interpret_ask(F::make_binary(f.seq(0), leq_of_constant(ub), ub), env, itv.ub(), diagnostics)),
+        (LB::template interpret_ask<diagnose>(F::make_binary(f.seq(0), geq_of_constant(lb), lb), env, itv.lb(), diagnostics) &&
+         UB::template interpret_ask<diagnose>(F::make_binary(f.seq(0), leq_of_constant(ub), ub), env, itv.ub(), diagnostics)),
         (k.tell(itv))
       );
     }
