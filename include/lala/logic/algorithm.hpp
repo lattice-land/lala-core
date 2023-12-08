@@ -4,6 +4,7 @@
 #define LALA_CORE_ALGORITHM_HPP
 
 #include "ast.hpp"
+#include <optional>
 
 namespace lala {
 
@@ -372,6 +373,22 @@ CUDA NI void map_avar_to_lvar(F& f, const Env& env, bool erase_type = false) {
       }
       break;
     default: break;
+  }
+}
+
+template <class A, bool diagnose = false, class F, class Env, class Alloc1, class Alloc2 = Alloc1>
+CUDA NI std::optional<A> create_and_interpret_tell(const F& f, Env& env, IDiagnostics<F>& diagnostics, Alloc1 alloc1 = Alloc1(), Alloc2 alloc2 = Alloc2()) {
+  auto snap = env.snapshot();
+  size_t ty = env.extends_abstract_dom();
+  A abstract_element(ty, alloc1);
+  typename A::template tell_type<Alloc2> tell(alloc2);
+  if(abstract_element.interpret_tell(f, env, tell, diagnostics)) {
+    abstract_element.tell(tell);
+    return {abstract_element};
+  }
+  else {
+    env.restore(snap);
+    return {};
   }
 }
 

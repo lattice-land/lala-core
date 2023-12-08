@@ -31,10 +31,10 @@ namespace impl {
   template <bool is_tell, class L>
   bool interpretation(const F& f, VarEnv<standard_allocator>& env, L& value, IDiagnostics<F>& diagnostics) {
     if constexpr(is_tell) {
-      return L::template interpret_tell<true>(f, env, value, diagnostics);
+      return value.template interpret_tell<true>(f, env, value, diagnostics);
     }
     else {
-      return L::template interpret_ask<true>(f, env, value, diagnostics);
+      return value.template interpret_ask<true>(f, env, value, diagnostics);
     }
   }
 
@@ -134,7 +134,7 @@ void interpret_and_ask(L& a, const char* fzn, bool expect) {
   auto env = init_env();
   IDiagnostics<F> diagnostics;
   typename L::template ask_type<standard_allocator> ask;
-  if(!a.template interpret_ask_in<true>(*f, env, ask, diagnostics)) {
+  if(!a.template interpret_ask<true>(*f, env, ask, diagnostics)) {
     diagnostics.print();
   }
   EXPECT_EQ(a.ask(std::move(ask)), expect);
@@ -376,22 +376,6 @@ void generic_arithmetic_fun_test(const A& a) {
   generic_binary_fun_test<POW, A, R>(a);
 }
 
-  template <bool diagnose = false, class F, class Env, class Alloc2 = allocator_type>
-  CUDA NI static std::optional<this_type> interpret_tell(const F& f, Env& env, IDiagnostics<F>& diagnostics, allocator_type alloc = allocator_type(), Alloc2 alloc2 = Alloc2()) {
-    auto snap = env.snapshot();
-    size_t ty = env.extends_abstract_dom();
-    this_type store(ty, alloc);
-    tell_type<Alloc2> tell(alloc2);
-    if(store.interpret_tell_in(f, env, tell, diagnostics)) {
-      store.tell(tell);
-      return {store};
-    }
-    else {
-      env.restore(snap);
-      return {};
-    }
-  }
-
 /** Check that $\llbracket . \rrbracket = \llbracket . \rrbracket \circ \rrbacket . \llbracket \circ \llbracket . \rrbracket. */
 template <class L>
 void check_interpret_idempotence(const char* fzn) {
@@ -403,25 +387,25 @@ void check_interpret_idempotence(const char* fzn) {
   printf("\n");
 
   IDiagnostics<F> diagnostics;
-  L value{L::bot()};
-  if(!L::template interpret_tell<true>(*f, env1, value, diagnostics)) {
+  auto value1 = create_and_interpret_tell<L>(*f, env1, diagnostics);
+  if(!value1.has_value()) {
     diagnostics.print();
     EXPECT_TRUE(false) << "The formula should be interpretable.";
   }
 
-  F f2 = value.deinterpret(env1);
+  F f2 = value1->deinterpret(env1);
   f2.print(true);
   printf("\n");
   VarEnv<standard_allocator> env2;
   IDiagnostics<F> diagnostics2;
-  L value2{L::bot()};
-  if(!L::interpret_tell(f2, env2, value2, diagnostics2)) {
+  auto value2 = create_and_interpret_tell<L>(f2, env2, diagnostics2);
+  if(!value2.has_value()) {
     diagnostics2.print();
     EXPECT_TRUE(false) << "Deinterpreted formulas should be (re)-interpretable.";
   }
-  EXPECT_EQ(value, value2);
+  EXPECT_EQ(*value1, *value2);
 
-  F f3 = value2.deinterpret(env2);
+  F f3 = value2->deinterpret(env2);
   f3.print(true);
   printf("\n");
   EXPECT_EQ(f2, f3);

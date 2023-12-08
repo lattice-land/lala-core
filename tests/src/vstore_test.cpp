@@ -136,11 +136,11 @@ TEST(VStoreTest, AskOperation) {
   ZStore store = interpret_tell_to<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);", env);
   IDiagnostics<F> diagnostics;
   ZStore::ask_type<standard_allocator> ask1, ask2, ask3, ask4, ask5;
-  EXPECT_TRUE(store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 0); constraint int_ge(y, 1);"), env, ask1, diagnostics));
-  EXPECT_TRUE(store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(y, -1);"), env, ask2, diagnostics));
-  EXPECT_TRUE(store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 0); constraint int_ge(y, 2);"), env, ask3, diagnostics));
-  EXPECT_TRUE(store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 10); constraint int_ge(y, 2);"), env, ask4, diagnostics));
-  EXPECT_TRUE(store.interpret_ask_in(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 10);"), env, ask5, diagnostics));
+  EXPECT_TRUE(store.interpret_ask(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 0); constraint int_ge(y, 1);"), env, ask1, diagnostics));
+  EXPECT_TRUE(store.interpret_ask(*parse_flatzinc_str<standard_allocator>("constraint int_ge(y, -1);"), env, ask2, diagnostics));
+  EXPECT_TRUE(store.interpret_ask(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 0); constraint int_ge(y, 2);"), env, ask3, diagnostics));
+  EXPECT_TRUE(store.interpret_ask(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 10); constraint int_ge(y, 2);"), env, ask4, diagnostics));
+  EXPECT_TRUE(store.interpret_ask(*parse_flatzinc_str<standard_allocator>("constraint int_ge(x, 10);"), env, ask5, diagnostics));
   EXPECT_TRUE(store.ask(ask1));
   EXPECT_TRUE(store.ask(ask2));
   EXPECT_FALSE(store.ask(ask3));
