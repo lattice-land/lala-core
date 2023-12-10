@@ -6,7 +6,7 @@
 #include "sort.hpp"
 #include "ast.hpp"
 #include "env.hpp"
-#include "iresult.hpp"
+#include "diagnostics.hpp"
 #include "algorithm.hpp"
 
 #endif

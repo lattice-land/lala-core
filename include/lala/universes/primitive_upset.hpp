@@ -15,6 +15,7 @@
 #include "pre_fdec.hpp"
 #include "pre_zdec.hpp"
 #include "battery/memory.hpp"
+#include "../interpretation.hpp"
 
 /** A pre-abstract universe is a lattice (with usual operations join, order, ...) equipped with a simple logical interpretation function and a next/prev functions.
     We consider totally ordered pre-abstract universes with an upset semantics.
@@ -464,6 +465,16 @@ public:
     }
     else {
       RETURN_INTERPRETATION_ERROR("Only binary constraints are supported.");
+    }
+  }
+
+  template<IKind kind, bool diagnose = false, class F, class Env, class M2>
+  CUDA NI static bool interpret(const F& f, const Env& env, this_type2<M2>& value, IDiagnostics<F>& diagnostics) {
+    if constexpr(kind == IKind::TELL) {
+      return interpret_tell<diagnose>(f, env, value, diagnostics);
+    }
+    else {
+      return interpret_ask<diagnose>(f, env, value, diagnostics);
     }
   }
 

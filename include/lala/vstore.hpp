@@ -206,12 +206,10 @@ private:
   }
 
   /** Interpret a predicate with a single variable occurrence. */
-  template <bool diagnose, bool is_tell, class F, class Env, class Alloc2>
+  template <IKind kind, bool diagnose, class F, class Env, class Alloc2>
   CUDA NI bool interpret_unary_predicate(const F& f, const Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
     local_universe u;
-    bool res = is_tell
-      ? local_universe::template interpret_tell<diagnose>(f, env, u, diagnostics)
-      : local_universe::template interpret_ask<diagnose>(f, env, u, diagnostics);
+    bool res = local_universe::template interpret<kind, diagnose>(f, env, u, diagnostics);
     if(res) {
       const auto& varf = var_in(f);
       // When it is not necessary, we try to avoid using the environment.
@@ -237,34 +235,34 @@ private:
     }
   }
 
-  template <bool diagnose, bool is_tell, class F, class Env, class Alloc2>
+  template <IKind kind, bool diagnose, class F, class Env, class Alloc2>
   CUDA NI bool interpret_predicate(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
     if(f.type() != UNTYPED && f.type() != aty()) {
       RETURN_INTERPRETATION_ERROR("The abstract type of this predicate does not match the one of the current abstract element.");
     }
-    if constexpr(is_tell) {
+    if constexpr(kind == IKind::TELL) {
       if(f.is(F::E)) {
         return interpret_existential<diagnose>(f, env, tell, diagnostics);
       }
     }
     switch(num_vars(f)) {
       case 0: return interpret_zero_predicate<diagnose>(f, env, tell, diagnostics);
-      case 1: return interpret_unary_predicate<diagnose, is_tell>(f, env, tell, diagnostics);
+      case 1: return interpret_unary_predicate<kind, diagnose>(f, env, tell, diagnostics);
       default: RETURN_INTERPRETATION_ERROR("Interpretation of n-ary predicate is not supported in VStore.");
     }
   }
 
-  template <bool diagnose, bool is_tell, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_impl(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+public:
+  template <IKind kind, bool diagnose = false, class F, class Env, class Alloc2>
+  CUDA NI bool interpret(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
     if(f.is_untyped() || f.type() == aty()) {
-      return interpret_predicate<diagnose, is_tell>(f, env, tell, diagnostics);
+      return interpret_predicate<kind, diagnose>(f, env, tell, diagnostics);
     }
     else {
       RETURN_INTERPRETATION_ERROR("Interpretation of a formula with a different type.");
     }
   }
 
-public:
   /** The store of variables lattice expects a formula with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
    *
    * Variables must be existentially quantified before a formula containing variables can be interpreted.
@@ -278,13 +276,13 @@ public:
   */
   template <bool diagnose = false, class F, class Env, class Alloc2>
   CUDA NI bool interpret_tell(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
-    return interpret_impl<diagnose, true>(f, env, tell, diagnostics);
+    return interpret<IKind::TELL, diagnose>(f, env, tell, diagnostics);
   }
 
   /** Similar to `interpret_tell` but do not support existential quantifier and therefore leaves `env` unchanged. */
   template <bool diagnose = false, class F, class Env, class Alloc2>
   CUDA NI bool interpret_ask(const F& f, const Env& env, ask_type<Alloc2>& ask, IDiagnostics<F>& diagnostics) const {
-    return const_cast<this_type*>(this)->interpret_impl<diagnose, false>(f, const_cast<Env&>(env), ask, diagnostics);
+    return const_cast<this_type*>(this)->interpret<IKind::ASK, diagnose>(f, const_cast<Env&>(env), ask, diagnostics);
   }
 
   /** The projection must stay const, otherwise the user might tell new information in the universe, but we need to know in case we reach `top`. */

@@ -137,6 +137,11 @@ public:
     }
   }
 
+  template <IKind kind, bool diagnose = false, class F, class Env, class Alloc2>
+  CUDA bool interpret(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+    return interpret_tell<diagnose>(f, env, tell, diagnostics);
+  }
+
   template <class Alloc2>
   CUDA this_type& tell(tell_type<Alloc2>&& t) {
     assert(t.env != nullptr);

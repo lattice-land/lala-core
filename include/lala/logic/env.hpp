@@ -6,11 +6,10 @@
 #include "battery/utility.hpp"
 #include "battery/vector.hpp"
 #include "battery/string.hpp"
-#include "battery/string.hpp"
 #include "battery/tuple.hpp"
 #include "battery/variant.hpp"
 #include "ast.hpp"
-#include "iresult.hpp"
+#include "diagnostics.hpp"
 
 namespace lala {
 

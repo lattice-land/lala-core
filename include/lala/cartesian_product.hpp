@@ -136,52 +136,50 @@ public:
 
 private:
   /** Interpret the formula in the component `i`. */
-  template<bool diagnose, bool is_tell, size_t i, class F, class Env, class... Bs>
+  template<IKind kind, bool diagnose, size_t i, class F, class Env, class... Bs>
   CUDA NI static bool interpret_one(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
-    return is_tell
-      ? type_of<i>::template interpret_tell<diagnose>(f, env, k.template project<i>(), diagnostics)
-      : type_of<i>::template interpret_ask<diagnose>(f, env, k.template project<i>(), diagnostics);
+    return type_of<i>::template interpret<kind, diagnose>(f, env, k.template project<i>(), diagnostics);
   }
 
-  template<bool diagnose, bool is_tell, size_t i = 0, class F, class Env, class... Bs>
+  template<IKind kind, bool diagnose, size_t i = 0, class F, class Env, class... Bs>
   CUDA NI static bool interpret_all(const F& f, CartesianProduct<Bs...>& k, bool empty, const Env& env, IDiagnostics<F>& diagnostics) {
     if constexpr(i == n) {
       return !empty;
     }
     else {
-      bool res = interpret_one<diagnose, is_tell, i>(f, env, k, diagnostics);
-      return interpret_all<diagnose, is_tell, i+1>(f, k, empty && !res, env, diagnostics);
+      bool res = interpret_one<kind, diagnose, i>(f, env, k, diagnostics);
+      return interpret_all<kind, diagnose, i+1>(f, k, empty && !res, env, diagnostics);
     }
-  }
-
-  template<bool diagnose, bool is_tell, class F, class Env, class... Bs>
-  CUDA NI static bool interpret(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
-    CALL_WITH_ERROR_CONTEXT(
-      "No component of this Cartesian product can interpret this formula.",
-      (interpret_all<diagnose, is_tell>(f, k, true, env, diagnostics))
-    );
   }
 
 public:
   template<size_t i, bool diagnose = false, class F, class Env, class... Bs>
   CUDA static bool interpret_one_tell(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
-    return interpret_one<diagnose, true, i>(f, env, k, diagnostics);
+    return interpret_one<IKind::TELL, diagnose, i>(f, env, k, diagnostics);
   }
 
   template<size_t i, bool diagnose = false, class F, class Env, class... Bs>
   CUDA static bool interpret_one_ask(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
-    return interpret_one<diagnose, false, i>(f, env, k, diagnostics);
+    return interpret_one<IKind::ASK, diagnose, i>(f, env, k, diagnostics);
+  }
+
+  template<IKind kind, bool diagnose = false, class F, class Env, class... Bs>
+  CUDA NI static bool interpret(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
+    CALL_WITH_ERROR_CONTEXT(
+      "No component of this Cartesian product can interpret this formula.",
+      (interpret_all<kind, diagnose>(f, k, true, env, diagnostics))
+    );
   }
 
   /** Interpret the formula `f` in all sub-universes in which `f` is interpretable. */
   template<bool diagnose, class F, class Env, class... Bs>
   CUDA static bool interpret_tell(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
-    return interpret<diagnose, true>(f, env, k, diagnostics);
+    return interpret<IKind::TELL, diagnose>(f, env, k, diagnostics);
   }
 
   template<bool diagnose, class F, class Env, class... Bs>
   CUDA static bool interpret_ask(const F& f, const Env& env, CartesianProduct<Bs...>& k, IDiagnostics<F>& diagnostics) {
-    return interpret<diagnose, false>(f, env, k, diagnostics);
+    return interpret<IKind::ASK, diagnose>(f, env, k, diagnostics);
   }
 
 private:

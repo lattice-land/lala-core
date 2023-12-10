@@ -293,6 +293,16 @@ public:
     return interpret_tell<diagnose>(f, env, ask, diagnostics);
   }
 
+  template<IKind kind, bool diagnose = false, class F, class Env, class M2>
+  CUDA NI static bool interpret(const F& f, const Env& env, this_type2<M2>& value, IDiagnostics<F>& diagnostics) {
+    if constexpr(kind == IKind::ASK) {
+      return interpret_ask<diagnose>(f, env, value, diagnostics);
+    }
+    else {
+      return interpret_tell<diagnose>(f, env, value, diagnostics);
+    }
+  }
+
   CUDA static constexpr bool is_supported_fun(Sig sig) {
     return pre_universe::is_supported_fun(sig);
   }

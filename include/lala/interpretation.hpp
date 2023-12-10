@@ -18,30 +18,6 @@ enum class IKind {
   TELL
 };
 
-/** We interpret the formula `f` in the abstract universe `value`. If it fails we return `false` and `value` remains unchanged. */
-template <IKind kind, bool diagnose = false, class F, class Env, class L>
-CUDA bool interpret_in(const F& f, const Env& env, L& value, IDiagnostics<F>& diagnostics) {
-  static_assert(L::is_abstract_universe);
-  if constexpr(kind == IKind::TELL) {
-    return L::template interpret_tell<diagnose>(f, env, value, diagnostics);
-  }
-  else {
-    return L::template interpret_ask<diagnose>(f, env, value, diagnostics);
-  }
-}
-
-/** We interpret the formula `f` in the abstract domain `a`. If it fails we return `false` and `intermediate` remains unchanged. */
-template <IKind kind, bool diagnose = false, class F, class Env, class A, class I>
-CUDA bool interpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiagnostics<F>& diagnostics) {
-  static_assert(!A::is_abstract_universe);
-  if constexpr(kind == IKind::TELL) {
-    return a.template interpret_tell<diagnose>(f, env, intermediate, diagnostics);
-  }
-  else {
-    return a.template interpret_ask<diagnose>(f, env, intermediate, diagnostics);
-  }
-}
-
 /** Interpret `true` in the lattice `L`.
  * \return `true` if `L` preserves the bottom element w.r.t. the concrete domain or if `true` is interpreted by under-approximation (kind == ASK).
  */
@@ -68,7 +44,7 @@ CUDA bool ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiag
   }
   else if(f.is_false()) {
     if constexpr(kind == IKind::TELL || A::preserve_top) {
-      return interpret_in<kind, diagnose>(a, f, env, intermediate, diagnostics); // We don't know how `top` is represented by this abstract domain, so we just forward the interpretation call.
+      return a.template interpret<kind, diagnose>(f, env, intermediate, diagnostics); // We don't know how `top` is represented by this abstract domain, so we just forward the interpretation call.
     }
     else {
       RETURN_INTERPRETATION_ERROR("Top is not preserved, hence we cannot under-approximate `true` in this abstract domain.");
@@ -88,7 +64,7 @@ CUDA bool ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiag
     }
   }
   // In the other cases, we cannot provide a default interpretation, so we forward the call to the abstract domain.
-  return interpret_in<kind, diagnose>(a, f, env, intermediate, diagnostics);
+  return a.template interpret<kind, diagnose>(f, env, intermediate, diagnostics);
 }
 
 /** This function provides an extended and unified interface to ask and tell interpretation of formula in abstract universes.
@@ -142,7 +118,7 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics<F>& d
     }
   }
   // In the other cases, we cannot provide a default interpretation, so we forward the call to the abstract element.
-  return interpret_in<kind, diagnose>(f, env, value, diagnostics);
+  return U::template interpret<kind, diagnose>(f, env, value, diagnostics);
 }
 
 /** Top-level version of `ginterpret_in`, we restore `env` and `intermediate` in case of failure. */
