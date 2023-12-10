@@ -68,19 +68,27 @@ public:
   }
 
   /** This operator moves all `suberrors[i..(n-1)]` as a suberror of `suberrors[i-1]`.
-   * If only warnings are present, the `suberrors[i-1]` is converted into a warning.
+   * If only warnings are present, `suberrors[i-1]` is converted into a warning.
+   * If `succeeded` is true, then all suberrors are erased.
    */
-  CUDA void merge(size_t i) {
+  CUDA void merge(bool succeeded, size_t i) {
     assert(i > 0);
     assert(i <= suberrors.size());
-    if(i > suberrors.size()) {
-      suberrors[i-1].fatal = false;
-    }
+    suberrors[i-1].fatal = !succeeded;
     for(int j = i; j < suberrors.size(); ++j) {
-      suberrors[i-1].fatal |= suberrors[j].is_fatal();
-      suberrors[i-1].add_suberror(std::move(suberrors[j]));
+      // In case of success, we erase the fatal suberrors.
+      if(!succeeded || !suberrors[j].is_fatal()) {
+        suberrors[i-1].add_suberror(std::move(suberrors[j]));
+      }
     }
-    suberrors.resize(i);
+    suberrors.resize((suberrors[i-1].num_suberrors() == 0 && succeeded) ? i-1 : i);
+    fatal = false;
+    for(int i = 0; i < suberrors.size(); ++i) {
+      if(suberrors[i].is_fatal()) {
+        fatal = true;
+        return;
+      }
+    }
   }
 
   CUDA NI void print(int indent = 0) const {
@@ -128,15 +136,15 @@ public:
   }
 };
 
-#define RETURN_INTERPRETATION_ERROR(msg) \
+#define RETURN_INTERPRETATION_ERROR(MSG) \
   if constexpr(diagnose) { \
-    diagnostics.add_suberror(IDiagnostics<F>(true, name, (msg), f)); \
+    diagnostics.add_suberror(IDiagnostics<F>(true, name, (MSG), f)); \
   } \
   return false;
 
-#define RETURN_INTERPRETATION_WARNING(msg) \
+#define RETURN_INTERPRETATION_WARNING(MSG) \
   if constexpr(diagnose) { \
-    diagnostics.add_suberror(IDiagnostics<F>(false, name, (msg), f)); \
+    diagnostics.add_suberror(IDiagnostics<F>(false, name, (MSG), f)); \
   } \
   return true;
 
@@ -146,13 +154,13 @@ public:
  * Additionally, `merge` is executed if `call` does not lead to any error.
  */
 #define CALL_WITH_ERROR_CONTEXT_WITH_MERGE(MSG, CALL, MERGE) \
-  size_t error_context = diagnostics.num_suberrors(); \
   if constexpr(diagnose) { \
-    diagnostics.add_suberror(IDiagnostics<F>(true, name, (MSG), f)); \
+    diagnostics.add_suberror(IDiagnostics<F>(false, name, (MSG), f)); \
   } \
+  size_t error_context = diagnostics.num_suberrors(); \
   bool res = CALL; \
   if constexpr(diagnose) { \
-    diagnostics.merge(error_context); \
+    diagnostics.merge(res, error_context); \
   } \
   if(res) { MERGE; } \
   return res;

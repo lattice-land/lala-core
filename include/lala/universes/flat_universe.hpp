@@ -47,6 +47,8 @@ public:
   constexpr static const bool is_totally_ordered = false;
   constexpr static const bool preserve_bot = true;
   constexpr static const bool preserve_top = true;
+  constexpr static const bool preserve_join = true;
+  constexpr static const bool preserve_meet = false;
   constexpr static const bool injective_concretization = pre_universe::injective_concretization;
   constexpr static const bool preserve_concrete_covers = true;
   constexpr static const bool complemented = false;

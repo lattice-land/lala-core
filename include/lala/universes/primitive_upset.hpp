@@ -137,6 +137,8 @@ public:
   constexpr static const bool is_totally_ordered = pre_universe::is_totally_ordered;
   constexpr static const bool preserve_bot = pre_universe::preserve_bot;
   constexpr static const bool preserve_top = pre_universe::preserve_top;
+  constexpr static const bool preserve_join = pre_universe::preserve_join;
+  constexpr static const bool preserve_meet = pre_universe::preserve_meet;
   constexpr static const bool injective_concretization = pre_universe::injective_concretization;
   constexpr static const bool preserve_concrete_covers = pre_universe::preserve_concrete_covers;
   constexpr static const bool complemented = pre_universe::complemented;

@@ -31,6 +31,15 @@ public:
   using this_type = Simplifier<sub_type, allocator_type>;
 
   constexpr static const bool is_abstract_universe = false;
+  constexpr static const bool sequential = universe_type::sequential;
+  constexpr static const bool is_totally_ordered = false;
+  // Note that I did not define the concretization function formally yet... This is not yet an fully fledged abstract domain, we need to work more on it!
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_top = true;
+  constexpr static const bool preserve_join = true;
+  constexpr static const bool preserve_meet = true;
+  constexpr static const bool injective_concretization = true;
+  constexpr static const bool preserve_concrete_covers = true;
   constexpr static const char* name = "Simplifier";
 
   template<class A2, class Alloc2>
@@ -103,9 +112,9 @@ public:
   struct tell_type {
     int num_vars;
     formula_sequence formulas;
-    VarEnv<Alloc> env;
+    VarEnv<Alloc>* env;
     tell_type(const Alloc& alloc = Alloc())
-      : num_vars(0), formulas(alloc), env(alloc)
+      : num_vars(0), formulas(alloc), env(nullptr)
     {}
   };
 
@@ -116,19 +125,22 @@ public:
       AVar avar;
       if(env.interpret(f.map_atype(aty()), avar, diagnostics)) {
         tell.num_vars++;
+        tell.env = &env;
         return true;
       }
       return false;
     }
     else {
       tell.formulas.push_back(f);
+      tell.env = &env;
       return true;
     }
   }
 
   template <class Alloc2>
   CUDA this_type& tell(tell_type<Alloc2>&& t) {
-    env = std::move(t.env);
+    assert(t.env != nullptr);
+    env = *(t.env);
     eliminated_variables.resize(t.num_vars);
     eliminated_formulas.resize(t.formulas.size());
     constants.resize(t.num_vars);

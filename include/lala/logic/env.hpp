@@ -168,12 +168,14 @@ public:
   CUDA VarEnv(const Allocator& allocator): lvars(allocator), avar2lvar(allocator) {}
   CUDA VarEnv(this_type&& other): lvars(std::move(other.lvars)), avar2lvar(std::move(other.avar2lvar)) {}
   CUDA VarEnv(): VarEnv(Allocator()) {}
+  VarEnv(const this_type& other) = default;
 
   template <class Alloc2>
   CUDA VarEnv(const VarEnv<Alloc2>& other, const Allocator& allocator = Allocator())
     : lvars(other.lvars, allocator)
     , avar2lvar(other.avar2lvar, allocator)
   {}
+
 
   CUDA this_type& operator=(this_type&& other) {
     lvars = std::move(other.lvars);

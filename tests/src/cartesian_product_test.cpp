@@ -70,23 +70,22 @@ TEST(CPTest, JoinMeetTest) {
 }
 
 TEST(CPTest, NoInterpret) {
-  VarEnv<standard_allocator> env = init_env();
-  must_error_tell<Itv>(env, "constraint int_ne(x, 10);");
-  must_error_ask<Itv>(env, "constraint int_eq(x, 10);");
+  interpret_must_error<IKind::TELL, Itv>("constraint int_ne(x, 10);", env_with_x());
+  interpret_must_error<IKind::ASK, Itv>("constraint int_eq(x, 10);", env_with_x());
 }
 
 TEST(CPTest, ValidInterpret) {
-  VarEnv<standard_allocator> env = init_env();
-  must_interpret_to(env, "constraint int_ge(x, 10);", Itv(zi(10), zd::bot()), false);
-  must_interpret_to(env, "constraint int_gt(x, 10);", Itv(zi(11), zd::bot()), false);
-  must_interpret_to(env, "constraint int_le(x, 10);", Itv(zi::bot(), zd(10)), false);
-  must_interpret_to(env, "constraint int_lt(x, 10);", Itv(zi::bot(), zd(9)), false);
-  must_interpret_to(env, "constraint int_ge(x, 10);\
-                          constraint int_le(x, 20);", Itv(zi(10), zd(20)), false);
-  must_interpret_to(env, "constraint int_ge(x, 10);\
+  VarEnv<standard_allocator> env = env_with_x();
+  expect_both_interpret_equal_to("constraint int_ge(x, 10);", Itv(zi(10), zd::bot()), env, false);
+  expect_both_interpret_equal_to("constraint int_gt(x, 10);", Itv(zi(11), zd::bot()), env, false);
+  expect_both_interpret_equal_to("constraint int_le(x, 10);", Itv(zi::bot(), zd(10)), env, false);
+  expect_both_interpret_equal_to("constraint int_lt(x, 10);", Itv(zi::bot(), zd(9)), env, false);
+  expect_both_interpret_equal_to("constraint int_ge(x, 10);\
+                          constraint int_le(x, 20);", Itv(zi(10), zd(20)), env, false);
+  expect_both_interpret_equal_to("constraint int_ge(x, 10);\
                           constraint int_le(x, 20);\
                           constraint int_le(x, 15);\
-                          constraint int_ge(x, 5);", Itv(zi(10), zd(15)), false);
-  must_interpret_tell_to(env, "constraint int_eq(x, 10);", Itv(zi(10), zd(10)), false);
-  must_interpret_ask_to(env, "constraint int_ne(x, 10);", Itv(zi(11), zd(9)), false);
+                          constraint int_ge(x, 5);", Itv(zi(10), zd(15)), env, false);
+  expect_interpret_equal_to<IKind::TELL>("constraint int_eq(x, 10);", Itv(zi(10), zd(10)), env, false);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_ne(x, 10);", Itv(zi(11), zd(9)), env, false);
 }

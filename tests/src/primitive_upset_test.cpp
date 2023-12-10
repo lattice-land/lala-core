@@ -65,11 +65,11 @@ TEST(PrimitiveUpsetTest, ArithmeticTest) {
 template<class Z, class F, class B>
 void interpret_integer_type() {
   std::cout << "Z ";
-  must_interpret_tell_to("var int: x;", Z::bot());
+  expect_interpret_equal_to<IKind::TELL>("var int: x;", Z::bot());
   std::cout << "F ";
-  must_interpret_tell_to("var int: x;", F::bot(), true);
+  expect_interpret_equal_to<IKind::TELL>("var int: x;", F::bot(), VarEnv<standard_allocator>{}, true);
   std::cout << "B ";
-  must_error<B>("var int: x;");
+  both_interpret_must_error<B>("var int: x;");
 }
 
 TEST(PrimitiveUpsetTest, InterpretIntegerType) {
@@ -80,11 +80,11 @@ TEST(PrimitiveUpsetTest, InterpretIntegerType) {
 template<class Z, class F, class B>
 void interpret_real_type() {
   std::cout << "Z ";
-  must_error<Z>("var real: x;");
+  both_interpret_must_error<Z>("var real: x;");
   std::cout << "F ";
-  must_interpret_tell_to("var real: x;", F::bot());
+  expect_interpret_equal_to<IKind::TELL>("var real: x;", F::bot());
   std::cout << "B ";
-  must_error<B>("var real: x;");
+  both_interpret_must_error<B>("var real: x;");
 }
 
 TEST(PrimitiveUpsetTest, InterpretRealType) {
@@ -95,11 +95,11 @@ TEST(PrimitiveUpsetTest, InterpretRealType) {
 template<class Z, class F, class B>
 void interpret_bool_type() {
   std::cout << "Z ";
-  must_error<Z>("var bool: x;");
+  both_interpret_must_error<Z>("var bool: x;");
   std::cout << "F ";
-  must_error<F>("var bool: x;");
+  both_interpret_must_error<F>("var bool: x;");
   std::cout << "B ";
-  must_interpret_tell_to("var bool: x;", B::bot());
+  expect_interpret_equal_to<IKind::TELL>("var bool: x;", B::bot());
 }
 
 TEST(PrimitiveUpsetTest, InterpretBoolType) {
@@ -109,58 +109,64 @@ TEST(PrimitiveUpsetTest, InterpretBoolType) {
 
 TEST(PrimitiveUpsetTest, ZIncInterpretation) {
   using ZI = local::ZInc;
-  must_interpret_to("constraint true;", ZI::bot());
-  must_interpret_to("constraint false;", ZI::top());
+  expect_both_interpret_equal_to("constraint true;", ZI::bot());
+  expect_both_interpret_equal_to("constraint false;", ZI::top());
 
-  VarEnv<standard_allocator> env;
-  auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
-  EXPECT_TRUE(f);
-  AVar avar;
-  IDiagnostics<F> diagnostics;
-  EXPECT_TRUE(env.interpret(*f, avar, diagnostics));
-  must_interpret_to(env, "constraint int_ge(x, 0);", ZI(0));
-  must_interpret_to(env, "constraint int_ge(x, -10);", ZI(-10));
-  must_interpret_to(env, "constraint int_ge(x, 10);", ZI(10));
+  VarEnv<standard_allocator> env = env_with_x();
+  expect_both_interpret_equal_to("constraint int_ge(x, 0);", ZI(0), env);
+  expect_both_interpret_equal_to("constraint int_ge(x, -10);", ZI(-10), env);
+  expect_both_interpret_equal_to("constraint int_ge(x, 10);", ZI(10), env);
 
-  must_interpret_to(env, "constraint int_gt(x, 0);", ZI(1));
-  must_interpret_to(env, "constraint int_gt(x, -10);", ZI(-9));
-  must_interpret_to(env, "constraint int_gt(x, 10);", ZI(11));
+  expect_both_interpret_equal_to("constraint int_gt(x, 0);", ZI(1), env);
+  expect_both_interpret_equal_to("constraint int_gt(x, -10);", ZI(-9), env);
+  expect_both_interpret_equal_to("constraint int_gt(x, 10);", ZI(11), env);
 
-  must_error_ask<ZI>(env, "constraint int_eq(x, 0);");
-  must_interpret_tell_to(env, "constraint int_eq(x, 0);", ZI(0));
+  interpret_must_error<IKind::ASK, ZI>("constraint int_eq(x, 0);", env);
+  expect_interpret_equal_to<IKind::TELL>("constraint int_eq(x, 0);", ZI(0), env);
 
-  must_error_tell<ZI>(env, "constraint int_ne(x, 1);");
-  must_interpret_ask_to(env, "constraint int_ne(x, 1);", ZI(2));
+  interpret_must_error<IKind::TELL, ZI>("constraint int_ne(x, 1);", env);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_ne(x, 1);", ZI(2), env);
 
-  must_error<ZI>(env, "constraint int_le(x, 10);");
-  must_error<ZI>(env, "constraint int_lt(x, 10);");
+  both_interpret_must_error<ZI>("constraint int_le(x, 10);", env);
+  both_interpret_must_error<ZI>("constraint int_lt(x, 10);", env);
 }
 
 TEST(PrimitiveUpsetTest, ZDecInterpretation) {
   using ZD = local::ZDec;
-  must_interpret_to("constraint true;", ZD::bot());
-  must_interpret_to("constraint false;", ZD::top());
+  expect_both_interpret_equal_to("constraint true;", ZD::bot());
+  expect_both_interpret_equal_to("constraint false;", ZD::top());
 
-  VarEnv<standard_allocator> env;
-  auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
-  EXPECT_TRUE(f);
-  AVar avar;
-  IDiagnostics<F> diagnostics;
-  EXPECT_TRUE(env.interpret(*f, avar, diagnostics));
-  must_interpret_to(env, "constraint int_le(x, 0);", ZD(0));
-  must_interpret_to(env, "constraint int_le(x, -10);", ZD(-10));
-  must_interpret_to(env, "constraint int_le(x, 10);", ZD(10));
+  VarEnv<standard_allocator> env = env_with_x();
+  expect_both_interpret_equal_to("constraint int_le(x, 0);", ZD(0), env);
+  expect_both_interpret_equal_to("constraint int_le(x, -10);", ZD(-10), env);
+  expect_both_interpret_equal_to("constraint int_le(x, 10);", ZD(10), env);
 
-  must_interpret_to(env, "constraint int_lt(x, 0);", ZD(-1));
-  must_interpret_to(env, "constraint int_lt(x, -10);", ZD(-11));
-  must_interpret_to(env, "constraint int_lt(x, 10);", ZD(9));
+  expect_both_interpret_equal_to("constraint int_lt(x, 0);", ZD(-1), env);
+  expect_both_interpret_equal_to("constraint int_lt(x, -10);", ZD(-11), env);
+  expect_both_interpret_equal_to("constraint int_lt(x, 10);", ZD(9), env);
 
-  must_error_ask<ZD>(env, "constraint int_eq(x, 0);");
-  must_interpret_tell_to(env, "constraint int_eq(x, 0);", ZD(0));
+  interpret_must_error<IKind::ASK, ZD>("constraint int_eq(x, 0);", env);
+  expect_interpret_equal_to<IKind::TELL>("constraint int_eq(x, 0);", ZD(0), env);
 
-  must_error_tell<ZD>(env, "constraint int_ne(x, 1);");
-  must_interpret_ask_to(env, "constraint int_ne(x, 1);", ZD(0));
+  interpret_must_error<IKind::TELL, ZD>("constraint int_ne(x, 1);", env);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_ne(x, 1);", ZD(0), env);
 
-  must_error<ZD>(env, "constraint int_ge(x, 10);");
-  must_error<ZD>(env, "constraint int_gt(x, 10);");
+  both_interpret_must_error<ZD>("constraint int_ge(x, 10);", env);
+  both_interpret_must_error<ZD>("constraint int_gt(x, 10);", env);
 }
+
+TEST(PrimitiveUpsetTest, ConjunctionDisjunction) {
+  using ZI = local::ZInc;
+  expect_both_interpret_equal_to("constraint true; constraint false;", ZI::top());
+  expect_both_interpret_equal_to("constraint false; constraint true;", ZI::top());
+
+  VarEnv<standard_allocator> env = env_with_x();
+  expect_both_interpret_equal_to("constraint int_ge(x, 0); constraint int_ge(x, -2); constraint int_ge(x, 2);", ZI(2), env);
+  expect_both_interpret_equal_to("constraint int_ge(x, 0); constraint int_ge(x, 2); constraint int_ge(x, -2);", ZI(2), env);
+  expect_both_interpret_equal_to("constraint int_ge(x, 2); constraint int_ge(x, -2); constraint int_ge(x, 0);", ZI(2), env);
+
+  expect_both_interpret_equal_to("constraint bool_or(int_ge(x, 0), bool_or(int_ge(x, -2), int_ge(x, 2)), true);", ZI(-2), env);
+  expect_both_interpret_equal_to("constraint bool_or(int_ge(x, 0), bool_or(int_ge(x, -2), int_ge(x, 2)), true);", ZI(-2), env);
+  expect_both_interpret_equal_to("constraint bool_or(int_ge(x, 0), bool_or(int_ge(x, -2), int_ge(x, 2)), true);", ZI(-2), env);
+}
+

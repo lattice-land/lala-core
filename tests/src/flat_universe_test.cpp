@@ -37,35 +37,30 @@ TEST(FlatUniverseTest, ConversionUpset) {
 
 TEST(FlatUniverseTest, InterpretIntegerType) {
   std::cout << "Z ";
-  must_interpret_tell_to("var int: x;", ZF::bot());
+  expect_interpret_equal_to<IKind::TELL>("var int: x;", ZF::bot());
   std::cout << "F ";
-  must_interpret_tell_to("var int: x;", local::FFlat::bot(), true);
+  expect_interpret_equal_to<IKind::TELL>("var int: x;", local::FFlat::bot(), VarEnv<standard_allocator>{}, true);
 }
 
 TEST(FlatUniverseTest, InterpretRealType) {
   std::cout << "Z ";
-  must_error_tell<ZF>("var real: x;");
+  interpret_must_error<IKind::TELL, ZF>("var real: x;");
   std::cout << "F ";
-  must_interpret_tell_to("var real: x;", local::FFlat::bot());
+  expect_interpret_equal_to<IKind::TELL>("var real: x;", local::FFlat::bot());
 }
 
 TEST(FlatUniverseTest, InterpretBoolType) {
   std::cout << "Z ";
-  must_error_tell<ZF>("var bool: x;");
+  interpret_must_error<IKind::TELL, ZF>("var bool: x;");
   std::cout << "F ";
-  must_error_tell<local::FFlat>("var bool: x;");
+  interpret_must_error<IKind::TELL, local::FFlat>("var bool: x;");
 }
 
 TEST(FlatUniverseTest, ZFlatInterpretation) {
-  must_interpret_to("constraint true;", ZF::bot());
-  must_interpret_to("constraint false;", ZF::top());
+  expect_both_interpret_equal_to("constraint true;", ZF::bot());
+  expect_both_interpret_equal_to("constraint false;", ZF::top());
 
-  VarEnv<standard_allocator> env;
-  auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
-  EXPECT_TRUE(f);
-  AVar avar;
-  IDiagnostics<F> diagnostics;
-  EXPECT_TRUE(env.interpret(*f, avar, diagnostics));
-  must_interpret_to(env, "constraint int_eq(x, 0);", ZF(0));
-  must_error<ZF>(env, "constraint int_ne(x, 1);");
+  VarEnv<standard_allocator> env = env_with_x();
+  expect_interpret_equal_to<IKind::TELL>("constraint int_eq(x, 0);", ZF(0), env);
+  both_interpret_must_error<ZF>("constraint int_ne(x, 1);", env);
 }

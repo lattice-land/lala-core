@@ -22,6 +22,8 @@ struct PreBDec {
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;
   constexpr static const bool preserve_top = false;
+  constexpr static const bool preserve_join = true;
+  constexpr static const bool preserve_meet = true;
   constexpr static const bool injective_concretization = true;
   constexpr static const bool preserve_concrete_covers = true;
   constexpr static const bool complemented = false;

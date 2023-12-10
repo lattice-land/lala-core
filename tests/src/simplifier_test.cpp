@@ -26,7 +26,7 @@ void test_simplification(
   f2.print();
 
   IDiagnostics<F> diagnostics;
-  auto istore = battery::make_shared<IStore, standard_allocator>(create_and_interpret_tell<IStore>(f1, env, diagnostics, standard_allocator{}).value());
+  auto istore = battery::make_shared<IStore, standard_allocator>(create_and_interpret_and_tell<IStore>(f1, env, diagnostics).value());
 
   using simplifier_type = Simplifier<IStore, standard_allocator>;
   simplifier_type simplifier{
@@ -35,7 +35,7 @@ void test_simplification(
   };
 
   simplifier_type::tell_type<standard_allocator> tell;
-  EXPECT_TRUE(simplifier.interpret_tell(f2, env, tell, diagnostics));
+  EXPECT_TRUE((ginterpret_in<IKind::TELL, true>(simplifier, f2, env, tell, diagnostics)));
   simplifier.tell(std::move(tell));
   local::BInc has_changed = GaussSeidelIteration{}.fixpoint(simplifier);
   EXPECT_TRUE(has_changed);

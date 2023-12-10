@@ -57,7 +57,7 @@ namespace impl {
 }
 
 /** The Cartesian product abstract domain is a _domain transformer_ combining several abstract domains.
-Concretization function: \f$ \gamma((a_1, \ldots, a_n)) = \sqcap_{i \leq n} \gamma_i(a_i) \f$. */
+Concretization function: \f$ \gamma((a_1, \ldots, a_n)) = \bigcap_{i \leq n} \gamma_i(a_i) \f$. */
 template<class... As>
 class CartesianProduct {
 public:
@@ -75,6 +75,14 @@ public:
 
   constexpr static const bool is_abstract_universe = true;
   constexpr static const bool sequential = (... && As::sequential);
+  constexpr static const bool is_totally_ordered = false;
+  constexpr static const bool preserve_bot = (... && As::preserve_bot);
+  constexpr static const bool preserve_top = (... && As::preserve_top);
+  constexpr static const bool preserve_join = (... && As::preserve_join);
+  constexpr static const bool preserve_meet = false; // false in general, not sure if there are conditions the underlying universes could satisfy to make this true.
+  constexpr static const bool injective_concretization = (... && As::injective_concretization);
+  constexpr static const bool preserve_concrete_covers = (... && As::preserve_concrete_covers);
+  constexpr static const bool complemented = false;
   constexpr static const char* name = "CartesianProduct";
 
 private:
@@ -285,10 +293,17 @@ private:
     }
   }
 
+  template <size_t i = 0>
+  CUDA constexpr void tell_top_() {
+    if constexpr(i < n) {
+      project<i>().tell_top();
+      tell_top_<i+1>();
+    }
+  }
+
 public:
-  /** \f$ \top \f$ is only told in the first component (since it is sufficient for the whole Cartesian product to become top as well).  */
   CUDA constexpr this_type& tell_top() {
-    project<0>().tell_top();
+    tell_top_();
     return *this;
   }
 

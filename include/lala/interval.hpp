@@ -40,13 +40,16 @@ public:
   friend class Interval;
 
   constexpr static const bool is_abstract_universe = true;
-  constexpr static const bool is_totally_ordered = false;
-  constexpr static const bool preserve_bot = LB::preserve_bot && UB::preserve_bot;
-  constexpr static const bool preserve_top = true;
-
   constexpr static const bool sequential = CP::sequential;
+  constexpr static const bool is_totally_ordered = false;
+  constexpr static const bool preserve_bot = CP::preserve_bot;
+  constexpr static const bool preserve_top = true;
+  constexpr static const bool preserve_join = true;
+  constexpr static const bool preserve_meet = false;
+  constexpr static const bool injective_concretization = CP::injective_concretization;
+  constexpr static const bool preserve_concrete_covers = CP::preserve_concrete_covers;
+  constexpr static const bool complemented = false;
   constexpr static const char* name = "Interval";
-
 
 private:
   using LB2 = typename LB::local_type;
@@ -137,13 +140,14 @@ public:
   CUDA NI static bool interpret_ask(const F& f, const Env& env, Interval<U2>& k, IDiagnostics<F>& diagnostics) {
     local_type itv = local_type::bot();
     if(f.is_binary() && f.sig() == NEQ) {
-      return LB::interpret_ask(f, env, k.lb(), diagnostics);
+      return LB::template interpret_ask<diagnose>(f, env, k.lb(), diagnostics);
     }
     else if(f.is_binary() && f.sig() == EQ) {
       CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
         "When interpreting equality, the underlying bounds LB and UB failed to agree on the same value.",
-        (LB::interpret_tell(f, env, itv.lb(), diagnostics) &&
-         UB::interpret_tell(f, env, itv.ub(), diagnostics)),
+        (LB::template interpret_tell<diagnose>(f, env, itv.lb(), diagnostics) &&
+         UB::template interpret_tell<diagnose>(f, env, itv.ub(), diagnostics) &&
+         itv.lb() == itv.ub()),
         (k.tell(itv)));
     }
     else if(f.is_binary() && f.sig() == IN && f.seq(0).is_variable()

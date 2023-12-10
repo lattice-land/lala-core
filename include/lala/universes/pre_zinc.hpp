@@ -30,6 +30,12 @@ struct PreZInc {
   /** `true` if \f$ \gamma(\top) = \top^\flat \f$. */
   constexpr static const bool preserve_top = true;
 
+  /** `true` if \f$ \gamma(a \sqcup b) = \gamma(a) \cap \gamma(b) \f$ .*/
+  constexpr static const bool preserve_join = true;
+
+    /** `true` if \f$ \gamma(a \sqcap b) = \gamma(a) \cup \gamma(b) \f$ .*/
+  constexpr static const bool preserve_meet = true;
+
   /** The concretization is injective when each abstract element maps to a distinct concrete element.
       This is important for the correctness of `prev` and `next` because we suppose \f$ \gamma(x) != \gamma(\mathit{next}(x)) \f$ when \f$ x \neq \bot \land x \neq \top \f$. */
   constexpr static const bool injective_concretization = true;
@@ -59,7 +65,8 @@ private:
       if(z == bot() || z == top()) {
         RETURN_INTERPRETATION_ERROR("Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.");
       }
-      return k = z;
+      k = z;
+      return true;
     }
     else if(f.is(F::R)) {
       if constexpr(is_tell) {

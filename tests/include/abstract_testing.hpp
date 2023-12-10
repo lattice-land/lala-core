@@ -7,6 +7,7 @@
 #include <gtest/gtest-spi.h>
 #include "lala/logic/logic.hpp"
 #include "lala/universes/primitive_upset.hpp"
+#include "lala/interpretation.hpp"
 #include "lala/flatzinc_parser.hpp"
 
 using namespace lala;
@@ -17,241 +18,137 @@ using F = TFormula<standard_allocator>;
 static LVar<standard_allocator> var_x = "x";
 static LVar<standard_allocator> var_y = "y";
 
-inline VarEnv<standard_allocator> init_env() {
+inline VarEnv<standard_allocator> env_with(const char* fzn) {
   VarEnv<standard_allocator> env;
-  auto f = parse_flatzinc_str<standard_allocator>("var int: x :: abstract(0);");
+  auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
-  AVar avar;
   IDiagnostics<F> diagnostics;
-  EXPECT_TRUE(env.interpret(*f, avar, diagnostics));
+  if(f->is(F::Seq) && f->sig() == AND) {
+    for(int i = 0; i < f->seq().size(); ++i) {
+      AVar avar;
+      EXPECT_TRUE(env.interpret(f->seq(i), avar, diagnostics));
+    }
+  }
+  else {
+    AVar avar;
+    EXPECT_TRUE(env.interpret(*f, avar, diagnostics));
+  }
   return std::move(env);
 }
 
-namespace impl {
-  template <bool is_tell, class L>
-  bool interpretation(const F& f, VarEnv<standard_allocator>& env, L& value, IDiagnostics<F>& diagnostics) {
-    if constexpr(is_tell) {
-      return value.template interpret_tell<true>(f, env, value, diagnostics);
+/** Initialize an environment with single integer variable named `x` in the abstract domain typed `0`. */
+inline VarEnv<standard_allocator> env_with_x() {
+  return env_with("var int: x :: abstract(0);");
+}
+
+template<IKind kind, class L>
+void interpret_must_error(const char* fzn, VarEnv<standard_allocator> env = VarEnv<standard_allocator>{}) {
+  static_assert(kind == IKind::TELL || L::is_abstract_universe);
+  auto f = parse_flatzinc_str<standard_allocator>(fzn);
+  EXPECT_TRUE(f);
+  IDiagnostics<F> diagnostics;
+  L value = make_bot<L>(env);
+  bool res;
+  if constexpr(L::is_abstract_universe) {
+    res = ginterpret_in<kind, true>(*f, env, value, diagnostics);
+  }
+  else {
+    if constexpr(kind == IKind::TELL) {
+      typename L::template tell_type<standard_allocator> tell;
+      res = top_level_ginterpret_in<kind, true>(value, *f, env, tell, diagnostics);
     }
     else {
-      return value.template interpret_ask<true>(f, env, value, diagnostics);
+      typename L::template ask_type<standard_allocator> ask;
+      res = top_level_ginterpret_in<kind, true>(value, *f, env, ask, diagnostics);
     }
   }
-
-  template <bool is_tell, class L>
-  L interpret_to(const std::string& fzn, VarEnv<standard_allocator>& env) {
-    auto f = parse_flatzinc_str<standard_allocator>(fzn);
-    EXPECT_TRUE(f);
-    std::cout << (is_tell ? "tell" : "ask") << ": ";
-    f->print(true);
-    IDiagnostics<F> diagnostics;
-    L value{L::bot()};
-    if(!interpretation<is_tell, L>(*f, env, value, diagnostics)) {
-      diagnostics.print();
-      EXPECT_TRUE(false) << "The formula should be interpretable.";
-    }
-    return value;
+  if(res) {
+    EXPECT_TRUE(false) << "The formula should not be interpretable: ";
+    value.print();
+    printf("\n");
   }
 }
 
-template <class L>
-L interpret_tell_to(const std::string& fzn, VarEnv<standard_allocator>& env) {
-  return ::impl::interpret_to<true, L>(fzn, env);
+template<class L>
+void both_interpret_must_error(const char* fzn, VarEnv<standard_allocator> env = VarEnv<standard_allocator>{}) {
+  interpret_must_error<IKind::TELL, L>(fzn, env);
+  interpret_must_error<IKind::ASK, L>(fzn, env);
 }
 
-template <class L>
-L interpret_ask_to(const std::string& fzn, VarEnv<standard_allocator>& env) {
-  return ::impl::interpret_to<false, L>(fzn, env);
-}
-
-template <class L>
-L interpret_to(const std::string& fzn, VarEnv<standard_allocator>& env) {
-  auto tell = interpret_tell_to<L>(fzn, env);
-  auto ask = interpret_ask_to<L>(fzn, env);
-  EXPECT_EQ(tell, ask) << "The tell and ask interpretations should be equal.";
-  return tell;
-}
-
-template <class L>
-L interpret_to(const char* fzn) {
+template <IKind kind, class L>
+void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator>& env, bool has_warning = false) {
+  static_assert(kind == IKind::TELL || L::is_abstract_universe);
   using F = TFormula<standard_allocator>;
-  VarEnv<standard_allocator> env = init_env();
-  return interpret_to<L>(fzn, env);
-}
-
-template <class L>
-L interpret_ask_to(const char* fzn) {
-  using F = TFormula<standard_allocator>;
-  VarEnv<standard_allocator> env = init_env();
-  return interpret_ask_to<L>(fzn, env);
-}
-
-template <class L>
-L interpret_tell_to(const char* fzn) {
-  using F = TFormula<standard_allocator>;
-  VarEnv<standard_allocator> env = init_env();
-  return interpret_tell_to<L>(fzn, env);
-}
-
-template <class L>
-L interpret_to2(const char* fzn) {
-  VarEnv<standard_allocator> env;
-  return interpret_to<L>(fzn, env);
-}
-
-template <class L>
-L interpret_tell_to2(const char* fzn) {
-  VarEnv<standard_allocator> env;
-  return interpret_tell_to<L>(fzn, env);
-}
-
-template <class L>
-L interpret_ask_to2(const char* fzn) {
-  VarEnv<standard_allocator> env;
-  return interpret_ask_to<L>(fzn, env);
-}
-
-template <class L>
-void interpret_and_tell(L& a, const char* fzn, VarEnv<standard_allocator>& env) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
-  f->print(true);
   IDiagnostics<F> diagnostics;
-  typename L::template tell_type<standard_allocator> tell;
-  if(!a.template interpret_tell_in<true>(*f, env, tell, diagnostics)) {
+  bool res;
+  if constexpr(L::is_abstract_universe) {
+    res = ginterpret_in<kind, true>(*f, env, value, diagnostics);
+  }
+  else {
+    if constexpr(kind == IKind::TELL) {
+      res = interpret_and_tell<true>(*f, env, value, diagnostics);
+    }
+    else {
+      typename L::template ask_type<standard_allocator> ask;
+      res = top_level_ginterpret_in<kind, true>(value, *f, env, ask, diagnostics);
+    }
+  }
+  if(!res) {
+    diagnostics.print();
+    EXPECT_TRUE(false) << "The formula should be interpretable: " << fzn;
+  }
+  EXPECT_EQ(diagnostics.has_warning(), has_warning);
+}
+
+template <class L>
+L create_and_interpret_and_tell(const char* fzn, VarEnv<standard_allocator>& env, bool has_warning = false) {
+  auto f = parse_flatzinc_str<standard_allocator>(fzn);
+  EXPECT_TRUE(f);
+  IDiagnostics<F> diagnostics;
+  auto value = create_and_interpret_and_tell<L, true>(*f, env, diagnostics);
+  if(diagnostics.is_fatal()) {
     diagnostics.print();
   }
-  local::BInc has_changed;
-  a.tell(std::move(tell), has_changed);
-  EXPECT_TRUE(has_changed);
+  EXPECT_FALSE(diagnostics.is_fatal());
+  EXPECT_EQ(diagnostics.has_warning(), has_warning);
+  EXPECT_TRUE(value.has_value());
+  return std::move(value.value());
 }
 
 template <class L>
-void interpret_and_ask(L& a, const char* fzn, bool expect) {
+L create_and_interpret_and_tell(const char* fzn, bool has_warning = false) {
+  VarEnv<standard_allocator> env;
+  return create_and_interpret_and_tell<L>(fzn, env, has_warning);
+}
+
+template <IKind kind, class L>
+void expect_interpret_equal_to(const char* fzn, const L& expect, VarEnv<standard_allocator> env = VarEnv<standard_allocator>{}, bool has_warning = false) {
+  L value{L::bot()};
+  interpret_must_succeed<kind>(fzn, value, env, has_warning);
+  EXPECT_EQ(value, expect);
+}
+
+/** When we expect an exact interpretation. */
+template <class L>
+void expect_both_interpret_equal_to(const char* fzn, const L& expect, const VarEnv<standard_allocator>& env = VarEnv<standard_allocator>{}, bool has_warning = false) {
+  expect_interpret_equal_to<IKind::TELL>(fzn, expect, env, has_warning);
+  expect_interpret_equal_to<IKind::ASK>(fzn, expect, env, has_warning);
+}
+
+template <class L>
+bool interpret_and_ask(const char* fzn, L& value, VarEnv<standard_allocator>& env, bool has_warning = false) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
-  f->print(true);
-  auto env = init_env();
   IDiagnostics<F> diagnostics;
   typename L::template ask_type<standard_allocator> ask;
-  if(!a.template interpret_ask<true>(*f, env, ask, diagnostics)) {
+  if(!ginterpret_in<IKind::ASK, true>(value, *f, env, ask, diagnostics)) {
     diagnostics.print();
+    EXPECT_TRUE(false) << "The formula should be (ask-)interpretable: " << fzn;
   }
-  EXPECT_EQ(a.ask(std::move(ask)), expect);
-}
-
-namespace impl {
-  template<bool is_tell, class L>
-  void must_interpret_to(VarEnv<standard_allocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
-    using F = TFormula<standard_allocator>;
-    auto f = parse_flatzinc_str<standard_allocator>(fzn);
-    EXPECT_TRUE(f);
-    std::cout << (is_tell ? "tell" : "ask") << ": ";
-    f->print(true);
-    std::cout << std::endl;
-    IDiagnostics<F> diagnostics;
-    L value{L::bot()};
-    if(!interpretation<is_tell, L>(*f, env, value, diagnostics)) {
-      diagnostics.print();
-      EXPECT_TRUE(false) << "The formula should be interpretable: " << fzn;
-    }
-    EXPECT_EQ(diagnostics.has_warning(), has_warning);
-    EXPECT_EQ(value, expect);
-  }
-
-  template<bool is_tell, class L>
-  void must_interpret_to(const char* fzn, const L& expect, bool has_warning = false) {
-    VarEnv<standard_allocator> env;
-    must_interpret_to<is_tell>(env, fzn, expect, has_warning);
-  }
-}
-
-template<class L>
-void must_interpret_tell_to(VarEnv<standard_allocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
-  ::impl::must_interpret_to<true>(env, fzn, expect, has_warning);
-}
-
-template<class L>
-void must_interpret_ask_to(VarEnv<standard_allocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
-  ::impl::must_interpret_to<false>(env, fzn, expect, has_warning);
-}
-
-template<class L>
-void must_interpret_to(VarEnv<standard_allocator>& env, const char* fzn, const L& expect, bool has_warning = false) {
-  must_interpret_tell_to(env, fzn, expect, has_warning);
-  must_interpret_ask_to(env, fzn, expect, has_warning);
-}
-
-template<class L>
-void must_interpret_tell_to(const char* fzn, const L& expect, bool has_warning = false) {
-  ::impl::must_interpret_to<true>(fzn, expect, has_warning);
-}
-
-template<class L>
-void must_interpret_ask_to(const char* fzn, const L& expect, bool has_warning = false) {
-  ::impl::must_interpret_to<false>(fzn, expect, has_warning);
-}
-
-template<class L>
-void must_interpret_to(const char* fzn, const L& expect, bool has_warning = false) {
-  must_interpret_tell_to(fzn, expect, has_warning);
-  must_interpret_ask_to(fzn, expect, has_warning);
-}
-
-namespace impl {
-  template<bool is_tell, class L>
-  void must_error(VarEnv<standard_allocator>& env, const char* fzn) {
-    auto f = parse_flatzinc_str<standard_allocator>(fzn);
-    EXPECT_TRUE(f);
-    std::cout << (is_tell ? "tell" : "ask") << ": ";
-    f->print(true);
-
-    IDiagnostics<F> diagnostics;
-    L value{L::bot()};
-    if(interpretation<is_tell, L>(*f, env, value, diagnostics)) {
-      EXPECT_TRUE(false) << "The formula should not be interpretable: ";
-      value.print();
-      printf("\n");
-    }
-  }
-
-  template<bool is_tell, class L>
-  void must_error(const char* fzn) {
-    VarEnv<standard_allocator> env;
-    must_error<is_tell, L>(env, fzn);
-  }
-}
-
-template<class L>
-void must_error_tell(VarEnv<standard_allocator>& env, const char* fzn) {
-  ::impl::must_error<true, L>(env, fzn);
-}
-
-template<class L>
-void must_error_ask(VarEnv<standard_allocator>& env, const char* fzn) {
-  ::impl::must_error<false, L>(env, fzn);
-}
-
-template<class L>
-void must_error(VarEnv<standard_allocator>& env, const char* fzn) {
-  must_error_tell<L>(env, fzn);
-  must_error_ask<L>(env, fzn);
-}
-
-template<class L>
-void must_error_tell(const char* fzn) {
-  ::impl::must_error<true, L>(fzn);
-}
-
-template<class L>
-void must_error_ask(const char* fzn) {
-  ::impl::must_error<false, L>(fzn);
-}
-
-template<class L>
-void must_error(const char* fzn) {
-  must_error_tell<L>(fzn);
-  must_error_ask<L>(fzn);
+  EXPECT_EQ(diagnostics.has_warning(), has_warning);
+  return value.ask(ask);
 }
 
 /** We must have `A::bot() < mid < A::top()`. */
@@ -277,11 +174,11 @@ void bot_top_test(const A& mid) {
   EXPECT_TRUE(bot < mid) << bot << " " << mid;
   EXPECT_TRUE(mid < top);
 
-  must_interpret_tell_to<A>("constraint true;", bot);
-  must_interpret_tell_to<A>("constraint false;", top);
+  expect_interpret_equal_to<IKind::TELL, A>("constraint true;", bot);
+  expect_interpret_equal_to<IKind::TELL, A>("constraint false;", top);
   if constexpr(A::is_abstract_universe) {
-    must_interpret_ask_to<A>("constraint true;", bot);
-    must_interpret_ask_to<A>("constraint false;", top);
+    expect_interpret_equal_to<IKind::ASK, A>("constraint true;", bot);
+    expect_interpret_equal_to<IKind::ASK, A>("constraint false;", top);
   }
 }
 
@@ -342,7 +239,10 @@ void generic_unary_fun_test() {
 
 template <class A>
 void generic_abs_test() {
-  EXPECT_EQ((A::template fun<ABS>(A::bot())), interpret_to<A>("constraint int_ge(x, 0);"));
+  A a;
+  auto env = env_with_x();
+  interpret_must_succeed<IKind::TELL>("constraint int_ge(x, 0);", a, env);
+  EXPECT_EQ((A::template fun<ABS>(A::bot())), a);
 }
 
 template <Sig sig, class A, class R = A>
@@ -376,39 +276,23 @@ void generic_arithmetic_fun_test(const A& a) {
   generic_binary_fun_test<POW, A, R>(a);
 }
 
-/** Check that $\llbracket . \rrbracket = \llbracket . \rrbracket \circ \rrbacket . \llbracket \circ \llbracket . \rrbracket. */
+/** Check that \f$ \llbracket . \rrbracket = \llbracket . \rrbracket \circ \rrbacket . \llbracket \circ \llbracket . \rrbracket \f$ */
 template <class L>
 void check_interpret_idempotence(const char* fzn) {
-  VarEnv<standard_allocator> env1;
   using F = TFormula<standard_allocator>;
-  auto f = parse_flatzinc_str<standard_allocator>(fzn);
-  EXPECT_TRUE(f);
-  f->print(true);
+  VarEnv<standard_allocator> env1, env2;
+  L value1 = create_and_interpret_and_tell<L>(fzn, env1);
+  F f1 = value1.deinterpret(env1);
+  f1.print(true);
   printf("\n");
-
+  L value2 = make_bot<L>(env2);
   IDiagnostics<F> diagnostics;
-  auto value1 = create_and_interpret_tell<L>(*f, env1, diagnostics);
-  if(!value1.has_value()) {
-    diagnostics.print();
-    EXPECT_TRUE(false) << "The formula should be interpretable.";
-  }
-
-  F f2 = value1->deinterpret(env1);
+  EXPECT_TRUE(interpret_and_tell(f1, env2, value2, diagnostics));
+  EXPECT_EQ(value1, value2);
+  F f2 = value2.deinterpret(env2);
   f2.print(true);
   printf("\n");
-  VarEnv<standard_allocator> env2;
-  IDiagnostics<F> diagnostics2;
-  auto value2 = create_and_interpret_tell<L>(f2, env2, diagnostics2);
-  if(!value2.has_value()) {
-    diagnostics2.print();
-    EXPECT_TRUE(false) << "Deinterpreted formulas should be (re)-interpretable.";
-  }
-  EXPECT_EQ(*value1, *value2);
-
-  F f3 = value2->deinterpret(env2);
-  f3.print(true);
-  printf("\n");
-  EXPECT_EQ(f2, f3);
+  EXPECT_EQ(f1, f2);
 }
 
 #endif

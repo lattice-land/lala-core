@@ -19,7 +19,7 @@ namespace lala {
   };
 
 /** The variable store abstract domain is a _domain transformer_ built on top of an abstract universe `U`.
-Concretization function: \f$ \gamma(\rho) \sqcap_{x \in \pi(\rho)} \gamma_{U_x}(\rho(x)) \f$.
+Concretization function: \f$ \gamma(\rho) := \bigcap_{x \in \pi(\rho)} \gamma_{U_x}(\rho(x)) \f$.
 The top element is smashed and the equality between two stores is represented by the following equivalence relation, for two stores \f$ S \f$ and \f$ T \f$:
 \f$ S \equiv T \Leftrightarrow \forall{x \in \mathit{Vars}},~S(x) = T(x) \lor \exists{x \in \mathit{dom}(S)},\exists{y \in \mathit{dom}(T)},~S(x) = \top \land T(y) = \top \f$.
 Intuitively, it means that either all elements are equal or both stores have a top element, in which case they "collapse" to the top element, and are considered equal.
@@ -46,10 +46,8 @@ public:
     AVar avar;
     local_universe dom;
     var_dom() = default;
+    var_dom(const var_dom&) = default;
     CUDA var_dom(AVar avar, const local_universe& dom): avar(avar), dom(dom) {}
-
-    template <class VarDom>
-    CUDA var_dom(const VarDom& var_dom): avar(var_dom.avar), dom(var_dom.dom) {}
   };
 
   template <class Alloc>
@@ -62,6 +60,14 @@ public:
   using snapshot_type = battery::vector<local_universe, Alloc>;
 
   constexpr static const bool is_abstract_universe = false;
+  constexpr static const bool sequential = universe_type::sequential;
+  constexpr static const bool is_totally_ordered = false;
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_top = true;
+  constexpr static const bool preserve_join = universe_type::preserve_join;
+  constexpr static const bool preserve_meet = universe_type::preserve_meet;
+  constexpr static const bool injective_concretization = universe_type::injective_concretization;
+  constexpr static const bool preserve_concrete_covers = universe_type::preserve_concrete_covers;
   constexpr static const char* name = "VStore";
 
   template<class U2, class Alloc2>
@@ -83,6 +89,10 @@ public:
   /** Initialize an empty store. */
   CUDA VStore(AType atype, const allocator_type& alloc = allocator_type())
    : atype(atype), data(alloc), is_at_top(false)
+  {}
+
+  CUDA VStore(AType atype, size_t size, const allocator_type& alloc = allocator_type())
+   : atype(atype), data(size, alloc), is_at_top(false)
   {}
 
   template<class R>
@@ -118,14 +128,14 @@ public:
   }
 
   CUDA static this_type bot(AType atype = UNTYPED,
-    const allocator_type& alloc = allocator_type())
+    const allocator_type& alloc = allocator_type{})
   {
     return VStore(atype, alloc);
   }
 
   /** A special symbolic element representing top. */
   CUDA static this_type top(AType atype = UNTYPED,
-    const allocator_type& alloc = allocator_type())
+    const allocator_type& alloc = allocator_type{})
   {
     return std::move(VStore(atype, alloc).tell_top());
   }
@@ -331,7 +341,10 @@ public:
   */
   template <class Alloc2, class Mem>
   CUDA this_type& tell(const tell_type<Alloc2>& t, BInc<Mem>& has_changed) {
-    if(t.size() > 0 && t[0].avar == AVar{}) {
+    if(t.size() == 0) {
+      return *this;
+    }
+    if(t[0].avar == AVar{}) {
       is_at_top.tell(local::BInc(true), has_changed);
       return *this;
     }
@@ -463,6 +476,13 @@ public:
       seq.push_back(std::move(f));
     }
     return F::make_nary(AND, std::move(seq), aty());
+  }
+
+  CUDA void print() const {
+    for(int i = 0; i < vars(); ++i) {
+      data[i].print();
+      printf("%s", (i+1 == vars() ? "\n" : ", "));
+    }
   }
 };
 

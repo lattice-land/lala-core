@@ -14,16 +14,15 @@ TEST(IntervalTest, BotTopTests) {
 }
 
 TEST(IntervalTest, NoInterpret) {
-  VarEnv<standard_allocator> env = init_env();
-  must_error_ask<Itv>(env, "constraint float_eq(x, 1111111111.0000000000001);");
-  must_error_tell<Itv>(env, "constraint int_ne(x, 10);");
+  VarEnv<standard_allocator> env = env_with_x();
+  interpret_must_error<IKind::TELL, Itv>("constraint int_ne(x, 10);", env);
+  interpret_must_error<IKind::ASK, Itv>("constraint float_eq(x, 1111111111.0000000000001);", env);
 }
 
 TEST(IntervalTest, ValidInterpret) {
-  // VarEnv<standard_allocator> env = init_env();
   VarEnv<standard_allocator> env;
-  must_interpret_tell_to(env, "constraint int_eq(x, 10);", Itv(10, 10), false);
-  must_interpret_ask_to(env, "constraint int_ne(x, 10);", Itv(zi(11), zd::bot()), false);
+  expect_interpret_equal_to<IKind::TELL>("constraint int_eq(x, 10);", Itv(10, 10), env, false);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_ne(x, 10);", Itv(zi(11), zd::bot()), env, false);
 }
 
 TEST(IntervalTest, JoinMeetTest) {
