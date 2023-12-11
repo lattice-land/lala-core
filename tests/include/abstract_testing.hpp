@@ -102,10 +102,11 @@ void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator
   EXPECT_EQ(diagnostics.has_warning(), has_warning);
 }
 
-template <class L>
-L create_and_interpret_and_tell(const char* fzn, VarEnv<standard_allocator>& env, bool has_warning = false) {
+template <class L, class Typing>
+L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_allocator>& env, Typing&& typing, bool has_warning = false) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
+  typing(*f);
   IDiagnostics<F> diagnostics;
   auto value = create_and_interpret_and_tell<L, true>(*f, env, diagnostics);
   if(diagnostics.is_fatal()) {
@@ -115,6 +116,11 @@ L create_and_interpret_and_tell(const char* fzn, VarEnv<standard_allocator>& env
   EXPECT_EQ(diagnostics.has_warning(), has_warning);
   EXPECT_TRUE(value.has_value());
   return std::move(value.value());
+}
+
+template <class L>
+L create_and_interpret_and_tell(const char* fzn, VarEnv<standard_allocator>& env, bool has_warning = false) {
+  return create_and_interpret_and_type_and_tell<L>(fzn, env, [](const F&){}, has_warning);
 }
 
 template <class L>

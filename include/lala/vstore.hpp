@@ -137,7 +137,21 @@ public:
   CUDA static this_type top(AType atype = UNTYPED,
     const allocator_type& alloc = allocator_type{})
   {
-    return std::move(VStore(atype, alloc).tell_top());
+    return std::move(VStore{atype, alloc}.tell_top());
+  }
+
+  template <class Env>
+  CUDA static this_type bot(Env& env,
+    const allocator_type& alloc = allocator_type{})
+  {
+    return bot(env.extends_abstract_dom(), alloc);
+  }
+
+  template <class Env>
+  CUDA static this_type top(Env& env,
+    const allocator_type& alloc = allocator_type{})
+  {
+    return top(env.extends_abstract_dom(), alloc);
   }
 
   /** `true` if at least one element is equal to top in the store, `false` otherwise. */

@@ -131,7 +131,7 @@ CUDA bool top_level_ginterpret_in(const A& a, const F& f, Env& env, I& intermedi
   }
   else {
     env.restore(snap);
-    intermediate = copy;
+    intermediate = std::move(copy);
     return false;
   }
 }
@@ -142,8 +142,7 @@ CUDA A make_bot(Env& env, Alloc alloc = Alloc{}) {
     return A::bot();
   }
   else {
-    AType ty = env.extends_abstract_dom();
-    return A{ty, alloc};
+    return A::bot(env, alloc);
   }
 }
 
@@ -171,9 +170,9 @@ CUDA std::optional<A> create_and_interpret_and_tell(const F& f,
  TellAlloc tell_alloc = TellAlloc{})
 {
   auto snap = env.snapshot();
-  A a = make_bot<A>(env, alloc);
+  A a{make_bot<A>(env, alloc)};
   if(interpret_and_tell<diagnose>(f, env, a, diagnostics, tell_alloc)) {
-    return {a};
+    return {std::move(a)};
   }
   else {
     env.restore(snap);
