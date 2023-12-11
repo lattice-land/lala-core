@@ -126,6 +126,7 @@ public:
         auto sort = f.sort();
         if(sort.has_value() && sort->is_bool()) {
           k.tell(local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one())));
+          return true;
         }
       }
     }
