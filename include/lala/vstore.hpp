@@ -253,13 +253,13 @@ private:
   }
 
 public:
-  template <IKind kind, bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA NI bool interpret(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+  template <IKind kind, bool diagnose = false, class F, class Env, class I>
+  CUDA NI bool interpret(const F& f, Env& env, I& intermediate, IDiagnostics<F>& diagnostics) const {
     if(f.is_untyped() || f.type() == aty()) {
-      return interpret_predicate<kind, diagnose>(f, env, tell, diagnostics);
+      return interpret_predicate<kind, diagnose>(f, env, intermediate, diagnostics);
     }
     else {
-      RETURN_INTERPRETATION_ERROR("Interpretation of a formula with a different type.");
+      RETURN_INTERPRETATION_ERROR("This abstract element cannot interpret a formula with a different type.");
     }
   }
 

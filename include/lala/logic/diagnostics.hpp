@@ -148,16 +148,16 @@ public:
   } \
   return true;
 
-
 /** This macro creates a high-level error message that is possibly erased if `call` does not lead to any error.
  * If `call` leads to errors, these errors are moved as suberrors of the high-level error message.
  * Additionally, `merge` is executed if `call` does not lead to any error.
  */
 #define CALL_WITH_ERROR_CONTEXT_WITH_MERGE(MSG, CALL, MERGE) \
+  size_t error_context = 0; \
   if constexpr(diagnose) { \
     diagnostics.add_suberror(IDiagnostics<F>(false, name, (MSG), f)); \
+    error_context = diagnostics.num_suberrors(); \
   } \
-  size_t error_context = diagnostics.num_suberrors(); \
   bool res = CALL; \
   if constexpr(diagnose) { \
     diagnostics.merge(res, error_context); \
