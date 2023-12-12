@@ -16,18 +16,18 @@ namespace lala {
 /** `IDiagnostics` is used in abstract domains to diagnose why a formula cannot be interpreted (error) or if it was interpreted by under- or over-approximation (warnings).
     If the abstract domain cannot interpret the formula, it must explain why.
     This is similar to compilation errors in compiler. */
-template<class F, class Allocator = typename F::allocator_type>
 class IDiagnostics {
 public:
-  using allocator_type = typename F::allocator_type;
-  using this_type = IDiagnostics<F>;
+  using allocator_type = battery::standard_allocator;
+  using F = TFormula<allocator_type>;
+  using this_type = IDiagnostics;
 
 private:
   battery::string<allocator_type> ad_name;
   battery::string<allocator_type> description;
   F uninterpretable_formula;
   AType aty;
-  battery::vector<IDiagnostics<F>, allocator_type> suberrors;
+  battery::vector<IDiagnostics, allocator_type> suberrors;
   bool fatal;
 
   CUDA void print_indent(int indent) const {
@@ -42,22 +42,23 @@ private:
   }
 
 public:
-  CUDA NI IDiagnostics(): fatal(false), aty(-2) {} // special value indicating it is a top-level diagnostics.
+  CUDA NI IDiagnostics(): fatal(false), aty(-2) {}   // -2 is a special value indicating it is a top-level diagnostics.
 
   // If fatal is false, it is considered as a warning.
+  template <class F2>
   CUDA NI IDiagnostics(bool fatal,
     battery::string<allocator_type> ad_name,
     battery::string<allocator_type> description,
-    F uninterpretable_formula,
+    const F2& uninterpretable_formula,
     AType aty = UNTYPED)
    : fatal(fatal),
      ad_name(std::move(ad_name)),
      description(std::move(description)),
-     uninterpretable_formula(std::move(uninterpretable_formula)),
+     uninterpretable_formula(uninterpretable_formula),
      aty(aty)
   {}
 
-  CUDA NI this_type& add_suberror(IDiagnostics<F>&& suberror) {
+  CUDA NI this_type& add_suberror(IDiagnostics&& suberror) {
     fatal |= suberror.is_fatal();
     suberrors.push_back(std::move(suberror));
     return *this;
@@ -138,13 +139,13 @@ public:
 
 #define RETURN_INTERPRETATION_ERROR(MSG) \
   if constexpr(diagnose) { \
-    diagnostics.add_suberror(IDiagnostics<F>(true, name, (MSG), f)); \
+    diagnostics.add_suberror(IDiagnostics(true, name, (MSG), f)); \
   } \
   return false;
 
 #define RETURN_INTERPRETATION_WARNING(MSG) \
   if constexpr(diagnose) { \
-    diagnostics.add_suberror(IDiagnostics<F>(false, name, (MSG), f)); \
+    diagnostics.add_suberror(IDiagnostics(false, name, (MSG), f)); \
   } \
   return true;
 
@@ -155,7 +156,7 @@ public:
 #define CALL_WITH_ERROR_CONTEXT_WITH_MERGE(MSG, CALL, MERGE) \
   size_t error_context = 0; \
   if constexpr(diagnose) { \
-    diagnostics.add_suberror(IDiagnostics<F>(false, name, (MSG), f)); \
+    diagnostics.add_suberror(IDiagnostics(false, name, (MSG), f)); \
     error_context = diagnostics.num_suberrors(); \
   } \
   bool res = CALL; \

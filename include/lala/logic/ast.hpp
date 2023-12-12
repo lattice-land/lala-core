@@ -19,6 +19,12 @@ namespace lala {
 template<class Allocator>
 using LVar = battery::string<Allocator>;
 
+/** The kind of interpretation operations. */
+enum class IKind {
+  ASK,
+  TELL
+};
+
 /** We call an "abstract variable" the representation of a logical variable in an abstract domain.
 It is a pair of integers `(aty, vid)` where `aty` is the UID of the abstract element and `vid` is an internal identifier of the variable inside the abstract element.
 The mapping between logical variables and abstract variables is maintained in an environment (see `env.hpp`).

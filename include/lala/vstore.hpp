@@ -192,7 +192,7 @@ public:
 
 private:
   template <bool diagnose, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_existential(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+  CUDA NI bool interpret_existential(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
     assert(f.is(F::E));
     var_dom k;
     if(local_universe::template interpret_tell<diagnose>(f, env, k.dom, diagnostics)) {
@@ -206,7 +206,7 @@ private:
 
   /** Interpret a predicate without variables. */
   template <bool diagnose, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_zero_predicate(const F& f, const Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+  CUDA NI bool interpret_zero_predicate(const F& f, const Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
     if(f.is_true()) {
       return true;
     }
@@ -221,7 +221,7 @@ private:
 
   /** Interpret a predicate with a single variable occurrence. */
   template <IKind kind, bool diagnose, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_unary_predicate(const F& f, const Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+  CUDA NI bool interpret_unary_predicate(const F& f, const Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
     local_universe u;
     bool res = local_universe::template interpret<kind, diagnose>(f, env, u, diagnostics);
     if(res) {
@@ -250,7 +250,7 @@ private:
   }
 
   template <IKind kind, bool diagnose, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_predicate(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+  CUDA NI bool interpret_predicate(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
     if(f.type() != UNTYPED && f.type() != aty()) {
       RETURN_INTERPRETATION_ERROR("The abstract type of this predicate does not match the one of the current abstract element.");
     }
@@ -268,7 +268,7 @@ private:
 
 public:
   template <IKind kind, bool diagnose = false, class F, class Env, class I>
-  CUDA NI bool interpret(const F& f, Env& env, I& intermediate, IDiagnostics<F>& diagnostics) const {
+  CUDA NI bool interpret(const F& f, Env& env, I& intermediate, IDiagnostics& diagnostics) const {
     if(f.is_untyped() || f.type() == aty()) {
       return interpret_predicate<kind, diagnose>(f, env, intermediate, diagnostics);
     }
@@ -289,13 +289,13 @@ public:
    * In that case, the store will only be equivalent modulo the `env` structure.
   */
   template <bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_tell(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+  CUDA NI bool interpret_tell(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
     return interpret<IKind::TELL, diagnose>(f, env, tell, diagnostics);
   }
 
   /** Similar to `interpret_tell` but do not support existential quantifier and therefore leaves `env` unchanged. */
   template <bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_ask(const F& f, const Env& env, ask_type<Alloc2>& ask, IDiagnostics<F>& diagnostics) const {
+  CUDA NI bool interpret_ask(const F& f, const Env& env, ask_type<Alloc2>& ask, IDiagnostics& diagnostics) const {
     return const_cast<this_type*>(this)->interpret<IKind::ASK, diagnose>(f, const_cast<Env&>(env), ask, diagnostics);
   }
 

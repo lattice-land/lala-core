@@ -264,9 +264,16 @@ CUDA NI thrust::optional<F> negate_eq(const F& f) {
 
 template <class F>
 CUDA NI thrust::optional<F> negate(const F& f) {
-  if(f.is(F::Seq)) {
+  if(f.is_true()) {
+    return F::make_false();
+  }
+  else if(f.is_false()) {
+    return F::make_true();
+  }
+  else if(f.is(F::Seq)) {
     Sig neg_sig;
     switch(f.sig()) {
+      case NOT: return f.seq(0);
       case EQ: return negate_eq(f);
       // Total order predicates can be reversed.
       case LEQ: neg_sig = GT; break;

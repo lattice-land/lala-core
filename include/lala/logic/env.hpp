@@ -11,6 +11,8 @@
 #include "ast.hpp"
 #include "diagnostics.hpp"
 
+#include <unordered_map>
+
 namespace lala {
 
 template<class Allocator>
@@ -101,7 +103,7 @@ private:
     }
     else {
       lvar_idx = {lvars.size()};
-      lvars.push_back(Variable(name, sort, avar, get_allocator()));
+      lvars.push_back(Variable<allocator_type>{name, sort, avar, get_allocator()});
     }
     avar2lvar[aty].push_back(*lvar_idx);
     return avar;
@@ -109,7 +111,7 @@ private:
 
   // Variable redeclaration does not lead to an error, instead the abstract type of the variable is added to the abstract variables list (`avars`) of the variable.
   template <bool diagnose = false, class F>
-  CUDA NI bool interpret_existential(const F& f, AVar& avar, IDiagnostics<F>& diagnostics) {
+  CUDA NI bool interpret_existential(const F& f, AVar& avar, IDiagnostics& diagnostics) {
     const auto& vname = battery::get<0>(f.exists());
     if(f.type() == UNTYPED) {
       RETURN_INTERPRETATION_ERROR("Untyped abstract type: variable `" + vname + "` has no abstract type.");
@@ -125,7 +127,7 @@ private:
   }
 
   template <bool diagnose = false, class F>
-  CUDA NI bool interpret_lv(const F& f, AVar& avar, IDiagnostics<F>& diagnostics) {
+  CUDA NI bool interpret_lv(const F& f, AVar& avar, IDiagnostics& diagnostics) {
     const auto& vname = f.lv();
     auto var = variable_of(vname);
     if(var.has_value()) {
@@ -214,7 +216,7 @@ public:
    *    - Variable occurrence.
    * It returns an abstract variable (`AVar`) corresponding to the variable created (existential) or already presents (occurrence). */
   template <bool diagnose = false, class F>
-  CUDA NI bool interpret(const F& f, AVar& avar, IDiagnostics<F>& diagnostics) {
+  CUDA NI bool interpret(const F& f, AVar& avar, IDiagnostics& diagnostics) {
     if(f.is(F::E)) {
       return interpret_existential<diagnose>(f, avar, diagnostics);
     }

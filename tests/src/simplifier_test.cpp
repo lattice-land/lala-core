@@ -25,7 +25,7 @@ void test_simplification(
 
   f2.print();
 
-  IDiagnostics<F> diagnostics;
+  IDiagnostics diagnostics;
   auto istore = battery::make_shared<IStore, standard_allocator>(create_and_interpret_and_tell<IStore>(f1, env, diagnostics).value());
 
   using simplifier_type = Simplifier<IStore, standard_allocator>;

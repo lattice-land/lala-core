@@ -22,7 +22,7 @@ inline VarEnv<standard_allocator> env_with(const char* fzn) {
   VarEnv<standard_allocator> env;
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
-  IDiagnostics<F> diagnostics;
+  IDiagnostics diagnostics;
   if(f->is(F::Seq) && f->sig() == AND) {
     for(int i = 0; i < f->seq().size(); ++i) {
       AVar avar;
@@ -46,7 +46,7 @@ void interpret_must_error(const char* fzn, VarEnv<standard_allocator> env = VarE
   static_assert(kind == IKind::TELL || L::is_abstract_universe);
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
-  IDiagnostics<F> diagnostics;
+  IDiagnostics diagnostics;
   L value = make_bot<L>(env);
   bool res;
   if constexpr(L::is_abstract_universe) {
@@ -81,7 +81,7 @@ void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator
   using F = TFormula<standard_allocator>;
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
-  IDiagnostics<F> diagnostics;
+  IDiagnostics diagnostics;
   bool res;
   if constexpr(L::is_abstract_universe) {
     res = ginterpret_in<kind, true>(*f, env, value, diagnostics);
@@ -107,7 +107,7 @@ L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_alloca
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   typing(*f);
-  IDiagnostics<F> diagnostics;
+  IDiagnostics diagnostics;
   auto value = create_and_interpret_and_tell<L, true>(*f, env, diagnostics);
   if(diagnostics.is_fatal()) {
     diagnostics.print();
@@ -147,7 +147,7 @@ template <class L>
 bool interpret_and_ask(const char* fzn, L& value, VarEnv<standard_allocator>& env, bool has_warning = false) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
-  IDiagnostics<F> diagnostics;
+  IDiagnostics diagnostics;
   typename L::template ask_type<standard_allocator> ask;
   if(!ginterpret_in<IKind::ASK, true>(value, *f, env, ask, diagnostics)) {
     diagnostics.print();
@@ -292,7 +292,7 @@ void check_interpret_idempotence(const char* fzn) {
   f1.print(true);
   printf("\n");
   L value2 = make_bot<L>(env2);
-  IDiagnostics<F> diagnostics;
+  IDiagnostics diagnostics;
   EXPECT_TRUE(interpret_and_tell(f1, env2, value2, diagnostics));
   EXPECT_EQ(value1, value2);
   F f2 = value2.deinterpret(env2);

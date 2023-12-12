@@ -96,7 +96,7 @@ struct Sort {
 
 template <class Alloc1, class Alloc2>
 CUDA NI inline bool operator==(const Sort<Alloc1>& lhs, const Sort<Alloc2>& rhs) {
-  if(lhs.tag == rhs.tag) {
+  if(static_cast<int>(lhs.tag) == static_cast<int>(rhs.tag)) {
     if(lhs.tag == Sort<Alloc1>::Set) {
       return *(lhs.sub) == *(rhs.sub);
     }

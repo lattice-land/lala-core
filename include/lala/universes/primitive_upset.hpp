@@ -15,7 +15,6 @@
 #include "pre_fdec.hpp"
 #include "pre_zdec.hpp"
 #include "battery/memory.hpp"
-#include "../interpretation.hpp"
 
 /** A pre-abstract universe is a lattice (with usual operations join, order, ...) equipped with a simple logical interpretation function and a next/prev functions.
     We consider totally ordered pre-abstract universes with an upset semantics.
@@ -332,7 +331,7 @@ public:
 private:
   /** Interpret a formula of the form `k <sig> x`. */
   template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_tell_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics<F>& diagnostics) {
+  CUDA NI static bool interpret_tell_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics& diagnostics) {
     value_type value = pre_universe::bot();
     bool res = pre_universe::template interpret_tell<diagnose>(k, value, diagnostics);
     if(res) {
@@ -356,7 +355,7 @@ private:
 
   /** Interpret a formula of the form `k <sig> x`. */
   template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_ask_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics<F>& diagnostics) {
+  CUDA NI static bool interpret_ask_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics& diagnostics) {
     value_type value = pre_universe::bot();
     bool res = pre_universe::template interpret_ask<diagnose>(k, value, diagnostics);
     if(res) {
@@ -376,7 +375,7 @@ private:
   }
 
   template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M2>& tell, IDiagnostics<F>& diagnostics) {
+  CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M2>& tell, IDiagnostics& diagnostics) {
     const auto& set = k.s();
     if(set.size() == 0) {
       tell.tell_top();
@@ -404,7 +403,7 @@ public:
    * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom) depending on the underlying pre-universe.
    */
   template<bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret_tell(const F& f, const Env&, this_type2<M2>& tell, IDiagnostics<F>& diagnostics) {
+  CUDA NI static bool interpret_tell(const F& f, const Env&, this_type2<M2>& tell, IDiagnostics& diagnostics) {
     if(f.is(F::E)) {
       typename U::value_type val;
       bool res = pre_universe::template interpret_type<diagnose>(f, val, diagnostics);
@@ -447,7 +446,7 @@ public:
    * The symbol <op> is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`.
    */
   template<bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret_ask(const F& f, const Env&, this_type2<M2>& ask, IDiagnostics<F>& diagnostics) {
+  CUDA NI static bool interpret_ask(const F& f, const Env&, this_type2<M2>& ask, IDiagnostics& diagnostics) {
     if(f.is_binary()) {
       int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
       int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
@@ -469,7 +468,7 @@ public:
   }
 
   template<IKind kind, bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret(const F& f, const Env& env, this_type2<M2>& value, IDiagnostics<F>& diagnostics) {
+  CUDA NI static bool interpret(const F& f, const Env& env, this_type2<M2>& value, IDiagnostics& diagnostics) {
     if constexpr(kind == IKind::TELL) {
       return interpret_tell<diagnose>(f, env, value, diagnostics);
     }

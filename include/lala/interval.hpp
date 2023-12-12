@@ -120,7 +120,7 @@ public:
    *    * `var x:B` when the underlying universe is arithmetic and preserve concrete covers.
    * Therefore, the element `k` is always in \f$ \gamma(lb) \cap \gamma(ub) \f$. */
   template<bool diagnose = false, class F, class Env, class U2>
-  CUDA NI static bool interpret_tell(const F& f, const Env& env, Interval<U2>& k, IDiagnostics<F>& diagnostics) {
+  CUDA NI static bool interpret_tell(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
     if constexpr(LB::preserve_concrete_covers && LB::is_arithmetic) {
       if(f.is(F::E)) {
         auto sort = f.sort();
@@ -138,7 +138,7 @@ public:
    *    * `x == k` is interpreted by over-approximating `x == k` in both bounds and then verifying both bounds are the same.
    *    * `x in {[l..u]} is interpreted by under-approximating `x >= l` and `x <= u`. */
   template<bool diagnose = false, class F, class Env, class U2>
-  CUDA NI static bool interpret_ask(const F& f, const Env& env, Interval<U2>& k, IDiagnostics<F>& diagnostics) {
+  CUDA NI static bool interpret_ask(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
     local_type itv = local_type::bot();
     if(f.is_binary() && f.sig() == NEQ) {
       return LB::template interpret_ask<diagnose>(f, env, k.lb(), diagnostics);
@@ -172,7 +172,7 @@ public:
   }
 
   template<IKind kind, bool diagnose = false, class F, class Env, class U2>
-  CUDA NI static bool interpret(const F& f, const Env& env, Interval<U2>& k, IDiagnostics<F>& diagnostics) {
+  CUDA NI static bool interpret(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
     if constexpr(kind == IKind::ASK) {
       return interpret_ask<diagnose>(f, env, k, diagnostics);
     }

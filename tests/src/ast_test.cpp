@@ -30,7 +30,7 @@ std::optional<AVar> interpret2(Env& env, const char* fzn) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   AVar avar;
-  IDiagnostics<TFormula<standard_allocator>> diagnostics;
+  IDiagnostics diagnostics;
   if(env.interpret(*f, avar, diagnostics)) {
     return {avar};
   }

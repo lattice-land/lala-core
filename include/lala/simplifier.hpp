@@ -120,7 +120,7 @@ public:
 
 public:
   template <bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_tell(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+  CUDA NI bool interpret_tell(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
     if(f.is(F::E)) {
       AVar avar;
       if(env.interpret(f.map_atype(aty()), avar, diagnostics)) {
@@ -138,12 +138,12 @@ public:
   }
 
   template <IKind kind, bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA bool interpret(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics<F>& diagnostics) const {
+  CUDA bool interpret(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
     return interpret_tell<diagnose>(f, env, tell, diagnostics);
   }
 
-  template <class Alloc2>
-  CUDA this_type& tell(tell_type<Alloc2>&& t) {
+  template <class Alloc2, class Mem>
+  CUDA this_type& tell(tell_type<Alloc2>&& t, BInc<Mem>& has_changed) {
     assert(t.env != nullptr);
     env = *(t.env);
     eliminated_variables.resize(t.num_vars);
@@ -155,7 +155,14 @@ public:
     }
     formulas = std::move(t.formulas);
     simplified_formulas.resize(formulas.size());
+    has_changed.tell_top();
     return *this;
+  }
+
+  template <class Alloc2>
+  CUDA this_type& tell(tell_type<Alloc2>&& t) {
+    local::BInc has_changed;
+    return tell(std::move(t), has_changed);
   }
 
 private:
@@ -234,7 +241,7 @@ private:
     }
     else {
       // Eliminate entailed formulas.
-      IDiagnostics<F> diagnostics;
+      IDiagnostics diagnostics;
       typename sub_type::template ask_type<allocator_type> ask;
       if(sub->interpret_ask(formulas[i], env, ask, diagnostics)) {
         if(sub->ask(ask)) {
@@ -249,7 +256,11 @@ private:
         if(f.is_variable()) {
           AVar x = var_of(f);
           if(eliminated_variables.test(x.vid())) {
-            return constants[x.vid()].template deinterpret<F>();
+            auto k = constants[x.vid()].template deinterpret<F>();
+            if(env[x].sort.is_bool() && k.is(F::Z)) {
+              return k.z() == 0 ? F::make_false() : F::make_true();
+            }
+            return std::move(k);
           }
           else if(equivalence_classes[x.vid()] != x.vid()) {
             return F::make_lvar(UNTYPED, env.name_of(AVar{aty(), equivalence_classes[x.vid()]}));

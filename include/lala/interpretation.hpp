@@ -13,16 +13,11 @@
 
 namespace lala {
 
-enum class IKind {
-  ASK,
-  TELL
-};
-
 /** Interpret `true` in the lattice `L`.
  * \return `true` if `L` preserves the bottom element w.r.t. the concrete domain or if `true` is interpreted by under-approximation (kind == ASK).
  */
 template <class L, IKind kind, bool diagnose = false, class F>
-CUDA bool ginterpret_true(const F& f, IDiagnostics<F>& diagnostics) {
+CUDA bool ginterpret_true(const F& f, IDiagnostics& diagnostics) {
   assert(f.is_true());
   if constexpr(kind == IKind::ASK || L::preserve_bot) {
     return true;
@@ -37,7 +32,7 @@ CUDA bool ginterpret_true(const F& f, IDiagnostics<F>& diagnostics) {
  * It provides default interpretation for common formulas such as `true`, `false` and conjunction of formulas whenever `A` satisfies some lattice-theoretic conditions.
  */
 template <IKind kind, bool diagnose = false, class A, class F, class Env, class I>
-CUDA bool ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiagnostics<F>& diagnostics) {
+CUDA bool ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiagnostics& diagnostics) {
   const char* name = A::name;
   if(f.is_true()) {
     return ginterpret_true<A, kind, diagnose>(f, diagnostics);
@@ -70,7 +65,7 @@ CUDA bool ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiag
 /** This function provides an extended and unified interface to ask and tell interpretation of formula in abstract universes.
  * It provides default interpretation for common formulas such as `true`, `false`, conjunction and disjunction of formulas whenever `U` satisfies some lattice-theoretic conditions. */
 template <IKind kind, bool diagnose = false, class F, class Env, class U>
-CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics<F>& diagnostics) {
+CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diagnostics) {
   const char* name = U::name;
   if(f.is_true()) {
     return ginterpret_true<U, kind, diagnose>(f, diagnostics);
@@ -123,9 +118,9 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics<F>& d
 
 /** Top-level version of `ginterpret_in`, we restore `env` and `intermediate` in case of failure. */
 template <IKind kind, bool diagnose = false, class A, class F, class Env, class I>
-CUDA bool top_level_ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiagnostics<F>& diagnostics) {
+CUDA bool top_level_ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiagnostics& diagnostics) {
   auto snap = env.snapshot();
-  I copy{intermediate};
+  I copy = intermediate;
   if(ginterpret_in<kind, diagnose>(a, f, env, intermediate, diagnostics)) {
     return true;
   }
@@ -147,14 +142,15 @@ CUDA A make_bot(Env& env, Alloc alloc = Alloc{}) {
 }
 
 template <bool diagnose = false, class TellAlloc = battery::standard_allocator, class F, class Env, class L>
-CUDA bool interpret_and_tell(const F& f, Env& env, L& value, IDiagnostics<F>& diagnostics, TellAlloc tell_alloc = TellAlloc{}) {
+CUDA bool interpret_and_tell(const F& f, Env& env, L& value, IDiagnostics& diagnostics, TellAlloc tell_alloc = TellAlloc{}) {
   if constexpr(L::is_abstract_universe) {
     return ginterpret_in<IKind::TELL, diagnose>(f, env, value, diagnostics);
   }
   else {
     typename L::template tell_type<TellAlloc> tell{tell_alloc};
     if(top_level_ginterpret_in<IKind::TELL, diagnose>(value, f, env, tell, diagnostics)) {
-      value.tell(tell);
+      local::BInc has_changed;
+      value.tell(tell, has_changed);
       return true;
     }
     else {
@@ -165,7 +161,7 @@ CUDA bool interpret_and_tell(const F& f, Env& env, L& value, IDiagnostics<F>& di
 
 template <class A, bool diagnose = false, class F, class Env, class TellAlloc = typename A::allocator_type>
 CUDA std::optional<A> create_and_interpret_and_tell(const F& f,
- Env& env, IDiagnostics<F>& diagnostics,
+ Env& env, IDiagnostics& diagnostics,
  typename A::allocator_type alloc = typename A::allocator_type{},
  TellAlloc tell_alloc = TellAlloc{})
 {
