@@ -169,6 +169,7 @@ private:
   // Return the abstract variable of the subdomain from the abstract variable `x` of this domain.
   // In the environment, all variables should have been interpreted by the sub-domain, and we assume avars[0] contains the sub abstract variable.
   CUDA AVar to_sub_var(AVar x) const {
+    assert(env[x].avars.size() > 0);
     return env[x].avars[0];
   }
 
@@ -243,7 +244,7 @@ private:
       // Eliminate entailed formulas.
       IDiagnostics diagnostics;
       typename sub_type::template ask_type<allocator_type> ask;
-      if(sub->interpret_ask(formulas[i], env, ask, diagnostics)) {
+      if(sub->template interpret_ask(formulas[i], env, ask, diagnostics)) {
         if(sub->ask(ask)) {
           eliminate(eliminated_formulas, i, has_changed);
           return;
@@ -252,12 +253,12 @@ private:
       // Replace assigned variables by constants.
       // Note that since everything is in a fixed point loop, both the constant and the equivalence class might be updated later on.
       // This is one of the reasons we cannot update `formulas` in-place: we would not be able to update the constant a second time (since the variable would be eliminated).
-      auto f = formulas[i].map([&](const F& f) {
+      auto f = formulas[i].map([&](const F& f, const F& parent) {
         if(f.is_variable()) {
           AVar x = var_of(f);
           if(eliminated_variables.test(x.vid())) {
             auto k = constants[x.vid()].template deinterpret<F>();
-            if(env[x].sort.is_bool() && k.is(F::Z)) {
+            if(env[x].sort.is_bool() && k.is(F::Z) && parent.is_logical()) {
               return k.z() == 0 ? F::make_false() : F::make_true();
             }
             return std::move(k);

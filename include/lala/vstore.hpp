@@ -42,16 +42,20 @@ public:
   using allocator_type = Allocator;
   using this_type = VStore<universe_type, allocator_type>;
 
+  template <class Alloc>
   struct var_dom {
     AVar avar;
     local_universe dom;
     var_dom() = default;
-    var_dom(const var_dom&) = default;
+    var_dom(const var_dom<Alloc>&) = default;
+    CUDA var_dom(const Alloc&) {}
     CUDA var_dom(AVar avar, const local_universe& dom): avar(avar), dom(dom) {}
+    template <class VarDom>
+    CUDA var_dom(const VarDom& other): avar(other.avar), dom(other.dom) {}
   };
 
   template <class Alloc>
-  using tell_type = battery::vector<var_dom, Alloc>;
+  using tell_type = battery::vector<var_dom<Alloc>, Alloc>;
 
   template <class Alloc>
   using ask_type = tell_type<Alloc>;
@@ -194,7 +198,7 @@ private:
   template <bool diagnose, class F, class Env, class Alloc2>
   CUDA NI bool interpret_existential(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
     assert(f.is(F::E));
-    var_dom k;
+    var_dom<Alloc2> k;
     if(local_universe::template interpret_tell<diagnose>(f, env, k.dom, diagnostics)) {
       if(env.interpret(f.map_atype(atype), k.avar, diagnostics)) {
         tell.push_back(k);
@@ -211,7 +215,7 @@ private:
       return true;
     }
     else if(f.is_false()) {
-      tell.push_back(var_dom(AVar{}, U::top()));
+      tell.push_back(var_dom<Alloc2>(AVar{}, U::top()));
       return true;
     }
     else {
@@ -229,7 +233,7 @@ private:
       // When it is not necessary, we try to avoid using the environment.
       // This is for instance useful when refinement operators add new constraints but do not have access to the environment (e.g., split()), and to avoid passing the environment around everywhere.
       if(varf.is(F::V)) {
-        tell.push_back(var_dom(varf.v(), u));
+        tell.push_back(var_dom<Alloc2>(varf.v(), u));
       }
       else {
         auto var = var_in(f, env);
@@ -240,7 +244,7 @@ private:
         if(!avar.has_value()) {
           RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
         }
-        tell.push_back(var_dom(*avar, u));
+        tell.push_back(var_dom<Alloc2>(*avar, u));
       }
       return true;
     }

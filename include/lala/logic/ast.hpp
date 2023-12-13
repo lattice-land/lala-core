@@ -592,34 +592,42 @@ public:
     return std::move(f);
   }
 
-  /** In-place map of each leaf of the formula to a new leaf according to `fun`. */
+private:
   template <class Fun>
-  CUDA NI void inplace_map(Fun fun) {
+  CUDA NI void inplace_map_(Fun fun, const this_type& parent) {
     switch(formula.index()) {
       case Seq: {
         for(int i = 0; i < seq().size(); ++i) {
-          seq(i).inplace_map(fun);
+          seq(i).inplace_map_(fun, *this);
         }
         break;
       }
       case ESeq: {
         for(int i = 0; i < eseq().size(); ++i) {
-          eseq(i).inplace_map(fun);
+          eseq(i).inplace_map_(fun, *this);
         }
         break;
       }
       default: {
-        fun(*this);
+        fun(*this, parent);
         break;
       }
     }
+  }
+
+public:
+
+  /** In-place map of each leaf of the formula to a new leaf according to `fun`. */
+  template <class Fun>
+  CUDA NI void inplace_map(Fun fun) {
+    return inplace_map_(fun, *this);
   }
 
   /** Map of each leaf of the formula to a new leaf according to `fun`. */
   template <class Fun>
   CUDA NI this_type map(Fun fun) {
     this_type copy(*this);
-    copy.inplace_map([&](this_type& f){ f = fun(f); });
+    copy.inplace_map([&](this_type& f, const this_type& parent){ f = fun(f, parent); });
     return std::move(copy);
   }
 
