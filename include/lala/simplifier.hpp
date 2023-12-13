@@ -310,7 +310,7 @@ public:
 
   CUDA NI TFormula<allocator_type> deinterpret() {
     using F = TFormula<allocator_type>;
-    typename F::Sequence seq{get_allocator()};
+    typename F::Sequence seq(get_allocator());
 
     // for(int i = 0; i < equivalence_classes.size(); ++i) {
     //   printf("equivalence_classes[%d] = %d (%s)\n", i, equivalence_classes[i].value(), env[AVar(aty(), i)].name.data());
