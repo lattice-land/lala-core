@@ -48,7 +48,7 @@ public:
     local_universe dom;
     var_dom() = default;
     var_dom(const var_dom<Alloc>&) = default;
-    CUDA var_dom(const Alloc&) {}
+    CUDA explicit var_dom(const Alloc&) {}
     CUDA var_dom(AVar avar, const local_universe& dom): avar(avar), dom(dom) {}
     template <class VarDom>
     CUDA var_dom(const VarDom& other): avar(other.avar), dom(other.dom) {}
@@ -495,10 +495,15 @@ public:
   }
 
   CUDA void print() const {
+    if(is_top()) {
+      printf("\u22A4 | ");
+    }
+    printf("<");
     for(int i = 0; i < vars(); ++i) {
       data[i].print();
-      printf("%s", (i+1 == vars() ? "\n" : ", "));
+      printf("%s", (i+1 == vars() ? "" : ", "));
     }
+    printf(">\n");
   }
 };
 
@@ -657,7 +662,7 @@ CUDA bool operator!=(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 template<class L, class Alloc>
 std::ostream& operator<<(std::ostream &s, const VStore<L, Alloc> &vstore) {
   if(vstore.is_top()) {
-    s << "\u22A4";
+    s << "\u22A4: ";
   }
   else {
     s << "<";

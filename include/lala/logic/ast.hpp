@@ -722,7 +722,7 @@ private:
         printf("}");
         break;
       case V:
-        printf("var(%d, %d)", v().aty(), v().vid());
+        printf("var(%d, %d)", v().vid(), v().aty());
         break;
       case LV:
         lv().print();
