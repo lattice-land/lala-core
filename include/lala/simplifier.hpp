@@ -103,6 +103,10 @@ public:
     return atype;
   }
 
+  CUDA local::BInc is_top() const {
+    return sub->is_top();
+  }
+
   /** Returns the number of variables currently represented by this abstract element. */
   CUDA size_t vars() const {
     return equivalence_classes.size();
