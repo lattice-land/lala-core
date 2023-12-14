@@ -397,6 +397,15 @@ public:
     return *this;
   }
 
+  template <class Alloc2>
+  CUDA this_type& operator=(const VarEnv<Alloc2>& other) {
+    lvars = other.lvars;
+    avar2lvar = other.avar2lvar;
+    var_index = DispatchIndex<allocator_type>(other.var_index, &lvars);
+    var_index.set_lvars(&lvars);
+    return *this;
+  }
+
   CUDA allocator_type get_allocator() const {
     return lvars.get_allocator();
   }
