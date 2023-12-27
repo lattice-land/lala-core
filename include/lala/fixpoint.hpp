@@ -111,7 +111,7 @@ public:
   }
 
   template <class A, class M>
-  CUDA size_t fixpoint(A& a, BInc<M>& has_changed) {
+  CUDA size_t fixpoint(A& a, BInc<M>& has_changed, volatile bool* stop) {
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
     return 0;
@@ -123,6 +123,7 @@ public:
       iterate(a, changed[i%3]);
       changed[(i+1)%3].dtell_bot(); // reinitialize changed for the next iteration.
       is_top[i%3].tell(a.is_top());
+      is_top[i%3].tell(local::BInc{*stop});
       barrier();
     }
     // It changes if we performed several iteration, or if the first iteration changed the abstract domain.
@@ -130,6 +131,12 @@ public:
     has_changed.tell(changed[2]);
     return i - 1;
   #endif
+  }
+
+  template <class A, class M>
+  CUDA size_t fixpoint(A& a, BInc<M>& has_changed) {
+    bool stop = false;
+    return fixpoint(a, has_changed, &stop);
   }
 
   template <class A>
