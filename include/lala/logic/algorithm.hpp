@@ -382,105 +382,355 @@ CUDA NI void map_avar_to_lvar(F& f, const Env& env, bool erase_type = false) {
   }
 }
 
-// namespace impl {
-//   template <class Seq>
-//   CUDA NI F eval_seq(Sig sig, const Seq& seq) {
-//     switch(sig) {
-//       case AND: {
-//         bool all_true = true;
-//         for(int i = 0; i < seq.size(); ++i) {
-//           all_true &= seq[i].is_true();
-//         }
-//         return all_true ? F::make_true() : F::make_false();
-//       }
-//       case OR: {
-//         bool all_false = true;
-//         for(int i = 0; i < seq.size(); ++i) {
-//           all_false &= seq[i].is_false();
-//         }
-//         return all_false ? F::make_false() : F::make_nary(sig, seq, UNTYPED);
-//       }
-//       case ADD: {
-//         logic_int sum = 0;
-//         for(int i = 0; i < seq.size(); ++i) {
-//           sum += seq[i].z();
-//         }
-//         return F::make_z(sum);
-//       }
-//       case MUL: {
-//         logic_int prod = 1;
-//         for(int i = 0; i < seq.size(); ++i) {
-//           prod *= seq[i].z();
-//         }
-//         return F::make_z(prod);
-//       }
-//       case SUB: {
-//         assert(seq.size() == 2);
-//         return F::make_z(seq[0].z() - seq[1].z());
-//       }
-//       case DIV: {
-//         assert(seq.size() == 2);
-//         return F::make_z(seq[0].z() / seq[1].z());
-//       }
-//       case MOD: {
-//         assert(seq.size() == 2);
-//         return F::make_z(seq[0].z() % seq[1].z());
-//       }
-//       case POW: {
-//         assert(seq.size() == 2);
-//         return F::make_z(pow(seq[0].z(), seq[1].z()));
-//       }
-//       case EQ: {
-//         assert(seq.size() == 2);
-//         return F::make_b(seq[0].z() == seq[1].z());
-//       }
-//       case NEQ: {
-//         assert(seq.size() == 2);
-//         return F::make_b(seq[0].z() != seq[1].z());
-//       }
-//       case LT: {
-//         assert(seq.size() == 2);
-//         return F::make_b(seq[0].z() < seq[1].z());
-//       }
-//       case LEQ: {
-//         assert(seq.size() == 2);
-//     }
-//   }
-// }
+namespace impl {
+  template <class F>
+  CUDA bool is_bz(const F& f) {
+    return f.is(F::Z) || f.is(F::B);
+  }
 
-// template <class F>
-// CUDA NI F eval(const F& f) {
-//   switch(f.index()) {
-//     case F::Z: return f;
-//     case F::R: return f;
-//     case F::S: return f;
-//     case F::B: return f;
-//     case F::V: return f;
-//     case F::E: return f;
-//     case F::LV: return f;
-//     case F::Seq: {
-//       const auto& seq = f.seq();
-//       F::Sequence evaluated_seq;
-//       bool all_constants = true;
-//       for(int i = 0; i < seq.size(); ++i) {
-//         evaluated_seq[i] = eval(seq[i]);
-//         all_constants &= evaluated_seq[i].is_constant();
-//       }
-//       if(all_constants) {
-//         return impl::eval_seq(f.sig(), evaluated_seq);
-//       }
-//       return F::make_nary(f.sig(), std::move(seq), f.type());
-//     }
-//     case F::ESeq: {
-//       auto eseq = f.eseq();
-//       for(int i = 0; i < eseq.size(); ++i) {
-//         eseq[i] = eval(eseq[i]);
-//       }
-//       return F::make_nary(f.sig(), std::move(eseq), f.type());
-//     }
-//     default: assert(false); return f;
-//   }
-// }
+  template <class F>
+  CUDA bool is_binary_bz(const typename F::Sequence& seq) {
+    return seq.size() == 2 && is_bz(seq[0]) && is_bz(seq[1]);
+  }
+
+  template <class F>
+  CUDA bool is_binary_z(const typename F::Sequence& seq) {
+    return seq.size() == 2 && seq[0].is(F::Z) && seq[1].is(F::Z);
+  }
+
+  /** Evaluate the function or predicate `sig` on the sequence of constants `seq`.
+   * It only works on Boolean and integers constants for now.
+   */
+  template <class F>
+  CUDA F eval_seq(Sig sig, const typename F::Sequence& seq, AType atype) {
+    switch(sig) {
+      case AND: {
+        typename F::Sequence residual;
+        for(int i = 0; i < seq.size(); ++i) {
+          if(seq[i].is_false()) {
+            return F::make_false();
+          }
+          else if(!seq[i].is_true()) {
+            residual.push_back(seq[i]);
+          }
+        }
+        if(residual.size() == 0) {
+          return F::make_true();
+        }
+        else if(residual.size() == 1) {
+          return residual[0];
+        }
+        else {
+          return F::make_nary(AND, std::move(residual), atype);
+        }
+      }
+      case OR: {
+        typename F::Sequence residual;
+        for(int i = 0; i < seq.size(); ++i) {
+          if(seq[i].is_true()) {
+            return F::make_true();
+          }
+          else if(!seq[i].is_false()) {
+            residual.push_back(seq[i]);
+          }
+        }
+        if(residual.size() == 0) {
+          return F::make_false();
+        }
+        else if(residual.size() == 1) {
+          return residual[0];
+        }
+        else {
+          return F::make_nary(OR, std::move(residual), atype);
+        }
+      }
+      case IMPLY: {
+        if(is_binary_bz<F>(seq)) {
+          return seq[0].is_false() || seq[1].is_true() ? F::make_true() : F::make_false();
+        }
+        else if(seq.size() == 2) {
+          if(seq[0].is_true()) { return seq[1]; }
+          else if(seq[0].is_false()) { return F::make_true(); }
+          else if(seq[1].is_true()) { return F::make_true(); }
+          else if(seq[1].is_false()) { return F::make_unary(NOT, seq[0], atype); }
+        }
+        break;
+      }
+      case EQUIV: {
+        if(is_binary_bz<F>(seq)) {
+          return (seq[0].is_true() == seq[1].is_true()) ? F::make_true() : F::make_false();
+        }
+        else if(seq.size() == 2) {
+          if(seq[0].is_true()) { return seq[1]; }
+          else if(seq[0].is_false()) { return F::make_unary(NOT, seq[1], atype); }
+          else if(seq[1].is_true()) { return seq[0]; }
+          else if(seq[1].is_false()) { return F::make_unary(NOT, seq[0], atype); }
+        }
+        break;
+      }
+      case NOT: {
+        if(seq.size() == 1 && is_bz(seq[0])) {
+          return seq[0].is_true() ? F::make_false() : F::make_true();
+        }
+        break;
+      }
+      case XOR: {
+        if(is_binary_bz<F>(seq)) {
+          return (seq[0].is_true() != seq[1].is_true()) ? F::make_true() : F::make_false();
+        }
+        break;
+      }
+      case ITE: {
+        if(seq.size() == 3 && is_bz(seq[0])) {
+          return seq[0].is_true() ? seq[1] : seq[2];
+        }
+        break;
+      }
+      case EQ: {
+        if(seq.size() == 2 && seq[0].is_constant() && seq[1].is_constant()) {
+          return seq[0] == seq[1] ? F::make_true() : F::make_false();
+        }
+        break;
+      }
+      case NEQ: {
+        if(seq.size() == 2 && seq[0].is_constant() && seq[1].is_constant()) {
+          return seq[0] != seq[1] ? F::make_true() : F::make_false();
+        }
+        break;
+      }
+      case LT: {
+        if(is_binary_z<F>(seq)) {
+          return seq[0].z() < seq[1].z() ? F::make_true() : F::make_false();
+        }
+        break;
+      }
+      case LEQ: {
+        if(is_binary_z<F>(seq)) {
+          return seq[0].z() <= seq[1].z() ? F::make_true() : F::make_false();
+        }
+        break;
+      }
+      case GT: {
+        if(is_binary_z<F>(seq)) {
+          return seq[0].z() > seq[1].z() ? F::make_true() : F::make_false();
+        }
+        break;
+      }
+      case GEQ: {
+        if(is_binary_z<F>(seq)) {
+          return seq[0].z() >= seq[1].z() ? F::make_true() : F::make_false();
+        }
+        break;
+      }
+      case MIN: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::min(seq[0].z(), seq[1].z()));
+        }
+        break;
+      }
+      case MAX: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::max(seq[0].z(), seq[1].z()));
+        }
+        break;
+      }
+      case NEG: {
+        if(seq.size() == 1 && is_bz(seq[0])) {
+          return F::make_z(-seq[0].to_z());
+        }
+        break;
+      }
+      case ABS: {
+        if(seq.size() == 1 && is_bz(seq[0])) {
+          return F::make_z(abs(seq[0].to_z()));
+        }
+        break;
+      }
+      case ADD: {
+        typename F::Sequence residual;
+        logic_int sum = 0;
+        for(int i = 0; i < seq.size(); ++i) {
+          if(is_bz(seq[i])) {
+            sum += seq[i].to_z();
+          }
+          else {
+            residual.push_back(seq[i]);
+          }
+        }
+        if(residual.size() == 0) {
+          return F::make_z(sum);
+        }
+        else {
+          if(sum != 0) {
+            residual.push_back(F::make_z(sum));
+          }
+          if(residual.size() == 1) {
+            return residual[0];
+          }
+          else {
+            return F::make_nary(ADD, std::move(residual), atype);
+          }
+        }
+      }
+      case MUL: {
+        typename F::Sequence residual;
+        logic_int prod = 1;
+        for(int i = 0; i < seq.size(); ++i) {
+          if(is_bz(seq[i])) {
+            prod *= seq[i].to_z();
+          }
+          else {
+            residual.push_back(seq[i]);
+          }
+        }
+        if(residual.size() == 0) {
+          return F::make_z(prod);
+        }
+        else {
+          if(prod == 0) {
+            return F::make_z(0);
+          }
+          else if(prod != 1) {
+            residual.push_back(F::make_z(prod));
+          }
+          if(residual.size() == 1) {
+            return residual[0];
+          }
+          else {
+            return F::make_nary(MUL, std::move(residual), atype);
+          }
+        }
+      }
+      case SUB: {
+        if(is_binary_bz<F>(seq)) {
+          return F::make_z(seq[0].to_z() - seq[1].to_z());
+        }
+        else if(seq.size() == 2 && is_bz(seq[1]) && seq[1].to_z() == 0) {
+          return seq[0];
+        }
+        break;
+      }
+      case TDIV: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::tdiv(seq[0].z(), seq[1].z()));
+        }
+        else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
+          return F::make_z(0);
+        }
+        break;
+      }
+      case FDIV: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::fdiv(seq[0].z(), seq[1].z()));
+        }
+        else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
+          return F::make_z(0);
+        }
+        break;
+      }
+      case CDIV: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::cdiv(seq[0].z(), seq[1].z()));
+        }
+        else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
+          return F::make_z(0);
+        }
+        break;
+      }
+      case EDIV: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::ediv(seq[0].z(), seq[1].z()));
+        }
+        else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
+          return F::make_z(0);
+        }
+        break;
+      }
+      case TMOD: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::tmod(seq[0].z(), seq[1].z()));
+        }
+        break;
+      }
+      case FMOD: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::fmod(seq[0].z(), seq[1].z()));
+        }
+        break;
+      }
+      case CMOD: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::cmod(seq[0].z(), seq[1].z()));
+        }
+        break;
+      }
+      case EMOD: {
+        if(is_binary_z<F>(seq)) {
+          return F::make_z(battery::emod(seq[0].z(), seq[1].z()));
+        }
+        break;
+      }
+      case POW: {
+        if(is_binary_bz<F>(seq)) {
+          return F::make_z(battery::ipow(seq[0].to_z(), seq[1].to_z()));
+        }
+        else if(seq.size() == 2 && is_bz(seq[1]) && seq[1].to_z() == 0) {
+          return F::make_z(1);
+        }
+        break;
+      }
+      case IN: {
+        if(seq.size() == 2 && is_bz(seq[0]) && seq[1].is(F::S)) {
+          const auto& set = seq[1].s();
+          logic_int left = seq[0].to_z();
+          for(int i = 0; i < set.size(); ++i) {
+            const auto& lb = battery::get<0>(set[i]);
+            const auto& ub = battery::get<1>(set[i]);
+            if(is_bz(lb) && is_bz(ub) && left >= lb.to_z() && left <= ub.to_z()) {
+              return F::make_true();
+            }
+          }
+          return F::make_false();
+        }
+        else if(seq.size() == 2 && seq[1].is(F::S) && seq[1].s().size() == 0) {
+          return F::make_false();
+        }
+        break;
+      }
+    }
+    return F::make_nary(sig, seq, atype);
+  }
+}
+
+template <class F>
+CUDA NI F eval(const F& f) {
+  switch(f.index()) {
+    case F::Z: return f;
+    case F::R: return f;
+    case F::S: return f;
+    case F::B: return f;
+    case F::V: return f;
+    case F::E: return f;
+    case F::LV: return f;
+    case F::Seq: {
+      const auto& seq = f.seq();
+      typename F::Sequence evaluated_seq;
+      for(int i = 0; i < seq.size(); ++i) {
+        evaluated_seq.push_back(eval(seq[i]));
+      }
+      return impl::eval_seq<F>(f.sig(), evaluated_seq, f.type());
+    }
+    case F::ESeq: {
+      auto eseq = f.eseq();
+      typename F::Sequence evaluated_eseq;
+      for(int i = 0; i < eseq.size(); ++i) {
+        evaluated_eseq.push_back(eval(eseq[i]));
+      }
+      return F::make_nary(f.esig(), std::move(evaluated_eseq), f.type());
+    }
+    default: assert(false); return f;
+  }
+}
 
 }
 

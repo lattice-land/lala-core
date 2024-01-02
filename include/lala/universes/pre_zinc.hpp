@@ -240,14 +240,14 @@ public:
       case TDIV: return x / y;
       case TMOD: return x % y;
       // Floor division and modulus, see (Leijen D. (2003). Division and Modulus for Computer Scientists).
-      case FDIV: return x / y - (battery::signum(x % y) == -battery::signum(y));
-      case FMOD: return x % y + y * (battery::signum(x % y) == -battery::signum(y));
+      case FDIV: return battery::fdiv(x, y);
+      case FMOD: return battery::fmod(x, y);
       // Ceil division and modulus.
-      case CDIV: return x / y + (battery::signum(x % y) == battery::signum(y));
-      case CMOD: return x % y - y * (battery::signum(x % y) == battery::signum(y));
+      case CDIV: return battery::cdiv(x, y);
+      case CMOD: return battery::cmod(x, y);
       // Euclidean division and modulus, see (Leijen D. (2003). Division and Modulus for Computer Scientists).
-      case EDIV: return x / y - ((x % y >= 0) ? 0 : battery::signum(y));
-      case EMOD: return x % y + y * ((x % y >= 0) ? 0 : battery::signum(y));
+      case EDIV: return battery::ediv(x, y);
+      case EMOD: return battery::emod(x, y);
       case POW: return battery::ipow(x, y);
       case MIN: return battery::min(x, y);
       case MAX: return battery::max(x, y);

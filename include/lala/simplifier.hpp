@@ -274,6 +274,10 @@ private:
         }
         return f;
       });
+      f = eval(f);
+      if(f.is_true()) {
+        eliminate(eliminated_formulas, i, has_changed);
+      }
       if(f != simplified_formulas[i]) {
         simplified_formulas[i] = f;
         has_changed.tell_top();

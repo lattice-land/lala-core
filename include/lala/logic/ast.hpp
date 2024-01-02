@@ -462,6 +462,11 @@ public:
     return (is(B) && !b()) || (is(Z) && z() == 0);
   }
 
+  CUDA logic_int to_z() const {
+    assert(is(B) || is(Z));
+    return (is(B) ? (b() ? 1 : 0) : z());
+  }
+
   CUDA bool is_constant() const {
     return is(B) || is(Z) || is(R) || is(S);
   }

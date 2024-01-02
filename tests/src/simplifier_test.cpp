@@ -65,6 +65,12 @@ TEST(Simplifier, SimplificationGlobalTest) {
   test_simplification(
     "var 0..8: x; var 2..2: y; var 5..5: z;",
     "var 0..8: x; var 2..2: y; var 5..5: z; constraint int_eq(x, int_plus(y, z));",
-    "var 0..8: x; constraint int_eq(x, int_plus(2, 5));"
+    "var 0..8: x; constraint int_eq(x, 7);"
+  );
+
+  test_simplification(
+    "var 0..8: x; var 2..2: y; var 5..5: z;",
+    "var 0..8: x; var 2..2: y; var 5..5: z; constraint int_lin_eq([0, 1, 2], [x, y, z], 12);",
+    "var 0..8: x;"
   );
 }
