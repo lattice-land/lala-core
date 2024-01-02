@@ -382,6 +382,106 @@ CUDA NI void map_avar_to_lvar(F& f, const Env& env, bool erase_type = false) {
   }
 }
 
+// namespace impl {
+//   template <class Seq>
+//   CUDA NI F eval_seq(Sig sig, const Seq& seq) {
+//     switch(sig) {
+//       case AND: {
+//         bool all_true = true;
+//         for(int i = 0; i < seq.size(); ++i) {
+//           all_true &= seq[i].is_true();
+//         }
+//         return all_true ? F::make_true() : F::make_false();
+//       }
+//       case OR: {
+//         bool all_false = true;
+//         for(int i = 0; i < seq.size(); ++i) {
+//           all_false &= seq[i].is_false();
+//         }
+//         return all_false ? F::make_false() : F::make_nary(sig, seq, UNTYPED);
+//       }
+//       case ADD: {
+//         logic_int sum = 0;
+//         for(int i = 0; i < seq.size(); ++i) {
+//           sum += seq[i].z();
+//         }
+//         return F::make_z(sum);
+//       }
+//       case MUL: {
+//         logic_int prod = 1;
+//         for(int i = 0; i < seq.size(); ++i) {
+//           prod *= seq[i].z();
+//         }
+//         return F::make_z(prod);
+//       }
+//       case SUB: {
+//         assert(seq.size() == 2);
+//         return F::make_z(seq[0].z() - seq[1].z());
+//       }
+//       case DIV: {
+//         assert(seq.size() == 2);
+//         return F::make_z(seq[0].z() / seq[1].z());
+//       }
+//       case MOD: {
+//         assert(seq.size() == 2);
+//         return F::make_z(seq[0].z() % seq[1].z());
+//       }
+//       case POW: {
+//         assert(seq.size() == 2);
+//         return F::make_z(pow(seq[0].z(), seq[1].z()));
+//       }
+//       case EQ: {
+//         assert(seq.size() == 2);
+//         return F::make_b(seq[0].z() == seq[1].z());
+//       }
+//       case NEQ: {
+//         assert(seq.size() == 2);
+//         return F::make_b(seq[0].z() != seq[1].z());
+//       }
+//       case LT: {
+//         assert(seq.size() == 2);
+//         return F::make_b(seq[0].z() < seq[1].z());
+//       }
+//       case LEQ: {
+//         assert(seq.size() == 2);
+//     }
+//   }
+// }
+
+// template <class F>
+// CUDA NI F eval(const F& f) {
+//   switch(f.index()) {
+//     case F::Z: return f;
+//     case F::R: return f;
+//     case F::S: return f;
+//     case F::B: return f;
+//     case F::V: return f;
+//     case F::E: return f;
+//     case F::LV: return f;
+//     case F::Seq: {
+//       const auto& seq = f.seq();
+//       F::Sequence evaluated_seq;
+//       bool all_constants = true;
+//       for(int i = 0; i < seq.size(); ++i) {
+//         evaluated_seq[i] = eval(seq[i]);
+//         all_constants &= evaluated_seq[i].is_constant();
+//       }
+//       if(all_constants) {
+//         return impl::eval_seq(f.sig(), evaluated_seq);
+//       }
+//       return F::make_nary(f.sig(), std::move(seq), f.type());
+//     }
+//     case F::ESeq: {
+//       auto eseq = f.eseq();
+//       for(int i = 0; i < eseq.size(); ++i) {
+//         eseq[i] = eval(eseq[i]);
+//       }
+//       return F::make_nary(f.sig(), std::move(eseq), f.type());
+//     }
+//     default: assert(false); return f;
+//   }
+// }
+
 }
 
 #endif

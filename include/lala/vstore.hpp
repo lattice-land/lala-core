@@ -450,6 +450,10 @@ public:
     return true;
   }
 
+  CUDA size_t num_refinements() const { return 0; }
+  template <class M>
+  CUDA void refine(size_t, BInc<M>&) const { assert(false); }
+
   /**  An abstract element is extractable when it is not equal to top.
    * If the strategy is `atoms`, we check the domains are singleton.
    */

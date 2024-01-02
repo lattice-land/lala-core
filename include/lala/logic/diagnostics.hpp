@@ -68,6 +68,18 @@ public:
     return suberrors.size();
   }
 
+  /** Deletes all suberrors between `i` and `n-1`. */
+  CUDA void cut(size_t i) {
+    suberrors.resize(i);
+    fatal = false;
+    for(int j = 0; j < suberrors.size(); ++j) {
+      if(suberrors[j].is_fatal()) {
+        fatal = true;
+        return;
+      }
+    }
+  }
+
   /** This operator moves all `suberrors[i..(n-1)]` as a suberror of `suberrors[i-1]`.
    * If only warnings are present, `suberrors[i-1]` is converted into a warning.
    * If `succeeded` is true, then all suberrors are erased.
@@ -82,14 +94,7 @@ public:
         suberrors[i-1].add_suberror(std::move(suberrors[j]));
       }
     }
-    suberrors.resize((suberrors[i-1].num_suberrors() == 0 && succeeded) ? i-1 : i);
-    fatal = false;
-    for(int i = 0; i < suberrors.size(); ++i) {
-      if(suberrors[i].is_fatal()) {
-        fatal = true;
-        return;
-      }
-    }
+    cut((suberrors[i-1].num_suberrors() == 0 && succeeded) ? i-1 : i);
   }
 
   CUDA NI void print(int indent = 0) const {
