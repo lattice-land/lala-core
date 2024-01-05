@@ -590,6 +590,9 @@ namespace impl {
           if(prod == 0) {
             return F::make_z(0);
           }
+          else if(prod == -1 && residual.size() > 0) {
+            residual[0] = F::make_unary(NEG, std::move(residual[0]), atype);
+          }
           else if(prod != 1) {
             residual.push_back(F::make_z(prod));
           }
