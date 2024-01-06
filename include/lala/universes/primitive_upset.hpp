@@ -78,8 +78,8 @@ using BDec = PrimitiveUpset<PreBDec, Mem>;
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
 namespace local {
-  using ZInc = ::lala::ZInc<int, battery::local_memory>;
-  using ZDec = ::lala::ZDec<int, battery::local_memory>;
+  using ZInc = ::lala::ZInc<int, battery::local_memory>; // Q: Should be logic_int? (bug?)
+  using ZDec = ::lala::ZDec<int, battery::local_memory>; // Q: Should be logic_int? (bug?)
   using FInc = ::lala::FInc<double, battery::local_memory>;
   using FDec = ::lala::FDec<double, battery::local_memory>;
   using BInc = ::lala::BInc<battery::local_memory>;
@@ -399,7 +399,7 @@ private:
 
 public:
   /** Expects a predicate of the form `x <op> k`, `k <op> x` or `x in k`, where `x` is any variable's name, and `k` a constant.
-   * The symbol <op> is expected to be `U::sig_order()`, `U::sig_strict_order()` and `=`.
+   * The symbol `<op>` is expected to be `U::sig_order()`, `U::sig_strict_order()` and `=`.
    * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom) depending on the underlying pre-universe.
    */
   template<bool diagnose = false, class F, class Env, class M2>
@@ -443,7 +443,7 @@ public:
   }
 
   /** Expects a predicate of the form `x <op> k` or `k <op> x`, where `x` is any variable's name, and `k` a constant.
-   * The symbol <op> is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`.
+   * The symbol `<op>` is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`.
    */
   template<bool diagnose = false, class F, class Env, class M2>
   CUDA NI static bool interpret_ask(const F& f, const Env&, this_type2<M2>& ask, IDiagnostics& diagnostics) {

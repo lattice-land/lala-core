@@ -92,6 +92,7 @@ void run_gpu_min(const std::vector<int>& v, cpu_gpu_vec_ptr g) {
 }
 
 int main() {
+  battery::configuration::gpu.init();
   std::vector<int> v = init_random_vector(1000000);
   cpu_gpu_vec_ptr g = ::battery::make_shared<cpu_gpu_vec, managed_allocator>(v);
   run_gpu_min<1, 1>(v, g);

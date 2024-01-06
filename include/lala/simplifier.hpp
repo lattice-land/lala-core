@@ -225,7 +225,7 @@ private:
   // We eliminate the representative of the variable `i` if it is a singleton.
   template <class Mem>
   CUDA void vrefine(size_t i, BInc<Mem>& has_changed) {
-    const auto& u = sub->project(to_sub_var(i));
+    const auto& u = sub->project(to_sub_var(static_cast<int>(i)));
     size_t j = equivalence_classes[i];
     constants[j].tell(u, has_changed);
     if(constants[j].lb().value() == constants[j].ub().value()) {
@@ -248,7 +248,11 @@ private:
       // Eliminate entailed formulas.
       IDiagnostics diagnostics;
       typename sub_type::template ask_type<allocator_type> ask;
+#ifdef _MSC_VER // Avoid MSVC compiler bug. See https://stackoverflow.com/questions/77144003/use-of-template-keyword-before-dependent-template-name
+      if(sub->interpret_ask(formulas[i], env, ask, diagnostics)) {
+#else
       if(sub->template interpret_ask(formulas[i], env, ask, diagnostics)) {
+#endif
         if(sub->ask(ask)) {
           eliminate(eliminated_formulas, i, has_changed);
           return;
@@ -309,11 +313,11 @@ public:
         ++keep;
       }
     }
-    return equivalence_classes.size() - keep;
+    return static_cast<int>(equivalence_classes.size()/*unsigned*/) - keep;
   }
 
   CUDA int num_eliminated_formulas() const {
-    return eliminated_formulas.count();
+    return static_cast<int>(eliminated_formulas.count()/*unsigned*/);
   }
 
   CUDA NI TFormula<allocator_type> deinterpret() {

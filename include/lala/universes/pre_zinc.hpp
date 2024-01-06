@@ -65,7 +65,7 @@ private:
       if(z == bot() || z == top()) {
         RETURN_INTERPRETATION_ERROR("Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.");
       }
-      k = z;
+      k = z; // Truncation bug? When using ZInc, k is int, but z is logic_int (int64_t) -- See line 81 of primitive_upset.hpp
       return true;
     }
     else if(f.is(F::R)) {
@@ -125,7 +125,7 @@ public:
 
   /** Given an Integer value, create a logical constant representing that value.
    * Note that the lattice order has no influence here.
-   * \precondition `v != bot()` and `v != top()`.
+   * `\precondition` `v != bot()` and `v != top()`.
   */
   template<class F>
   CUDA static F deinterpret(const value_type& v) {

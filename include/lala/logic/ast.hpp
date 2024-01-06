@@ -13,6 +13,11 @@
 #include "sort.hpp"
 #include "thrust/optional.h"
 
+#ifdef _WINDOWS
+# undef DIFFERENCE // Avoid clash with #define in WinUser.h
+# undef IN         // Avoid clash with #define in ntdef.h
+#endif
+
 namespace lala {
 
 /** A "logical variable" is just the name of the variable. */
@@ -447,7 +452,7 @@ public:
   }
 
   CUDA int index() const {
-    return formula.index();
+    return static_cast<int>(formula.index()/*size_t*/);
   }
 
   CUDA bool is(int kind) const {
