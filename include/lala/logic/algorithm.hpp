@@ -299,6 +299,42 @@ CUDA NI thrust::optional<F> negate(const F& f) {
   return {};
 }
 
+/** True for the operators <=, <, >, >=, =, != */
+template <class F>
+CUDA NI bool is_arithmetic_comparison(const F& f) {
+  if(f.is(F::Seq)) {
+    switch(f.sig()) {
+      case LEQ:
+      case GEQ:
+      case LT:
+      case GT:
+      case EQ:
+      case NEQ:
+        return true;
+      default: break;
+    }
+  }
+  return false;
+}
+
+/** True for the operators =, !=, subset, subseteq, supset, supseteq */
+template <class F>
+CUDA NI bool is_set_comparison(const F& f) {
+ if(f.is(F::Seq)) {
+    switch(f.sig()) {
+      case EQ:
+      case NEQ:
+      case SUBSET:
+      case SUBSETEQ:
+      case SUPSET:
+      case SUPSETEQ:
+        return true;
+      default: break;
+    }
+  }
+  return false;
+}
+
 /** True for the operators <=, <, >, >=, =, !=, subset, subseteq, supset, supseteq */
 template <class F>
 CUDA NI bool is_comparison(const F& f) {
