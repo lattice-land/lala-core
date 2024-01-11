@@ -24,11 +24,11 @@ public:
   template <class M> using this_type2 = NBitset<N, M, T>;
   using local_type = this_type2<battery::local_memory>;
 
-  using LB = ZInc<memory_type>;
-  using UB = ZDec<memory_type>;
+  using LB = local::ZInc;
+  using UB = local::ZDec;
   using value_type = typename LB::value_type;
 
-  template <size_t N, class Mem, class T = unsigned long long>
+  template <size_t N2, class Mem2, class T2>
   friend class NBitset;
 
   constexpr static const bool is_abstract_universe = true;
@@ -63,21 +63,24 @@ public:
     bits.set(max(0, x+1));
   }
 
-  CUDA constexpr NBitset(value_type lb, value_type ub): bits(max(lb+1,0), max(ub+1, 0)) {}
+  CUDA constexpr NBitset(value_type lb, value_type ub): bits(
+    min(static_cast<int>(N)-1, max(lb+1,0)),
+    min(static_cast<int>(N)-1, max(ub+1, 0)))
+  {}
 
-  template<class Mem>
-  CUDA constexpr NBitset(const this_type2<Mem>& other): bits(other.bits) {}
+  template<class M>
+  CUDA constexpr NBitset(const this_type2<M>& other): bits(other.bits) {}
 
-  template<class Mem>
-  CUDA constexpr NBitset(this_type2<Mem>&& other): bits(std::move(other.bits)) {}
+  template<class M>
+  CUDA constexpr NBitset(this_type2<M>&& other): bits(std::move(other.bits)) {}
 
-  template<class Mem>
-  CUDA constexpr NBitset(const bitset<N, Mem, T>& bits): bits(bits) {}
+  template<class M>
+  CUDA constexpr NBitset(const bitset<N, M, T>& bits): bits(bits) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
-  template <class Mem>
-  CUDA constexpr this_type& operator=(const this_type2<Mem>& other) {
+  template <class M>
+  CUDA constexpr this_type& operator=(const this_type2<M>& other) {
     bits = other.bits;
     return *this;
   }
@@ -98,8 +101,9 @@ public:
   CUDA constexpr local::BDec is_bot() const { return bits.all(); }
   CUDA constexpr const bitset_type& value() const { return bits; }
 
-  template<bool diagnose, class F, class Env, class Mem>
-  CUDA NI static bool interpret_existential(const F& f, const Env& env, this_type2<Mem>& k, IDiagnostics& diagnostics) {
+private:
+  template<bool diagnose, class F, class Env, class M>
+  CUDA NI static bool interpret_existential(const F& f, const Env& env, this_type2<M>& k, IDiagnostics& diagnostics) {
     const auto& sort = battery::get<1>(f.exists());
     if(sort.is_int()) {
       return true;
@@ -110,12 +114,13 @@ public:
     }
     else {
       const auto& vname = battery::get<0>(f.exists());
-      RETURN_INTERPRETATION_ERROR("NBitset only supports variables of type `Int` or `Bool`, but `" vname + "` has another sort.");
+      RETURN_INTERPRETATION_ERROR(("NBitset only supports variables of type `Int` or `Bool`, but `" + vname + "` has another sort."));
     }
   }
 
-  template<bool diagnose, class F, class Mem>
-  CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<Mem>& tell, IDiagnostics& diagnostics) {
+  template<bool diagnose, class F, class M>
+  CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M>& tell, IDiagnostics& diagnostics) {
+    using sort_type = Sort<typename F::allocator_type>;
     thrust::optional<sort_type> sort = k.sort();
     if(sort.has_value() &&
        (sort.value() == sort_type(sort_type::Set, sort_type(sort_type::Int))
@@ -128,7 +133,7 @@ public:
         int l = battery::get<0>(set[i]).to_z();
         int u = battery::get<1>(set[i]).to_z();
         meet_s.dtell(local_type(l, u));
-        if(l < 0 || u >= meet_s.size() - 2) {
+        if(l < 0 || u >= meet_s.bits.size() - 2) {
           over_appx = true;
         }
       }
@@ -143,15 +148,15 @@ public:
     }
   }
 
-  template<bool diagnose, class F, class Mem>
-  CUDA NI static bool interpret_tell_x_op_k(const F& f, logic_int k, Sig sig, this_type2<Mem>& tell, IDiagnostics& diagnostics) {
+  template<bool diagnose, class F, class M>
+  CUDA NI static bool interpret_tell_x_op_k(const F& f, logic_int k, Sig sig, this_type2<M>& tell, IDiagnostics& diagnostics) {
     if(sig == LT) {
       return interpret_tell_x_op_k<diagnose>(f, k-1, LEQ, tell, diagnostics);
     }
     else if(sig == GT) {
       return interpret_tell_x_op_k<diagnose>(f, k+1, GEQ, tell, diagnostics);
     }
-    else if(k < 0 || k >= tell.size() - 2) {
+    else if(k < 0 || k >= tell.bits.size() - 2) {
       // If we allow that one day, be careful about != (complement of an over-approximation is an under-approximation).
       RETURN_INTERPRETATION_WARNING("Constraint `x <op> k` would be over-approximated because `k` is not representable in the bitset. Since it is probably not the expected behavior, we forbid it.");
     }
@@ -160,7 +165,7 @@ public:
         case EQ: tell.tell(local_type(k, k)); break;
         case NEQ: tell.tell(local_type(k, k).complement()); break;
         case LEQ: tell.tell(local_type(-1, k)); break;
-        case GEQ: tell.tell(local_type(k, tell.size())); break;
+        case GEQ: tell.tell(local_type(k, tell.bits.size())); break;
         default: RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
       }
     }
@@ -174,9 +179,9 @@ public:
    *   * `x <op> k` where `k` is an integer constant and <op> in {==, !=, <, <=, >, >=}.
    *   * `x in S` where `S` is a set of integers.
    * It can be over-approximated if the element `k` falls out of the bitset. */
-  template<bool diagnose = false, class F, class Env, class Mem>
-  CUDA NI static bool interpret_tell(const F& f, const Env& env, this_type2<Mem>& tell, IDiagnostics& diagnostics) {
-    using sort_type = Sort<F::allocator_type>;
+  template<bool diagnose = false, class F, class Env, class M>
+  CUDA NI static bool interpret_tell(const F& f, const Env& env, this_type2<M>& tell, IDiagnostics& diagnostics) {
+    using sort_type = Sort<typename F::allocator_type>;
     if(f.is(F::E)) {
       return interpret_existential<diagnose>(f, env, tell, diagnostics);
     }
@@ -184,12 +189,12 @@ public:
       int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
       int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
       if(idx_constant + idx_variable != 1) {
-        RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.")
+        RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.");
       }
       const auto& k = f.seq(idx_constant);
-      if(f.sig() == F::IN) {
+      if(f.sig() == IN) {
         if(idx_constant == 0) { // `k in x` is equivalent to `{k} \subseteq x`.
-          RETURN_INTERPRETATION_ERROR("The formula `k in x` is not supported in this abstract universe (`x in k` is supported).")
+          RETURN_INTERPRETATION_ERROR("The formula `k in x` is not supported in this abstract universe (`x in k` is supported).");
         }
         else {
           return interpret_tell_set<diagnose>(f, k, tell, diagnostics);
@@ -205,17 +210,17 @@ public:
         }
       }
       else {
-        RETURN_INTERPRETATION_ERROR("This symbol is not supported.")
+        RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
       }
     }
     else {
-      RETURN_INTERPRETATION_ERROR("Only binary constraints are supported.")
+      RETURN_INTERPRETATION_ERROR("Only binary constraints are supported.");
     }
   }
 
   /** Support the same language than the "tell language" without existential. */
-  template<bool diagnose = false, class F, class Env, class Mem>
-  CUDA NI static bool interpret_ask(const F& f, const Env& env, this_type2<Mem>& k, IDiagnostics& diagnostics) {
+  template<bool diagnose = false, class F, class Env, class M>
+  CUDA NI static bool interpret_ask(const F& f, const Env& env, this_type2<M>& k, IDiagnostics& diagnostics) {
     local_type b = local_type::bot();
     auto nf = negate(f);
     if(!nf.has_value()) {
@@ -233,8 +238,8 @@ public:
     }
   }
 
-  template<IKind kind, bool diagnose = false, class F, class Env, class Mem>
-  CUDA NI static bool interpret(const F& f, const Env& env, this_type2<Mem>& k, IDiagnostics& diagnostics) {
+  template<IKind kind, bool diagnose = false, class F, class Env, class M>
+  CUDA NI static bool interpret(const F& f, const Env& env, this_type2<M>& k, IDiagnostics& diagnostics) {
     if constexpr(kind == IKind::ASK) {
       return interpret_ask<diagnose>(f, env, k, diagnostics);
     }
@@ -245,6 +250,11 @@ public:
 
   CUDA constexpr LB lb() const { value_type l = bits.countl_zero(); return l == 0 ? LB::bot() : LB::geq_k(l+1); }
   CUDA constexpr UB ub() const { value_type r = bits.countr_zero(); return r == 0 ? UB::bot() : UB::leq_k(r-1); }
+  CUDA constexpr local_type complement() const {
+    local_type c(bits);
+    c.bits.flip();
+    return c;
+  }
 
   CUDA constexpr this_type& tell_top() {
     bits.reset();
@@ -346,7 +356,7 @@ public:
     printf("{");
     bool comma_needed = false;
     if(bits.test(0)) {
-      printf("..");
+      printf(".., -1");
       comma_needed = true;
     }
     for(int i = 1; i < bits.size() - 1; ++i) {
@@ -358,7 +368,7 @@ public:
     }
     if(bits.test(bits.size()-1)) {
       if(comma_needed) { printf(", "); }
-      printf("..");
+      printf("%d, ..", bits.size()-2);
     }
     printf("}");
   }
@@ -411,7 +421,7 @@ public:
 
   template<Sig sig, class M1, class M2>
   CUDA constexpr static local_type fun(const this_type2<M1>& x, const this_type2<M2>& y) {
-    static_assert(false, "Unsupported binary function.");
+    static_assert(sig == sig, "Unsupported binary function.");
   }
 
   CUDA constexpr local_type width() const {
@@ -435,13 +445,13 @@ public:
 // Lattice operations
 
 template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> join(const NBitset<N, M1, T>& a, const this_type2<N, M2, T>& b)
+CUDA constexpr NBitset<N, battery::local_memory, T> join(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
   return NBitset<N, battery::local_memory, T>(a.value() & b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> meet(const NBitset<N, M1, T>& a, const this_type2<N, M2, T>& b)
+CUDA constexpr NBitset<N, battery::local_memory, T> meet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
   return NBitset<N, battery::local_memory, T>(a.value() & b.value());
 }
@@ -487,7 +497,7 @@ std::ostream& operator<<(std::ostream &s, const NBitset<N, M, T> &a) {
   s << "{";
   bool comma_needed = false;
   if(a.value().test(0)) {
-    s << "..";
+    s << ".., -1";
     comma_needed = true;
   }
   for(int i = 1; i < a.value().size() - 1; ++i) {
@@ -499,9 +509,10 @@ std::ostream& operator<<(std::ostream &s, const NBitset<N, M, T> &a) {
   }
   if(a.value().test(a.value().size()-1)) {
     if(comma_needed) { s << ", "; }
-    s << "..";
+    s << a.value().size()-2 << ", ..";
   }
   s << "}";
+  return s;
 }
 
 } // end namespace lala

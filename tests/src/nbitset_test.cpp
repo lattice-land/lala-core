@@ -3,7 +3,7 @@
 #include "abstract_testing.hpp"
 #include "lala/universes/nbitset.hpp"
 
-using NBit = NBitset<2, battery::local_memory>;
+using NBit = NBitset<128, battery::local_memory, unsigned long long>;
 
 TEST(NBitsetTest, BotTopTests) {
   bot_top_test(NBit(0, 1));
@@ -18,8 +18,8 @@ TEST(NBitsetTest, BotTopTests) {
 
 // TEST(NBitsetTest, NoInterpret) {
 //   VarEnv<standard_allocator> env = env_with_x();
-//   interpret_must_error<IKind::TELL, Itv>("constraint int_ne(x, 10);", env);
-//   interpret_must_error<IKind::ASK, Itv>("constraint float_eq(x, 1111111111.0000000000001);", env);
+//   interpret_must_error<IKind::TELL, NBit>("constraint float_eq(x, 0);", env);
+//   interpret_must_error<IKind::ASK, NBit>("constraint float_eq(x, 1111111111.0000000000001);", env);
 // }
 
 // TEST(NBitsetTest, ValidInterpret) {
