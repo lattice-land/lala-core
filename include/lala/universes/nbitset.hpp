@@ -55,12 +55,20 @@ public:
     bits.set();
   }
 
+  CUDA constexpr static this_type from_set(const battery::vector<int>& values) {
+    this_type b(top());
+    for(int i = 0; i < values.size(); ++i) {
+      b.bits.set(min(static_cast<int>(N)-1, max(values[i]+1,0)), true);
+    }
+    return b;
+  }
+
   CUDA constexpr NBitset(const this_type&) = default;
   CUDA constexpr NBitset(this_type&&) = default;
 
   /** Given a value \f$ x \in U \f$ where \f$ U \f$ is the universe of discourse, we initialize a singleton bitset \f$ 0_0..1_{x+1}...0_n \f$. */
   CUDA constexpr NBitset(value_type x) {
-    bits.set(max(0, x+1));
+    bits.set(min(static_cast<int>(N)-1, max(0, x+1)));
   }
 
   CUDA constexpr NBitset(value_type lb, value_type ub): bits(
@@ -118,7 +126,7 @@ private:
     }
   }
 
-  template<bool diagnose, class F, class M>
+  template<bool diagnose, bool negated, class F, class M>
   CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M>& tell, IDiagnostics& diagnostics) {
     using sort_type = Sort<typename F::allocator_type>;
     thrust::optional<sort_type> sort = k.sort();
@@ -136,6 +144,12 @@ private:
         if(l < 0 || u >= meet_s.bits.size() - 2) {
           over_appx = true;
         }
+      }
+      if constexpr(negated) {
+        meet_s = meet_s.complement();
+        // In any case it must be set to true: if no element is below zero, then some elements in the negation are; and if some elements are below zero it's not all of them.
+        meet_s.bits.set(0, true);
+        meet_s.bits.set(meet_s.bits.size()-1, true);
       }
       tell.tell(meet_s);
       if(over_appx) {
@@ -157,19 +171,56 @@ private:
       return interpret_tell_x_op_k<diagnose>(f, k+1, GEQ, tell, diagnostics);
     }
     else if(k < 0 || k >= tell.bits.size() - 2) {
-      // If we allow that one day, be careful about != (complement of an over-approximation is an under-approximation).
-      RETURN_INTERPRETATION_WARNING("Constraint `x <op> k` would be over-approximated because `k` is not representable in the bitset. Since it is probably not the expected behavior, we forbid it.");
-    }
-    else {
-      switch(sig) {
-        case EQ: tell.tell(local_type(k, k)); break;
-        case NEQ: tell.tell(local_type(k, k).complement()); break;
-        case LEQ: tell.tell(local_type(-1, k)); break;
-        case GEQ: tell.tell(local_type(k, tell.bits.size())); break;
-        default: RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
+      if((k == -1 && sig == LEQ) || (k == tell.bits.size() - 2 && sig == GEQ)) {
+        // this is fine because x <= -1 and x >= n-2 can be represented exactly.
+      }
+      else {
+        INTERPRETATION_WARNING("Constraint `x <op> k` is over-approximated because `k` is not representable in the bitset. Note that for a bitset of size `n`, the only values representable exactly are in the interval `[0, n-3]` because two bits are used to represent all negative values and all values exceeding the size of the bitset.");
+        // If it is NEQ, we can't give a better approximation than bot.
+        if(sig == NEQ) {
+          return true;
+        }
       }
     }
+    switch(sig) {
+      case EQ: tell.tell(local_type(k, k)); break;
+      case NEQ: tell.tell(local_type(k, k).complement()); break;
+      case LEQ: tell.tell(local_type(-1, k)); break;
+      case GEQ: tell.tell(local_type(k, tell.bits.size())); break;
+      default: RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
+    }
     return true;
+  }
+
+  template<bool diagnose, bool negated, class F, class Env, class M>
+  CUDA NI static bool interpret_binary(const F& f, const Env& env, this_type2<M>& tell, IDiagnostics& diagnostics) {
+    int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
+    int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
+    if(idx_constant + idx_variable != 1) {
+      RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.");
+    }
+    const auto& k = f.seq(idx_constant);
+    if(f.sig() == IN) {
+      if(idx_constant == 0) { // `k in x` is equivalent to `{k} \subseteq x`.
+        RETURN_INTERPRETATION_ERROR("The formula `k in x` is not supported in this abstract universe (`x in k` is supported).");
+      }
+      else {
+        return interpret_tell_set<diagnose, negated>(f, k, tell, diagnostics);
+      }
+    }
+    else if(is_arithmetic_comparison(f)) {
+      Sig sig = idx_constant == 0 ? converse_comparison(f.sig()) : f.sig();
+      sig = negated ? negate_arithmetic_comparison(sig) : sig;
+      if(f.seq(idx_constant).is(F::Z) || f.seq(idx_constant).is(F::B)) {
+        return interpret_tell_x_op_k<diagnose>(f, k.to_z(), sig, tell, diagnostics);
+      }
+      else {
+        RETURN_INTERPRETATION_ERROR("Only integer and Boolean constants are supported in NBitset.");
+      }
+    }
+    else {
+      RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
+    }
   }
 
 public:
@@ -185,33 +236,11 @@ public:
     if(f.is(F::E)) {
       return interpret_existential<diagnose>(f, env, tell, diagnostics);
     }
+    else if(f.is_unary() && f.sig() == NOT && f.seq(0).is_binary()) {
+      return interpret_binary<diagnose, true>(f.seq(0), env, tell, diagnostics);
+    }
     else if(f.is_binary()) {
-      int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
-      int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
-      if(idx_constant + idx_variable != 1) {
-        RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.");
-      }
-      const auto& k = f.seq(idx_constant);
-      if(f.sig() == IN) {
-        if(idx_constant == 0) { // `k in x` is equivalent to `{k} \subseteq x`.
-          RETURN_INTERPRETATION_ERROR("The formula `k in x` is not supported in this abstract universe (`x in k` is supported).");
-        }
-        else {
-          return interpret_tell_set<diagnose>(f, k, tell, diagnostics);
-        }
-      }
-      else if(is_arithmetic_comparison(f)) {
-        Sig sig = idx_constant == 0 ? converse_comparison(f.sig()) : f.sig();
-        if(f.seq(idx_constant).is(F::Z) || f.seq(idx_constant).is(F::B)) {
-          return interpret_tell_x_op_k<diagnose>(f, k.to_z(), sig, tell, diagnostics);
-        }
-        else {
-          RETURN_INTERPRETATION_ERROR("Only integer and Boolean constants are supported in NBitset.");
-        }
-      }
-      else {
-        RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
-      }
+      return interpret_binary<diagnose, false>(f, env, tell, diagnostics);
     }
     else {
       RETURN_INTERPRETATION_ERROR("Only binary constraints are supported.");
@@ -381,31 +410,20 @@ public:
     }
   }
 
-private:
-  CUDA constexpr this_type& dtell_neg() {
-    bits.set(0);
-    return *this;
-  }
-
-  CUDA constexpr this_type& tell_pos() {
-    bits.set(0, false);
-    return *this;
-  }
-
 public:
   template<class M>
   CUDA constexpr static local_type neg(const this_type2<M>& x) {
     if(x.bits.test(0)) {
-      return x.bits.count() == 1 ? x.complement() : x.complement().dtell_neg();
+      return x.bits.count() == 1 ? x.complement() : local_type::bot();
     }
     else {
-      return x.bits.count() == 0 ? top() : local_type().dtell_neg();
+      return x.bits.count() == 0 ? local_type::top() : local_type(-1);
     }
   }
 
   template<class M>
   CUDA constexpr static local_type abs(const this_type2<M>& x) {
-    return local_type(x).tell_pos();
+    return x.bits.test(0) ? local_type(0, x.bits.size()) : x;
   }
 
   template<Sig sig, class M>
@@ -425,20 +443,14 @@ public:
   }
 
   CUDA constexpr local_type width() const {
-    LB l = lb();
-    UB u = ub();
-    if(l.is_bot() || u.is_bot()) { return bot(); }
-    else if(l.is_top() || u.is_top()) { return top(); }
-    else { return local_type(u.value() - l.value()); }
+    if(bits.test(0) || bits.test(bits.size() - 1)) { return bot(); }
+    else { return local_type(bits.count()); }
   }
 
-  /** \return The median value of the interval, which is computed by `lb() + ((ub() - lb()) / 2)`. */
+  /** \return The median value of the bitset. */
   CUDA constexpr local_type median() const {
-    LB l = lb();
-    UB u = ub();
-    if(l.is_bot() || u.is_bot()) { return bot(); }
-    else if(l.is_top() || u.is_top()) { return top(); }
-    else { return local_type(l.value() + ((u.value() - l.value()) / 2)); }
+    assert(false);
+    return local_type::bot();
   }
 };
 
@@ -453,7 +465,7 @@ CUDA constexpr NBitset<N, battery::local_memory, T> join(const NBitset<N, M1, T>
 template<size_t N, class M1, class M2, class T>
 CUDA constexpr NBitset<N, battery::local_memory, T> meet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
-  return NBitset<N, battery::local_memory, T>(a.value() & b.value());
+  return NBitset<N, battery::local_memory, T>(a.value() | b.value());
 }
 
 template<size_t N, class M1, class M2, class T>

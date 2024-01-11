@@ -286,6 +286,7 @@ CUDA NI thrust::optional<F> negate(const F& f) {
       case SUBSETEQ:
       case SUPSET:
       case SUPSETEQ:
+      case IN:
         return F::make_unary(NOT, f, f.type());
       case AND:
         return de_morgan_law(OR, f);
@@ -297,6 +298,18 @@ CUDA NI thrust::optional<F> negate(const F& f) {
     return F::make_nary(neg_sig, f.seq(), f.type());
   }
   return {};
+}
+
+CUDA Sig negate_arithmetic_comparison(Sig sig) {
+  switch(sig) {
+    case EQ: return NEQ;
+    case NEQ: return EQ;
+    case LEQ: return GT;
+    case GEQ: return LT;
+    case LT: return GEQ;
+    case GT: return LEQ;
+    default: assert(0); return sig;
+  }
 }
 
 /** True for the operators <=, <, >, >=, =, != */

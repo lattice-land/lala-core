@@ -142,16 +142,22 @@ public:
   }
 };
 
-#define RETURN_INTERPRETATION_ERROR(MSG) \
+#define INTERPRETATION_ERROR(MSG) \
   if constexpr(diagnose) { \
     diagnostics.add_suberror(IDiagnostics(true, name, (MSG), f)); \
-  } \
+  }
+
+#define INTERPRETATION_WARNING(MSG) \
+  if constexpr(diagnose) { \
+    diagnostics.add_suberror(IDiagnostics(false, name, (MSG), f)); \
+  }
+
+#define RETURN_INTERPRETATION_ERROR(MSG) \
+  INTERPRETATION_ERROR(MSG) \
   return false;
 
 #define RETURN_INTERPRETATION_WARNING(MSG) \
-  if constexpr(diagnose) { \
-    diagnostics.add_suberror(IDiagnostics(false, name, (MSG), f)); \
-  } \
+  INTERPRETATION_WARNING(MSG) \
   return true;
 
 /** This macro creates a high-level error message that is possibly erased if `call` does not lead to any error.

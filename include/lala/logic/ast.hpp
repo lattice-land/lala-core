@@ -475,6 +475,10 @@ public:
     return is(LV) || is(V);
   }
 
+  CUDA bool is_unary() const {
+    return is(Seq) && seq().size() == 1;
+  }
+
   CUDA bool is_binary() const {
     return is(Seq) && seq().size() == 2;
   }
