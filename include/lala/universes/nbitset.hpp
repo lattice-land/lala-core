@@ -19,7 +19,7 @@ class NBitset
 {
 public:
   using memory_type = Mem;
-  using bitset_type = bitset<N, Mem, T>;
+  using bitset_type = battery::bitset<N, Mem, T>;
   using this_type = NBitset<N, Mem, T>;
   template <class M> using this_type2 = NBitset<N, M, T>;
   using local_type = this_type2<battery::local_memory>;
@@ -58,22 +58,22 @@ public:
   CUDA constexpr static this_type from_set(const battery::vector<int>& values) {
     this_type b(top());
     for(int i = 0; i < values.size(); ++i) {
-      b.bits.set(min(static_cast<int>(N)-1, max(values[i]+1,0)), true);
+      b.bits.set(battery::min(static_cast<int>(N)-1, battery::max(values[i]+1,0)), true);
     }
     return b;
   }
 
-  CUDA constexpr NBitset(const this_type&) = default;
-  CUDA constexpr NBitset(this_type&&) = default;
+  constexpr NBitset(const this_type&) = default;
+  constexpr NBitset(this_type&&) = default;
 
   /** Given a value \f$ x \in U \f$ where \f$ U \f$ is the universe of discourse, we initialize a singleton bitset \f$ 0_0..1_{x+1}...0_n \f$. */
   CUDA constexpr NBitset(value_type x) {
-    bits.set(min(static_cast<int>(N)-1, max(0, x+1)));
+    bits.set(battery::min(static_cast<int>(N)-1, battery::max(0, x+1)));
   }
 
   CUDA constexpr NBitset(value_type lb, value_type ub): bits(
-    min(static_cast<int>(N)-1, max(lb+1,0)),
-    min(static_cast<int>(N)-1, max(ub+1, 0)))
+    battery::min(static_cast<int>(N)-1, battery::max(lb+1,0)),
+    battery::min(static_cast<int>(N)-1, battery::max(ub+1, 0)))
   {}
 
   template<class M>
@@ -83,7 +83,7 @@ public:
   CUDA constexpr NBitset(this_type2<M>&& other): bits(std::move(other.bits)) {}
 
   template<class M>
-  CUDA constexpr NBitset(const bitset<N, M, T>& bits): bits(bits) {}
+  CUDA constexpr NBitset(const battery::bitset<N, M, T>& bits): bits(bits) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
@@ -279,6 +279,7 @@ public:
 
   CUDA constexpr LB lb() const { value_type l = bits.countl_zero(); return l == 0 ? LB::bot() : LB::geq_k(l+1); }
   CUDA constexpr UB ub() const { value_type r = bits.countr_zero(); return r == 0 ? UB::bot() : UB::leq_k(r-1); }
+
   CUDA constexpr local_type complement() const {
     local_type c(bits);
     c.bits.flip();
@@ -437,9 +438,16 @@ public:
     }
   }
 
+  template <class M>
+  CUDA constexpr static local_type additive_inverse(const this_type2<M>& x) {
+    assert(false);
+    return local_type::bot();
+  }
+
   template<Sig sig, class M1, class M2>
   CUDA constexpr static local_type fun(const this_type2<M1>& x, const this_type2<M2>& y) {
-    static_assert(sig == sig, "Unsupported binary function.");
+    assert(false);
+    return local_type::bot();
   }
 
   CUDA constexpr local_type width() const {

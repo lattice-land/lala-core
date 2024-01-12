@@ -1,7 +1,7 @@
 // Copyright 2021 Pierre Talbot
 
-#include "abstract_testing.hpp"
 #include "lala/universes/nbitset.hpp"
+#include "abstract_testing.hpp"
 
 using NBit = NBitset<128, battery::local_memory, unsigned long long>;
 
@@ -177,4 +177,21 @@ TEST(NBitsetTest, Width) {
   EXPECT_EQ(NBit(5, 10).width(), NBit(6));
   EXPECT_EQ(NBit::bot().width(), NBit::bot());
   EXPECT_EQ(NBit::top().width(), NBit(0));
+}
+
+TEST(NBitsetTest, Projections) {
+  using LB = NBit::LB;
+  using UB = NBit::UB;
+  EXPECT_EQ(NBit(0,0).lb(), LB(0));
+  EXPECT_EQ(NBit(0,0).ub(), UB(0));
+  EXPECT_EQ(NBit(-10, 10).lb(), LB::bot());
+  EXPECT_EQ(NBit(-10, 10).ub(), UB(10));
+  EXPECT_EQ(NBit(0, 1000).lb(), LB(0));
+  EXPECT_EQ(NBit(0, 1000).ub(), UB::bot());
+  EXPECT_EQ(NBit(5, 10).lb(), LB(5));
+  EXPECT_EQ(NBit(5, 10).ub(), UB(10));
+  EXPECT_EQ(NBit::bot().lb(), LB::bot());
+  EXPECT_EQ(NBit::bot().ub(), UB::bot());
+  EXPECT_EQ(NBit::top().lb(), LB::top());
+  EXPECT_EQ(NBit::top().ub(), UB::top());
 }
