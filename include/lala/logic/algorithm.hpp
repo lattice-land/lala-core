@@ -539,11 +539,29 @@ namespace impl {
         if(seq.size() == 2 && seq[0].is_constant() && seq[1].is_constant()) {
           return seq[0] == seq[1] ? F::make_true() : F::make_false();
         }
+        // We detect a common pattern for equalities: x + (-y) == 0
+        if(seq.size() == 2 && seq[0].is_binary() &&
+           seq[1].is(F::Z) && seq[1].z() == 0 &&
+           seq[0].sig() == ADD &&
+           seq[0].seq(1).is_unary() && seq[0].seq(1).sig() == NEG && seq[0].seq(1).seq(0).is_variable() &&
+           seq[0].seq(0).is_variable())
+        {
+          return F::make_binary(seq[0].seq(0), EQ, seq[0].seq(1).seq(0), atype);
+        }
         break;
       }
       case NEQ: {
         if(seq.size() == 2 && seq[0].is_constant() && seq[1].is_constant()) {
           return seq[0] != seq[1] ? F::make_true() : F::make_false();
+        }
+        // We detect a common pattern for disequalities: x + (-y) != 0
+        if(seq.size() == 2 && seq[0].is_binary() &&
+           seq[1].is(F::Z) && seq[1].z() == 0 &&
+           seq[0].sig() == ADD &&
+           seq[0].seq(1).is_unary() && seq[0].seq(1).sig() == NEG && seq[0].seq(1).seq(0).is_variable() &&
+           seq[0].seq(0).is_variable())
+        {
+          return F::make_binary(seq[0].seq(0), NEQ, seq[0].seq(1).seq(0), atype);
         }
         break;
       }

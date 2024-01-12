@@ -449,13 +449,17 @@ public:
 
   template <class M>
   CUDA constexpr static local_type additive_inverse(const this_type2<M>& x) {
-    assert(false);
+    printf("%% additive_inverse is unsupported\n");
+    int* ptr;
+    ptr[1000000] = 193;
     return local_type::bot();
   }
 
   template<Sig sig, class M1, class M2>
   CUDA constexpr static local_type fun(const this_type2<M1>& x, const this_type2<M2>& y) {
-    assert(false);
+    printf("%% binary functions are unsupported\n");
+    int* ptr;
+    ptr[1000000] = 193;
     return local_type::bot();
   }
 
@@ -466,8 +470,18 @@ public:
 
   /** \return The median value of the bitset. */
   CUDA constexpr local_type median() const {
-    assert(false);
-    return local_type::bot();
+    if(is_top()) { return local_type::top(); }
+    int total = bits.count();
+    int current = 0;
+    for(int i = 0; i < bits.size(); ++i) {
+      if(bits.test(i)) {
+        ++current;
+        if(current == total/2) {
+          return local_type(i-1);
+        }
+      }
+    }
+    return local_type::top();
   }
 };
 
