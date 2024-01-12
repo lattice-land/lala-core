@@ -277,8 +277,17 @@ public:
     }
   }
 
-  CUDA constexpr LB lb() const { value_type l = bits.countl_zero(); return l == 0 ? LB::bot() : LB::geq_k(l+1); }
-  CUDA constexpr UB ub() const { value_type r = bits.countr_zero(); return r == 0 ? UB::bot() : UB::leq_k(r-1); }
+  CUDA constexpr LB lb() const {
+    value_type l = bits.countr_zero();
+    return l == 0 ? LB::bot() :
+      (l == bits.size() ? LB::top() : LB::geq_k(l-1));
+  }
+
+  CUDA constexpr UB ub() const {
+    value_type r = bits.countl_zero();
+    return r == 0 ? UB::bot() :
+      (r == bits.size() ? UB::top() : UB::leq_k(bits.size() - r - 2));
+  }
 
   CUDA constexpr local_type complement() const {
     local_type c(bits);
@@ -398,7 +407,7 @@ public:
     }
     if(bits.test(bits.size()-1)) {
       if(comma_needed) { printf(", "); }
-      printf("%d, ..", bits.size()-2);
+      printf("%d, ..", static_cast<int>(bits.size())-2);
     }
     printf("}");
   }

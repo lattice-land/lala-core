@@ -194,4 +194,8 @@ TEST(NBitsetTest, Projections) {
   EXPECT_EQ(NBit::bot().ub(), UB::bot());
   EXPECT_EQ(NBit::top().lb(), LB::top());
   EXPECT_EQ(NBit::top().ub(), UB::top());
+  EXPECT_EQ(NBit(1000, 1000).lb(), LB(126));
+  EXPECT_EQ(NBit(1000, 1000).ub(), UB::bot());
+  EXPECT_EQ(NBit(-1, -1).lb(), LB::bot());
+  EXPECT_EQ(NBit(-1, -1).ub(), UB(-1));
 }
