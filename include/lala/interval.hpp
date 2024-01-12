@@ -636,6 +636,8 @@ CUDA constexpr auto join(const Interval<L>& a, const Interval<K>& b)
 template<class L, class K>
 CUDA constexpr auto meet(const Interval<L>& a, const Interval<K>& b)
 {
+  if(a.is_top()) { return b; }
+  if(b.is_top()) { return a; }
   return impl::make_itv(meet(a.as_product(), b.as_product()));
 }
 
