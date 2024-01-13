@@ -563,6 +563,14 @@ namespace impl {
         {
           return F::make_binary(seq[0].seq(0), NEQ, seq[0].seq(1).seq(0), atype);
         }
+        // Detect `x + k != k2` where `k` and `k2` are constants. It should be generalized.
+        if(seq.size() == 2 && seq[0].is_binary() &&
+           is_bz(seq[1]) &&
+           seq[0].sig() == ADD &&
+           is_bz(seq[0].seq(1)))
+        {
+          return F::make_binary(seq[0].seq(0), NEQ, F::make_z(seq[1].to_z() - seq[0].seq(1).to_z()), atype);
+        }
         break;
       }
       case LT: {

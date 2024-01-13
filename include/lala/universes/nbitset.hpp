@@ -63,7 +63,7 @@ public:
     return b;
   }
 
-  constexpr NBitset(const this_type&) = default;
+  CUDA constexpr NBitset(const this_type& other): NBitset(other.bits) {}
   constexpr NBitset(this_type&&) = default;
 
   /** Given a value \f$ x \in U \f$ where \f$ U \f$ is the universe of discourse, we initialize a singleton bitset \f$ 0_0..1_{x+1}...0_n \f$. */
@@ -300,6 +300,16 @@ public:
     return *this;
   }
 
+  template<class A, class M>
+  CUDA constexpr this_type& tell_lb(const A& lb, BInc<M>& has_changed) {
+    return tell(local_type(lb.value(), bits.size()), has_changed);
+  }
+
+  template<class A, class M>
+  CUDA constexpr this_type& tell_ub(const A& ub, BInc<M>& has_changed) {
+    return tell(local_type(-1, ub.value()), has_changed);
+  }
+
   template<class M1, class M2>
   CUDA constexpr this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
     if(!bits.is_subset_of(other.bits)) {
@@ -450,16 +460,16 @@ public:
   template <class M>
   CUDA constexpr static local_type additive_inverse(const this_type2<M>& x) {
     printf("%% additive_inverse is unsupported\n");
-    int* ptr;
-    ptr[1000000] = 193;
+    int* ptr = nullptr;
+    ptr[1] = 193;
     return local_type::bot();
   }
 
   template<Sig sig, class M1, class M2>
   CUDA constexpr static local_type fun(const this_type2<M1>& x, const this_type2<M2>& y) {
-    printf("%% binary functions are unsupported\n");
-    int* ptr;
-    ptr[1000000] = 193;
+    printf("%% binary functions %s are unsupported\n", string_of_sig(sig));
+    int* ptr = nullptr;
+    ptr[1] = 193;
     return local_type::bot();
   }
 
