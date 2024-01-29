@@ -286,6 +286,7 @@ CUDA NI thrust::optional<F> negate(const F& f) {
       case SUBSETEQ:
       case SUPSET:
       case SUPSETEQ:
+      case IN:
         return F::make_unary(NOT, f, f.type());
       case AND:
         return de_morgan_law(OR, f);
@@ -297,6 +298,54 @@ CUDA NI thrust::optional<F> negate(const F& f) {
     return F::make_nary(neg_sig, f.seq(), f.type());
   }
   return {};
+}
+
+CUDA Sig negate_arithmetic_comparison(Sig sig) {
+  switch(sig) {
+    case EQ: return NEQ;
+    case NEQ: return EQ;
+    case LEQ: return GT;
+    case GEQ: return LT;
+    case LT: return GEQ;
+    case GT: return LEQ;
+    default: assert(0); return sig;
+  }
+}
+
+/** True for the operators <=, <, >, >=, =, != */
+template <class F>
+CUDA NI bool is_arithmetic_comparison(const F& f) {
+  if(f.is(F::Seq)) {
+    switch(f.sig()) {
+      case LEQ:
+      case GEQ:
+      case LT:
+      case GT:
+      case EQ:
+      case NEQ:
+        return true;
+      default: break;
+    }
+  }
+  return false;
+}
+
+/** True for the operators =, !=, subset, subseteq, supset, supseteq */
+template <class F>
+CUDA NI bool is_set_comparison(const F& f) {
+ if(f.is(F::Seq)) {
+    switch(f.sig()) {
+      case EQ:
+      case NEQ:
+      case SUBSET:
+      case SUBSETEQ:
+      case SUPSET:
+      case SUPSETEQ:
+        return true;
+      default: break;
+    }
+  }
+  return false;
 }
 
 /** True for the operators <=, <, >, >=, =, !=, subset, subseteq, supset, supseteq */
@@ -490,11 +539,45 @@ namespace impl {
         if(seq.size() == 2 && seq[0].is_constant() && seq[1].is_constant()) {
           return seq[0] == seq[1] ? F::make_true() : F::make_false();
         }
+        // We detect a common pattern for equalities: x + (-y) == 0
+        if(seq.size() == 2 && seq[0].is_binary() &&
+           seq[1].is(F::Z) && seq[1].z() == 0 &&
+           seq[0].sig() == ADD &&
+           seq[0].seq(1).is_unary() && seq[0].seq(1).sig() == NEG && seq[0].seq(1).seq(0).is_variable() &&
+           seq[0].seq(0).is_variable())
+        {
+          return F::make_binary(seq[0].seq(0), EQ, seq[0].seq(1).seq(0), atype);
+        }
         break;
       }
       case NEQ: {
         if(seq.size() == 2 && seq[0].is_constant() && seq[1].is_constant()) {
           return seq[0] != seq[1] ? F::make_true() : F::make_false();
+        }
+        // We detect a common pattern for disequalities: x + (-y) != 0
+        if(seq.size() == 2 && seq[0].is_binary() &&
+           seq[1].is(F::Z) && seq[1].z() == 0 &&
+           seq[0].sig() == ADD &&
+           seq[0].seq(1).is_unary() && seq[0].seq(1).sig() == NEG && seq[0].seq(1).seq(0).is_variable() &&
+           seq[0].seq(0).is_variable())
+        {
+          return F::make_binary(seq[0].seq(0), NEQ, seq[0].seq(1).seq(0), atype);
+        }
+        // Detect `x + k != k2` where `k` and `k2` are constants. It should be generalized.
+        if(seq.size() == 2 && seq[0].is_binary() &&
+           is_bz(seq[1]) &&
+           seq[0].sig() == ADD &&
+           is_bz(seq[0].seq(1)))
+        {
+          return F::make_binary(seq[0].seq(0), NEQ, F::make_z(seq[1].to_z() - seq[0].seq(1).to_z()), atype);
+        }
+        // -k != -x --> k != x
+        if(seq.size() == 2 && is_bz(seq[0]) && seq[1].is_unary() && seq[1].sig() == NEG && seq[1].seq(0).is_variable()) {
+          return F::make_binary(F::make_z(-seq[0].to_z()), NEQ, seq[1].seq(0), atype);
+        }
+        // -x != -k --> x != k
+        if(seq.size() == 2 && is_bz(seq[1]) && seq[0].is_unary() && seq[0].sig() == NEG && seq[0].seq(0).is_variable()) {
+          return F::make_binary(seq[0].seq(0), NEQ, F::make_z(-seq[1].to_z()), atype);
         }
         break;
       }

@@ -36,6 +36,9 @@ TEST(IntervalTest, JoinMeetTest) {
 
   EXPECT_EQ(join(Itv(10, 20), Itv(4,14)), Itv(10,14));
   EXPECT_EQ(meet(Itv(10, 20), Itv(4,14)), Itv(4,20));
+
+  EXPECT_EQ(meet(Itv(1, 9), Itv(11,10)), Itv(1, 9));
+  EXPECT_EQ(join(Itv(1, 9), Itv(11,10)), Itv(11, 9));
 }
 
 TEST(IntervalTest, OrderTest) {

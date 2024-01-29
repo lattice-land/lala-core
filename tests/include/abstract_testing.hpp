@@ -99,6 +99,10 @@ void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator
     diagnostics.print();
     EXPECT_TRUE(false) << "The formula should be interpretable: " << fzn;
   }
+  if(diagnostics.has_warning() && !has_warning) {
+    diagnostics.print();
+    EXPECT_TRUE(false) << "The formula generates a warning but should not: " << fzn;
+  }
   EXPECT_EQ(diagnostics.has_warning(), has_warning);
 }
 

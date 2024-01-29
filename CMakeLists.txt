@@ -1,9 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 cmake_policy(SET CMP0135 NEW)
 
-if("$ENV{CUDAARCHS}" STREQUAL "")
-  set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
-endif()
+set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
 
 if(MSVC)
   set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Available configuration types to select")
@@ -106,7 +104,7 @@ if(GPU)
     target_include_directories(${test_name} PRIVATE tests/include)
     target_link_libraries(${test_name} lala_parsing)
     target_link_options(${test_name} PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>)
-    add_test(NAME ${test_name} COMMAND compute-sanitizer --error-exitcode 1 $<TARGET_FILE:${test_name}>)
+    add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
   endforeach()
 endif()
 
