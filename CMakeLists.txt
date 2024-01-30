@@ -71,7 +71,7 @@ else()
   FetchContent_Declare(
     lala_parsing
     GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-    GIT_TAG        v1.1.2
+    GIT_TAG        v1.1.3
   )
 endif()
 FetchContent_MakeAvailable(lala_parsing)

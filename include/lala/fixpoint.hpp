@@ -106,7 +106,7 @@ public:
     size_t n = a.num_refinements();
     for (size_t t = group.thread_rank(); t < n; t += group.num_threads()) {
       a.refine(t, has_changed);
-      // if((t-group.thread_rank()) + group.num_threads() < n) __syncwarp();
+      if((t-group.thread_rank()) + group.num_threads() < n) __syncwarp();
     }
   #endif
   }
