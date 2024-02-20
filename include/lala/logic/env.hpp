@@ -82,8 +82,8 @@ struct ListVarIndex {
     return *this;
   }
 
-  CUDA thrust::optional<int> lvar_index_of(const char* lv) const {
-    for(int i = 0; i < lvars->size(); ++i) {
+  CUDA thrust::optional<size_t> lvar_index_of(const char* lv) const {
+    for(size_t i = 0; i < lvars->size(); ++i) {
       if((*lvars)[i].name == lv) {
         return i;
       }
@@ -113,10 +113,10 @@ struct HashMapVarIndex {
   using bstring = battery::string<Allocator>;
 
   bvector<variable_type>* lvars;
-  std::unordered_map<std::string, int> lvar_index;
+  std::unordered_map<std::string, size_t> lvar_index;
 
   HashMapVarIndex(bvector<variable_type>* lvars): lvars(lvars) {
-    for(int i = 0; i < lvars->size(); ++i) {
+    for(size_t i = 0; i < lvars->size(); ++i) {
       lvar_index[std::string((*lvars)[i].name.data())] = i;
     }
   }
@@ -142,7 +142,7 @@ struct HashMapVarIndex {
     return *this;
   }
 
-  thrust::optional<int> lvar_index_of(const char* lv) const {
+  thrust::optional<size_t> lvar_index_of(const char* lv) const {
     auto it = lvar_index.find(std::string(lv));
     if(it != lvar_index.end()) {
       return {it->second};
@@ -151,7 +151,7 @@ struct HashMapVarIndex {
   }
 
   void push_back(variable_type&& var) {
-    lvar_index[std::string(var.name.data())] = static_cast<int>(lvars->size());
+    lvar_index[std::string(var.name.data())] = lvars->size();
     lvars->push_back(std::move(var));
   }
 
@@ -226,7 +226,7 @@ struct DispatchIndex {
     return *this;
   }
 
-  CUDA thrust::optional<int> lvar_index_of(const char* lv) const {
+  CUDA thrust::optional<size_t> lvar_index_of(const char* lv) const {
     #ifdef __CUDA_ARCH__
       return gpu_index->lvar_index_of(lv);
     #else
@@ -285,7 +285,7 @@ private:
 public:
   CUDA NI AType extends_abstract_dom() {
     avar2lvar.push_back(bvector<int>(get_allocator()));
-    return static_cast<AType>(avar2lvar.size()/*unsigned*/) - 1;
+    return static_cast<AType>(avar2lvar.size()) - 1;
   }
 
 private:
@@ -299,7 +299,7 @@ private:
   template <class Alloc2, class Alloc3>
   CUDA NI AVar extends_vars(AType aty, const battery::string<Alloc2>& name, const Sort<Alloc3>& sort) {
     extends_abstract_doms(aty);
-    AVar avar(aty, static_cast<int>(avar2lvar[aty].size()/*size_t*/));
+    AVar avar(aty, static_cast<int>(avar2lvar[aty].size()));
     // We first verify the variable doesn't already exist.
     auto lvar_idx = var_index.lvar_index_of(name.data());
     if(lvar_idx.has_value()) {
@@ -312,7 +312,7 @@ private:
       }
     }
     else {
-      lvar_idx ={static_cast<int>(lvars.size()/*size_t*/)};
+      lvar_idx ={lvars.size()};
       var_index.push_back(Variable<allocator_type>{name, sort, avar, get_allocator()});
     }
     avar2lvar[aty].push_back(*lvar_idx);

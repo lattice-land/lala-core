@@ -78,8 +78,8 @@ using BDec = PrimitiveUpset<PreBDec, Mem>;
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
 namespace local {
-  using ZInc = ::lala::ZInc<int, battery::local_memory>; // Q: Should be logic_int? (bug?)
-  using ZDec = ::lala::ZDec<int, battery::local_memory>; // Q: Should be logic_int? (bug?)
+  using ZInc = ::lala::ZInc<int, battery::local_memory>;
+  using ZDec = ::lala::ZDec<int, battery::local_memory>;
   using FInc = ::lala::FInc<double, battery::local_memory>;
   using FDec = ::lala::FDec<double, battery::local_memory>;
   using BInc = ::lala::BInc<battery::local_memory>;

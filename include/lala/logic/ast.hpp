@@ -56,6 +56,7 @@ public:
     assert(atype < (1 << 8));
     assert(var_id < (1 << 23));
   }
+  CUDA constexpr AVar(AType atype, size_t var_id): AVar(atype, static_cast<int>(var_id)) {}
 
   CUDA constexpr bool is_untyped() const {
     return value == -1;
@@ -250,31 +251,31 @@ public:
   >;
 
   /** Index of Booleans in the variant type `Formula` (called kind below). */
-  static constexpr int B = 0;
+  static constexpr size_t B = 0;
 
   /** Index of integers in the variant type `Formula` (called kind below). */
-  static constexpr int Z = B + 1;
+  static constexpr size_t Z = B + 1;
 
   /** Index of real numbers in the variant type `Formula` (called kind below). */
-  static constexpr int R = Z + 1;
+  static constexpr size_t R = Z + 1;
 
   /** Index of sets in the variant type `Formula` (called kind below). */
-  static constexpr int S = R + 1;
+  static constexpr size_t S = R + 1;
 
   /** Index of abstract variables in the variant type `Formula` (called kind below). */
-  static constexpr int V = S + 1;
+  static constexpr size_t V = S + 1;
 
   /** Index of logical variables in the variant type `Formula` (called kind below). */
-  static constexpr int LV = V + 1;
+  static constexpr size_t LV = V + 1;
 
   /** Index of existential quantifier in the variant type `Formula` (called kind below). */
-  static constexpr int E = LV + 1;
+  static constexpr size_t E = LV + 1;
 
   /** Index of n-ary operators in the variant type `Formula` (called kind below). */
-  static constexpr int Seq = E + 1;
+  static constexpr size_t Seq = E + 1;
 
   /** Index of n-ary operators where the operator is an extended signature in the variant type `Formula` (called kind below). */
-  static constexpr int ESeq = Seq + 1;
+  static constexpr size_t ESeq = Seq + 1;
 
 private:
   AType type_;
@@ -451,11 +452,11 @@ public:
     return this_type(atype, Formula::template create<ESeq>(battery::make_tuple(std::move(esig), std::move(children))));
   }
 
-  CUDA int index() const {
-    return static_cast<int>(formula.index()/*size_t*/);
+  CUDA size_t index() const {
+    return formula.index();
   }
 
-  CUDA bool is(int kind) const {
+  CUDA bool is(size_t kind) const {
     return formula.index() == kind;
   }
 

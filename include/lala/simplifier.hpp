@@ -177,7 +177,7 @@ private:
     return env[x].avars[0];
   }
 
-  CUDA AVar to_sub_var(int vid) const {
+  CUDA AVar to_sub_var(size_t vid) const {
     return to_sub_var(AVar{aty(), vid});
   }
 
@@ -225,7 +225,7 @@ private:
   // We eliminate the representative of the variable `i` if it is a singleton.
   template <class Mem>
   CUDA void vrefine(size_t i, BInc<Mem>& has_changed) {
-    const auto& u = sub->project(to_sub_var(static_cast<int>(i)));
+    const auto& u = sub->project(to_sub_var(i));
     size_t j = equivalence_classes[i];
     constants[j].tell(u, has_changed);
     if(constants[j].lb().value() == constants[j].ub().value()) {
@@ -306,46 +306,28 @@ public:
     }
   }
 
-  CUDA int num_eliminated_variables() const {
-    int keep = 0;
+  CUDA size_t num_eliminated_variables() const {
+    size_t keep = 0;
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       if(equivalence_classes[i] == i && !eliminated_variables.test(i)) {
         ++keep;
       }
     }
-    return static_cast<int>(equivalence_classes.size()/*unsigned*/) - keep;
+    return equivalence_classes.size() - keep;
   }
 
-  CUDA int num_eliminated_formulas() const {
-    return static_cast<int>(eliminated_formulas.count()/*unsigned*/);
+  CUDA size_t num_eliminated_formulas() const {
+    return eliminated_formulas.count();
   }
 
   CUDA NI TFormula<allocator_type> deinterpret() {
     using F = TFormula<allocator_type>;
     typename F::Sequence seq(get_allocator());
 
-    // for(int i = 0; i < equivalence_classes.size(); ++i) {
-    //   printf("equivalence_classes[%d] = %d (%s)\n", i, equivalence_classes[i].value(), env[AVar(aty(), i)].name.data());
-    // }
-
-    // for(int i = 0; i < equivalence_classes.size(); ++i) {
-    //   printf("eliminated_variables[%d] = %d\n", i, eliminated_variables.test(i));
-    // }
-
-    // for(int i = 0; i < formulas.size(); ++i) {
-    //   printf("eliminated_formulas[%d] = %d\n", i, eliminated_formulas.test(i));
-    //   printf("before: "); formulas[i].print(); printf("\n");
-    //   printf("after: "); simplified_formulas[i].print(); printf("\n");
-    // }
-
     // A representative variable is eliminated if all variables in its equivalence class must be eliminated.
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       eliminated_variables.set(equivalence_classes[i], eliminated_variables.test(equivalence_classes[i]) && eliminated_variables.test(i));
     }
-
-    // for(int i = 0; i < equivalence_classes.size(); ++i) {
-    //   printf("eliminated_variables'[%d] = %d\n", i, eliminated_variables.test(i));
-    // }
 
     // Deinterpret the existential quantifiers (only one per equivalence classes), and the domain of each variable.
     for(int i = 0; i < equivalence_classes.size(); ++i) {

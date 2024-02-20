@@ -72,7 +72,7 @@ public:
   CUDA void cut(size_t i) {
     suberrors.resize(i);
     fatal = false;
-    for(int j = 0; j < suberrors.size(); ++j) {
+    for(size_t j = 0; j < suberrors.size(); ++j) {
       if(suberrors[j].is_fatal()) {
         fatal = true;
         return;
@@ -88,7 +88,7 @@ public:
     assert(i > 0);
     assert(i <= suberrors.size());
     suberrors[i-1].fatal = !succeeded;
-    for(decltype(suberrors.size()) j = i; j < suberrors.size(); ++j) {
+    for(size_t j = i; j < suberrors.size(); ++j) {
       // In case of success, we erase the fatal suberrors.
       if(!succeeded || !suberrors[j].is_fatal()) {
         suberrors[i-1].add_suberror(std::move(suberrors[j]));

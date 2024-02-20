@@ -501,7 +501,12 @@ namespace impl {
           if(seq[0].is_true()) { return seq[1]; }
           else if(seq[0].is_false()) { return F::make_true(); }
           else if(seq[1].is_true()) { return F::make_true(); }
-          else if(seq[1].is_false()) { return F::make_unary(NOT, seq[0], atype); }
+          else if(seq[1].is_false()) {
+            auto r = negate(seq[0]);
+            if(r.has_value()) {
+              return r.value();
+            }
+          }
         }
         break;
       }
@@ -571,11 +576,11 @@ namespace impl {
         {
           return F::make_binary(seq[0].seq(0), NEQ, F::make_z(seq[1].to_z() - seq[0].seq(1).to_z()), atype);
         }
-        // -k != -x --> k != x
+        // k != -x --> -k != x
         if(seq.size() == 2 && is_bz(seq[0]) && seq[1].is_unary() && seq[1].sig() == NEG && seq[1].seq(0).is_variable()) {
           return F::make_binary(F::make_z(-seq[0].to_z()), NEQ, seq[1].seq(0), atype);
         }
-        // -x != -k --> x != k
+        // -x != k --> x != -k
         if(seq.size() == 2 && is_bz(seq[1]) && seq[0].is_unary() && seq[0].sig() == NEG && seq[0].seq(0).is_variable()) {
           return F::make_binary(seq[0].seq(0), NEQ, F::make_z(-seq[1].to_z()), atype);
         }

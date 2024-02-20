@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.24)
 cmake_policy(SET CMP0135 NEW)
 
-set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
+endif()
 
 if(MSVC)
   set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Available configuration types to select")
@@ -30,7 +32,7 @@ else()
   FetchContent_Declare(
     cccl
     GIT_REPOSITORY "https://github.com/NVIDIA/cccl.git"
-    GIT_TAG        v2.2.0
+    GIT_TAG        v2.3.1
     GIT_SHALLOW    1
   )
 

@@ -104,7 +104,7 @@ public:
   /** Given a floating-point value, create a logical constant representing that value.
    * The constant is represented by a singleton interval of `double` [v..v].
    * Note that the lattice order has no influence here.
-   * `\precondition` `v != bot()` and `v != top()`.
+   * \pre `v != bot()` and `v != top()`.
   */
   template<class F>
   CUDA static F deinterpret(const value_type& v) {
