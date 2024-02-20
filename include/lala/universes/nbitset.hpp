@@ -227,7 +227,7 @@ public:
   /** Support the following language where all constants `k` are integer or Boolean values:
    *   * `var x:Z`
    *   * `var x:B`
-   *   * `x <op> k` where `k` is an integer constant and <op> in {==, !=, <, <=, >, >=}.
+   *   * `x <op> k` where `k` is an integer constant and `<op>` in {==, !=, <, <=, >, >=}.
    *   * `x in S` where `S` is a set of integers.
    * It can be over-approximated if the element `k` falls out of the bitset. */
   template<bool diagnose = false, class F, class Env, class M>

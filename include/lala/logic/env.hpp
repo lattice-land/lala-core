@@ -151,7 +151,7 @@ struct HashMapVarIndex {
   }
 
   void push_back(variable_type&& var) {
-    lvar_index[std::string(var.name.data())] = lvars->size();
+    lvar_index[std::string(var.name.data())] = static_cast<int>(lvars->size());
     lvars->push_back(std::move(var));
   }
 
@@ -279,13 +279,13 @@ public:
 
 private:
   bvector<variable_type> lvars;
-  bvector<bvector<int>> avar2lvar;
+  bvector<bvector<size_t>> avar2lvar;
   DispatchIndex<allocator_type> var_index; // Note that this must always be declared *after* `lvars` because it stores a reference to it.
 
 public:
   CUDA NI AType extends_abstract_dom() {
     avar2lvar.push_back(bvector<int>(get_allocator()));
-    return avar2lvar.size() - 1;
+    return static_cast<AType>(avar2lvar.size()/*unsigned*/) - 1;
   }
 
 private:
@@ -299,7 +299,7 @@ private:
   template <class Alloc2, class Alloc3>
   CUDA NI AVar extends_vars(AType aty, const battery::string<Alloc2>& name, const Sort<Alloc3>& sort) {
     extends_abstract_doms(aty);
-    AVar avar(aty, avar2lvar[aty].size());
+    AVar avar(aty, static_cast<int>(avar2lvar[aty].size()/*size_t*/));
     // We first verify the variable doesn't already exist.
     auto lvar_idx = var_index.lvar_index_of(name.data());
     if(lvar_idx.has_value()) {
@@ -312,7 +312,7 @@ private:
       }
     }
     else {
-      lvar_idx = {lvars.size()};
+      lvar_idx ={static_cast<int>(lvars.size()/*size_t*/)};
       var_index.push_back(Variable<allocator_type>{name, sort, avar, get_allocator()});
     }
     avar2lvar[aty].push_back(*lvar_idx);
@@ -501,8 +501,8 @@ public:
   }
 
   struct snapshot_type {
-    bvector<int> lvars_snap;
-    bvector<int> avar2lvar_snap;
+    bvector<size_t> lvars_snap;
+    bvector<size_t> avar2lvar_snap;
   };
 
   /** Save the state of the environment. */

@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
 cmake_policy(SET CMP0135 NEW)
 
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES native)
+set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
+
+if(MSVC)
+  set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Available configuration types to select")
 endif()
 
 project(lala-core
@@ -29,6 +31,7 @@ else()
     cccl
     GIT_REPOSITORY "https://github.com/NVIDIA/cccl.git"
     GIT_TAG        v2.2.0
+    GIT_SHALLOW    1
   )
 
 endif()
@@ -45,6 +48,9 @@ if(NOT LALA_CORE_BUILD_TESTS) # For tests, lala_core will be built through lala_
   target_link_libraries(lala_core INTERFACE cuda_battery CCCL::CCCL)
   target_compile_options(lala_core INTERFACE
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-diag-suppress 20011,20014>" # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/utf-8>
+    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:--compiler-options /utf-8>"
+    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:-diag-suppress 2219>" # Suppress warnings from nvcc about using UTF-8 "\uXXXX" strings in ast.hpp and primitive_upset.hpp
   )
 endif()
 
@@ -56,6 +62,7 @@ FetchContent_Declare(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
   GIT_TAG v1.14.0
+  GIT_SHALLOW 1
 )
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -96,6 +103,7 @@ if(GPU)
     add_executable(${test_name} ${file})
     target_include_directories(${test_name} PRIVATE tests/include)
     target_link_libraries(${test_name} lala_parsing)
+    target_link_options(${test_name} PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>)
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
   endforeach()
 endif()

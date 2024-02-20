@@ -88,7 +88,7 @@ public:
     assert(i > 0);
     assert(i <= suberrors.size());
     suberrors[i-1].fatal = !succeeded;
-    for(int j = i; j < suberrors.size(); ++j) {
+    for(decltype(suberrors.size()) j = i; j < suberrors.size(); ++j) {
       // In case of success, we erase the fatal suberrors.
       if(!succeeded || !suberrors[j].is_fatal()) {
         suberrors[i-1].add_suberror(std::move(suberrors[j]));
