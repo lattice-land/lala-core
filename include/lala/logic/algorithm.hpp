@@ -270,6 +270,9 @@ CUDA NI thrust::optional<F> negate(const F& f) {
   else if(f.is_false()) {
     return F::make_true();
   }
+  else if(f.is_variable()) {
+    return F::make_unary(NOT, f, f.type());
+  }
   else if(f.is(F::Seq)) {
     Sig neg_sig;
     switch(f.sig()) {
@@ -526,6 +529,9 @@ namespace impl {
         if(seq.size() == 1 && is_bz(seq[0])) {
           return seq[0].is_true() ? F::make_false() : F::make_true();
         }
+        if(seq.size() == 1 && seq[0].is_unary() && seq[0].sig() == NOT) {
+          return seq[0].seq(0);
+        }
         break;
       }
       case XOR: {
@@ -626,6 +632,9 @@ namespace impl {
         if(seq.size() == 1 && is_bz(seq[0])) {
           return F::make_z(-seq[0].to_z());
         }
+        if(seq.size() == 1 && seq[0].is_unary() && seq[0].sig() == NEG) {
+          return seq[0].seq(0);
+        }
         break;
       }
       case ABS: {
@@ -699,41 +708,29 @@ namespace impl {
         else if(seq.size() == 2 && is_bz(seq[1]) && seq[1].to_z() == 0) {
           return seq[0];
         }
-        break;
-      }
-      case TDIV: {
-        if(is_binary_z<F>(seq)) {
-          return F::make_z(battery::tdiv(seq[0].z(), seq[1].z()));
-        }
         else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
-          return F::make_z(0);
+          return F::make_unary(NEG, seq[0], atype);
         }
         break;
       }
-      case FDIV: {
-        if(is_binary_z<F>(seq)) {
-          return F::make_z(battery::fdiv(seq[0].z(), seq[1].z()));
-        }
-        else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
-          return F::make_z(0);
-        }
-        break;
-      }
-      case CDIV: {
-        if(is_binary_z<F>(seq)) {
-          return F::make_z(battery::cdiv(seq[0].z(), seq[1].z()));
-        }
-        else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
-          return F::make_z(0);
-        }
-        break;
-      }
+      case TDIV:
+      case FDIV:
+      case CDIV:
       case EDIV: {
         if(is_binary_z<F>(seq)) {
-          return F::make_z(battery::ediv(seq[0].z(), seq[1].z()));
+          switch(sig) {
+            case TDIV: return F::make_z(battery::tdiv(seq[0].z(), seq[1].z()));
+            case FDIV: return F::make_z(battery::fdiv(seq[0].z(), seq[1].z()));
+            case CDIV: return F::make_z(battery::cdiv(seq[0].z(), seq[1].z()));
+            case EDIV: return F::make_z(battery::ediv(seq[0].z(), seq[1].z()));
+            default: assert(0); break;
+          }
         }
         else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
           return F::make_z(0);
+        }
+        else if(seq.size() == 2 && is_bz(seq[1]) && seq[1].to_z() == 1) {
+          return seq[0];
         }
         break;
       }
