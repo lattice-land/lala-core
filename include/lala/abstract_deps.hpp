@@ -60,6 +60,9 @@ public:
   , deps(battery::get<0>(this->allocators))
   {}
 
+  CUDA AbstractDeps(const Allocators&... allocators)
+  : AbstractDeps(false, allocators...) {}
+
   CUDA size_t size() const {
     return deps.size();
   }
