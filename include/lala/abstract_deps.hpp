@@ -48,14 +48,24 @@ private:
   allocators_type allocators;
   battery::vector<battery::unique_ptr<dep_erasure, allocator_type>, allocator_type> deps;
 
+  /** If the hierarchy to be copied is the root of the search tree, the children can share some elements with the root.
+   * For instance, this is the case of propagators in `PC`.
+   * This enables to share data among GPU blocks to avoid duplicating similar data, and to ease the contention on L2 cache. */
+  bool shared_copy;
+
 public:
-  CUDA AbstractDeps(const Allocators&... allocators)
-  : allocators(allocators...)
+  CUDA AbstractDeps(bool shared_copy, const Allocators&... allocators)
+  : shared_copy(shared_copy)
+  , allocators(allocators...)
   , deps(battery::get<0>(this->allocators))
   {}
 
   CUDA size_t size() const {
     return deps.size();
+  }
+
+  CUDA bool is_shared_copy() const {
+    return shared_copy;
   }
 
   template<class A>
