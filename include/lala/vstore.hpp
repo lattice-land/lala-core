@@ -483,6 +483,16 @@ public:
     }
   }
 
+private:
+  template<class U2, class Env>
+  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar avar, const U2& dom, const Env& env) const {
+    auto f = dom.deinterpret(avar, env);
+    f.type_as(aty());
+    map_avar_to_lvar(f, env);
+    return std::move(f);
+  }
+
+public:
   template<class Env>
   CUDA NI TFormula<typename Env::allocator_type> deinterpret(const Env& env) const {
     using F = TFormula<typename Env::allocator_type>;
@@ -490,12 +500,27 @@ public:
     for(int i = 0; i < data.size(); ++i) {
       AVar v(aty(), i);
       seq.push_back(F::make_exists(aty(), env.name_of(v), env.sort_of(v)));
-      auto f = data[i].deinterpret(v, env);
-      f.type_as(aty());
-      map_avar_to_lvar(f, env);
-      seq.push_back(std::move(f));
+      seq.push_back(deinterpret(AVar(aty(), i), data[i], env));
     }
     return F::make_nary(AND, std::move(seq), aty());
+  }
+
+  template<class I, class Env>
+  CUDA NI TFormula<typename Env::allocator_type> deinterpret(const I& intermediate, const Env& env) const {
+    using F = TFormula<typename Env::allocator_type>;
+    if(intermediate.size() == 0) {
+      return F::make_true();
+    }
+    else if(intermediate.size() == 1) {
+      return deinterpret(intermediate[0].avar, intermediate[0].dom, env);
+    }
+    else {
+      typename F::Sequence seq{intermediate.size(), env.get_allocator()};
+      for(int i = 0; i < intermediate.size(); ++i) {
+        seq.push_back(deinterpret(intermediate[i].avar, intermediate[i].dom, env));
+      }
+      return F::make_nary(AND, std::move(seq), aty());
+    }
   }
 
   CUDA void print() const {

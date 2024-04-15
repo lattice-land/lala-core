@@ -428,7 +428,7 @@ public:
   {
     Sequence seq;
     for(size_t i = 0; i < children.size(); ++i) {
-      if(flatten && children[i].is(Seq) && children[i].sig() == sig && children[i].type() == atype) {
+      if(flatten && children[i].is(Seq) && children[i].sig() == sig && is_associative(sig) && children[i].type() == atype) {
         for(size_t j = 0; j < children[i].seq().size(); ++j) {
           seq.push_back(std::move(children[i].seq(j)));
         }
@@ -436,6 +436,13 @@ public:
       else {
         seq.push_back(std::move(children[i]));
       }
+    }
+    if(seq.size() == 0) {
+      if(sig == AND) return make_true();
+      if(sig == OR) return make_false();
+    }
+    if(seq.size() == 1 && (sig == AND || sig == OR)) {
+      return std::move(seq[0]);
     }
     return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, std::move(seq))));
   }
