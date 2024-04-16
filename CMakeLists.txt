@@ -27,7 +27,7 @@ else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-    GIT_TAG        v1.4.0
+    GIT_TAG        v1.5.0
   )
   FetchContent_Declare(
     cccl
