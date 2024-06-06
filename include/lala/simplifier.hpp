@@ -201,12 +201,12 @@ public:
   */
   template <class Alloc, class B, class Env>
   CUDA void print_variable(const LVar<Alloc>& vname, const Env& benv, const B& b) const {
-    const auto& local_var = *(env.variable_of(vname));
+    const auto& local_var = env.variable_of(vname)->get();
     int rep = equivalence_classes[local_var.avar_of(aty())->vid()];
     const auto& rep_name = env.name_of(AVar{aty(), rep});
-    const auto& benv_variable = benv.variable_of(rep_name);
+    auto benv_variable = benv.variable_of(rep_name);
     if(benv_variable.has_value()) {
-      benv_variable->sort.print_value(b.project(benv_variable->avars[0]));
+      benv_variable->get().sort.print_value(b.project(benv_variable->get().avars[0]));
     }
     else {
       local_var.sort.print_value(constants[rep]);
