@@ -129,7 +129,7 @@ private:
   template<bool diagnose, bool negated, class F, class M>
   CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M>& tell, IDiagnostics& diagnostics) {
     using sort_type = Sort<typename F::allocator_type>;
-    thrust::optional<sort_type> sort = k.sort();
+    std::optional<sort_type> sort = k.sort();
     if(sort.has_value() &&
        (sort.value() == sort_type(sort_type::Set, sort_type(sort_type::Int))
      || sort.value() == sort_type(sort_type::Set, sort_type(sort_type::Bool))))

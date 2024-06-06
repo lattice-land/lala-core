@@ -11,7 +11,7 @@
 #include "battery/shared_ptr.hpp"
 #include "battery/unique_ptr.hpp"
 #include "sort.hpp"
-#include "thrust/optional.h"
+#include <optional>
 
 #ifdef _WINDOWS
 # undef DIFFERENCE // Avoid clash with #define in WinUser.h
@@ -355,7 +355,7 @@ public:
     return type() == UNTYPED;
   }
 
-  CUDA NI thrust::optional<Sort<allocator_type>> sort() const {
+  CUDA NI std::optional<Sort<allocator_type>> sort() const {
     using sort_t = Sort<allocator_type>;
     switch(formula.index()) {
       case B: return sort_t(sort_t::Bool);

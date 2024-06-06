@@ -1,18 +1,24 @@
 cmake_minimum_required(VERSION 3.24)
 cmake_policy(SET CMP0135 NEW)
 
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
-endif()
-
 if(MSVC)
   set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Available configuration types to select")
 endif()
 
-project(lala-core
-  HOMEPAGE_URL "https://github.com/lattice-land/lala-core"
-  LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
+if(GPU)
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
+  endif()
+  project(lala-core
+    HOMEPAGE_URL "https://github.com/lattice-land/lala-core"
+    LANGUAGES CUDA CXX)
+  find_package(CUDAToolkit REQUIRED)
+else()
+  project(lala-core
+    HOMEPAGE_URL "https://github.com/lattice-land/lala-core"
+    LANGUAGES CXX)
+endif()
 option(LOCAL_DEPS "LOCAL_DEPS" OFF)
 option(LALA_CORE_BUILD_TESTS "LALA_CORE_BUILD_TESTS" OFF)
 
@@ -22,35 +28,41 @@ include(FetchContent)
 
 if(LOCAL_DEPS)
   FetchContent_Declare(cuda_battery SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cuda-battery/")
-  FetchContent_Declare(cccl SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cccl/")
+  if(GPU)
+    FetchContent_Declare(cccl SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cccl/")
+  endif()
 else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-    GIT_TAG        v1.5.0
+    GIT_TAG        v1.5.2
   )
-  FetchContent_Declare(
-    cccl
-    GIT_REPOSITORY "https://github.com/NVIDIA/cccl.git"
-    GIT_TAG        v2.3.1
-    GIT_SHALLOW    1
-  )
-
+  if(GPU)
+    FetchContent_Declare(
+      cccl
+      GIT_REPOSITORY "https://github.com/NVIDIA/cccl.git"
+      GIT_TAG        v2.3.1
+      GIT_SHALLOW    1
+    )
+  endif()
 endif()
-FetchContent_MakeAvailable(cuda_battery cccl)
+
+FetchContent_MakeAvailable(cuda_battery)
+if(GPU)
+  FetchContent_MakeAvailable(cccl)
+endif()
 
 # Preparing the library
 
 if(NOT LALA_CORE_BUILD_TESTS) # For tests, lala_core will be built through lala_parsing (which depends on lala_core).
-  if(NOT CUDA_PATH)
-    set(CUDA_PATH "/usr/local/cuda")
-  endif()
   add_library(lala_core INTERFACE)
-  target_include_directories(lala_core INTERFACE "${CUDA_PATH}/include" include)
-  target_link_libraries(lala_core INTERFACE cuda_battery CCCL::CCCL)
+  target_include_directories(lala_core INTERFACE "$<$<BOOL:${GPU}>:${CUDAToolkit_INCLUDE_DIRS}>" include)
+  target_link_libraries(lala_core INTERFACE cuda_battery
+    "$<$<BOOL:${GPU}>:CUDA::cudart>"
+    "$<$<BOOL:${GPU}>:CCCL::CCCL>")
   target_compile_options(lala_core INTERFACE
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-diag-suppress 20011,20014>" # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
-    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/utf-8>
+    "$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/utf-8>"
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:--compiler-options /utf-8>"
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:-diag-suppress 2219>" # Suppress warnings from nvcc about using UTF-8 "\uXXXX" strings in ast.hpp and primitive_upset.hpp
   )

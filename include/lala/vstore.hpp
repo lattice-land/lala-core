@@ -240,7 +240,7 @@ private:
         if(!var.has_value()) {
           RETURN_INTERPRETATION_ERROR("Undeclared variable.");
         }
-        auto avar = var->avar_of(atype);
+        auto avar = var->get().avar_of(atype);
         if(!avar.has_value()) {
           RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
         }

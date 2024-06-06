@@ -186,8 +186,8 @@ private:
     using F = TFormula<allocator_type>;
     if(f.is(F::LV)) {
       assert(env.variable_of(f.lv()).has_value());
-      assert(env.variable_of(f.lv())->avar_of(aty()).has_value());
-      return env.variable_of(f.lv())->avar_of(aty()).value();
+      assert(env.variable_of(f.lv())->get().avar_of(aty()).has_value());
+      return env.variable_of(f.lv())->get().avar_of(aty()).value();
     }
     else {
       assert(f.is(F::V));

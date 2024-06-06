@@ -13,6 +13,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <functional>
 
 namespace lala {
 
@@ -42,7 +43,7 @@ struct Variable {
     , avars(other.avars, allocator)
   {}
 
-  CUDA NI thrust::optional<AVar> avar_of(AType aty) const {
+  CUDA NI std::optional<AVar> avar_of(AType aty) const {
     for(int i = 0; i < avars.size(); ++i) {
       if(avars[i].aty() == aty) {
         return avars[i];
@@ -82,7 +83,7 @@ struct ListVarIndex {
     return *this;
   }
 
-  CUDA thrust::optional<size_t> lvar_index_of(const char* lv) const {
+  CUDA std::optional<size_t> lvar_index_of(const char* lv) const {
     for(size_t i = 0; i < lvars->size(); ++i) {
       if((*lvars)[i].name == lv) {
         return i;
@@ -142,7 +143,7 @@ struct HashMapVarIndex {
     return *this;
   }
 
-  thrust::optional<size_t> lvar_index_of(const char* lv) const {
+  std::optional<size_t> lvar_index_of(const char* lv) const {
     auto it = lvar_index.find(std::string(lv));
     if(it != lvar_index.end()) {
       return {it->second};
@@ -226,7 +227,7 @@ struct DispatchIndex {
     return *this;
   }
 
-  CUDA thrust::optional<size_t> lvar_index_of(const char* lv) const {
+  CUDA std::optional<size_t> lvar_index_of(const char* lv) const {
     #ifdef __CUDA_ARCH__
       return gpu_index->lvar_index_of(lv);
     #else
@@ -328,7 +329,7 @@ private:
     }
     auto var = variable_of(vname);
     if(var.has_value()) {
-      if(var->sort != battery::get<1>(f.exists())) {
+      if(var->get().sort != battery::get<1>(f.exists())) {
         RETURN_INTERPRETATION_ERROR("Invalid redeclaration with different sort: variable `" + vname + "` has already been declared and the sort does not coincide.");
       }
     }
@@ -342,7 +343,7 @@ private:
     auto var = variable_of(vname);
     if(var.has_value()) {
       if(f.type() != UNTYPED) {
-        auto avar = var->avar_of(f.type());
+        auto avar = var->get().avar_of(f.type());
         if(avar.has_value()) {
           avar = AVar(*avar);
           return true;
@@ -354,8 +355,8 @@ private:
       else {
         // We take the first abstract variable as a representative. Need more thought on this, but currently we need it for the simplifier, because each variable is typed in both PC and Simplifier, and this interpretation fails.
 
-        // if(var->avars.size() == 1) {
-          avar = AVar(var->avars[0]);
+        // if(var->get().avars.size() == 1) {
+          avar = AVar(var->get().avars[0]);
           return true;
         // }
         // else {
@@ -453,10 +454,10 @@ public:
     }
   }
 
-  CUDA NI thrust::optional<const variable_type&> variable_of(const char* lv) const {
+  CUDA NI std::optional<std::reference_wrapper<const variable_type>> variable_of(const char* lv) const {
     auto r = var_index.lvar_index_of(lv);
     if(r.has_value()) {
-      return lvars[*r];
+      return std::cref(lvars[*r]);
     }
     else {
       return {};
@@ -464,7 +465,7 @@ public:
   }
 
   template <class Alloc2>
-  CUDA thrust::optional<const variable_type&> variable_of(const battery::string<Alloc2>& lv) const {
+  CUDA std::optional<std::reference_wrapper<const variable_type>> variable_of(const battery::string<Alloc2>& lv) const {
     return variable_of(lv.data());
   }
 
@@ -539,12 +540,12 @@ public:
 
 /** Given a formula `f` and an environment, return the first variable occurring in `f` or `{}` if `f` has no variable in `env`. */
 template <class F, class Env>
-CUDA NI thrust::optional<const typename Env::variable_type&> var_in(const F& f, const Env& env) {
+CUDA NI std::optional<std::reference_wrapper<const typename Env::variable_type>> var_in(const F& f, const Env& env) {
   const auto& g = var_in(f);
   switch(g.index()) {
     case F::V:
       if(g.v().is_untyped()) { return {}; }
-      else { return env[g.v()]; }
+      else { return std::cref(env[g.v()]); }
     case F::E:
       return env.variable_of(battery::get<0>(g.exists()));
     case F::LV:

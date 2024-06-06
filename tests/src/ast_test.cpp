@@ -54,7 +54,7 @@ void check_env_state2(VarEnv<standard_allocator>& env) {
   EXPECT_TRUE(env.contains(AVar(0, 0)));
   EXPECT_TRUE(env.contains("x"));
   EXPECT_TRUE(env.variable_of("x").has_value());
-  EXPECT_EQ(*(env.variable_of("x")->avar_of(0)), AVar(0, 0));
+  EXPECT_EQ(*(env.variable_of("x")->get().avar_of(0)), AVar(0, 0));
   EXPECT_FALSE(interpret2(env, "var int: x;").has_value()); // untyped.
   EXPECT_TRUE(interpret2(env, "var int: x :: abstract(0);").has_value());
   EXPECT_FALSE(interpret2(env, "var float: x;").has_value()); // different sort.
@@ -67,7 +67,7 @@ void check_env_state3(VarEnv<standard_allocator>& env) {
   EXPECT_TRUE(env.contains(AVar(0, 1)));
   EXPECT_TRUE(env.contains("y"));
   EXPECT_TRUE(env.variable_of("y").has_value());
-  EXPECT_EQ(*(env.variable_of("y")->avar_of(0)), AVar(0, 1));
+  EXPECT_EQ(*(env.variable_of("y")->get().avar_of(0)), AVar(0, 1));
 }
 
 void check_env_state4(VarEnv<standard_allocator>& env) {
@@ -77,8 +77,8 @@ void check_env_state4(VarEnv<standard_allocator>& env) {
   EXPECT_TRUE(env.contains(AVar(1, 0)));
   EXPECT_TRUE(env.contains("z"));
   EXPECT_TRUE(env.variable_of("z").has_value());
-  EXPECT_FALSE(env.variable_of("z")->avar_of(0).has_value());
-  EXPECT_EQ(*(env.variable_of("z")->avar_of(1)), AVar(1, 0));
+  EXPECT_FALSE(env.variable_of("z")->get().avar_of(0).has_value());
+  EXPECT_EQ(*(env.variable_of("z")->get().avar_of(1)), AVar(1, 0));
 }
 
 void check_env_state5(VarEnv<standard_allocator>& env) {
@@ -89,8 +89,8 @@ void check_env_state5(VarEnv<standard_allocator>& env) {
   EXPECT_EQ(env.num_vars_in(9), 0);
   EXPECT_EQ(env.num_vars_in(10), 1);
   EXPECT_TRUE(env.variable_of("w").has_value());
-  EXPECT_FALSE(env.variable_of("w")->avar_of(4).has_value());
-  EXPECT_EQ(*(env.variable_of("w")->avar_of(10)), AVar(10, 0));
+  EXPECT_FALSE(env.variable_of("w")->get().avar_of(4).has_value());
+  EXPECT_EQ(*(env.variable_of("w")->get().avar_of(10)), AVar(10, 0));
 }
 
 TEST(AST, VarEnv) {
