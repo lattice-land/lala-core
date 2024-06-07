@@ -426,25 +426,33 @@ public:
   /** If `flatten` is `true` it will try to merge the children together to avoid nested formula. */
   CUDA NI static this_type make_nary(Sig sig, Sequence children, AType atype = UNTYPED, bool flatten=true)
   {
-    Sequence seq;
-    for(size_t i = 0; i < children.size(); ++i) {
-      if(flatten && children[i].is(Seq) && children[i].sig() == sig && is_associative(sig) && children[i].type() == atype) {
-        for(size_t j = 0; j < children[i].seq().size(); ++j) {
-          seq.push_back(std::move(children[i].seq(j)));
+    if(is_associative(sig) && flatten) {
+      Sequence seq{children.get_allocator()};
+      for(size_t i = 0; i < children.size(); ++i) {
+        if(children[i].is(Seq) && children[i].sig() == sig && children[i].type() == atype) {
+          for(size_t j = 0; j < children[i].seq().size(); ++j) {
+            seq.push_back(std::move(children[i].seq(j)));
+          }
+        }
+        else {
+          seq.push_back(std::move(children[i]));
         }
       }
-      else {
-        seq.push_back(std::move(children[i]));
-      }
+      return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, std::move(seq))));
     }
-    if(seq.size() == 0) {
-      if(sig == AND) return make_true();
-      if(sig == OR) return make_false();
+    else {
+      return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, std::move(children))));
     }
-    if(seq.size() == 1 && (sig == AND || sig == OR)) {
-      return std::move(seq[0]);
-    }
-    return this_type(atype, Formula::template create<Seq>(battery::make_tuple(sig, std::move(seq))));
+    /** The following code leads to bugs (accap_a4 segfaults, wordpress7_500 gives wrong answers).
+     * I don't know why, but it seems that the simplification is not always correct, perhaps in reified context?
+     * Or perhaps it is a question of atype? */
+    // if(seq.size() == 0) {
+    //   if(sig == AND) return make_true();
+    //   if(sig == OR) return make_false();
+    // }
+    // if(seq.size() == 1 && (sig == AND || sig == OR)) {
+    //   return std::move(seq[0]);
+    // }
   }
 
   CUDA static this_type make_unary(Sig sig, TFormula child, AType atype = UNTYPED, const Allocator& allocator = Allocator()) {
