@@ -131,6 +131,7 @@ public:
 
   template<class M>
   using flat_type = FlatUniverse<typename pre_universe::increasing_type, M>;
+  using local_flat_type = flat_type<battery::local_memory>;
 
   constexpr static const bool is_abstract_universe = true;
   constexpr static const bool sequential = Mem::sequential;
@@ -495,17 +496,15 @@ public:
    * Otherwise, we apply the function `Sig` to `a` and return the result.
    * \remark The result of the function is always over-approximated (or exact when possible).
   */
-  template <Sig sig, class M>
-  CUDA static constexpr local_type fun(const flat_type<M>& a) {
-    using local_flat_type = flat_type<battery::local_memory>;
-    local_flat_type r1(a);
-    if(r1.is_top()) {
+  template <Sig sig>
+  CUDA static constexpr local_type fun(const local_flat_type& a) {
+    if(a.is_top()) {
       return local_type::top();
     }
-    else if(r1.is_bot()) {
+    else if(a.is_bot()) {
       return local_type::bot();
     }
-    return pre_universe::template fun<sig>(r1);
+    return pre_universe::template fun<sig>(a);
   }
 
   /** Binary functions of type `Sig: FlatUniverse x FlatUniverse -> PrimitiveUpset`.
@@ -513,23 +512,20 @@ public:
    * Otherwise, we apply the function `Sig` to `a` and `b` and return the result.
    * \remark The result of the function is always over-approximated (or exact when possible).
    */
-  template<Sig sig, class M1, class M2>
-  CUDA static constexpr local_type fun(const flat_type<M1>& a, const flat_type<M2>& b) {
-    using local_flat_type = flat_type<battery::local_memory>;
-    local_flat_type r1(a);
-    local_flat_type r2(b);
-    if(r1.is_top() || r2.is_top()) {
+  template<Sig sig>
+  CUDA static constexpr local_type fun(const local_flat_type& a, const local_flat_type& b) {
+    if(a.is_top() || b.is_top()) {
       return local_type::top();
     }
-    else if(r1.is_bot() || r2.is_bot()) {
+    else if(a.is_bot() || b.is_bot()) {
       return local_type::bot();
     }
     if constexpr(is_division(sig)) {
-      if(r2.value() == pre_universe::zero()) {
+      if(b.value() == pre_universe::zero()) {
         return local_type::top();
       }
     }
-    return pre_universe::template fun<sig>(r1, r2);
+    return pre_universe::template fun<sig>(a, b);
   }
 
   /** Given two values `a` and `b`, we perform the division while taking care of the case where `b == 0`.
@@ -549,7 +545,6 @@ public:
   {
     using A = PrimitiveUpset<Pre1, Mem1>;
     using B = PrimitiveUpset<Pre2, Mem2>;
-    using local_flat_type = flat_type<battery::local_memory>;
     local_flat_type r1(a);
     local_flat_type r2(b);
     if (r2 != B::pre_universe::zero())
@@ -597,6 +592,7 @@ public:
     }
     return pre_universe::template fun<sig>(r1, r2);
   }
+
 
   template<class Pre2, class Mem2>
   friend class PrimitiveUpset;

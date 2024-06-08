@@ -348,8 +348,8 @@ public:
 
 // Lattice operators
 
-template<class Pre, class M1, class M2>
-CUDA constexpr FlatUniverse<Pre, battery::local_memory> join(const FlatUniverse<Pre, M1>& a, const FlatUniverse<Pre, M2>& b) {
+template<class Pre>
+CUDA constexpr FlatUniverse<Pre, battery::local_memory> join(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
   if(a == b) {
     return a;
   }
@@ -364,8 +364,8 @@ CUDA constexpr FlatUniverse<Pre, battery::local_memory> join(const FlatUniverse<
   }
 }
 
-template<class Pre, class M1, class M2>
-CUDA constexpr FlatUniverse<Pre, battery::local_memory> meet(const FlatUniverse<Pre, M1>& a, const FlatUniverse<Pre, M2>& b) {
+template<class Pre>
+CUDA constexpr FlatUniverse<Pre, battery::local_memory> meet(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
   if(a == b) {
     return a;
   }
