@@ -515,7 +515,7 @@ public:
       return deinterpret(intermediate[0].avar, intermediate[0].dom, env);
     }
     else {
-      typename F::Sequence seq{intermediate.size(), env.get_allocator()};
+      typename F::Sequence seq{env.get_allocator()};
       for(int i = 0; i < intermediate.size(); ++i) {
         seq.push_back(deinterpret(intermediate[i].avar, intermediate[i].dom, env));
       }
