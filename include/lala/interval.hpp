@@ -519,21 +519,18 @@ public:
             else { return div2<divsig>(a.lb(), a.ub(), b.ub(), b.ub()); }
         }
       case NP:
-        if(a.is_top()) { return top(); }
+        if constexpr(L::preserve_concrete_covers && K::preserve_concrete_covers) { // In the discrete case, division can be more precise.
+          switch(sign(a)) {
+            case PP: return div2<divsig>(a.ub(), a.ub(), b.lb(), b.ub());
+            case NP: return local_type(
+              meet(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
+              meet(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
+            case NN: return div2<divsig>(a.lb(), a.lb(), b.ub(), b.lb());
+            case PN: return (a.as_product().is_top()) ? top() : eq_zero();
+          }
+        }
         else {
-          if constexpr(L::preserve_concrete_covers && K::preserve_concrete_covers) { // In the discrete case, division can be more precise.
-            switch(sign(a)) {
-              case PP: return div2<divsig>(a.ub(), a.ub(), b.lb(), b.ub());
-              case NP: return local_type(
-                meet(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
-                meet(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
-              case NN: return div2<divsig>(a.lb(), a.lb(), b.ub(), b.lb());
-              case PN: return (a.as_product().is_top()) ? top() : eq_zero();
-            }
-          }
-          else {
-            return bot();
-          }
+          return bot();
         }
       case NN:
         switch(sign(a)) {
