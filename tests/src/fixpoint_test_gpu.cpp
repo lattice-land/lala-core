@@ -24,12 +24,12 @@ public:
   CUDA int num_refinements() { return data->size(); }
   template<class M>
   CUDA void refine(int i, B<M>& has_changed) {
-    has_changed.join(result.tell(local::ZDec((*data)[i])));
+    has_changed.join(result.join(local::ZDec((*data)[i])));
   }
   CUDA int extract() {
     return result;
   }
-  CUDA B is_top() const { return false; }
+  CUDA local::B is_top() const { return false; }
 };
 
 __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {

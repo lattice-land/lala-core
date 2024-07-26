@@ -134,12 +134,12 @@ public:
     return value() == U::bot();
   }
 
-  CUDA constexpr void tell_top() {
+  CUDA constexpr void join_top() {
     memory_type::store(val, U::top());
   }
 
   template<class M1>
-  CUDA constexpr bool tell(const this_type2<M1>& other) {
+  CUDA constexpr bool join(const this_type2<M1>& other) {
     if(other.is_bot() || *this == other || is_top()) {
       return false;
     }
@@ -147,17 +147,17 @@ public:
       memory_type::store(val, other.value());
     }
     else {
-      tell_top();
+      join_top();
     }
     return true;
   }
 
-  CUDA constexpr void dtell_bot() {
+  CUDA constexpr void meet_bot() {
     memory_type::store(val, U::bot());
   }
 
   template<class M1>
-  CUDA constexpr bool dtell(const this_type2<M1>& other) {
+  CUDA constexpr bool meet(const this_type2<M1>& other) {
     if(is_bot() || *this == other || other.is_top()) {
       return false;
     }
@@ -165,7 +165,7 @@ public:
       memory_type::store(val, other.value());
     }
     else {
-      dtell_bot();
+      meet_bot();
     }
     return true;
   }
@@ -224,7 +224,7 @@ public:
       value_type k;
       bool res = pre_universe::template interpret_type<diagnose>(f, k, diagnostics);
       if(res) {
-        tell.tell(local_type(k));
+        tell.join(local_type(k));
       }
       return res;
     }
@@ -240,7 +240,7 @@ public:
             value_type a;
             if(pre_universe::template interpret_ask<diagnose>(k, a, diagnostics)) {
               if(a == t) {
-                tell.tell(local_type(t));
+                tell.join(local_type(t));
                 return true;
               }
               else {

@@ -229,10 +229,10 @@ public:
 
 private:
   template<size_t i = 0, class... Bs>
-  CUDA constexpr bool tell_(const CartesianProduct<Bs...>& other) {
+  CUDA constexpr bool join_(const CartesianProduct<Bs...>& other) {
     if constexpr (i < n) {
-      bool has_changed = project<i>().tell(other.template project<i>());
-      has_changed |= tell_<i+1>(other);
+      bool has_changed = project<i>().join(other.template project<i>());
+      has_changed |= join_<i+1>(other);
       return has_changed;
     }
     else {
@@ -241,10 +241,10 @@ private:
   }
 
   template<size_t i = 0, class... Bs>
-  CUDA constexpr bool dtell_(const CartesianProduct<Bs...>& other) {
+  CUDA constexpr bool meet_(const CartesianProduct<Bs...>& other) {
     if constexpr (i < n) {
-      bool has_changed = project<i>().dtell(other.template project<i>());
-      has_changed |= dtell_<i+1>(other);
+      bool has_changed = project<i>().meet(other.template project<i>());
+      has_changed |= meet_<i+1>(other);
       return has_changed;
     }
     else {
@@ -253,10 +253,10 @@ private:
   }
 
   template<size_t i = 0>
-  CUDA constexpr void dtell_bot_() {
+  CUDA constexpr void meet_bot_() {
     if constexpr (i < n) {
-      project<i>().dtell_bot();
-      dtell_bot_<i+1>();
+      project<i>().meet_bot();
+      meet_bot_<i+1>();
     }
   }
 
@@ -272,40 +272,40 @@ private:
   }
 
   template <size_t i = 0>
-  CUDA constexpr void tell_top_() {
+  CUDA constexpr void join_top_() {
     if constexpr(i < n) {
-      project<i>().tell_top();
-      tell_top_<i+1>();
+      project<i>().join_top();
+      join_top_<i+1>();
     }
   }
 
 public:
-  CUDA constexpr void tell_top() {
-    tell_top_();
+  CUDA constexpr void join_top() {
+    join_top_();
   }
 
   template <class... Bs>
-  CUDA constexpr bool tell(const CartesianProduct<Bs...>& other) {
-    return tell_(other);
+  CUDA constexpr bool join(const CartesianProduct<Bs...>& other) {
+    return join_(other);
   }
 
   template<size_t i, class Ai>
-  CUDA constexpr bool tell(const Ai& a) {
-    return project<i>().tell(a);
+  CUDA constexpr bool join(const Ai& a) {
+    return project<i>().join(a);
   }
 
-  CUDA constexpr void dtell_bot() {
-    dtell_bot_();
+  CUDA constexpr void meet_bot() {
+    meet_bot_();
   }
 
   template <class... Bs>
-  CUDA constexpr bool dtell(const CartesianProduct<Bs...>& other) {
-    return dtell_(other);
+  CUDA constexpr bool meet(const CartesianProduct<Bs...>& other) {
+    return meet_(other);
   }
 
   template<size_t i, class Ai>
-  CUDA constexpr bool dtell(const Ai& a) {
-    return project<i>().dtell(a);
+  CUDA constexpr bool meet(const Ai& a) {
+    return project<i>().meet(a);
   }
 
   /** For correctness, the parameter `ua` must be stored in a local memory. */

@@ -11,6 +11,9 @@ namespace lala {
 template <class U>
 class Interval;
 
+template<class L, class K>
+CUDA constexpr auto meet(const Interval<L>&, const Interval<K>&);
+
 namespace impl {
   template <class LB, class UB>
   constexpr typename Interval<LB>::local_type make_itv(CartesianProduct<LB, UB> cp) {
@@ -125,7 +128,7 @@ public:
       if(f.is(F::E)) {
         auto sort = f.sort();
         if(sort.has_value() && sort->is_bool()) {
-          k.tell(local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one())));
+          k.join(local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one())));
           return true;
         }
       }
@@ -149,7 +152,7 @@ public:
         (LB::template interpret_tell<diagnose>(f, env, itv.lb(), diagnostics) &&
          UB::template interpret_tell<diagnose>(f, env, itv.ub(), diagnostics) &&
          itv.lb() == itv.ub()),
-        (k.tell(itv)));
+        (k.join(itv)));
     }
     else if(f.is_binary() && f.sig() == IN && f.seq(0).is_variable()
      && f.seq(1).is(F::S) && f.seq(1).s().size() == 1)
@@ -165,7 +168,7 @@ public:
         "Failed to interpret the decomposition of set membership `x in {[l..u]}` into `x >= l /\\ x <= u`.",
         (LB::template interpret_ask<diagnose>(F::make_binary(f.seq(0), geq_of_constant(lb), lb), env, itv.lb(), diagnostics) &&
          UB::template interpret_ask<diagnose>(F::make_binary(f.seq(0), leq_of_constant(ub), ub), env, itv.ub(), diagnostics)),
-        (k.tell(itv))
+        (k.join(itv))
       );
     }
     return CP::template interpret_ask<diagnose>(f, env, k.cp, diagnostics);
@@ -181,49 +184,49 @@ public:
     }
   }
 
-  /** You must use the lattice interface (tell methods) to modify the lower and upper bounds, if you use assignment you violate the PCCP model. */
+  /** You must use the lattice interface (join/meet methods) to modify the lower and upper bounds, if you use assignment you violate the PCCP model. */
   CUDA constexpr LB& lb() { return project<0>(cp); }
   CUDA constexpr UB& ub() { return project<1>(cp); }
 
   CUDA constexpr const LB& lb() const { return project<0>(cp); }
   CUDA constexpr const UB& ub() const { return project<1>(cp); }
 
-  CUDA constexpr void tell_top() {
-    cp.tell_top();
+  CUDA constexpr void join_top() {
+    cp.join_top();
   }
 
   template<class A>
-  CUDA constexpr bool tell_lb(const A& lb) {
-    return cp.template tell<0>(lb);
+  CUDA constexpr bool join_lb(const A& lb) {
+    return cp.template join<0>(lb);
   }
 
   template<class A>
-  CUDA constexpr bool tell_ub(const A& ub) {
-    return cp.template tell<1>(ub);
+  CUDA constexpr bool join_ub(const A& ub) {
+    return cp.template join<1>(ub);
   }
 
   template<class A>
-  CUDA constexpr bool tell(const Interval<A>& other) {
-    return cp.tell(other.cp);
+  CUDA constexpr bool join(const Interval<A>& other) {
+    return cp.join(other.cp);
   }
 
-  CUDA constexpr void dtell_bot() {
-    cp.dtell_bot();
-  }
-
-  template<class A>
-  CUDA constexpr bool dtell_lb(const A& lb) {
-    return cp.template dtell<0>(lb);
+  CUDA constexpr void meet_bot() {
+    cp.meet_bot();
   }
 
   template<class A>
-  CUDA constexpr bool dtell_ub(const A& ub) {
-    return cp.template dtell<1>(ub);
+  CUDA constexpr bool meet_lb(const A& lb) {
+    return cp.template meet<0>(lb);
   }
 
   template<class A>
-  CUDA constexpr bool dtell(const Interval<A>& other) {
-    return cp.dtell(other.cp);
+  CUDA constexpr bool meet_ub(const A& ub) {
+    return cp.template meet<1>(ub);
+  }
+
+  template<class A>
+  CUDA constexpr bool meet(const Interval<A>& other) {
+    return cp.meet(other.cp);
   }
 
   template <class A>
@@ -317,9 +320,9 @@ public:
       case PP: return x;
       case NP: return local_type(   // [0..max(-lb, ub)]
         LB2::geq_k(LB2::pre_universe::zero()),
-        meet(dual<UB2>(LB2::template fun<ABS>(typename L::template flat_type<battery::local_memory>(x.lb()))), x.ub()));
+        ::lala::meet(dual<UB2>(LB2::template fun<ABS>(typename L::template flat_type<battery::local_memory>(x.lb()))), x.ub()));
       case NN: return neg(x);
-      case PN: return local_type(x.lb(), meet(UB2::leq_k(UB2::pre_universe::zero()), x.ub()));
+      case PN: return local_type(x.lb(), ::lala::meet(UB2::leq_k(UB2::pre_universe::zero()), x.ub()));
     }
     assert(0); // all cases should be covered:
     return top();
@@ -408,8 +411,8 @@ public:
           case PP: return mul2(a, b.ub2());
           // Note: we use meet for both bounds because UB is the dual of LB (e.g., if meet in LB is min, then meet in UB is max).
           case NP: return local_type(
-              meet(flat_fun2<MUL, LB2>(a.lb(), b.ub()), flat_fun2<MUL, LB2>(a.ub(), b.lb())),
-              meet(flat_fun2<MUL, UB2>(a.lb(), b.lb()), flat_fun2<MUL, UB2>(a.ub(), b.ub())));
+              ::lala::meet(flat_fun2<MUL, LB2>(a.lb(), b.ub()), flat_fun2<MUL, LB2>(a.ub(), b.lb())),
+              ::lala::meet(flat_fun2<MUL, UB2>(a.lb(), b.lb()), flat_fun2<MUL, UB2>(a.ub(), b.ub())));
           case NN: return mul2(reverse(a), b.lb2());
           case PN:
             if(b.as_product().is_top()) { return top(); }
@@ -435,8 +438,8 @@ public:
               if(b.as_product().is_top()) { return top(); }
               else {
                 return local_type(
-                  join(flat_fun2<MUL, LB2>(a.lb(), b.lb()), flat_fun2<MUL, LB2>(a.ub(), b.ub())),
-                  join(flat_fun2<MUL, UB2>(a.lb(), b.ub()), flat_fun2<MUL, UB2>(a.ub(), b.lb())));
+                  ::lala::join(flat_fun2<MUL, LB2>(a.lb(), b.lb()), flat_fun2<MUL, LB2>(a.ub(), b.ub())),
+                  ::lala::join(flat_fun2<MUL, UB2>(a.lb(), b.ub()), flat_fun2<MUL, UB2>(a.ub(), b.lb())));
               }
           }
         }
@@ -481,8 +484,8 @@ public:
             switch(sign(a)) {
               case PP: return div2<divsig>(a.ub(), a.ub(), b.lb(), b.ub());
               case NP: return local_type(
-                meet(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
-                meet(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
+                ::lala::meet(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
+                ::lala::meet(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
               case NN: return div2<divsig>(a.lb(), a.lb(), b.ub(), b.lb());
               case PN: return (a.as_product().is_top()) ? top() : eq_zero();
             }
@@ -511,8 +514,8 @@ public:
               if(a.as_product().is_top()) { return top(); }
               else {
                 return local_type(
-                  join(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
-                  join(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
+                  ::lala::join(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
+                  ::lala::join(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
               }
           }
         }
@@ -577,7 +580,7 @@ public:
       "Median function is only defined for totally ordered arithmetic intervals.");
     auto x = sub(ub2(), lb2());
     return
-      add(lb2(), meet(div<FDIV>(x, local_type(2,2)), div<CDIV>(x, local_type(2,2))));
+      add(lb2(), ::lala::meet(div<FDIV>(x, local_type(2,2)), div<CDIV>(x, local_type(2,2))));
   }
 };
 

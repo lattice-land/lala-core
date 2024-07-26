@@ -236,12 +236,12 @@ public:
     return value() == U::bot();
   }
 
-  CUDA constexpr void tell_top() {
+  CUDA constexpr void join_top() {
     memory_type::store(val, U::top());
   }
 
   template<class M1>
-  CUDA constexpr bool tell(const this_type2<M1>& other) {
+  CUDA constexpr bool join(const this_type2<M1>& other) {
     value_type r1 = value();
     value_type r2 = other.value();
     if(U::strict_order(r1, r2)) {
@@ -251,12 +251,12 @@ public:
     return false;
   }
 
-  CUDA constexpr void dtell_bot() {
+  CUDA constexpr void meet_bot() {
     memory_type::store(val, U::bot());
   }
 
   template<class M1>
-  CUDA constexpr bool dtell(const this_type2<M1>& other) {
+  CUDA constexpr bool meet(const this_type2<M1>& other) {
     value_type r1 = value();
     value_type r2 = other.value();
     if(U::strict_order(r2, r1)) {
@@ -320,14 +320,14 @@ private:
     bool res = pre_universe::template interpret_tell<diagnose>(k, value, diagnostics);
     if(res) {
       if(sig == EQ || sig == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
-        tell.tell(local_type(value));
+        tell.join(local_type(value));
       }
       else if(sig == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
         if constexpr(preserve_concrete_covers) {
-          tell.tell(local_type(pre_universe::next(value)));
+          tell.join(local_type(pre_universe::next(value)));
         }
         else {
-          tell.tell(local_type(value));
+          tell.join(local_type(value));
         }
       }
       else {
@@ -344,12 +344,12 @@ private:
     bool res = pre_universe::template interpret_ask<diagnose>(k, value, diagnostics);
     if(res) {
       if(sig == U::sig_order()) {
-        tell.tell(local_type(value));
+        tell.join(local_type(value));
       }
       else if(sig == NEQ || sig == U::sig_strict_order()) {
         // We could actually do a little bit better in the case of FInc/FDec.
         // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
-        tell.tell(local_type(pre_universe::next(value)));
+        tell.join(local_type(pre_universe::next(value)));
       }
       else {
         RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the ask language of this universe.");
@@ -362,7 +362,7 @@ private:
   CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M2>& tell, IDiagnostics& diagnostics) {
     const auto& set = k.s();
     if(set.size() == 0) {
-      tell.tell_top();
+      tell.join_top();
       return true;
     }
     value_type meet_s = pre_universe::top();
@@ -377,7 +377,7 @@ private:
       }
       meet_s = pre_universe::meet(meet_s, set_element);
     }
-    tell.tell(local_type(meet_s));
+    tell.join(local_type(meet_s));
     return true;
   }
 
@@ -392,7 +392,7 @@ public:
       typename U::value_type val;
       bool res = pre_universe::template interpret_type<diagnose>(f, val, diagnostics);
       if(res) {
-        tell.tell(local_type(val));
+        tell.join(local_type(val));
       }
       return res;
     }

@@ -52,15 +52,15 @@ TEST(CPTest, JoinMeetTest) {
 
   // Join/Meet a single component
   Itv itv5 = Itv(1,2);
-  itv5.tell<0>(zi::top());
+  itv5.join<0>(zi::top());
   EXPECT_EQ(itv5, Itv(zi::top(), zd(2)));
-  itv5.tell<1>(zd::top());
+  itv5.join<1>(zd::top());
   EXPECT_EQ(itv5, Itv::top());
 
   Itv itv6 = Itv(1,2);
-  EXPECT_TRUE(itv6.dtell<0>(zi::bot()));
+  EXPECT_TRUE(itv6.meet<0>(zi::bot()));
   EXPECT_EQ(itv6, Itv(zi::bot(),zd(2)));
-  EXPECT_TRUE(itv6.dtell<1>(zd::bot()));
+  EXPECT_TRUE(itv6.meet<1>(zd::bot()));
   EXPECT_EQ(itv6, Itv::bot());
 }
 

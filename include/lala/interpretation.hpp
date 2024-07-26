@@ -72,7 +72,7 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diag
   }
   else if(f.is_false()) {
     if constexpr(kind == IKind::TELL || U::preserve_top) {
-      value.tell_top();
+      value.join_top();
       return true;
     }
     else {
@@ -102,9 +102,9 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diag
           if(!ginterpret_in<kind, diagnose>(f.seq(i), env, x, diagnostics)) {
             return false;
           }
-          meet_value.dtell(x);
+          meet_value.meet(x);
         }
-        value.tell(meet_value);
+        value.join(meet_value);
         return true;
       }
       else {
@@ -149,7 +149,7 @@ CUDA bool interpret_and_tell(const F& f, Env& env, L& value, IDiagnostics& diagn
   else {
     typename L::template tell_type<TellAlloc> tell(tell_alloc);
     if(top_level_ginterpret_in<IKind::TELL, diagnose>(value, f, env, tell, diagnostics)) {
-      value.tell(tell);
+      value.refine(tell);
       return true;
     }
     else {

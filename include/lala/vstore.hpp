@@ -142,7 +142,7 @@ public:
     const allocator_type& alloc = allocator_type{})
   {
     auto s = VStore{atype, alloc};
-    s.tell_top();
+    s.join_top();
     return std::move(s);
   }
 
@@ -193,7 +193,7 @@ public:
     }
     is_at_top.meet_bot();
     for(int i = 0; i < snap.size(); ++i) {
-      data[i].dtell(snap[i]);
+      data[i].meet(snap[i]);
       is_at_top.join(data[i].is_top());
     }
     return *this;
@@ -320,32 +320,32 @@ public:
     return data[x];
   }
 
-  CUDA void tell_top() {
+  CUDA void join_top() {
     is_at_top.join_top();
   }
 
-  /** Given an abstract variable `v`, `tell(VID(v), dom)` will update the domain of this variable with the new information `dom`.
-   * This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store.
+  /** Given an abstract variable `v`, `embed(VID(v), dom)` will update the domain of this variable with the new information `dom`.
+   * This `embed` method follows PCCP's model, but the variable `x` must already be initialized in the store.
    * @parallel @order-preserving @increasing
   */
-  CUDA bool tell(int x, const universe_type& dom) {
+  CUDA bool embed(int x, const universe_type& dom) {
     assert(x < data.size());
-    bool has_changed = data[x].tell(dom);
+    bool has_changed = data[x].join(dom);
     has_changed |= is_at_top.join(data[x].is_top());
     return has_changed;
   }
 
-  /** This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store. */
-  CUDA bool tell(AVar x, const universe_type& dom) {
+  /** This `embed` method follows PCCP's model, but the variable `x` must already be initialized in the store. */
+  CUDA bool embed(AVar x, const universe_type& dom) {
     assert(x.aty() == aty());
-    return tell(x.vid(), dom);
+    return embed(x.vid(), dom);
   }
 
-  /** This tell method can grow the store if required, and therefore do not satisfy the PCCP model.
+  /** This refine method can grow the store if required, and therefore do not satisfy the PCCP model.
    * @sequential @order-preserving @increasing
   */
   template <class Alloc2>
-  CUDA bool tell(const tell_type<Alloc2>& t) {
+  CUDA bool refine(const tell_type<Alloc2>& t) {
     if(t.size() == 0) {
       return false;
     }
@@ -357,18 +357,18 @@ public:
     }
     bool has_changed = false;
     for(int i = 0; i < t.size(); ++i) {
-      has_changed |= tell(t[i].avar, t[i].dom);
+      has_changed |= embed(t[i].avar, t[i].dom);
     }
     return has_changed;
   }
 
   /** Precondition: `other` must be smaller or equal in size than the current store. */
   template <class U2, class Alloc2>
-  CUDA bool tell(const VStore<U2, Alloc2>& other) {
+  CUDA bool join(const VStore<U2, Alloc2>& other) {
     bool has_changed = is_at_top.join(other.is_at_top);
     int min_size = battery::min(vars(), other.vars());
     for(int i = 0; i < min_size; ++i) {
-      has_changed |= data[i].tell(other[i]);
+      has_changed |= data[i].join(other[i]);
     }
     for(int i = min_size; i < other.vars(); ++i) {
       assert(other[i].is_bot()); // the size of the current store cannot be modified.
@@ -376,26 +376,26 @@ public:
     return has_changed;
   }
 
-  CUDA void dtell_bot() {
+  CUDA void meet_bot() {
     is_at_top.meet_bot();
     for(int i = 0; i < data.size(); ++i) {
-      data[i].dtell_bot();
+      data[i].meet_bot();
     }
   }
 
   /** Precondition: `other` must be smaller or equal in size than the current store. */
   template <class U2, class Alloc2>
-  CUDA bool dtell(const VStore<U2, Alloc2>& other)  {
+  CUDA bool meet(const VStore<U2, Alloc2>& other)  {
     if(other.is_top()) {
       return false;
     }
     int min_size = battery::min(vars(), other.vars());
     bool has_changed = is_at_top.meet(other.is_at_top);
     for(int i = 0; i < min_size; ++i) {
-      has_changed |= data[i].dtell(other[i]);
+      has_changed |= data[i].meet(other[i]);
     }
     for(int i = min_size; i < vars(); ++i) {
-      has_changed |= data[i].dtell(U::bot());
+      has_changed |= data[i].meet(U::bot());
     }
     for(int i = min_size; i < other.vars(); ++i) {
       assert(other[i].is_bot());
@@ -517,13 +517,13 @@ CUDA auto join(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
   int min_size = battery::min(a.vars(), b.vars());
   VStore<U, Alloc> res(UNTYPED, max_size, a.get_allocator());
   for(int i = 0; i < min_size; ++i) {
-    res.tell(i, join(a[i], b[i]));
+    res.embed(i, join(a[i], b[i]));
   }
   for(int i = min_size; i < a.vars(); ++i) {
-    res.tell(i, a[i]);
+    res.embed(i, a[i]);
   }
   for(int i = min_size; i < b.vars(); ++i) {
-    res.tell(i, b[i]);
+    res.embed(i, b[i]);
   }
   return res;
 }
@@ -547,7 +547,7 @@ CUDA auto meet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
     int min_size = battery::min(a.vars(), b.vars());
     VStore<U, Alloc> res(UNTYPED, min_size, a.get_allocator());
     for(int i = 0; i < min_size; ++i) {
-      res.tell(i, meet(a[i], b[i]));
+      res.embed(i, meet(a[i], b[i]));
     }
     return res;
   }

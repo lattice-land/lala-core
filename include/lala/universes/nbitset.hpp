@@ -117,7 +117,7 @@ private:
       return true;
     }
     else if(sort.is_bool()) {
-      k.tell(local_type(0,1));
+      k.join(local_type(0,1));
       return true;
     }
     else {
@@ -140,7 +140,7 @@ private:
       for(int i = 0; i < set.size(); ++i) {
         int l = battery::get<0>(set[i]).to_z();
         int u = battery::get<1>(set[i]).to_z();
-        meet_s.dtell(local_type(l, u));
+        meet_s.meet(local_type(l, u));
         if(l < 0 || u >= meet_s.bits.size() - 2) {
           over_appx = true;
         }
@@ -151,7 +151,7 @@ private:
         meet_s.bits.set(0, true);
         meet_s.bits.set(meet_s.bits.size()-1, true);
       }
-      tell.tell(meet_s);
+      tell.join(meet_s);
       if(over_appx) {
         RETURN_INTERPRETATION_WARNING("Constraint `x in S` is over-approximated because some elements of `S` fall outside the bitset.");
       }
@@ -183,10 +183,10 @@ private:
       }
     }
     switch(sig) {
-      case EQ: tell.tell(local_type(k, k)); break;
-      case NEQ: tell.tell(local_type(k, k).complement()); break;
-      case LEQ: tell.tell(local_type(-1, k)); break;
-      case GEQ: tell.tell(local_type(k, tell.bits.size())); break;
+      case EQ: tell.join(local_type(k, k)); break;
+      case NEQ: tell.join(local_type(k, k).complement()); break;
+      case LEQ: tell.join(local_type(-1, k)); break;
+      case GEQ: tell.join(local_type(k, tell.bits.size())); break;
       default: RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
     }
     return true;
@@ -259,7 +259,7 @@ public:
       RETURN_INTERPRETATION_ERROR("Existential quantification is not supported in ask interpretation.");
     }
     if(interpret_tell<diagnose>(nf.value(), env, b, diagnostics)) {
-      k.tell(b.complement());
+      k.join(b.complement());
       return true;
     }
     else {
@@ -295,22 +295,22 @@ public:
     return c;
   }
 
-  CUDA constexpr void tell_top() {
+  CUDA constexpr void join_top() {
     bits.reset();
   }
 
   template<class A>
-  CUDA constexpr bool tell_lb(const A& lb) {
-    return tell(local_type(lb.value(), bits.size()));
+  CUDA constexpr bool join_lb(const A& lb) {
+    return join(local_type(lb.value(), bits.size()));
   }
 
   template<class A>
-  CUDA constexpr bool tell_ub(const A& ub) {
-    return tell(local_type(-1, ub.value()));
+  CUDA constexpr bool join_ub(const A& ub) {
+    return join(local_type(-1, ub.value()));
   }
 
   template<class M>
-  CUDA constexpr bool tell(const this_type2<M>& other) {
+  CUDA constexpr bool join(const this_type2<M>& other) {
     if(!bits.is_subset_of(other.bits)) {
       bits &= other.bits;
       return true;
@@ -318,12 +318,12 @@ public:
     return false;
   }
 
-  CUDA constexpr void dtell_bot() {
+  CUDA constexpr void meet_bot() {
     bits.set();
   }
 
   template<class M>
-  CUDA constexpr bool dtell(const this_type2<M>& other) {
+  CUDA constexpr bool meet(const this_type2<M>& other) {
     if(!other.bits.is_subset_of(bits)) {
       bits |= other.bits;
       return true;

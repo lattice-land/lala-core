@@ -55,14 +55,14 @@ TEST(VStoreTest, SnapshotRestore) {
   EXPECT_EQ(vstore[0], zi(1));
   EXPECT_EQ(vstore[1], zi(1));
   for(int j = 0; j < 3; ++j) {
-    EXPECT_TRUE(vstore.tell(0, zi(2)));
+    EXPECT_TRUE(vstore.embed(0, zi(2)));
     EXPECT_EQ(vstore[0], zi(2));
     vstore.restore(snap);
     EXPECT_EQ(vstore[0], zi(1));
   }
   // Test restore after reaching top.
   EXPECT_FALSE(vstore.is_top());
-  EXPECT_TRUE(vstore.tell(1, zi::top()));
+  EXPECT_TRUE(vstore.embed(1, zi::top()));
   EXPECT_TRUE(vstore.is_top());
   EXPECT_EQ(vstore[1], zi::top());
   vstore.restore(snap);
@@ -73,8 +73,8 @@ TEST(VStoreTest, SnapshotRestore) {
 TEST(VStoreTest, Extract) {
   ZStore vstore = create_and_interpret_and_tell<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
   ZStore copy(vstore, AbstractDeps<standard_allocator>(standard_allocator{}));
-  copy.tell(0, zi(2));
-  copy.tell(1, zi::top());
+  copy.embed(0, zi(2));
+  copy.embed(1, zi::top());
   EXPECT_TRUE(vstore.is_extractable());
   vstore.extract(copy);
   for(int i = 0; i < 2; ++i) {

@@ -149,7 +149,7 @@ public:
 
   /** @sequential */
   template <class Alloc2>
-  CUDA bool tell(tell_type<Alloc2>&& t) {
+  CUDA bool refine(tell_type<Alloc2>&& t) {
     assert(t.env != nullptr);
     env = *(t.env);
     eliminated_variables.resize(t.num_vars);
@@ -157,7 +157,7 @@ public:
     constants.resize(t.num_vars);
     equivalence_classes.resize(t.num_vars);
     for(int i = 0; i < equivalence_classes.size(); ++i) {
-      equivalence_classes[i].tell(local::ZDec(i));
+      equivalence_classes[i].join(local::ZDec(i));
     }
     formulas = std::move(t.formulas);
     simplified_formulas.resize(formulas.size());
@@ -222,21 +222,21 @@ private:
   CUDA bool vrefine(size_t i) {
     const auto& u = sub->project(to_sub_var(i));
     size_t j = equivalence_classes[i];
-    bool has_changed = constants[j].tell(u);
+    bool has_changed = constants[j].join(u);
     if(constants[j].lb().value() == constants[j].ub().value()) {
       has_changed |= eliminate(eliminated_variables, j);
     }
     return has_changed;
   }
 
-  CUDA bool crefine(size_t i) {
+  CUDA bool cons_refine(size_t i) {
     using F = TFormula<allocator_type>;
     // Eliminate constraint of the form x = y, and add x,y in the same equivalence class.
     if(is_var_equality(formulas[i])) {
       AVar x = var_of(formulas[i].seq(0));
       AVar y = var_of(formulas[i].seq(1));
-      bool has_changed = equivalence_classes[x.vid()].tell(local::ZDec(equivalence_classes[y.vid()]));
-      has_changed |= equivalence_classes[y.vid()].tell(local::ZDec(equivalence_classes[x.vid()]));
+      bool has_changed = equivalence_classes[x.vid()].join(local::ZDec(equivalence_classes[y.vid()]));
+      has_changed |= equivalence_classes[y.vid()].join(local::ZDec(equivalence_classes[x.vid()]));
       has_changed |= eliminate(eliminated_formulas, i);
       return has_changed;
     }
@@ -298,7 +298,7 @@ public:
       has_changed.join(local::B(vrefine(i)));
     }
     else {
-      has_changed.join(local::B(crefine(i - constants.size())));
+      has_changed.join(local::B(cons_refine(i - constants.size())));
     }
   }
 
