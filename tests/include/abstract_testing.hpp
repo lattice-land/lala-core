@@ -194,23 +194,21 @@ void bot_top_test(const A& mid) {
 
 template <class A>
 void join_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  local::BInc has_changed = local::BInc::bot();
   EXPECT_EQ(join(a, b), expect)  << "join(" << a << ", " << b << ")";;
   if(test_tell) {
     A c(a);
-    EXPECT_EQ(c.tell(b, has_changed), expect) << a << ".tell(" << b << ") == " << expect;
-    EXPECT_EQ(has_changed, has_changed_expect) << a << ".tell(" << b << ")";
+    EXPECT_EQ(c.tell(b), has_changed_expect) << a << ".tell(" << b << ") == " << expect;
+    EXPECT_EQ(c, expect) << a << ".tell(" << b << ")";
   }
 }
 
 template <class A>
 void meet_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  local::BInc has_changed = local::BInc::bot();
   EXPECT_EQ(meet(a, b), expect) << "meet(" << a << ", " << b << ")";
   if(test_tell) {
     A c(a);
-    EXPECT_EQ(c.dtell(b, has_changed), expect) << c << ".dtell(" << b << ")";
-    EXPECT_EQ(has_changed, has_changed_expect) << c << ".dtell(" << b << ")";
+    EXPECT_EQ(c.dtell(b), has_changed_expect) << c << ".dtell(" << b << ")";
+    EXPECT_EQ(c, expect) << c << ".dtell(" << b << ")";
   }
 }
 

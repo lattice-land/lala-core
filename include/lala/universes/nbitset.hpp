@@ -295,58 +295,40 @@ public:
     return c;
   }
 
-  CUDA constexpr this_type& tell_top() {
+  CUDA constexpr void tell_top() {
     bits.reset();
-    return *this;
   }
 
-  template<class A, class M>
-  CUDA constexpr this_type& tell_lb(const A& lb, BInc<M>& has_changed) {
-    return tell(local_type(lb.value(), bits.size()), has_changed);
+  template<class A>
+  CUDA constexpr bool tell_lb(const A& lb) {
+    return tell(local_type(lb.value(), bits.size()));
   }
 
-  template<class A, class M>
-  CUDA constexpr this_type& tell_ub(const A& ub, BInc<M>& has_changed) {
-    return tell(local_type(-1, ub.value()), has_changed);
-  }
-
-  template<class M1, class M2>
-  CUDA constexpr this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    if(!bits.is_subset_of(other.bits)) {
-      bits &= other.bits;
-      has_changed.tell_top();
-    }
-    return *this;
+  template<class A>
+  CUDA constexpr bool tell_ub(const A& ub) {
+    return tell(local_type(-1, ub.value()));
   }
 
   template<class M>
-  CUDA constexpr this_type& tell(const this_type2<M>& other) {
+  CUDA constexpr bool tell(const this_type2<M>& other) {
     if(!bits.is_subset_of(other.bits)) {
       bits &= other.bits;
+      return true;
     }
-    return *this;
+    return false;
   }
 
-  CUDA constexpr this_type& dtell_bot() {
+  CUDA constexpr void dtell_bot() {
     bits.set();
-    return *this;
-  }
-
-  template<class M1, class M2>
-  CUDA constexpr this_type& dtell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    if(!other.bits.is_subset_of(bits)) {
-      bits |= other.bits;
-      has_changed.tell_top();
-    }
-    return *this;
   }
 
   template<class M>
-  CUDA constexpr this_type& dtell(const this_type2<M>& other) {
+  CUDA constexpr bool dtell(const this_type2<M>& other) {
     if(!other.bits.is_subset_of(bits)) {
       bits |= other.bits;
+      return true;
     }
-    return *this;
+    return false;
   }
 
   template <class M>

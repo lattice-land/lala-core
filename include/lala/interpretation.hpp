@@ -149,8 +149,7 @@ CUDA bool interpret_and_tell(const F& f, Env& env, L& value, IDiagnostics& diagn
   else {
     typename L::template tell_type<TellAlloc> tell(tell_alloc);
     if(top_level_ginterpret_in<IKind::TELL, diagnose>(value, f, env, tell, diagnostics)) {
-      local::BInc has_changed;
-      value.tell(tell, has_changed);
+      value.tell(tell);
       return true;
     }
     else {

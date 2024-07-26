@@ -120,82 +120,54 @@ public:
 
   CUDA constexpr operator value_type() const { return value(); }
 
-  /** `true` whenever \f$ a = \top \f$, `false` otherwise. */
-  CUDA constexpr local::BInc is_top() const {
+  /** \return `true` whenever \f$ a = \top \f$, `false` otherwise.
+   * @parallel @order-preserving @increasing
+   */
+  CUDA constexpr local::B is_top() const {
     return value() == U::top();
   }
 
-  /** `true` whenever \f$ a = \bot \f$, `false` otherwise. */
-  CUDA constexpr local::BDec is_bot() const {
+  /** \return `true` whenever \f$ a = \bot \f$, `false` otherwise.
+   * @parallel @order-preserving @decreasing
+   */
+  CUDA constexpr local::B is_bot() const {
     return value() == U::bot();
   }
 
-  CUDA constexpr this_type& tell_top() {
+  CUDA constexpr void tell_top() {
     memory_type::store(val, U::top());
-    return *this;
-  }
-
-  template<class M1, class M2>
-  CUDA constexpr this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    if(other.is_bot() || *this == other || is_top()) {
-      return *this;
-    }
-    has_changed.tell_top();
-    if(is_bot()) {
-      memory_type::store(val, other.value());
-      return *this;
-    }
-    else {
-      return tell_top();
-    }
   }
 
   template<class M1>
-  CUDA constexpr this_type& tell(const this_type2<M1>& other) {
+  CUDA constexpr bool tell(const this_type2<M1>& other) {
     if(other.is_bot() || *this == other || is_top()) {
-      return *this;
+      return false;
     }
     if(is_bot()) {
       memory_type::store(val, other.value());
-      return *this;
     }
     else {
-      return tell_top();
+      tell_top();
     }
+    return true;
   }
 
-  CUDA constexpr this_type& dtell_bot() {
+  CUDA constexpr void dtell_bot() {
     memory_type::store(val, U::bot());
-    return *this;
-  }
-
-  template<class M1, class M2>
-  CUDA constexpr this_type& dtell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    if(is_bot() || *this == other || other.is_top()) {
-      return *this;
-    }
-    has_changed.tell_top();
-    if(is_top()) {
-      memory_type::store(val, other.value());
-      return *this;
-    }
-    else {
-      return dtell_bot();
-    }
   }
 
   template<class M1>
-  CUDA constexpr this_type& dtell(const this_type2<M1>& other) {
+  CUDA constexpr bool dtell(const this_type2<M1>& other) {
     if(is_bot() || *this == other || other.is_top()) {
-      return *this;
+      return false;
     }
     if(is_top()) {
       memory_type::store(val, other.value());
-      return *this;
     }
     else {
-      return dtell_bot();
+      dtell_bot();
     }
+    return true;
   }
 
   /** \return \f$ x = k \f$ where `x` is a variable's name and `k` the current value.

@@ -55,20 +55,16 @@ TEST(VStoreTest, SnapshotRestore) {
   EXPECT_EQ(vstore[0], zi(1));
   EXPECT_EQ(vstore[1], zi(1));
   for(int j = 0; j < 3; ++j) {
-    local::BInc has_changed = local::BInc::bot();
-    vstore.tell(0, zi(2), has_changed);
+    EXPECT_TRUE(vstore.tell(0, zi(2)));
     EXPECT_EQ(vstore[0], zi(2));
-    EXPECT_TRUE(has_changed);
     vstore.restore(snap);
     EXPECT_EQ(vstore[0], zi(1));
   }
   // Test restore after reaching top.
-  local::BInc has_changed = local::BInc::bot();
   EXPECT_FALSE(vstore.is_top());
-  vstore.tell(1, zi::top(), has_changed);
+  EXPECT_TRUE(vstore.tell(1, zi::top()));
   EXPECT_TRUE(vstore.is_top());
   EXPECT_EQ(vstore[1], zi::top());
-  EXPECT_TRUE(has_changed);
   vstore.restore(snap);
   EXPECT_EQ(vstore[1], zi(1));
   EXPECT_FALSE(vstore.is_top());
@@ -77,10 +73,8 @@ TEST(VStoreTest, SnapshotRestore) {
 TEST(VStoreTest, Extract) {
   ZStore vstore = create_and_interpret_and_tell<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 1);");
   ZStore copy(vstore, AbstractDeps<standard_allocator>(standard_allocator{}));
-  local::BInc has_changed = local::BInc::bot();
-  copy
-    .tell(0, zi(2), has_changed)
-    .tell(1, zi::top(), has_changed);
+  copy.tell(0, zi(2));
+  copy.tell(1, zi::top());
   EXPECT_TRUE(vstore.is_extractable());
   vstore.extract(copy);
   for(int i = 0; i < 2; ++i) {

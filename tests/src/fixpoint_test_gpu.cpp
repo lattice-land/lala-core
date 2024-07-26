@@ -23,13 +23,13 @@ public:
   CUDA Minimum(cpu_gpu_vec* data) : data(data), result() {}
   CUDA int num_refinements() { return data->size(); }
   template<class M>
-  CUDA void refine(int i, BInc<M>& has_changed) {
-    result.tell(local::ZDec((*data)[i]), has_changed);
+  CUDA void refine(int i, B<M>& has_changed) {
+    has_changed.join(result.tell(local::ZDec((*data)[i])));
   }
   CUDA int extract() {
     return result;
   }
-  CUDA local::BInc is_top() const { return false; }
+  CUDA B is_top() const { return false; }
 };
 
 __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {

@@ -14,6 +14,7 @@
 #include "pre_bdec.hpp"
 #include "pre_fdec.hpp"
 #include "pre_zdec.hpp"
+#include "../b.hpp"
 #include "battery/memory.hpp"
 
 /** A pre-abstract universe is a lattice (with usual operations join, order, ...) equipped with a simple logical interpretation function and a next/prev functions.
@@ -221,66 +222,48 @@ public:
 
   CUDA constexpr operator value_type() const { return value(); }
 
-  /** `true` whenever \f$ a = \top \f$, `false` otherwise. */
-  CUDA constexpr local::BInc is_top() const {
+  /** \return `true` whenever \f$ a = \top \f$, `false` otherwise.
+   * @parallel @order-preserving @increasing
+  */
+  CUDA constexpr local::B is_top() const {
     return value() == U::top();
   }
 
-  /** `true` whenever \f$ a = \bot \f$, `false` otherwise. */
-  CUDA constexpr local::BDec is_bot() const {
+  /** \return `true` whenever \f$ a = \bot \f$, `false` otherwise.
+   * @parallel @order-preserving @decreasing
+  */
+  CUDA constexpr local::B is_bot() const {
     return value() == U::bot();
   }
 
-  CUDA constexpr this_type& tell_top() {
+  CUDA constexpr void tell_top() {
     memory_type::store(val, U::top());
-    return *this;
-  }
-
-  template<class M1, class M2>
-  CUDA constexpr this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    value_type r1 = value();
-    value_type r2 = other.value();
-    if(U::strict_order(r1, r2)) {
-      memory_type::store(val, r2);
-      has_changed.tell_top();
-    }
-    return *this;
   }
 
   template<class M1>
-  CUDA constexpr this_type& tell(const this_type2<M1>& other) {
+  CUDA constexpr bool tell(const this_type2<M1>& other) {
     value_type r1 = value();
     value_type r2 = other.value();
     if(U::strict_order(r1, r2)) {
       memory_type::store(val, r2);
+      return true;
     }
-    return *this;
+    return false;
   }
 
-  CUDA constexpr this_type& dtell_bot() {
+  CUDA constexpr void dtell_bot() {
     memory_type::store(val, U::bot());
-    return *this;
-  }
-
-  template<class M1, class M2>
-  CUDA constexpr this_type& dtell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    value_type r1 = value();
-    value_type r2 = other.value();
-    if(U::strict_order(r2, r1)) {
-      memory_type::store(val, r2);
-      has_changed.tell_top();
-    }
-    return *this;
   }
 
   template<class M1>
-  CUDA constexpr this_type& dtell(const this_type2<M1>& other) {
+  CUDA constexpr bool dtell(const this_type2<M1>& other) {
     value_type r1 = value();
     value_type r2 = other.value();
     if(U::strict_order(r2, r1)) {
       memory_type::store(val, r2);
+      return true;
     }
-    return *this;
+    return false;
   }
 
   /** \return \f$ x \geq i \f$ where `x` is a variable's name and `i` the current value.

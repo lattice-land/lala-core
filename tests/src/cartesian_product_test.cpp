@@ -51,21 +51,16 @@ TEST(CPTest, JoinMeetTest) {
   meet_one_test(itv1_b, itv2_b, itv4_b, true);
 
   // Join/Meet a single component
-  local::BInc b = local::BInc::bot();
   Itv itv5 = Itv(1,2);
-  itv5.tell<0>(zi::top(), b);
+  itv5.tell<0>(zi::top());
   EXPECT_EQ(itv5, Itv(zi::top(), zd(2)));
-  itv5.tell<1>(zd::top(), b);
+  itv5.tell<1>(zd::top());
   EXPECT_EQ(itv5, Itv::top());
 
   Itv itv6 = Itv(1,2);
-  local::BInc has_changed = local::BInc::bot();
-  itv6.dtell<0>(zi::bot(), has_changed);
-  EXPECT_TRUE(has_changed);
+  EXPECT_TRUE(itv6.dtell<0>(zi::bot()));
   EXPECT_EQ(itv6, Itv(zi::bot(),zd(2)));
-  local::BInc has_changed2 = local::BInc::bot();
-  itv6.dtell<1>(zd::bot(), has_changed2);
-  EXPECT_TRUE(has_changed2);
+  EXPECT_TRUE(itv6.dtell<1>(zd::bot()));
   EXPECT_EQ(itv6, Itv::bot());
 }
 

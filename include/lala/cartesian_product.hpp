@@ -189,12 +189,12 @@ private:
   }
 
   template<size_t... I>
-  CUDA constexpr local::BInc is_top_(std::index_sequence<I...>) const {
+  CUDA constexpr local::B is_top_(std::index_sequence<I...>) const {
     return (... || project<I>().is_top());
   }
 
   template<size_t... I>
-  CUDA constexpr local::BDec is_bot_(std::index_sequence<I...>) const {
+  CUDA constexpr local::B is_bot_(std::index_sequence<I...>) const {
     return (... && project<I>().is_bot());
   }
 
@@ -214,69 +214,49 @@ public:
     return value_(std::index_sequence_for<As...>{});
   }
 
-  /** `true` if \f$ \exists{j \geq i},~\gamma(a_j) = \top^\flat \f$, `false` otherwise. */
-  CUDA constexpr local::BInc is_top() const {
+  /** \return `true` if \f$ \exists{j \geq i},~\gamma(a_j) = \top^\flat \f$, `false` otherwise.
+   * @parallel @order-preserving @increasing */
+  CUDA constexpr local::B is_top() const {
     return is_top_(std::index_sequence_for<As...>{});
   }
 
-  /** `true` if \f$ \forall{j \geq i},~\gamma(a_j) = \bot^\flat \f$, `false` otherwise. */
-  CUDA constexpr local::BDec is_bot() const {
+  /** \return `true` if \f$ \forall{j \geq i},~\gamma(a_j) = \bot^\flat \f$, `false` otherwise.
+   * @parallel @order-preserving @decreasing
+   */
+  CUDA constexpr local::B is_bot() const {
     return is_bot_(std::index_sequence_for<As...>{});
   }
 
 private:
-  template<size_t i = 0, class M, class... Bs>
-  CUDA constexpr this_type& tell_(const CartesianProduct<Bs...>& other, BInc<M>& has_changed) {
+  template<size_t i = 0, class... Bs>
+  CUDA constexpr bool tell_(const CartesianProduct<Bs...>& other) {
     if constexpr (i < n) {
-      project<i>().tell(other.template project<i>(), has_changed);
-      return tell_<i+1>(other, has_changed);
+      bool has_changed = project<i>().tell(other.template project<i>());
+      has_changed |= tell_<i+1>(other);
+      return has_changed;
     }
     else {
-      return *this;
+      return false;
     }
   }
 
   template<size_t i = 0, class... Bs>
-  CUDA constexpr this_type& tell_(const CartesianProduct<Bs...>& other) {
+  CUDA constexpr bool dtell_(const CartesianProduct<Bs...>& other) {
     if constexpr (i < n) {
-      project<i>().tell(other.template project<i>());
-      return tell_<i+1>(other);
+      bool has_changed = project<i>().dtell(other.template project<i>());
+      has_changed |= dtell_<i+1>(other);
+      return has_changed;
     }
     else {
-      return *this;
-    }
-  }
-
-  template<size_t i = 0, class M, class... Bs>
-  CUDA constexpr this_type& dtell_(const CartesianProduct<Bs...>& other, BInc<M>& has_changed) {
-    if constexpr (i < n) {
-      project<i>().dtell(other.template project<i>(), has_changed);
-      return dtell_<i+1>(other, has_changed);
-    }
-    else {
-      return *this;
-    }
-  }
-
-  template<size_t i = 0, class... Bs>
-  CUDA constexpr this_type& dtell_(const CartesianProduct<Bs...>& other) {
-    if constexpr (i < n) {
-      project<i>().dtell(other.template project<i>());
-      return dtell_<i+1>(other);
-    }
-    else {
-      return *this;
+      return false;
     }
   }
 
   template<size_t i = 0>
-  CUDA constexpr this_type& dtell_bot_() {
+  CUDA constexpr void dtell_bot_() {
     if constexpr (i < n) {
       project<i>().dtell_bot();
-      return dtell_bot_<i+1>();
-    }
-    else {
-      return *this;
+      dtell_bot_<i+1>();
     }
   }
 
@@ -300,58 +280,32 @@ private:
   }
 
 public:
-  CUDA constexpr this_type& tell_top() {
+  CUDA constexpr void tell_top() {
     tell_top_();
-    return *this;
-  }
-
-  template <class M, class... Bs>
-  CUDA constexpr this_type& tell(const CartesianProduct<Bs...>& other, BInc<M>& has_changed) {
-    return tell_(other, has_changed);
-  }
-
-  template<size_t i, class Ai, class M>
-  CUDA constexpr this_type& tell(const Ai& a, BInc<M>& has_changed) {
-    project<i>().tell(a, has_changed);
-    return *this;
   }
 
   template <class... Bs>
-  CUDA constexpr this_type& tell(const CartesianProduct<Bs...>& other) {
+  CUDA constexpr bool tell(const CartesianProduct<Bs...>& other) {
     return tell_(other);
   }
 
   template<size_t i, class Ai>
-  CUDA constexpr this_type& tell(const Ai& a) {
-    project<i>().tell(a);
-    return *this;
+  CUDA constexpr bool tell(const Ai& a) {
+    return project<i>().tell(a);
   }
 
-  CUDA constexpr this_type& dtell_bot() {
+  CUDA constexpr void dtell_bot() {
     dtell_bot_();
-    return *this;
-  }
-
-  template <class M, class... Bs>
-  CUDA constexpr this_type& dtell(const CartesianProduct<Bs...>& other, BInc<M>& has_changed) {
-    return dtell_(other, has_changed);
-  }
-
-  template<size_t i, class Ai, class M>
-  CUDA constexpr this_type& dtell(const Ai& a, BInc<M>& has_changed) {
-    project<i>().dtell(a, has_changed);
-    return *this;
   }
 
   template <class... Bs>
-  CUDA constexpr this_type& dtell(const CartesianProduct<Bs...>& other) {
+  CUDA constexpr bool dtell(const CartesianProduct<Bs...>& other) {
     return dtell_(other);
   }
 
   template<size_t i, class Ai>
-  CUDA constexpr this_type& dtell(const Ai& a) {
-    project<i>().dtell(a);
-    return *this;
+  CUDA constexpr bool dtell(const Ai& a) {
+    return project<i>().dtell(a);
   }
 
   /** For correctness, the parameter `ua` must be stored in a local memory. */

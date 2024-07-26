@@ -91,8 +91,8 @@ public:
 
   CUDA constexpr static local_type bot() { return Interval(CP::bot()); }
   CUDA constexpr static local_type top() { return Interval(CP::top()); }
-  CUDA constexpr local::BInc is_top() const { return cp.is_top() || (!ub().is_bot() && lb() > dual<LB2>(ub())); }
-  CUDA constexpr local::BDec is_bot() const { return cp.is_bot(); }
+  CUDA constexpr local::B is_top() const { return cp.is_top() || (!ub().is_bot() && lb() > dual<LB2>(ub())); }
+  CUDA constexpr local::B is_bot() const { return cp.is_bot(); }
   CUDA constexpr const CP& as_product() const { return cp; }
   CUDA constexpr value_type value() const { return cp.value(); }
 
@@ -188,86 +188,42 @@ public:
   CUDA constexpr const LB& lb() const { return project<0>(cp); }
   CUDA constexpr const UB& ub() const { return project<1>(cp); }
 
-  CUDA constexpr this_type& tell_top() {
+  CUDA constexpr void tell_top() {
     cp.tell_top();
-    return *this;
-  }
-
-  template<class A, class M>
-  CUDA constexpr this_type& tell_lb(const A& lb, BInc<M>& has_changed) {
-    cp.template tell<0>(lb, has_changed);
-    return *this;
-  }
-
-  template<class A, class M>
-  CUDA constexpr this_type& tell_ub(const A& ub, BInc<M>& has_changed) {
-    cp.template tell<1>(ub, has_changed);
-    return *this;
   }
 
   template<class A>
-  CUDA constexpr this_type& tell_lb(const A& lb) {
-    cp.template tell<0>(lb);
-    return *this;
+  CUDA constexpr bool tell_lb(const A& lb) {
+    return cp.template tell<0>(lb);
   }
 
   template<class A>
-  CUDA constexpr this_type& tell_ub(const A& ub) {
-    cp.template tell<1>(ub);
-    return *this;
-  }
-
-  template<class A, class M>
-  CUDA constexpr this_type& tell(const Interval<A>& other, BInc<M>& has_changed) {
-    cp.tell(other.cp, has_changed);
-    return *this;
+  CUDA constexpr bool tell_ub(const A& ub) {
+    return cp.template tell<1>(ub);
   }
 
   template<class A>
-  CUDA constexpr this_type& tell(const Interval<A>& other) {
-    cp.tell(other.cp);
-    return *this;
+  CUDA constexpr bool tell(const Interval<A>& other) {
+    return cp.tell(other.cp);
   }
 
-  CUDA constexpr this_type& dtell_bot() {
+  CUDA constexpr void dtell_bot() {
     cp.dtell_bot();
-    return *this;
-  }
-
-  template<class A, class M>
-  CUDA constexpr this_type& dtell_lb(const A& lb, BInc<M>& has_changed) {
-    cp.template dtell<0>(lb, has_changed);
-    return *this;
-  }
-
-  template<class A, class M>
-  CUDA constexpr this_type& dtell_ub(const A& ub, BInc<M>& has_changed) {
-    cp.template dtell<1>(ub, has_changed);
-    return *this;
   }
 
   template<class A>
-  CUDA constexpr this_type& dtell_lb(const A& lb) {
-    cp.template dtell<0>(lb);
-    return *this;
+  CUDA constexpr bool dtell_lb(const A& lb) {
+    return cp.template dtell<0>(lb);
   }
 
   template<class A>
-  CUDA constexpr this_type& dtell_ub(const A& ub) {
-    cp.template dtell<1>(ub);
-    return *this;
-  }
-
-  template<class A, class M>
-  CUDA constexpr this_type& dtell(const Interval<A>& other, BInc<M>& has_changed) {
-    cp.dtell(other.cp, has_changed);
-    return *this;
+  CUDA constexpr bool dtell_ub(const A& ub) {
+    return cp.template dtell<1>(ub);
   }
 
   template<class A>
-  CUDA constexpr this_type& dtell(const Interval<A>& other) {
-    cp.dtell(other.cp);
-    return *this;
+  CUDA constexpr bool dtell(const Interval<A>& other) {
+    return cp.dtell(other.cp);
   }
 
   template <class A>

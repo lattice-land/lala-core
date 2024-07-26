@@ -21,7 +21,7 @@ public:
   CUDA void barrier() {}
 
   template <class A>
-  CUDA void iterate(A& a, local::BInc& has_changed) {
+  CUDA void iterate(A& a, local::B& has_changed) {
     size_t n = a.num_refinements();
     for(size_t i = 0; i < n; ++i) {
       a.refine(i, has_changed);
@@ -29,21 +29,21 @@ public:
   }
 
   template <class A>
-  CUDA size_t fixpoint(A& a, local::BInc& has_changed) {
+  CUDA size_t fixpoint(A& a, local::B& has_changed) {
     size_t iterations = 0;
-    local::BInc changed(true);
+    local::B changed(true);
     while(changed && !a.is_top()) {
-      changed.dtell_bot();
+      changed = false;
       iterate(a, changed);
-      has_changed.tell(changed);
+      has_changed.join(changed);
       iterations++;
     }
     return iterations;
   }
 
   template <class A>
-  CUDA local::BInc fixpoint(A& a) {
-    local::BInc has_changed(false);
+  CUDA local::B fixpoint(A& a) {
+    local::B has_changed(false);
     fixpoint(a, has_changed);
     return has_changed;
   }
@@ -55,7 +55,7 @@ public:
  * At each iteration, the refinement operations \f$ f_1, \ldots, f_n \f$ are composed by parallel composition \f$ f = f_1 \| \ldots \| f_n \f$ meaning they are executed in parallel by different threads.
  * This is called an asynchronous iteration and it is due to (Cousot, Asynchronous iterative methods for solving a fixed point system of monotone equations in a complete lattice, 1977).
  * The underlying lattice on which we iterate must provide two methods:
- * - `a.refine(int, BInc&)`: call the ith refinement functions and set `has_changed` to `true` if `a` has changed.
+ * - `a.refine(int, B&)`: call the ith refinement functions and set `has_changed` to `true` if `a` has changed.
  * - `a.num_refinements()`: return the number of refinement functions.
  * \tparam Group is a CUDA cooperative group class.
  * \tparam Memory is an atomic memory, that must be compatible with the cooperative group chosen (e.g., don't use atomic_memory_block if the group contains multiple blocks). */
@@ -66,9 +66,9 @@ public:
   using allocator_type = Allocator;
   using group_type = Group;
 private:
-  using atomic_binc = BInc<memory_type>;
-  battery::vector<atomic_binc, allocator_type> changed;
-  battery::vector<atomic_binc, allocator_type> is_top;
+  using atomic_bool = B<memory_type>;
+  battery::vector<atomic_bool, allocator_type> changed;
+  battery::vector<atomic_bool, allocator_type> is_top;
   Group group;
 
   CUDA void assert_cuda_arch() {
@@ -99,7 +99,7 @@ public:
   }
 
   template <class A, class M>
-  CUDA void iterate(A& a, BInc<M>& has_changed) {
+  CUDA void iterate(A& a, B<M>& has_changed) {
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
   #else
@@ -112,7 +112,7 @@ public:
   }
 
   template <class A, class M>
-  CUDA size_t fixpoint(A& a, BInc<M>& has_changed, volatile bool* stop) {
+  CUDA size_t fixpoint(A& a, B<M>& has_changed, volatile bool* stop) {
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
     return 0;
@@ -124,7 +124,7 @@ public:
       iterate(a, changed[i%3]);
       changed[(i+1)%3].dtell_bot(); // reinitialize changed for the next iteration.
       is_top[i%3].tell(a.is_top());
-      is_top[i%3].tell(local::BInc{*stop});
+      is_top[i%3].tell(local::B{*stop});
       barrier();
     }
     // It changes if we performed several iteration, or if the first iteration changed the abstract domain.
@@ -135,14 +135,14 @@ public:
   }
 
   template <class A, class M>
-  CUDA size_t fixpoint(A& a, BInc<M>& has_changed) {
+  CUDA size_t fixpoint(A& a, B<M>& has_changed) {
     bool stop = false;
     return fixpoint(a, has_changed, &stop);
   }
 
   template <class A>
-  CUDA local::BInc fixpoint(A& a) {
-    local::BInc has_changed(false);
+  CUDA local::B fixpoint(A& a) {
+    local::B has_changed(false);
     fixpoint(a, has_changed);
     return has_changed;
   }

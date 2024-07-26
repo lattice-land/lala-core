@@ -83,7 +83,7 @@ private:
 
   AType atype;
   store_type data;
-  BInc<memory_type> is_at_top;
+  B<memory_type> is_at_top;
 
 public:
   CUDA VStore(const this_type& other)
@@ -141,7 +141,9 @@ public:
   CUDA static this_type top(AType atype = UNTYPED,
     const allocator_type& alloc = allocator_type{})
   {
-    return std::move(VStore{atype, alloc}.tell_top());
+    auto s = VStore{atype, alloc};
+    s.tell_top();
+    return std::move(s);
   }
 
   template <class Env>
@@ -158,14 +160,17 @@ public:
     return top(env.extends_abstract_dom(), alloc);
   }
 
-  /** `true` if at least one element is equal to top in the store, `false` otherwise. */
-  CUDA local::BInc is_top() const {
+  /** \return `true` if at least one element is equal to top in the store, `false` otherwise.
+   * @parallel @order-preserving @increasing
+  */
+  CUDA local::B is_top() const {
     return is_at_top;
   }
 
   /** The bottom element of a store of `n` variables is when all variables are at bottom, or the store is empty.
-   * We do not expect to use this operation a lot, so its complexity is linear in the number of variables. */
-  CUDA local::BDec is_bot() const {
+   * We do not expect to use this operation a lot, so its complexity is linear in the number of variables.
+   * @parallel @order-preserving @decreasing */
+  CUDA local::B is_bot() const {
     if(is_at_top) { return false; }
     for(int i = 0; i < vars(); ++i) {
       if(!data[i].is_bot()) {
@@ -186,10 +191,10 @@ public:
     while(snap.size() < data.size()) {
       data.pop_back();
     }
-    is_at_top.dtell_bot();
+    is_at_top.meet_bot();
     for(int i = 0; i < snap.size(); ++i) {
       data[i].dtell(snap[i]);
-      is_at_top.tell(data[i].is_top());
+      is_at_top.join(data[i].is_top());
     }
     return *this;
   }
@@ -315,133 +320,94 @@ public:
     return data[x];
   }
 
-  CUDA this_type& tell_top() {
-    is_at_top.tell_top();
-    return *this;
+  CUDA void tell_top() {
+    is_at_top.join_top();
   }
 
   /** Given an abstract variable `v`, `tell(VID(v), dom)` will update the domain of this variable with the new information `dom`.
    * This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store.
+   * @parallel @order-preserving @increasing
   */
-  CUDA this_type& tell(int x, const universe_type& dom) {
+  CUDA bool tell(int x, const universe_type& dom) {
     assert(x < data.size());
-    data[x].tell(dom);
-    is_at_top.tell(data[x].is_top());
-    return *this;
+    bool has_changed = data[x].tell(dom);
+    has_changed |= is_at_top.join(data[x].is_top());
+    return has_changed;
   }
 
   /** This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store. */
-  template <class Mem>
-  CUDA this_type& tell(int x, const universe_type& dom, BInc<Mem>& has_changed) {
-    assert(x < data.size());
-    data[x].tell(dom, has_changed);
-    is_at_top.tell(data[x].is_top());
-    return *this;
-  }
-
-  /** This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store. */
-  CUDA this_type& tell(AVar x, const universe_type& dom) {
+  CUDA bool tell(AVar x, const universe_type& dom) {
     assert(x.aty() == aty());
     return tell(x.vid(), dom);
   }
 
-  /** This `tell` method follows PCCP's model, but the variable `x` must already be initialized in the store. */
-  template <class Mem>
-  CUDA this_type& tell(AVar x, const universe_type& dom, BInc<Mem>& has_changed) {
-    assert(x.aty() == aty());
-    return tell(x.vid(), dom, has_changed);
-  }
-
   /** This tell method can grow the store if required, and therefore do not satisfy the PCCP model.
-   * /!\ It should not be used in parallel.
+   * @sequential @order-preserving @increasing
   */
-  template <class Alloc2, class Mem>
-  CUDA this_type& tell(const tell_type<Alloc2>& t, BInc<Mem>& has_changed) {
+  template <class Alloc2>
+  CUDA bool tell(const tell_type<Alloc2>& t) {
     if(t.size() == 0) {
-      return *this;
+      return false;
     }
     if(t[0].avar == AVar{}) {
-      is_at_top.tell(local::BInc(true), has_changed);
-      return *this;
+      return is_at_top.join(local::B(true));
     }
     if(t.back().avar.vid() >= data.size()) {
       data.resize(t.back().avar.vid()+1);
     }
+    bool has_changed = false;
     for(int i = 0; i < t.size(); ++i) {
-      tell(t[i].avar, t[i].dom, has_changed);
+      has_changed |= tell(t[i].avar, t[i].dom);
     }
-    return *this;
-  }
-
-  /** This tell method can grow the store if required, and therefore do not satisfy the PCCP model.
-   * /!\ It should not be used in parallel.
-  */
-  template <class Alloc2>
-  CUDA this_type& tell(const tell_type<Alloc2>& t) {
-    local::BInc has_changed;
-    return tell(t, has_changed);
-  }
-
-  /** Precondition: `other` must be smaller or equal in size than the current store. */
-  template <class U2, class Alloc2, class Mem>
-  CUDA this_type& tell(const VStore<U2, Alloc2>& other, BInc<Mem>& has_changed) {
-    is_at_top.tell(other.is_at_top, has_changed);
-    int min_size = battery::min(vars(), other.vars());
-    for(int i = 0; i < min_size; ++i) {
-      data[i].tell(other[i], has_changed);
-    }
-    for(int i = min_size; i < other.vars(); ++i) {
-      assert(other[i].is_bot()); // the size of the current store cannot be modified.
-    }
-    return *this;
+    return has_changed;
   }
 
   /** Precondition: `other` must be smaller or equal in size than the current store. */
   template <class U2, class Alloc2>
-  CUDA this_type& tell(const VStore<U2, Alloc2>& other) {
-    local::BInc has_changed;
-    return tell(other, has_changed);
+  CUDA bool tell(const VStore<U2, Alloc2>& other) {
+    bool has_changed = is_at_top.join(other.is_at_top);
+    int min_size = battery::min(vars(), other.vars());
+    for(int i = 0; i < min_size; ++i) {
+      has_changed |= data[i].tell(other[i]);
+    }
+    for(int i = min_size; i < other.vars(); ++i) {
+      assert(other[i].is_bot()); // the size of the current store cannot be modified.
+    }
+    return has_changed;
   }
 
-  CUDA this_type& dtell_bot() {
-    is_at_top.dtell_bot();
+  CUDA void dtell_bot() {
+    is_at_top.meet_bot();
     for(int i = 0; i < data.size(); ++i) {
       data[i].dtell_bot();
     }
-    return *this;
   }
 
   /** Precondition: `other` must be smaller or equal in size than the current store. */
-  template <class U2, class Alloc2, class Mem>
-  CUDA this_type& dtell(const VStore<U2, Alloc2>& other, BInc<Mem>& has_changed)  {
+  template <class U2, class Alloc2>
+  CUDA bool dtell(const VStore<U2, Alloc2>& other)  {
     if(other.is_top()) {
-      return *this;
+      return false;
     }
     int min_size = battery::min(vars(), other.vars());
-    is_at_top.dtell(other.is_at_top, has_changed);
+    bool has_changed = is_at_top.meet(other.is_at_top);
     for(int i = 0; i < min_size; ++i) {
-      data[i].dtell(other[i], has_changed);
+      has_changed |= data[i].dtell(other[i]);
     }
     for(int i = min_size; i < vars(); ++i) {
-      data[i].dtell(U::bot(), has_changed);
+      has_changed |= data[i].dtell(U::bot());
     }
     for(int i = min_size; i < other.vars(); ++i) {
       assert(other[i].is_bot());
     }
-    return *this;
-  }
-
-  /** Precondition: `other` must be smaller or equal in size than the current store. */
-  template <class U2, class Alloc2, class Mem>
-  CUDA this_type& dtell(const VStore<U2, Alloc2>& other)  {
-    local::BInc has_changed;
-    return dtell(other, has_changed);
+    return has_changed;
   }
 
   /** \return `true` when we can deduce the content of `t` from the current domain.
-   * For instance, if we have in the store `x = [0..10]`, we can deduce `x = [-1..11]` but we cannot deduce `x = [5..8]`. */
+   * For instance, if we have in the store `x = [0..10]`, we can deduce `x = [-1..11]` but we cannot deduce `x = [5..8]`.
+   * @parallel @order-preserving @decreasing */
   template <class Alloc2>
-  CUDA local::BInc ask(const ask_type<Alloc2>& t) const {
+  CUDA local::B ask(const ask_type<Alloc2>& t) const {
     for(int i = 0; i < t.size(); ++i) {
       if(!(data[t[i].avar.vid()] >= t[i].dom)) {
         return false;
@@ -452,7 +418,7 @@ public:
 
   CUDA size_t num_refinements() const { return 0; }
   template <class M>
-  CUDA void refine(size_t, BInc<M>&) const { assert(false); }
+  CUDA void refine(size_t, B<M>&) const { assert(false); }
 
   /**  An abstract element is extractable when it is not equal to top.
    * If the strategy is `atoms`, we check the domains are singleton.
@@ -479,7 +445,7 @@ public:
   CUDA void extract(VStore<U2, Alloc2>& ua) const {
     if((void*)&ua != (void*)this) {
       ua.data = data;
-      ua.is_at_top.dtell_bot();
+      ua.is_at_top.meet_bot();
     }
   }
 

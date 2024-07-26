@@ -103,7 +103,8 @@ public:
     return atype;
   }
 
-  CUDA local::BInc is_top() const {
+  /** @parallel @order-preserving @increasing  */
+  CUDA local::B is_top() const {
     return sub->is_top();
   }
 
@@ -146,8 +147,9 @@ public:
     return interpret_tell<diagnose>(f, env, tell, diagnostics);
   }
 
-  template <class Alloc2, class Mem>
-  CUDA this_type& tell(tell_type<Alloc2>&& t, BInc<Mem>& has_changed) {
+  /** @sequential */
+  template <class Alloc2>
+  CUDA bool tell(tell_type<Alloc2>&& t) {
     assert(t.env != nullptr);
     env = *(t.env);
     eliminated_variables.resize(t.num_vars);
@@ -159,14 +161,7 @@ public:
     }
     formulas = std::move(t.formulas);
     simplified_formulas.resize(formulas.size());
-    has_changed.tell_top();
-    return *this;
-  }
-
-  template <class Alloc2>
-  CUDA this_type& tell(tell_type<Alloc2>&& t) {
-    local::BInc has_changed;
-    return tell(std::move(t), has_changed);
+    return true;
   }
 
 private:
@@ -199,8 +194,8 @@ private:
 public:
   /** Print the abstract universe of `vname` taking into account simplifications (representative variable and constant).
   */
-  template <class Alloc, class B, class Env>
-  CUDA void print_variable(const LVar<Alloc>& vname, const Env& benv, const B& b) const {
+  template <class Alloc, class Abs, class Env>
+  CUDA void print_variable(const LVar<Alloc>& vname, const Env& benv, const Abs& b) const {
     const auto& local_var = env.variable_of(vname)->get();
     int rep = equivalence_classes[local_var.avar_of(aty())->vid()];
     const auto& rep_name = env.name_of(AVar{aty(), rep});
@@ -214,35 +209,36 @@ public:
   }
 
 private:
-  template <class Mem>
-  CUDA void eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i, BInc<Mem>& has_changed) {
+  /** \return `true` if mask[i] was changed. */
+  CUDA bool eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
     if(!mask.test(i)) {
       mask.set(i, true);
-      has_changed.tell_top();
+      return true;
     }
+    return false;
   }
 
   // We eliminate the representative of the variable `i` if it is a singleton.
-  template <class Mem>
-  CUDA void vrefine(size_t i, BInc<Mem>& has_changed) {
+  CUDA bool vrefine(size_t i) {
     const auto& u = sub->project(to_sub_var(i));
     size_t j = equivalence_classes[i];
-    constants[j].tell(u, has_changed);
+    bool has_changed = constants[j].tell(u);
     if(constants[j].lb().value() == constants[j].ub().value()) {
-      eliminate(eliminated_variables, j, has_changed);
+      has_changed |= eliminate(eliminated_variables, j);
     }
+    return has_changed;
   }
 
-  template <class Mem>
-  CUDA void crefine(size_t i, BInc<Mem>& has_changed) {
+  CUDA bool crefine(size_t i) {
     using F = TFormula<allocator_type>;
     // Eliminate constraint of the form x = y, and add x,y in the same equivalence class.
     if(is_var_equality(formulas[i])) {
       AVar x = var_of(formulas[i].seq(0));
       AVar y = var_of(formulas[i].seq(1));
-      equivalence_classes[x.vid()].tell(local::ZDec(equivalence_classes[y.vid()]), has_changed);
-      equivalence_classes[y.vid()].tell(local::ZDec(equivalence_classes[x.vid()]), has_changed);
-      eliminate(eliminated_formulas, i, has_changed);
+      bool has_changed = equivalence_classes[x.vid()].tell(local::ZDec(equivalence_classes[y.vid()]));
+      has_changed |= equivalence_classes[y.vid()].tell(local::ZDec(equivalence_classes[x.vid()]));
+      has_changed |= eliminate(eliminated_formulas, i);
+      return has_changed;
     }
     else {
       // Eliminate entailed formulas.
@@ -254,8 +250,7 @@ private:
       if(sub->template interpret_ask(formulas[i], env, ask, diagnostics)) {
 #endif
         if(sub->ask(ask)) {
-          eliminate(eliminated_formulas, i, has_changed);
-          return;
+          return eliminate(eliminated_formulas, i);
         }
       }
       // Replace assigned variables by constants.
@@ -280,12 +275,13 @@ private:
       });
       f = eval(f);
       if(f.is_true()) {
-        eliminate(eliminated_formulas, i, has_changed);
+        return eliminate(eliminated_formulas, i);
       }
       if(f != simplified_formulas[i]) {
         simplified_formulas[i] = f;
-        has_changed.tell_top();
+        return true;
       }
+      return false;
     }
   }
 
@@ -296,13 +292,13 @@ public:
   }
 
   template <class Mem>
-  CUDA void refine(size_t i, BInc<Mem>& has_changed) {
+  CUDA void refine(size_t i, B<Mem>& has_changed) {
     assert(i < num_refinements());
     if(i < constants.size()) {
-      vrefine(i, has_changed);
+      has_changed.join(local::B(vrefine(i)));
     }
     else {
-      crefine(i - constants.size(), has_changed);
+      has_changed.join(local::B(crefine(i - constants.size())));
     }
   }
 
