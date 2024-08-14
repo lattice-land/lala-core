@@ -71,23 +71,21 @@ struct PreFDec {
   CUDA static constexpr bool strict_order(value_type x, value_type y) { return dual_type::strict_order(y, x); }
   CUDA static constexpr value_type next(value_type x) { return dual_type::prev(x); }
   CUDA static constexpr value_type prev(value_type x) { return dual_type::next(x); }
-  CUDA static constexpr bool is_supported_fun(Sig sig) { return sig != ABS && dual_type::is_supported_fun(sig); }
+  CUDA static constexpr bool is_supported_fun(Sig fun) { return fun != ABS && dual_type::is_supported_fun(fun); }
 
-  template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x) {
-    static_assert(is_supported_fun(sig), "Unsupported unary function.");
-    return dual_type::template fun<sig>(x);
+  CUDA static constexpr value_type project(Sig fun, value_type x) {
+    assert(is_supported_fun(fun)); // "Unsupported unary function."
+    return dual_type::project(fun, x);
   }
 
-  template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x, value_type y) {
-    static_assert(is_supported_fun(sig), "Unsupported binary function.");
-    switch(sig) {
+  CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
+    assert(is_supported_fun(fun)); // "Unsupported binary function."
+    switch(fun) {
       case ADD: return battery::add_up(x, y);
       case SUB: return battery::sub_up(x, y);
       case MUL: return battery::mul_up(x, y);
       case DIV: return battery::div_up(x, y);
-      default: return dual_type::template fun<sig>(x, y);
+      default: return dual_type::project(fun, x, y);
     }
   }
 };

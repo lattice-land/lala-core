@@ -275,43 +275,37 @@ public:
     }
   }
 
-  CUDA static constexpr bool is_supported_fun(Sig sig) {
-    return pre_universe::is_supported_fun(sig);
+  CUDA static constexpr bool is_supported_fun(Sig fun) {
+    return pre_universe::is_supported_fun(fun);
   }
 
 public:
-  /** Unary function over `value_type`. */
-  template<Sig sig, class M1>
-  CUDA static constexpr local_type fun(const this_type2<M1>& u) {
-    static_assert(is_supported_fun(sig));
-    auto a = u.value();
-    if(U::top() == a) {
-      return local_type::top();
+  /** In-place projection of the result of the unary function `fun(a)`. */
+  CUDA constexpr void project(Sig fun, const local_type& a) {
+    assert(is_supported_fun(fun));
+    if(a.is_top()) {
+      join_top();
     }
-    else if(U::bot() == a) {
-      return local_type::bot();
+    else if(!a.is_bot()) {
+      join(local_type(pre_universe::project(fun, a.value())));
     }
-    return pre_universe::template fun<sig>(a);
   }
 
-  /** Binary functions over `value_type`. */
-  template<Sig sig, class M1, class M2>
-  CUDA static constexpr local_type fun(const this_type2<M1>& l, const this_type2<M2>& k) {
-    static_assert(is_supported_fun(sig));
-    auto a = l.value();
-    auto b = k.value();
-    if(U::top() == a || U::top() == b) {
-      return local_type::top();
+  /** In-place projection of the result of the binary function `fun(a, b)`. */
+  CUDA constexpr void project(Sig fun, const local_type& a, const local_type& b) {
+    assert(is_supported_fun(fun));
+    if(a.is_top() || b.is_top()) {
+      join_top();
     }
-    else if(U::bot() == a || U::bot() == b) {
-      return local_type::bot();
-    }
-    if constexpr(is_division(sig) && is_arithmetic) {
-      if(b == pre_universe::zero()) {
-        return local_type::top();
+    else if(!a.is_bot() && !b.is_bot()) {
+      if constexpr(is_arithmetic) {
+        if(is_division(fun) && b == pre_universe::zero()) {
+          join_top();
+          return;
+        }
       }
+      join(local_type(pre_universe::project(fun, a.value(), b.value())));
     }
-    return pre_universe::template fun<sig>(a, b);
   }
 
   template<class Pre2, class Mem2>
@@ -321,7 +315,7 @@ public:
 // Lattice operators
 
 template<class Pre>
-CUDA constexpr FlatUniverse<Pre, battery::local_memory> join(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
+CUDA constexpr FlatUniverse<Pre, battery::local_memory> fjoin(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
   if(a == b) {
     return a;
   }
@@ -337,7 +331,7 @@ CUDA constexpr FlatUniverse<Pre, battery::local_memory> join(const FlatUniverse<
 }
 
 template<class Pre>
-CUDA constexpr FlatUniverse<Pre, battery::local_memory> meet(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
+CUDA constexpr FlatUniverse<Pre, battery::local_memory> fmeet(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
   if(a == b) {
     return a;
   }

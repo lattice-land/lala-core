@@ -67,9 +67,9 @@ struct PreBDec {
   CUDA static constexpr bool strict_order(value_type x, value_type y) { return dual_type::strict_order(y, x);}
   CUDA static constexpr value_type next(value_type x) { return dual_type::prev(x); }
   CUDA static constexpr value_type prev(value_type x) { return dual_type::next(x); }
-  CUDA static constexpr bool is_supported_fun(Sig sig) { return dual_type::is_supported_fun(sig); }
-  template<Sig sig> CUDA static constexpr value_type fun(value_type x) { return dual_type::template fun<sig>(x); }
-  template<Sig sig> CUDA static constexpr value_type fun(value_type x, value_type y) { return dual_type::template fun<sig>(x, y); }
+  CUDA static constexpr bool is_supported_fun(Sig fun) { return dual_type::is_supported_fun(fun); }
+  CUDA static constexpr value_type project(Sig fun, value_type x) { return dual_type::project(fun, x); }
+  CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) { return dual_type::project(fun, x, y); }
 };
 
 } // namespace lala

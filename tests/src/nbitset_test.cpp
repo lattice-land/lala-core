@@ -149,24 +149,24 @@ TEST(NBitsetTest, OrderTest) {
 }
 
 TEST(NBitsetTest, GenericFunTests) {
-  generic_unary_fun_test<NEG, NBit>();
+  generic_unary_fun_test<NBit>(NEG);
   generic_abs_test<NBit>();
 }
 
 TEST(NBitsetTest, Negation) {
-  EXPECT_EQ((NBit::fun<NEG>(NBit(5, 10))), NBit(-1));
-  EXPECT_EQ((NBit::fun<NEG>(NBit(-10, 10))), NBit::bot());
-  EXPECT_EQ((NBit::fun<NEG>(NBit(-10, -1))), NBit(0,1000));
-  EXPECT_EQ((NBit::fun<NEG>(NBit(0, 1000))), NBit(-1));
+  EXPECT_EQ((project_fun(NEG, NBit(5, 10))), NBit(-1));
+  EXPECT_EQ((project_fun(NEG, NBit(-10, 10))), NBit::bot());
+  EXPECT_EQ((project_fun(NEG, NBit(-10, -1))), NBit(0,1000));
+  EXPECT_EQ((project_fun(NEG, NBit(0, 1000))), NBit(-1));
 }
 
 TEST(NBitsetTest, Absolute) {
-  EXPECT_EQ((NBit::fun<ABS>(NBit(5, 10))), NBit(5, 10));
-  EXPECT_EQ((NBit::fun<ABS>(NBit(-10, 10))), NBit(0, 1000));
-  EXPECT_EQ((NBit::fun<ABS>(NBit(0,1000))), NBit(0, 1000));
-  EXPECT_EQ((NBit::fun<ABS>(NBit(-1))), NBit(0, 1000));
-  EXPECT_EQ((NBit::fun<ABS>(NBit(1000))), NBit(1000));
-  EXPECT_EQ((NBit::fun<ABS>(NBit(-10, -5))), NBit(0, 1000));
+  EXPECT_EQ((project_fun(ABS, NBit(5, 10))), NBit(5, 10));
+  EXPECT_EQ((project_fun(ABS, NBit(-10, 10))), NBit(0, 1000));
+  EXPECT_EQ((project_fun(ABS, NBit(0,1000))), NBit(0, 1000));
+  EXPECT_EQ((project_fun(ABS, NBit(-1))), NBit(0, 1000));
+  EXPECT_EQ((project_fun(ABS, NBit(1000))), NBit(1000));
+  EXPECT_EQ((project_fun(ABS, NBit(-10, -5))), NBit(0, 1000));
 }
 
 TEST(NBitsetTest, Width) {

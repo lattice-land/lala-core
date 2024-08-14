@@ -114,8 +114,8 @@ struct PreBInc {
    \return `false`. */
   CUDA static constexpr value_type prev(value_type x) { return false; }
 
-  CUDA NI static constexpr bool is_supported_fun(Sig sig) {
-    switch(sig) {
+  CUDA NI static constexpr bool is_supported_fun(Sig fun) {
+    switch(fun) {
       case AND:
       case OR:
       case IMPLY:
@@ -130,20 +130,15 @@ struct PreBInc {
     }
   }
 
-  template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x) {
-    static_assert(sig == NOT, "Unsupported unary function.");
-    switch(sig) {
+  CUDA static constexpr value_type project(Sig fun, value_type x) {
+    switch(fun) {
       case NOT: return !x;
-      default: assert(0); return x;
+      default: assert(0); return x; // Unsupported unary function.
     }
   }
 
-  template<Sig sig>
-  CUDA NI static constexpr value_type fun(value_type x, value_type y) {
-    static_assert(sig == AND || sig == OR || sig == IMPLY || sig == EQUIV || sig == XOR,
-      "Unsupported binary function.");
-    switch(sig) {
+  CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
+    switch(fun) {
       case AND: return x && y;
       case OR: return x || y;
       case IMPLY: return !x || y;
@@ -151,7 +146,7 @@ struct PreBInc {
       case EQ: return x == y;
       case XOR:
       case NEQ: return x != y;
-      default: assert(0); return x;
+      default: assert(0); return x; // Unsupported binary function.
     }
   }
 };

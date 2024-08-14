@@ -194,7 +194,7 @@ void bot_top_test(const A& mid) {
 
 template <class A>
 void join_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  EXPECT_EQ(join(a, b), expect)  << "join(" << a << ", " << b << ")";;
+  EXPECT_EQ(fjoin(a, b), expect)  << "join(" << a << ", " << b << ")";;
   if(test_tell) {
     A c(a);
     EXPECT_EQ(c.join(b), has_changed_expect) << a << ".join(" << b << ") == " << expect;
@@ -204,7 +204,7 @@ void join_one_test(const A& a, const A& b, const A& expect, bool has_changed_exp
 
 template <class A>
 void meet_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  EXPECT_EQ(meet(a, b), expect) << "meet(" << a << ", " << b << ")";
+  EXPECT_EQ(fmeet(a, b), expect) << "meet(" << a << ", " << b << ")";
   if(test_tell) {
     A c(a);
     EXPECT_EQ(c.meet(b), has_changed_expect) << c << ".meet(" << b << ")";
@@ -237,12 +237,29 @@ void join_meet_generic_test(const A& a, const A& b, bool commutative_tell = true
   join_one_test(b, A::bot(), b, false);
 }
 
-template <Sig sig, class A, class R = A>
-void generic_unary_fun_test() {
-  if constexpr(R::is_supported_fun(sig)) {
-    EXPECT_EQ((R::template fun<sig>(A::bot())), R::bot());
-    EXPECT_EQ((R::template fun<sig>(A::top())), R::top());
-  }
+template <class A, class R = A>
+R project_fun(Sig fun, const A& a, const A& b) {
+  R r{};
+  r.project(fun, a, b);
+  return r;
+}
+
+template <class A, class R = A>
+R project_fun(Sig fun, const A& a) {
+  R r{};
+  r.project(fun, a);
+  return r;
+}
+
+template <class A, class R = A>
+void generic_unary_fun_test(Sig fun) {
+  R r{};
+  r.project(fun, A::bot());
+  EXPECT_TRUE(r.is_bot());
+  EXPECT_FALSE(r.is_top());
+  r.project(fun, A::top());
+  EXPECT_TRUE(r.is_top());
+  EXPECT_FALSE(r.is_bot());
 }
 
 template <class A>
@@ -250,38 +267,38 @@ void generic_abs_test() {
   A a;
   auto env = env_with_x();
   interpret_must_succeed<IKind::TELL>("constraint int_ge(x, 0);", a, env);
-  EXPECT_EQ((A::template fun<ABS>(A::bot())), a);
+  A r{};
+  r.project(ABS, A::bot());
+  EXPECT_EQ(r, a);
 }
 
-template <Sig sig, class A, class R = A>
-void generic_binary_fun_test(const A& a) {
-  if constexpr(R::is_supported_fun(sig)) {
-    battery::print(sig);
-    EXPECT_EQ((R::template fun<sig>(A::bot(), A::bot())), R::bot());
-    EXPECT_EQ((R::template fun<sig>(A::top(), A::bot())), R::top());
-    EXPECT_EQ((R::template fun<sig>(A::bot(), A::top())), R::top());
-    EXPECT_EQ((R::template fun<sig>(A::top(), a)), R::top());
-    EXPECT_EQ((R::template fun<sig>(a, A::top())), R::top());
-    EXPECT_EQ((R::template fun<sig>(A::bot(), a)), R::bot());
-    EXPECT_EQ((R::template fun<sig>(a, A::bot())), R::bot());
-  }
+template <class A, class R = A>
+void generic_binary_fun_test(Sig fun, const A& a) {
+  battery::print(fun);
+  EXPECT_EQ((project_fun<A, R>(fun, A::bot(), A::bot())), R::bot());
+  EXPECT_EQ((project_fun<A, R>(fun, A::top(), A::bot())), R::top());
+  EXPECT_EQ((project_fun<A, R>(fun, A::bot(), A::top())), R::top());
+  EXPECT_EQ((project_fun<A, R>(fun, A::top(), a)), R::top());
+  EXPECT_EQ((project_fun<A, R>(fun, a, A::top())), R::top());
+  EXPECT_EQ((project_fun<A, R>(fun, A::bot(), a)), R::bot());
+  EXPECT_EQ((project_fun<A, R>(fun, a, A::bot())), R::bot());
 }
 
 template <class A, class R = A>
 void generic_arithmetic_fun_test(const A& a) {
-  generic_unary_fun_test<NEG, A, R>();
-  generic_binary_fun_test<ADD, A, R>(a);
-  generic_binary_fun_test<SUB, A, R>(a);
-  generic_binary_fun_test<MUL, A, R>(a);
-  generic_binary_fun_test<TDIV, A, R>(a);
-  generic_binary_fun_test<FDIV, A, R>(a);
-  generic_binary_fun_test<CDIV, A, R>(a);
-  generic_binary_fun_test<EDIV, A, R>(a);
-  generic_binary_fun_test<TMOD, A, R>(a);
-  generic_binary_fun_test<FMOD, A, R>(a);
-  generic_binary_fun_test<CMOD, A, R>(a);
-  generic_binary_fun_test<EMOD, A, R>(a);
-  generic_binary_fun_test<POW, A, R>(a);
+  generic_unary_fun_test<A, R>(NEG);
+  generic_binary_fun_test<A, R>(ADD, a);
+  generic_binary_fun_test<A, R>(SUB, a);
+  generic_binary_fun_test<A, R>(MUL, a);
+  generic_binary_fun_test<A, R>(TDIV, a);
+  generic_binary_fun_test<A, R>(FDIV, a);
+  generic_binary_fun_test<A, R>(CDIV, a);
+  generic_binary_fun_test<A, R>(EDIV, a);
+  generic_binary_fun_test<A, R>(TMOD, a);
+  generic_binary_fun_test<A, R>(FMOD, a);
+  generic_binary_fun_test<A, R>(CMOD, a);
+  generic_binary_fun_test<A, R>(EMOD, a);
+  generic_binary_fun_test<A, R>(POW, a);
 }
 
 /** Check that \f$ \llbracket . \rrbracket = \llbracket . \rrbracket \circ \rrbacket . \llbracket \circ \llbracket . \rrbracket \f$ */

@@ -43,6 +43,7 @@ private:
 public:
   CUDA static constexpr local_type bot() { return false; }
   CUDA static constexpr local_type top() { return true; }
+  CUDA constexpr B(): val(false) {}
   CUDA constexpr B(value_type x): val(x) {}
   CUDA constexpr B(const this_type& other): B(other.value()) {}
   constexpr B(this_type&& other) = default;

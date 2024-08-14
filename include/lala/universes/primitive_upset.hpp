@@ -461,10 +461,6 @@ public:
     }
   }
 
-  CUDA static constexpr bool is_supported_fun(Sig sig) {
-    return pre_universe::is_supported_fun(sig);
-  }
-
 public:
   CUDA static constexpr local_type next(const this_type2<Mem>& a) {
     return local_type(pre_universe::next(a.value()));
@@ -474,108 +470,60 @@ public:
     return local_type(pre_universe::prev(a.value()));
   }
 
-  /** Unary function of type `Sig: FlatUniverse -> PrimitiveUpset`.
-   * \return If `a` is `bot`, we return the bottom element of the upset lattice; and dually for `top`.
-   * Otherwise, we apply the function `Sig` to `a` and return the result.
+  /** Unary function of type `fun: FlatUniverse -> PrimitiveUpset`.
+   * If `a` is `top`, we join top in-place.
+   * Otherwise, we apply the function `fun` to `a` and join the result.
    * \remark The result of the function is always over-approximated (or exact when possible).
   */
-  template <Sig sig>
-  CUDA static constexpr local_type fun(const local_flat_type& a) {
-    if(a.is_top()) {
-      return local_type::top();
+  CUDA constexpr void project(Sig fun, const local_flat_type& a) {
+    if(a.is_top()) { join_top(); }
+    else if(!a.is_bot()) {
+      join(local_type(pre_universe::project(fun, a)));
     }
-    else if(a.is_bot()) {
-      return local_type::bot();
-    }
-    return pre_universe::template fun<sig>(a);
   }
 
-  /** Binary functions of type `Sig: FlatUniverse x FlatUniverse -> PrimitiveUpset`.
-   * \return If `a` or `b` is `bot`, we return the bottom element of the upset lattice; and dually for `top`.
-   * Otherwise, we apply the function `Sig` to `a` and `b` and return the result.
+  /** Binary functions of type `project: FlatUniverse x FlatUniverse -> PrimitiveUpset`.
+   * If `a` or `b` is `top`, we join top in-place.
+   * Otherwise, we join `fun(a,b)` in-place.
    * \remark The result of the function is always over-approximated (or exact when possible).
+   * \remark If the function `fun` is partial (e.g. division), we expect the arguments `a` and `b` to be in the domain of `fun` (e.g. not equal to 0).
    */
-  template<Sig sig>
-  CUDA static constexpr local_type fun(const local_flat_type& a, const local_flat_type& b) {
-    if(a.is_top() || b.is_top()) {
-      return local_type::top();
+  CUDA constexpr void project(Sig fun, const local_flat_type& a, const local_flat_type& b) {
+    if(a.is_top() || b.is_top()) { join_top(); }
+    else if(!a.is_bot() && !b.is_bot()) {
+      join(local_type(pre_universe::project(fun, a.value(), b.value())));
     }
-    else if(a.is_bot() || b.is_bot()) {
-      return local_type::bot();
-    }
-    if constexpr(is_division(sig)) {
-      if(b.value() == pre_universe::zero()) {
-        return local_type::top();
-      }
-    }
-    return pre_universe::template fun<sig>(a, b);
   }
 
-  /** Given two values `a` and `b`, we perform the division while taking care of the case where `b == 0`.
-   * When `b != 0`, the result is `fun<sig>(a, b)`.
-   * Otherwise, the result depends on the type of `a` and `b`:
-   *   `a`   | `b`    | local_type | Result
-   *  ------ | ------ | ---------- | ------
-   *  Inc    | Inc    | Inc        | 0
-   *  Inc    | Dec    | Dec        | 0
-   *  Dec    | Dec    | Inc        | 0
-   *  Dec    | Inc    | Dec        | 0
-   *  -      | -      | -          | bot()
-   */
-  template<Sig sig, class Pre1, class Mem1, class Pre2, class Mem2>
-  CUDA static constexpr local_type guarded_div(
-    const PrimitiveUpset<Pre1, Mem1>& a, const PrimitiveUpset<Pre2, Mem2>& b)
-  {
-    using A = PrimitiveUpset<Pre1, Mem1>;
-    using B = PrimitiveUpset<Pre2, Mem2>;
-    local_flat_type r1(a);
-    local_flat_type r2(b);
-    if (r2 != B::pre_universe::zero())
-    {
-      return fun<sig>(r1, r2);
+  /** In this universe, the non-trivial order-preserving functions are {min, max, +}. */
+  CUDA static constexpr bool is_trivial_fun(Sig fun) {
+    return fun != MIN && fun != MAX && fun != ADD;
+  }
+
+  /** The functions that are order-preserving on the natural order of the universe of discourse, and its dual. */
+  CUDA static constexpr bool is_order_preserving_fun(Sig fun) {
+    return fun == ADD || fun == MIN || fun == MAX || (increasing && fun == ABS);
+  }
+
+  CUDA constexpr void project(Sig fun, const local_type &a, const local_type &b) {
+    if(fun == ADD) {
+      project(ADD, local_flat_type(a), local_flat_type(b));
     }
     else {
-      if constexpr(B::preserve_concrete_covers) {
-        // When `b` is "integer-like" we can just skip the value 0 and go to `-1` or `1` depending on the type `B`.
-        return fun<sig>(r1, local_flat_type(B::next(r2.value())));
-      }
-      else if constexpr(
-        (A::increasing && B::increasing == increasing) || // Inc X T -> T where T is either Inc or Dec.
-        (!A::increasing && !B::increasing && increasing) || // Dec X Dec -> Inc
-        (!A::increasing && B::increasing && !increasing)) // Dec X Inc -> Dec
-      {
-        return local_type(pre_universe::zero());
-      }
-      else {
-        return bot();
+      if (a.is_top() || b.is_top()) { join_top(); return; }
+      switch(fun) {
+        case MIN: { increasing ? join(fmeet(a, b)) : join(fjoin(a, b)); return; }
+        case MAX: { increasing ? join(fjoin(a, b)) : join(fmeet(a, b)); return; }
       }
     }
   }
 
-  template <Sig sig, class M1, class M2>
-  CUDA static constexpr local_type fun(const this_type2<M1> &a, const this_type2<M2> &b)
-  {
-    static_assert(pre_universe::is_supported_fun(sig), "Function unsupported by the current upset universe.");
-    static_assert(sig == MIN || sig == MAX, "Only MIN and MAX are supported on Upset elements.");
-    using local_flat_type = flat_type<battery::local_memory>;
-    local_flat_type r1(a);
-    local_flat_type r2(b);
-    if (r1.is_top() || r2.is_top())
-    {
-      return local_type::top();
+  CUDA constexpr void project(Sig fun, const local_type &a) {
+    if (a.is_top()) { join_top(); return; }
+    if(fun == ABS && increasing) {
+      join(fjoin(a, local_type(pre_universe::zero())));
     }
-    else if (r1.is_bot() || r2.is_bot())
-    {
-      if constexpr((sig == MAX && increasing) || (sig == MIN && !increasing)) {
-        return r1.is_bot() ? b : a;
-      }
-      else {
-        return local_type::bot();
-      }
-    }
-    return pre_universe::template fun<sig>(r1, r2);
   }
-
 
   template<class Pre2, class Mem2>
   friend class PrimitiveUpset;
@@ -584,12 +532,12 @@ public:
 // Lattice operators
 
 template<class Pre, class M1, class M2>
-CUDA constexpr PrimitiveUpset<Pre, battery::local_memory> join(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr PrimitiveUpset<Pre, battery::local_memory> fjoin(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::join(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr PrimitiveUpset<Pre, battery::local_memory> meet(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr PrimitiveUpset<Pre, battery::local_memory> fmeet(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
   return Pre::meet(a, b);
 }
 

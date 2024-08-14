@@ -23,9 +23,8 @@ TEST(FlatUniverseTest, JoinMeetTest) {
 
 TEST(FlatUniverseTest, ArithmeticTest) {
   generic_arithmetic_fun_test(ZF(0));
-
-  EXPECT_EQ((ZF::template fun<ADD>(ZF(0), ZF(1))), ZF(1));
-  EXPECT_EQ((ZF::template fun<ADD>(ZF(-10), ZF(-5))), ZF(-15));
+  EXPECT_EQ(project_fun(ADD, ZF(0), ZF(1)), ZF(1));
+  EXPECT_EQ(project_fun(ADD, ZF(-10), ZF(-5)), ZF(-15));
 }
 
 TEST(FlatUniverseTest, ConversionUpset) {

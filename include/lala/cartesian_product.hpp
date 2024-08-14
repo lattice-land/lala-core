@@ -317,56 +317,56 @@ public:
 // Implementation of the logical signature.
 
 private:
-  template<Sig sig, class A, size_t... I>
-  CUDA static constexpr auto fun_(const A& a, std::index_sequence<I...>)
+  template<class A, size_t... I>
+  CUDA constexpr void project(Sig fun, const A& a, std::index_sequence<I...>)
   {
-    return impl::make_cp((As::template fun<sig>(a.template project<I>()))...);
+    (project<I>().project(fun, a.template project<I>()),...);
   }
 
-  template<Sig sig, class A, class B, size_t... I>
-  CUDA static constexpr auto fun_(const A& a, const B& b, std::index_sequence<I...>)
+  template<class A, class B, size_t... I>
+  CUDA constexpr void project(Sig fun, const A& a, const B& b, std::index_sequence<I...>)
   {
-    return impl::make_cp((As::template fun<sig>(a.template project<I>(), b.template project<I>()))...);
+    (project<I>().project(fun, a.template project<I>(), b.template project<I>()),...);
   }
 
-  template<Sig sig, class A, class B, size_t... I>
-  CUDA static constexpr auto fun_left(const A& a, const B& b, std::index_sequence<I...>)
+  template<class A, class B, size_t... I>
+  CUDA constexpr void project_left(Sig fun, const A& a, const B& b, std::index_sequence<I...>)
   {
-    return impl::make_cp((As::template fun<sig>(a.template project<I>(), b))...);
+    (project<I>().project(fun, a.template project<I>(), b),...);
   }
 
-  template<Sig sig, class A, class B, size_t... I>
-  CUDA static constexpr auto fun_right(const A& a, const B& b, std::index_sequence<I...>)
+  template<class A, class B, size_t... I>
+  CUDA constexpr void project_right(Sig fun, const A& a, const B& b, std::index_sequence<I...>)
   {
-    return impl::make_cp((As::template fun<sig>(a, b.template project<I>()))...);
+    (project<I>().project(fun, a, b.template project<I>()),...);
   }
 
 public:
-  CUDA static constexpr bool is_supported_fun(Sig sig) {
-    return (... && As::is_supported_fun(sig));
+  CUDA static constexpr bool is_trivial_fun(Sig fun) {
+    return (... && As::is_trivial_fun(fun));
   }
 
-  /** Given a product \f$ (x_1, \ldots, x_n) \f$, returns \f$ (f(x_1), \ldots, f(x_n)) \f$. */
-  template<Sig sig, class... Bs>
-  CUDA static constexpr auto fun(const CartesianProduct<Bs...>& a) {
-    return fun_<sig>(a, impl::index_sequence_of(a));
+  /** Given a product \f$ (x_1, \ldots, x_n) \f$, join in-place \f$ (fun(x_1), \ldots, fun(x_n)) \f$. */
+  template<class... Bs>
+  CUDA constexpr void project(Sig fun, const CartesianProduct<Bs...>& a) {
+    project(fun, a, impl::index_sequence_of(a));
   }
 
-  /** Given two product \f$ (x_1, \ldots, x_n) \f$ and \f$ (y_1, \ldots, y_n) \f$, returns \f$ (f(x_1, y_1), \ldots, f(x_n, y_n)) \f$.
-      If either the left or right operand is not a product, returns \f$ (f(x_1, c), \ldots, f(x_n, c)) \f$ or  \f$ (f(c, y_1), \ldots, f(c, y_n)) \f$. */
-  template<Sig sig, class... As2, class... Bs>
-  CUDA static constexpr auto fun(const CartesianProduct<As2...>& a, const CartesianProduct<Bs...>& b) {
-    return fun_<sig>(a, b, impl::index_sequence_of(a, b));
+  /** Given two product \f$ (x_1, \ldots, x_n) \f$ and \f$ (y_1, \ldots, y_n) \f$, join in-place \f$ (fun(x_1, y_1), \ldots, fun(x_n, y_n)) \f$.
+      If either the left or right operand is not a product, join in-place \f$ (fun(x_1, c), \ldots, fun(x_n, c)) \f$ or  \f$ (fun(c, y_1), \ldots, fun(c, y_n)) \f$. */
+  template<class... As2, class... Bs>
+  CUDA constexpr void project(Sig fun, const CartesianProduct<As2...>& a, const CartesianProduct<Bs...>& b) {
+    project(fun, a, b, impl::index_sequence_of(a, b));
   }
 
-  template<Sig sig, class... As2, class B>
-  CUDA static constexpr auto fun(const CartesianProduct<As2...>& a, const B& b) {
-    return fun_left<sig>(a, b, impl::index_sequence_of(a));
+  template<class... As2, class B>
+  CUDA constexpr void project(Sig fun, const CartesianProduct<As2...>& a, const B& b) {
+    project_left(fun, a, b, impl::index_sequence_of(a));
   }
 
-  template<Sig sig, class A, class... Bs>
-  CUDA static constexpr auto fun(const A& a, const CartesianProduct<Bs...>& b) {
-    return fun_right<sig>(a, b, impl::index_sequence_of(b));
+  template<class A, class... Bs>
+  CUDA constexpr auto project(Sig fun, const A& a, const CartesianProduct<Bs...>& b) {
+    project_right(fun, a, b, impl::index_sequence_of(b));
   }
 
 private:
@@ -435,15 +435,15 @@ project(CartesianProduct<As...>& cp) {
 // Lattice operators
 namespace impl {
   template<class A, class B, size_t... I>
-  CUDA constexpr auto join_(const A& a, const B& b, std::index_sequence<I...>)
+  CUDA constexpr auto fjoin_(const A& a, const B& b, std::index_sequence<I...>)
   {
-    return make_cp(join(project<I>(a), project<I>(b))...);
+    return make_cp(fjoin(project<I>(a), project<I>(b))...);
   }
 
   template<class A, class B, size_t... I>
-  CUDA constexpr auto meet_(const A& a, const B& b, std::index_sequence<I...>)
+  CUDA constexpr auto fmeet_(const A& a, const B& b, std::index_sequence<I...>)
   {
-    return make_cp(meet(project<I>(a), project<I>(b))...);
+    return make_cp(fmeet(project<I>(a), project<I>(b))...);
   }
 
   template<class A, class B, size_t... I>
@@ -485,16 +485,16 @@ namespace impl {
 
 /** \f$ (a_1, \ldots, a_n) \sqcup (b_1, \ldots, b_n) = (a_1 \sqcup_1 b_1, \ldots, a_n \sqcup_n b_n) \f$ */
 template<class... As, class... Bs>
-CUDA constexpr auto join(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
+CUDA constexpr auto fjoin(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
 {
-  return impl::join_(a, b, impl::index_sequence_of(a, b));
+  return impl::fjoin_(a, b, impl::index_sequence_of(a, b));
 }
 
 /** \f$ (a_1, \ldots, a_n) \sqcap (b_1, \ldots, b_n) = (a_1 \sqcap_1 b_1, \ldots, a_n \sqcap_n b_n) \f$ */
 template<class... As, class... Bs>
-CUDA constexpr auto meet(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
+CUDA constexpr auto fmeet(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
 {
-  return impl::meet_(a, b, impl::index_sequence_of(a, b));
+  return impl::fmeet_(a, b, impl::index_sequence_of(a, b));
 }
 
 /** \f$ (a_1, \ldots, a_n) \leq (b_1, \ldots, b_n) \f$ holds when \f$ \forall{i \leq n},~a_i \leq_i b_i \f$. */

@@ -183,8 +183,8 @@ public:
     return x - (x != top() && x != bot());
   }
 
-  CUDA NI static constexpr bool is_supported_fun(Sig sig) {
-    switch(sig) {
+  CUDA NI static constexpr bool is_supported_fun(Sig fun) {
+    switch(fun) {
       case NEG:
       case ABS:
       case ADD:
@@ -211,28 +211,22 @@ public:
     }
   }
 
-  /** `fun: value_type -> ZInc` is an abstract function on `ZInc` over-approximating the function denoted by `sig` on the concrete domain.
-   * \tparam sig The signature of the function to over-approximate, can be either `NEG` or `ABS`.
+  /** `project: value_type -> ZInc` is an abstract function on `ZInc` over-approximating the function denoted by `fun` on the concrete domain.
+   * \tparam fun The signature of the function to over-approximate, can be either `NEG` or `ABS`.
    * \param x The argument of the function, which is a constant value in the underlying universe of discourse.
    * \note Since `x` is a constant, we do not check for equality with `bot()` or `top()`.
    */
-  template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x) {
-    static_assert(sig == NEG || sig == ABS, "Unsupported unary function.");
-    switch(sig) {
+  CUDA static constexpr value_type project(Sig fun, value_type x) {
+    switch(fun) {
       case NEG: return -x;
       case ABS: return abs(x);
-      default: assert(0); return x;
+      default: assert(0); return x; //  "Unsupported unary function."
     }
   }
 
-  /** `fun: value_type X value_type -> ZInc` is similar to its unary version but with an arity of 2. */
-  template<Sig sig>
-  CUDA NI static constexpr value_type fun(value_type x, value_type y) {
-    static_assert(
-      sig == ADD || sig == SUB || sig == MUL || sig == TDIV || sig == TMOD || sig == FDIV || sig == FMOD || sig == CDIV || sig == CMOD || sig == EDIV || sig == EMOD || sig == POW || sig == MIN || sig == MAX || sig == EQ || sig == NEQ || sig == LEQ || sig == GEQ || sig == LT || sig == GT,
-      "Unsupported binary function.");
-    switch(sig) {
+  /** `project: value_type X value_type -> ZInc` is similar to its unary version but with an arity of 2. */
+  CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
+    switch(fun) {
       case ADD: return x + y;
       case SUB: return x - y;
       case MUL: return x * y;
@@ -257,7 +251,7 @@ public:
       case GEQ: return x >= y;
       case LT: return x < y;
       case GT: return x >= y;
-      default: assert(0); return x;
+      default: assert(0); return x; // "Unsupported binary function."
     }
   }
 };

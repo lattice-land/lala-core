@@ -100,22 +100,20 @@ public:
   CUDA constexpr value_type value() const { return cp.value(); }
 
 private:
-  template<Sig sig, class A, class B>
-  CUDA constexpr static local_type flat_fun(const Interval<A>& a, const Interval<B>& b) {
-    return local_type(
-      LB2::template fun<sig>(
-        typename A::template flat_type<battery::local_memory>(a.lb()),
-        typename B::template flat_type<battery::local_memory>(b.lb())),
-      UB2::template fun<sig>(
-        typename A::template flat_type<battery::local_memory>(a.ub()),
-        typename B::template flat_type<battery::local_memory>(b.ub())));
+  template<class A, class B>
+  CUDA constexpr void flat_fun(Sig fun, const Interval<A>& a, const Interval<B>& b) {
+    lb().project(fun,
+      typename A::template flat_type<battery::local_memory>(a.lb()),
+      typename B::template flat_type<battery::local_memory>(b.lb()));
+    ub().project(fun,
+      typename A::template flat_type<battery::local_memory>(a.ub()),
+      typename B::template flat_type<battery::local_memory>(b.ub()));
   }
 
-  template<Sig sig, class A>
-  CUDA constexpr static local_type flat_fun(const Interval<A>& a) {
-    return local_type(
-      LB2::template fun<sig>(typename A::template flat_type<battery::local_memory>(a.lb())),
-      UB2::template fun<sig>(typename A::template flat_type<battery::local_memory>(a.ub())));
+  template<class A>
+  CUDA constexpr void flat_fun(Sig fun, const Interval<A>& a) {
+    lb().project(fun, typename A::template flat_type<battery::local_memory>(a.lb()));
+    ub().project(fun, typename A::template flat_type<battery::local_memory>(a.ub()));
   }
 
 public:
@@ -185,11 +183,11 @@ public:
   }
 
   /** You must use the lattice interface (join/meet methods) to modify the lower and upper bounds, if you use assignment you violate the PCCP model. */
-  CUDA constexpr LB& lb() { return project<0>(cp); }
-  CUDA constexpr UB& ub() { return project<1>(cp); }
+  CUDA constexpr LB& lb() { return cp.template project<0>(); }
+  CUDA constexpr UB& ub() { return cp.template project<1>(); }
 
-  CUDA constexpr const LB& lb() const { return project<0>(cp); }
-  CUDA constexpr const UB& ub() const { return project<1>(cp); }
+  CUDA constexpr const LB& lb() const { return cp.template project<0>(); }
+  CUDA constexpr const UB& ub() const { return cp.template project<1>(); }
 
   CUDA constexpr void join_top() {
     cp.join_top();
@@ -271,83 +269,46 @@ public:
     printf("]");
   }
 
-  CUDA NI constexpr static bool is_supported_fun(Sig sig) {
-    switch(sig) {
-      case ABS: return CP::is_supported_fun(NEG);
-      case SUB: return CP::is_supported_fun(ADD) && CP::is_supported_fun(NEG);
-      case NEG:
-      case ADD:
-      case MUL:
-      case TDIV:
-      case TMOD:
-      case FDIV:
-      case FMOD:
-      case CDIV:
-      case CMOD:
-      case EDIV:
-      case EMOD:
-      case POW:
-      case MIN:
-      case MAX: return CP::is_supported_fun(sig);
-      default: return false;
-    }
-  }
-
   /** The additive inverse is obtained by pairwise negation of the components.
    * Equivalent to `neg(reverse(x))`.
    * Note that the inverse of `bot` is `bot`, simply because `bot` has no mathematical inverse. */
-  CUDA constexpr static local_type additive_inverse(const this_type& x) {
-    static_assert(LB::is_supported_fun(NEG) && UB::is_supported_fun(NEG),
-      "Negation of interval bounds are required to compute the additive inverse.");
-    return flat_fun<NEG>(x);
+  CUDA constexpr void additive_inverse(const this_type& x) {
+    flat_fun(NEG, x);
   }
 
-public:
   template<class L>
   CUDA constexpr static local_type reverse(const Interval<L>& x) {
     return local_type(dual<LB2>(x.ub()), dual<UB2>(x.lb()));
   }
 
-  template<class L>
-  CUDA constexpr static local_type neg(const Interval<L>& x) {
-    return reverse(flat_fun<NEG>(x));
+  CUDA constexpr void neg(const local_type& x) {
+    flat_fun(NEG, reverse(x));
   }
 
   // This operation preserves top, i.e., \f$ abs(x) \in [\top] \f$ if \f$ x \in [\top] \f$, \f$ [\top] \f$ being the equivalence class of top elements.
-  template<class L>
-  CUDA constexpr static local_type abs(const Interval<L>& x) {
-    switch(sign(x)) {
-      case PP: return x;
-      case NP: return local_type(   // [0..max(-lb, ub)]
-        LB2::geq_k(LB2::pre_universe::zero()),
-        ::lala::meet(dual<UB2>(LB2::template fun<ABS>(typename L::template flat_type<battery::local_memory>(x.lb()))), x.ub()));
-      case NN: return neg(x);
-      case PN: return local_type(x.lb(), ::lala::meet(UB2::leq_k(UB2::pre_universe::zero()), x.ub()));
-    }
-    assert(0); // all cases should be covered:
-    return top();
+  CUDA constexpr void abs(const local_type& x) {
+    local_type nx{};
+    nx.neg(x);
+    nx.join_lb(LB2::geq_k(LB2::pre_universe::zero()));
+    join_lb(fjoin(x.lb(), nx.lb()));
+    join_ub(fmeet(x.ub(), nx.ub()));
   }
 
-  template<Sig sig, class L>
-  CUDA constexpr static local_type fun(const Interval<L>& x) {
-    static_assert(sig == NEG || sig == ABS, "Unsupported unary function.");
-    switch(sig) {
-      case NEG: return neg(x);
-      case ABS: return abs(x);
-      default:
-        assert(0); return x;
+  CUDA constexpr void project(Sig fun, const local_type& x) {
+    switch(fun) {
+      case NEG: neg(x); break;
+      case ABS: abs(x); break;
     }
   }
 
-public:
-  template<class L, class K>
-  CUDA constexpr static local_type add(const Interval<L>& x, const Interval<K>& y) {
-    return flat_fun<ADD>(x, y);
+  CUDA constexpr void add(const local_type& x, const local_type& y) {
+    flat_fun(ADD, x, y);
   }
 
-  template<class L, class K>
-  CUDA constexpr static local_type sub(const Interval<L>& x, const Interval<K>& y) {
-    return add(x, neg(y));
+  CUDA constexpr void sub(const local_type& x, const local_type& y) {
+    local_type ny{};
+    ny.neg(y);
+    add(x, ny);
   }
 
 private:
@@ -378,226 +339,154 @@ private:
     }
   }
 
-  template<class A, class B>
-  CUDA constexpr static local_type mul2(const Interval<A>& a, const Interval<B>& b) {
-    return flat_fun<MUL>(a, b);
-  }
+  /** This is a generic implementation of interval piecewise monotone function, where the function is monotone for each pair of bounds.
+   * Let `fun` be a monotone binary operation such as multiplication: [rl..ru] = [al..au] * [bl..bu]
+     where:
+       (1) rl = min(al*bl, al*bu, au*bl, au*bu)
+       (2) ru = max(al*bl, al*bu, au*bl, au*bu)
+     In the discrete case, we can precompute the products in `l` and `u`.
+     Otherwise, due to rounding, al*bl can be rounded downwards or upwards, and therefore must be computed differently for (1) and (2).
 
-  template<Sig sig, class R, class A, class B>
-  CUDA constexpr static R flat_fun2(const A& a, const B& b) {
-    return R::template fun<sig>(
-      typename A::template flat_type<battery::local_memory>(a),
-      typename B::template flat_type<battery::local_memory>(b));
+    We do not check if a and b are top. This is the responsibility of the caller depending if it could pose issues with the function `fun`.
+  */
+  CUDA constexpr void piecewise_monotone_fun(Sig fun, const local_type& a, const local_type& b) {
+    if constexpr(preserve_concrete_covers) {
+      local_type l{};
+      local_type u{};
+      local_type br{};
+      l.flat_fun(fun, a, b);
+      br.join(reverse(b));
+      u.flat_fun(fun, a, br);
+      join_lb(fmeet(
+        fmeet(l.lb(), u.lb()),
+        fmeet(dual<LB2>(l.ub()), dual<LB2>(u.ub()))));
+      join_ub(fmeet(
+        fmeet(dual<UB2>(l.lb()), dual<UB2>(u.lb())),
+        fmeet(l.ub(), u.ub())));
+    }
+    else {
+      local_type al{a.lb2()};
+      local_type au{a.ub2()};
+      local_type bl{b.lb2()};
+      local_type bu{b.ub2()};
+      local_type ll{};
+      local_type lu{};
+      local_type ul{};
+      local_type uu{};
+      ll.flat_fun(fun, al, bl);
+      lu.flat_fun(fun, al, bu);
+      ul.flat_fun(fun, au, bl);
+      uu.flat_fun(fun, au, bu);
+      join_lb(fmeet(fmeet(ll.lb(), lu.lb()), fmeet(ul.lb(), uu.lb())));
+      join_ub(fmeet(fmeet(ll.ub(), lu.ub()), fmeet(ul.ub(), uu.ub())));
+    }
   }
 
 public:
-  template<class L, class K>
-  CUDA constexpr static local_type mul(const Interval<L>& l, const Interval<K>& k) {
-    auto a = typename Interval<L>::local_type(l);
-    auto b = typename Interval<K>::local_type(k);
-    // Interval multiplication case, [al..au] * [bl..bu]
-    switch(sign(a)) {
-      case PP:
-        switch(sign(b)) {
-          case PP: return mul2(a, b);
-          case NP: return mul2(a.ub2(), b);
-          case NN: return mul2(reverse(a), b);
-          case PN:
-            if(b.as_product().is_top()) { return top(); }
-            else { return mul2(a.lb2(), b); }
-        }
-      case NP:
-        switch(sign(b)) {
-          case PP: return mul2(a, b.ub2());
-          // Note: we use meet for both bounds because UB is the dual of LB (e.g., if meet in LB is min, then meet in UB is max).
-          case NP: return local_type(
-              ::lala::meet(flat_fun2<MUL, LB2>(a.lb(), b.ub()), flat_fun2<MUL, LB2>(a.ub(), b.lb())),
-              ::lala::meet(flat_fun2<MUL, UB2>(a.lb(), b.lb()), flat_fun2<MUL, UB2>(a.ub(), b.ub())));
-          case NN: return mul2(reverse(a), b.lb2());
-          case PN:
-            if(b.as_product().is_top()) { return top(); }
-            else { return eq_zero(); }
-        }
-      case NN:
-        switch(sign(b)) {
-          case PP: return mul2(a, reverse(b));
-          case NP: return mul2(a.lb2(), reverse(b));
-          case NN: return mul2(reverse(a), reverse(b));
-          case PN:
-            if(b.as_product().is_top()) { return top(); }
-            else { return mul2(a.ub2(), reverse(b)); }
-        }
-      case PN:
-        if(a.as_product().is_top()) { return top(); }
-        else {
-          switch(sign(b)) {
-            case PP: return mul2(a, b.lb2());
-            case NP: return eq_zero();
-            case NN: return mul2(reverse(a), b.ub2());
-            case PN:
-              if(b.as_product().is_top()) { return top(); }
-              else {
-                return local_type(
-                  ::lala::join(flat_fun2<MUL, LB2>(a.lb(), b.lb()), flat_fun2<MUL, LB2>(a.ub(), b.ub())),
-                  ::lala::join(flat_fun2<MUL, UB2>(a.lb(), b.ub()), flat_fun2<MUL, UB2>(a.ub(), b.lb())));
-              }
-          }
-        }
-    }
-    assert(0); // All cases should be covered.
-    return top();
+  CUDA constexpr void mul(const local_type& a, const local_type& b) {
+    if(a.is_top() || b.is_top()) { join_top(); return; } // Perhaps not necessary?
+    piecewise_monotone_fun(MUL, a, b);
   }
 
-private:
-  /** For division, we cannot change the type of the bounds due to its importance in the underlying domain (usually PrimitiveUpset) when computing with zeroes. */
-  template<Sig divsig, class AL, class AU, class BL, class BU>
-  CUDA constexpr static local_type div2(const AL& al, const AU& au, const BL& bl, const BU& bu) {
-    return local_type(LB2::template guarded_div<divsig>(al, bl),
-                     UB2::template guarded_div<divsig>(au, bu));
-  }
-
-public:
-  template<Sig divsig, class L, class K>
-  CUDA constexpr static local_type div(const Interval<L>& l, const Interval<K>& k) {
-    auto a = typename Interval<L>::local_type(l);
-    auto b = typename Interval<K>::local_type(k);
-    // Below, you can find cases where a or b are top, similar to multiplication above, but this has bugs and need to be studied in more depth.
-    if(a.is_top() || b.is_top()) { return top(); }
-    using UB_K = typename Interval<K>::UB::local_type;
-    constexpr auto leq_zero = UB_K::leq_k(UB_K::pre_universe::zero());
-    // Interval division, [al..au] / [bl..bu]
-    switch(sign(b)) {
-      case PP:
-        if(b.ub() >= leq_zero) { return top(); }  // b is a singleton equal to zero.
-        switch(sign(a)) {
-          case PP: return div2<divsig>(a.lb(), a.ub(), b.ub(), b.lb());
-          case NP: return div2<divsig>(a.lb(), a.ub(), b.lb(), b.lb());
-          case NN: return div2<divsig>(a.lb(), a.ub(), b.lb(), b.ub());
-          case PN:
-            if(a.as_product().is_top()) { return top(); }
-            else { return div2<divsig>(a.lb(), a.ub(), b.ub(), b.ub()); }
-        }
-      case NP:
-        if(a.is_top()) { return top(); }
-        else {
-          if constexpr(L::preserve_concrete_covers && K::preserve_concrete_covers) { // In the discrete case, division can be more precise.
-            switch(sign(a)) {
-              case PP: return div2<divsig>(a.ub(), a.ub(), b.lb(), b.ub());
-              case NP: return local_type(
-                ::lala::meet(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
-                ::lala::meet(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
-              case NN: return div2<divsig>(a.lb(), a.lb(), b.ub(), b.lb());
-              case PN: return (a.as_product().is_top()) ? top() : eq_zero();
-            }
-          }
-          else {
-            return bot();
-          }
-        }
-      case NN:
-        switch(sign(a)) {
-          case PP: return div2<divsig>(a.ub(), a.lb(), b.ub(), b.lb());
-          case NP: return div2<divsig>(a.ub(), a.lb(), b.ub(), b.ub());
-          case NN: return div2<divsig>(a.ub(), a.lb(), b.lb(), b.ub());
-          case PN:
-            if(a.as_product().is_top()) { return top(); }
-            else { return div2<divsig>(a.ub(), a.lb(), b.lb(), b.lb()); }
-        }
-      case PN:
-        if(b.as_product().is_top()) { return top(); }
-        if constexpr(L::preserve_concrete_covers && K::preserve_concrete_covers) {
-          switch(sign(a)) {
-            case PP: return div2<divsig>(a.lb(), a.lb(), b.ub(), b.lb());
-            case NP: return eq_zero();
-            case NN: return div2<divsig>(a.ub(), a.ub(), b.ub(), b.lb());
-            case PN:
-              if(a.as_product().is_top()) { return top(); }
-              else {
-                return local_type(
-                  ::lala::join(LB2::template guarded_div<divsig>(a.lb(), b.ub()), LB2::template guarded_div<divsig>(a.ub(), b.lb())),
-                  ::lala::join(UB2::template guarded_div<divsig>(a.lb(), b.lb()), UB2::template guarded_div<divsig>(a.ub(), b.ub())));
-              }
-          }
-        }
-        else {
-          return top();  /* This is by duality with the case above, but I am unsure if it makes sense. */
-        }
-    }
-    assert(0); // All cases should be covered.
-    return top();
-  }
-
-  template<Sig modsig, class L, class K>
-  CUDA constexpr static local_type mod(const Interval<L>& l, const Interval<K>& k) {
-    auto a = typename Interval<L>::local_type(l);
-    auto b = typename Interval<K>::local_type(k);
-    if(a.is_top() || b.is_top()) { return top(); }
-    if(a.lb() == dual<LB2>(a.ub()) && b.lb() == dual<LB2>(b.ub())) {
-      return flat_fun<modsig>(a, b);
+  // Interval division, [al..au] / [bl..bu]
+  CUDA constexpr void div(Sig divfun, const local_type& a, const local_type& b) {
+    constexpr auto zero = LB2::pre_universe::zero();
+    using flat_type = LB2::local_flat_type;
+    constexpr auto fzero = flat_type::eq_k(zero);
+    if(a.is_top() || b.is_top() || (b.lb().value() == zero && b.ub().value() == zero)) { join_top(); return; }
+    // Interval division, [rl..ru] = [al..au] / [bl..bu]
+    if constexpr(preserve_concrete_covers) {
+      // Remove 0 from the bounds of b if any is equal to it.
+      piecewise_monotone_fun(divfun, a,
+        local_type((b.lb().value() == zero) ? LB2(1) : b.lb(),
+                    (b.ub().value() == zero) ? UB2(-1) : b.ub()));
     }
     else {
-      return bot();
+      flat_type al(a.lb());
+      flat_type au(a.ub());
+      flat_type bl(b.lb());
+      flat_type bu(b.ub());
+
+      // The case where 0 in [bl, bu].
+      if(bl <= fzero && bu >= fzero) {
+        if(bl == fzero && bu == fzero) { join_top(); return; }  // b is a singleton equal to zero.
+        if(al == fzero && au == fzero) { join_lb(LB2::geq_k(zero)); join_ub(UB2::leq_k(zero)); return; } // 0 / b = 0 (b != 0)
+        if(bl == fzero) { lb().project(divfun, al, bu); return; } // If bl is 0, then the upper bound is infinite.
+        ub().project(divfun, al, bl);  // if bu is 0, then the lower bound is infinite.
+        return;
+      }
+      else {
+        piecewise_monotone_fun(divfun, a, b);
+      }
     }
   }
 
-  template<class L, class K>
-  CUDA constexpr static local_type pow(const Interval<L>& l, const Interval<K>& k) {
-    auto a = typename Interval<L>::local_type(l);
-    auto b = typename Interval<K>::local_type(k);
-    if(a.is_top() || b.is_top()) { return top(); }
+  CUDA constexpr void mod(Sig modfun, const local_type& a, const local_type& b) {
+    if(a.is_top() || b.is_top()) { join_top(); return; }
     if(a.lb() == dual<LB2>(a.ub()) && b.lb() == dual<LB2>(b.ub())) {
-      return flat_fun<POW>(a, b);
-    }
-    else {
-      return bot();
+      flat_fun(modfun, a, b);
     }
   }
 
-  template<Sig sig, class L, class K>
-  CUDA constexpr static local_type fun(const Interval<L>& x, const Interval<K>& y) {
-    if constexpr(sig == ADD) { return add(x, y); }
-    else if constexpr(sig == SUB) { return sub(x, y); }
-    else if constexpr(sig == MUL) { return mul(x, y); }
-    else if constexpr(is_division(sig)) { return div<sig>(x, y); }
-    else if constexpr(is_modulo(sig)) { return mod<sig>(x, y); }
-    else if constexpr(sig == POW) { return pow(x, y); }
-    else if constexpr(sig == MIN || sig == MAX) { return CP::template fun<sig>(x.as_product(), y.as_product()); }
-    else { static_assert(
-      sig == ADD || sig == SUB || sig == MUL || sig == TDIV || sig == TMOD || sig == FDIV || sig == FMOD || sig == CDIV || sig == CMOD || sig == EDIV || sig == EMOD || sig == POW || sig == MIN || sig == MAX,
-      "Unsupported binary function.");
+  CUDA constexpr void pow(const local_type& a, const local_type& b) {
+    if(a.is_top() || b.is_top()) { join_top(); return; }
+    if(a.lb() == dual<LB2>(a.ub()) && b.lb() == dual<LB2>(b.ub())) {
+      flat_fun(POW, a, b);
+    }
+  }
+
+  CUDA static constexpr bool is_trivial_fun(Sig fun) {
+    return LB2::is_trivial_fun(fun) && UB2::is_trivial_fun(fun)
+      && fun != MUL && !is_division(fun) && fun != ABS && fun != SUB && fun != POW && !is_modulo(fun);
+  }
+
+  CUDA constexpr void project(Sig fun, const local_type& x, const local_type& y) {
+    if(LB2::is_order_preserving_fun(fun) && UB2::is_order_preserving_fun(fun)) {
+      cp.project(fun, x.as_product(), y.as_product());
+    }
+    else if constexpr(LB::is_arithmetic) {
+      if (fun == SUB) { sub(x, y); }
+      else if (fun == MUL) { mul(x, y); }
+      else if (is_division(fun)) { div(fun, x, y); }
+      else if (is_modulo(fun)) { mod(fun, x, y); }
+      else if (fun == POW) { pow(x, y); }
     }
   }
 
   CUDA constexpr local_type width() const {
     static_assert(LB::is_totally_ordered && LB::is_arithmetic,
       "Width is only defined for totally ordered arithmetic intervals.");
-    return sub(ub2(), lb2());
+    local_type width{};
+    width.sub(ub2(), lb2());
+    return width;
   }
 
   /** \return The median value of the interval, which is computed by `lb() + ((ub() - lb()) / 2)`. */
   CUDA constexpr local_type median() const {
     static_assert(LB::is_totally_ordered && LB::is_arithmetic,
       "Median function is only defined for totally ordered arithmetic intervals.");
-    auto x = sub(ub2(), lb2());
-    return
-      add(lb2(), ::lala::meet(div<FDIV>(x, local_type(2,2)), div<CDIV>(x, local_type(2,2))));
+    if(is_top()) { return local_type::top(); }
+    if(lb().is_bot() || ub().is_bot()) { return local_type::bot(); }
+    auto l = lb().value();
+    auto u = ub().value();
+    return local_type(l + battery::fdiv((u - l), 2), l + battery::cdiv((u - l), 2));
   }
 };
 
 // Lattice operations
 
 template<class L, class K>
-CUDA constexpr auto join(const Interval<L>& a, const Interval<K>& b)
+CUDA constexpr auto fjoin(const Interval<L>& a, const Interval<K>& b)
 {
-  return impl::make_itv(join(a.as_product(), b.as_product()));
+  return impl::make_itv(fjoin(a.as_product(), b.as_product()));
 }
 
 template<class L, class K>
-CUDA constexpr auto meet(const Interval<L>& a, const Interval<K>& b)
+CUDA constexpr auto fmeet(const Interval<L>& a, const Interval<K>& b)
 {
   if(a.is_top()) { return b; }
   if(b.is_top()) { return a; }
-  return impl::make_itv(meet(a.as_product(), b.as_product()));
+  return impl::make_itv(fmeet(a.as_product(), b.as_product()));
 }
 
 template<class L, class K>

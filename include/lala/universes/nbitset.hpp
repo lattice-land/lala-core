@@ -89,13 +89,23 @@ public:
    * It is monotone but not extensive. */
   template <class M>
   CUDA constexpr this_type& operator=(const this_type2<M>& other) {
-    bits = other.bits;
-    return *this;
+    if constexpr(sequential) {
+      bits = other.bits;
+      return *this;
+    }
+    else {
+      static_assert(sequential, "The operator= in `NBitset` can only be used when the underlying memory is `sequential`.");
+    }
   }
 
   CUDA constexpr this_type& operator=(const this_type& other) {
-    bits = other.bits;
-    return *this;
+    if constexpr(sequential) {
+      bits = other.bits;
+      return *this;
+    }
+    else {
+      static_assert(sequential, "The operator= in `NBitset` can only be used when the underlying memory is `sequential`.");
+    }
   }
 
   /** Pre-interpreted formula `x == 0`. */
@@ -404,55 +414,57 @@ public:
     printf("}");
   }
 
-  CUDA NI constexpr static bool is_supported_fun(Sig sig) {
+  CUDA NI constexpr static bool is_trivial_fun(Sig sig) {
     switch(sig) {
       case ABS:
-      case NEG: return true;
-      default: return false;
+      case NEG: return false;
+      default: return true;
     }
   }
 
 public:
-  template<class M>
-  CUDA constexpr static local_type neg(const this_type2<M>& x) {
+  CUDA constexpr void neg(const local_type& x) {
+    // if `x` represents all negative numbers, then the negation is all positive numbers.
     if(x.bits.test(0)) {
-      return x.bits.count() == 1 ? x.complement() : local_type::bot();
+      if(x.bits.count() == 1) {
+        bits.set(0, false);
+      }
+    }
+    else if(x.bits.count() == 0) {
+      join_top();
     }
     else {
-      return x.bits.count() == 0 ? local_type::top() : local_type(-1);
+      join(local_type(-1));
     }
   }
 
-  template<class M>
-  CUDA constexpr static local_type abs(const this_type2<M>& x) {
-    return x.bits.test(0) ? local_type(0, x.bits.size()) : x;
-  }
-
-  template<Sig sig, class M>
-  CUDA constexpr static local_type fun(const this_type2<M>& x) {
-    static_assert(sig == NEG || sig == ABS, "Unsupported unary function.");
-    switch(sig) {
-      case NEG: return neg(x);
-      case ABS: return abs(x);
-      default:
-        assert(0); return x;
+  CUDA constexpr void abs(const local_type& x) {
+    // If the first bit is set, it means all negative numbers are represented, so it only constrains the current value to be positive. Otherwise, we just take the join with `x`.
+    if(x.bits.test(0)) {
+      bits.set(0, false);
+    }
+    else {
+      join(x);
     }
   }
 
-  template <class M>
-  CUDA constexpr static local_type additive_inverse(const this_type2<M>& x) {
+  CUDA constexpr void project(Sig fun, const local_type& x)  {
+    switch(fun) {
+      case NEG: neg(x); break;
+      case ABS: abs(x); break;
+    }
+  }
+
+  CUDA constexpr void additive_inverse(const local_type& x) {
     printf("%% additive_inverse is unsupported\n");
     int* ptr = nullptr;
     ptr[1] = 193;
-    return local_type::bot();
   }
 
-  template<Sig sig, class M1, class M2>
-  CUDA constexpr static local_type fun(const this_type2<M1>& x, const this_type2<M2>& y) {
-    printf("%% binary functions %s are unsupported\n", string_of_sig(sig));
+  CUDA constexpr void fun(Sig fun, const local_type& x, const local_type& y) {
+    printf("%% binary functions %s are unsupported\n", string_of_sig(fun));
     int* ptr = nullptr;
     ptr[1] = 193;
-    return local_type::bot();
   }
 
   CUDA constexpr local_type width() const {
@@ -480,13 +492,13 @@ public:
 // Lattice operations
 
 template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> join(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
+CUDA constexpr NBitset<N, battery::local_memory, T> fjoin(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
   return NBitset<N, battery::local_memory, T>(a.value() & b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> meet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
+CUDA constexpr NBitset<N, battery::local_memory, T> fmeet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
   return NBitset<N, battery::local_memory, T>(a.value() | b.value());
 }

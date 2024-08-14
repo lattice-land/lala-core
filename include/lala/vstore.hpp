@@ -308,14 +308,17 @@ public:
     return const_cast<this_type*>(this)->interpret<IKind::ASK, diagnose>(f, const_cast<Env&>(env), ask, diagnostics);
   }
 
-  /** The projection must stay const, otherwise the user might tell new information in the universe, but we need to know in case we reach `top`. */
+  CUDA void project(AVar x, universe_type& u) const {
+    u.join(project(x));
+  }
+
   CUDA const universe_type& project(AVar x) const {
     assert(x.aty() == aty());
     assert(x.vid() < data.size());
     return data[x.vid()];
   }
 
-  /** See note on projection. */
+  /** This projection must stay const, otherwise the user might tell new information in the universe, but we need to know in case we reach `top`. */
   CUDA const universe_type& operator[](int x) const {
     return data[x];
   }
@@ -507,9 +510,9 @@ public:
 // These operations are only considering the indices of the elements.
 
 template<class L, class K, class Alloc>
-CUDA auto join(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+CUDA auto fjoin(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 {
-  using U = decltype(join(a[0], b[0]));
+  using U = decltype(fjoin(a[0], b[0]));
   if(a.is_top() || b.is_top()) {
     return VStore<U, Alloc>::top(UNTYPED, a.get_allocator());
   }
@@ -517,7 +520,7 @@ CUDA auto join(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
   int min_size = battery::min(a.vars(), b.vars());
   VStore<U, Alloc> res(UNTYPED, max_size, a.get_allocator());
   for(int i = 0; i < min_size; ++i) {
-    res.embed(i, join(a[i], b[i]));
+    res.embed(i, fjoin(a[i], b[i]));
   }
   for(int i = min_size; i < a.vars(); ++i) {
     res.embed(i, a[i]);
@@ -529,9 +532,9 @@ CUDA auto join(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 }
 
 template<class L, class K, class Alloc>
-CUDA auto meet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+CUDA auto fmeet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 {
-  using U = decltype(meet(a[0], b[0]));
+  using U = decltype(fmeet(a[0], b[0]));
   if(a.is_top()) {
     if(b.is_top()) {
       return VStore<U, Alloc>::top(UNTYPED, a.get_allocator());
@@ -547,7 +550,7 @@ CUDA auto meet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
     int min_size = battery::min(a.vars(), b.vars());
     VStore<U, Alloc> res(UNTYPED, min_size, a.get_allocator());
     for(int i = 0; i < min_size; ++i) {
-      res.embed(i, meet(a[i], b[i]));
+      res.embed(i, fmeet(a[i], b[i]));
     }
     return res;
   }

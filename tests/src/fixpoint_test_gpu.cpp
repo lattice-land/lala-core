@@ -24,7 +24,7 @@ public:
   CUDA int num_refinements() { return data->size(); }
   template<class M>
   CUDA void refine(int i, B<M>& has_changed) {
-    has_changed.join(result.join(local::ZDec((*data)[i])));
+    has_changed.join(local::B(result.join(local::ZDec((*data)[i]))));
   }
   CUDA int extract() {
     return result;

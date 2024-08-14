@@ -171,8 +171,8 @@ public:
     return battery::nextafter(x, bot());
   }
 
-  CUDA NI static constexpr bool is_supported_fun(Sig sig) {
-    switch(sig) {
+  CUDA NI static constexpr bool is_supported_fun(Sig fun) {
+    switch(fun) {
       case NEG:
       case ABS:
       case MIN:
@@ -192,21 +192,17 @@ public:
     }
   }
 
-  template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x) {
-    static_assert(is_supported_fun(sig), "Unsupported unary function.");
+  CUDA static constexpr value_type project(Sig fun, value_type x) {
     // Negation and absolute functions are exact in floating-point arithmetic.
-    switch(sig) {
+    switch(fun) {
       case NEG: return -x;
       case ABS: return abs(x);
-      default: assert(0); return x;
+      default: assert(0); return x; // "Unsupported unary function."
     }
   }
 
-  template<Sig sig>
-  CUDA NI static constexpr value_type fun(value_type x, value_type y) {
-    static_assert(is_supported_fun(sig), "Unsupported binary function.");
-    switch(sig) {
+  CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
+    switch(fun) {
       case ADD: return battery::add_down(x, y);
       case SUB: return battery::sub_down(x, y);
       case MUL: return battery::mul_down(x, y);
@@ -219,7 +215,7 @@ public:
       case GEQ: return x >= y;
       case LT: return x < y;
       case GT: return x >= y;
-      default: assert(0); return x;
+      default: assert(0); return x; //  "Unsupported binary function."
     }
   }
 };
