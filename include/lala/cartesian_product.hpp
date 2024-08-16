@@ -372,14 +372,14 @@ public:
 private:
   template<size_t i, class Env, class Allocator = typename Env::allocator_type>
   CUDA NI TFormula<Allocator> deinterpret_(AVar x,
-    typename TFormula<Allocator>::Sequence& seq, const Env& env) const
+    typename TFormula<Allocator>::Sequence& seq, const Env& env, const Allocator& allocator) const
   {
     if constexpr(i < n) {
-      auto f = project<i>().deinterpret(x, env);
+      auto f = project<i>().deinterpret(x, env, allocator);
       if(!f.is_true()) {
-        seq.push_back(project<i>().deinterpret(x, env));
+        seq.push_back(project<i>().deinterpret(x, env, allocator));
       }
-      return deinterpret_<i+1, Env>(x, seq, env);
+      return deinterpret_<i+1, Env>(x, seq, env, allocator);
     }
     else {
       if(seq.size() == 1) {
@@ -394,11 +394,10 @@ private:
   }
 
 public:
-  template<class Env>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
-    using allocator_t = typename Env::allocator_type;
-    typename TFormula<allocator_t>::Sequence seq(env.get_allocator());
-    return deinterpret_<0, Env>(x, seq, env);
+  template<class Env, class Allocator = typename Env::allocator_type>
+  CUDA TFormula<Allocator> deinterpret(AVar x, const Env& env, const Allocator& allocator = Allocator()) const {
+    typename TFormula<Allocator>::Sequence seq(allocator);
+    return deinterpret_<0, Env>(x, seq, env, allocator);
   }
 
 private:

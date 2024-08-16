@@ -347,9 +347,9 @@ public:
     return true;
   }
 
-  template<class Env>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
-    using F = TFormula<typename Env::allocator_type>;
+  template<class Env, class Allocator = typename Env::allocator_type>
+  CUDA TFormula<Allocator> deinterpret(AVar x, const Env& env, const Allocator& allocator = Allocator()) const {
+    using F = TFormula<Allocator>;
     if(is_bot()) {
       return F::make_true();
     }
@@ -357,14 +357,14 @@ public:
       return F::make_false();
     }
     else {
-      typename F::Sequence seq{env.get_allocator()};
+      typename F::Sequence seq{allocator};
       if(bits.test(0)) {
-        seq.push_back(F::make_binary(F::make_avar(x), LEQ, F::make_z(-1), UNTYPED, env.get_allocator()));
+        seq.push_back(F::make_binary(F::make_avar(x), LEQ, F::make_z(-1), UNTYPED, allocator));
       }
       if(bits.test(bits.size()-1)) {
-        seq.push_back(F::make_binary(F::make_avar(x), GEQ, F::make_z(bits.size()-2), UNTYPED, env.get_allocator()));
+        seq.push_back(F::make_binary(F::make_avar(x), GEQ, F::make_z(bits.size()-2), UNTYPED, allocator));
       }
-      logic_set<F> logical_set(env.get_allocator());
+      logic_set<F> logical_set(allocator);
       for(int i = 1; i < bits.size()-1; ++i) {
         if(bits.test(i)) {
           int l = i - 1;
@@ -374,7 +374,7 @@ public:
         }
       }
       if(logical_set.size() > 0) {
-        seq.push_back(F::make_binary(F::make_avar(x), IN, F::make_set(std::move(logical_set)), UNTYPED, env.get_allocator()));
+        seq.push_back(F::make_binary(F::make_avar(x), IN, F::make_set(std::move(logical_set)), UNTYPED, allocator));
       }
       if(seq.size() == 1) {
         return std::move(seq[0]);

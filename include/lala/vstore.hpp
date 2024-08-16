@@ -453,40 +453,40 @@ public:
   }
 
 private:
-  template<class U2, class Env>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar avar, const U2& dom, const Env& env) const {
-    auto f = dom.deinterpret(avar, env);
+  template<class U2, class Env, class Allocator2>
+  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar avar, const U2& dom, const Env& env, const Allocator2& allocator) const {
+    auto f = dom.deinterpret(avar, env, allocator);
     f.type_as(aty());
     map_avar_to_lvar(f, env);
     return std::move(f);
   }
 
 public:
-  template<class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(const Env& env) const {
-    using F = TFormula<typename Env::allocator_type>;
-    typename F::Sequence seq{env.get_allocator()};
+  template<class Env, class Allocator2 = typename Env::allocator_type>
+  CUDA NI TFormula<Allocator2> deinterpret(const Env& env, const Allocator2& allocator = Allocator2()) const {
+    using F = TFormula<Allocator2>;
+    typename F::Sequence seq{allocator};
     for(int i = 0; i < data.size(); ++i) {
       AVar v(aty(), i);
       seq.push_back(F::make_exists(aty(), env.name_of(v), env.sort_of(v)));
-      seq.push_back(deinterpret(AVar(aty(), i), data[i], env));
+      seq.push_back(deinterpret(AVar(aty(), i), data[i], env, allocator));
     }
     return F::make_nary(AND, std::move(seq), aty());
   }
 
-  template<class I, class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(const I& intermediate, const Env& env) const {
-    using F = TFormula<typename Env::allocator_type>;
+  template<class I, class Env, class Allocator2 = typename Env::allocator_type>
+  CUDA NI TFormula<Allocator2> deinterpret(const I& intermediate, const Env& env, const Allocator2& allocator = Allocator2()) const {
+    using F = TFormula<Allocator2>;
     if(intermediate.size() == 0) {
       return F::make_true();
     }
     else if(intermediate.size() == 1) {
-      return deinterpret(intermediate[0].avar, intermediate[0].dom, env);
+      return deinterpret(intermediate[0].avar, intermediate[0].dom, env, allocator);
     }
     else {
-      typename F::Sequence seq{env.get_allocator()};
+      typename F::Sequence seq{allocator};
       for(int i = 0; i < intermediate.size(); ++i) {
-        seq.push_back(deinterpret(intermediate[i].avar, intermediate[i].dom, env));
+        seq.push_back(deinterpret(intermediate[i].avar, intermediate[i].dom, env, allocator));
       }
       return F::make_nary(AND, std::move(seq), aty());
     }

@@ -330,7 +330,7 @@ public:
       if(equivalence_classes[i] == i && !eliminated_variables.test(i)) {
         const auto& x = env[AVar{aty(), i}];
         seq.push_back(F::make_exists(UNTYPED, x.name, x.sort));
-        auto domain_constraint = constants[i].deinterpret(AVar(aty(), i), env);
+        auto domain_constraint = constants[i].deinterpret(AVar(aty(), i), env, get_allocator());
         map_avar_to_lvar(domain_constraint, env, true);
         seq.push_back(domain_constraint);
       }

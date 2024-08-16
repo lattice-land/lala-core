@@ -270,9 +270,9 @@ public:
   If `U` preserves bottom `true` is returned whenever \f$ a = \bot \f$, if it preserves top `false` is returned whenever \f$ a = \top \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function.
   */
-  template<class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
-    using F = TFormula<typename Env::allocator_type>;
+  template<class Env, class Allocator = typename Env::allocator_type>
+  CUDA NI TFormula<Allocator> deinterpret(AVar avar, const Env& env, const Allocator& allocator = Allocator()) const {
+    using F = TFormula<Allocator>;
     if(preserve_top && is_top()) {
       return F::make_false();
     }
@@ -283,7 +283,7 @@ public:
       deinterpret<F>(),
       U::sig_order(),
       F::make_avar(avar),
-      UNTYPED, env.get_allocator());
+      UNTYPED, allocator);
   }
 
   /** Deinterpret the current value to a logical constant. */

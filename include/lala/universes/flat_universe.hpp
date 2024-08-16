@@ -173,9 +173,9 @@ public:
   /** \return \f$ x = k \f$ where `x` is a variable's name and `k` the current value.
   `true` is returned whenever \f$ a = \bot \f$, and `false` is returned whenever \f$ a = \top \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function. */
-  template<class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
-    using F = TFormula<typename Env::allocator_type>;
+  template<class Env, class Allocator = typename Env::allocator_type>
+  CUDA NI TFormula<Allocator> deinterpret(AVar avar, const Env& env, const Allocator& allocator = Allocator()) const {
+    using F = TFormula<Allocator>;
     if(is_top()) {
       return F::make_false();
     }
@@ -186,7 +186,7 @@ public:
       F::make_avar(avar),
       EQ,
       deinterpret<F>(),
-      UNTYPED, env.get_allocator());
+      UNTYPED, allocator);
   }
 
   /** Deinterpret the current value to a logical constant. */
