@@ -19,7 +19,8 @@ struct PreFUB {
   using this_type = PreFUB<VT>;
   using dual_type = PreFLB<VT>;
   using value_type = VT;
-  using increasing_type = this_type;
+  using lower_bound_type = dual_type;
+  using upper_bound_type = this_type;
 
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;
@@ -29,8 +30,8 @@ struct PreFUB {
   /** Note that -0 and +0 are treated as the same element. */
   constexpr static const bool injective_concretization = true;
   constexpr static const bool preserve_concrete_covers = false;
-  constexpr static const bool complemented = false;
-  constexpr static const bool increasing = true;
+  constexpr static const bool is_lower_bound = false;
+  constexpr static const bool is_upper_bound = true;
   constexpr static const char* name = "FUB";
   constexpr static const bool is_arithmetic = true;
   CUDA constexpr static value_type zero() { return 0.0; }

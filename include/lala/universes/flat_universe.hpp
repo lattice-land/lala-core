@@ -12,11 +12,11 @@ class FlatUniverse;
 
 /** Lattice of flat integers. */
 template<class VT, class Mem>
-using ZFlat = FlatUniverse<PreZLB<VT>, Mem>;
+using ZFlat = FlatUniverse<PreZUB<VT>, Mem>;
 
 /** Lattice of flat floating-point numbers. */
 template<class VT, class Mem>
-using FFlat = FlatUniverse<PreFLB<VT>, Mem>;
+using FFlat = FlatUniverse<PreFUB<VT>, Mem>;
 
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
@@ -37,7 +37,7 @@ public:
   template <class M> using this_type2 = FlatUniverse<pre_universe, M>;
   using local_type = this_type2<battery::local_memory>;
 
-  static_assert(pre_universe::increasing);
+  static_assert(pre_universe::is_upper_bound);
   static_assert(pre_universe::preserve_bot && pre_universe::preserve_top,
     "The Flat lattice construction reuse the bottom and top elements of the pre-universe.\
     Therefore, it must preserve bottom and top.");
@@ -65,17 +65,17 @@ private:
   atomic_type val;
 
 public:
-  /** Similar to \f$[\![\mathit{true}]\!]\f$. */
+  /** Similar to \f$[\![\mathit{false}]\!]\f$. */
   CUDA static constexpr local_type bot() {
-    return local_type();
+    return local_type(U::bot());
   }
 
-  /** Similar to \f$[\![\mathit{false}]\!]\f$. */
+  /** Similar to \f$[\![\mathit{true}]\!]\f$. */
   CUDA static constexpr local_type top() {
-    return local_type(U::top());
+    return local_type();
   }
-  /** Initialize to the bottom of the flat lattice. */
-  CUDA constexpr FlatUniverse(): val(U::bot()) {}
+  /** Initialize to the top of the flat lattice. */
+  CUDA constexpr FlatUniverse(): val(U::top()) {}
   /** Similar to \f$[\![x = k]\!]\f$ for any name `x` where \f$ = \f$ is the equality. */
   CUDA constexpr FlatUniverse(value_type k): val(k) {}
   CUDA constexpr FlatUniverse(const this_type& other): FlatUniverse(other.value()) {}
@@ -85,12 +85,12 @@ public:
   CUDA constexpr FlatUniverse(const this_type2<M>& other): FlatUniverse(other.value()) {}
 
   template <class M>
-  CUDA constexpr FlatUniverse(const PrimitiveUpset<pre_universe, M>& other)
+  CUDA constexpr FlatUniverse(const ArithBound<pre_universe, M>& other)
     : FlatUniverse(other.value()) {}
 
   template <class M>
-  CUDA constexpr FlatUniverse(const PrimitiveUpset<typename pre_universe::dual_type, M> &other)
-    : FlatUniverse(dual<PrimitiveUpset<pre_universe, battery::local_memory>>(other)) {}
+  CUDA constexpr FlatUniverse(const ArithBound<typename pre_universe::dual_type, M> &other)
+    : FlatUniverse(dual<ArithBound<pre_universe, battery::local_memory>>(other)) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
@@ -170,15 +170,15 @@ public:
   }
 
   /** \return \f$ x = k \f$ where `x` is a variable's name and `k` the current value.
-  `true` is returned whenever \f$ a = \bot \f$, and `false` is returned whenever \f$ a = \top \f$.
+  `true` is returned whenever \f$ a = \top \f$, and `false` is returned whenever \f$ a = \bot \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function. */
   template<class Env, class Allocator = typename Env::allocator_type>
   CUDA NI TFormula<Allocator> deinterpret(AVar avar, const Env& env, const Allocator& allocator = Allocator()) const {
     using F = TFormula<Allocator>;
-    if(is_top()) {
+    if(is_bot()) {
       return F::make_false();
     }
-    else if(is_bot()) {
+    else if(is_top()) {
       return F::make_true();
     }
     return F::make_binary(
@@ -216,14 +216,14 @@ public:
 
 public:
   /** Expects a predicate of the form `x = k` or `k = x`, where `x` is any variable's name, and `k` a constant.
-      Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom). */
+      Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to top). */
   template<bool diagnose = false, class F, class Env, class M2>
   CUDA NI static bool interpret_tell(const F& f, const Env& env, this_type2<M2>& tell, IDiagnostics& diagnostics) {
     if(f.is(F::E)) {
       value_type k;
       bool res = pre_universe::template interpret_type<diagnose>(f, k, diagnostics);
       if(res) {
-        tell.join(local_type(k));
+        tell.meet(local_type(k));
       }
       return res;
     }
@@ -239,7 +239,7 @@ public:
             value_type a;
             if(pre_universe::template interpret_ask<diagnose>(k, a, diagnostics)) {
               if(a == t) {
-                tell.join(local_type(t));
+                tell.meet(local_type(t));
                 return true;
               }
               else {
@@ -274,36 +274,31 @@ public:
     }
   }
 
-  CUDA static constexpr bool is_supported_fun(Sig fun) {
-    return pre_universe::is_supported_fun(fun);
-  }
-
 public:
   /** In-place projection of the result of the unary function `fun(a)`. */
   CUDA constexpr void project(Sig fun, const local_type& a) {
-    assert(is_supported_fun(fun));
-    if(a.is_top()) {
-      join_top();
+    if(a.is_bot()) {
+      meet_bot();
     }
-    else if(!a.is_bot()) {
-      join(local_type(pre_universe::project(fun, a.value())));
+    else if(!a.is_top()) {
+      meet(local_type(pre_universe::project(fun, a.value())));
     }
   }
 
   /** In-place projection of the result of the binary function `fun(a, b)`. */
   CUDA constexpr void project(Sig fun, const local_type& a, const local_type& b) {
     assert(is_supported_fun(fun));
-    if(a.is_top() || b.is_top()) {
-      join_top();
+    if(a.is_bot() || b.is_bot()) {
+      meet_bot();
     }
-    else if(!a.is_bot() && !b.is_bot()) {
+    else if(!a.is_top() && !b.is_top()) {
       if constexpr(is_arithmetic) {
         if(is_division(fun) && b == pre_universe::zero()) {
-          join_top();
+          meet_bot();
           return;
         }
       }
-      join(local_type(pre_universe::project(fun, a.value(), b.value())));
+      meet(local_type(pre_universe::project(fun, a.value(), b.value())));
     }
   }
 

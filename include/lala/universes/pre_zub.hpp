@@ -18,7 +18,8 @@ struct PreZUB {
   using this_type = PreZUB<VT>;
   using dual_type = PreZLB<VT>;
   using value_type = VT;
-  using increasing_type = this_type;
+  using lower_bound_type = dual_type;
+  using upper_bound_type = this_type;
 
   static_assert(std::is_integral_v<value_type>, "PreZUB only works over integer types.");
 
@@ -45,8 +46,9 @@ struct PreZUB {
    */
   constexpr static const bool preserve_concrete_covers = true;
 
-  /** `true` if the natural order of the universe of discourse coincides with the lattice order of this pre-universe, `false` if it is reversed. */
-  constexpr static const bool increasing = true;
+  /** `true` if this lattice aims to represents lower bounds of concrete sets. */
+  constexpr static const bool is_lower_bound = false;
+  constexpr static const bool is_upper_bound = true;
 
   constexpr static const char* name = "ZUB";
 

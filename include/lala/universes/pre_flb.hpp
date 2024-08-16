@@ -20,7 +20,8 @@ struct PreFLB {
   using this_type = PreFLB<VT>;
   using dual_type = PreFUB<VT>;
   using value_type = VT;
-  using increasing_type = dual_type;
+  using lower_bound_type = this_type;
+  using upper_bound_type = dual_type;
 
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;
@@ -30,7 +31,8 @@ struct PreFLB {
   /** Note that -0 and +0 are treated as the same element. */
   constexpr static const bool injective_concretization = true;
   constexpr static const bool preserve_concrete_covers = false;
-  constexpr static const bool increasing = false;
+  constexpr static const bool is_lower_bound = true;
+  constexpr static const bool is_upper_bound = false;
   constexpr static const char* name = "FLB";
   constexpr static const bool is_arithmetic = true;
   CUDA constexpr static value_type zero() { return 0.0; }

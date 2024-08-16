@@ -19,7 +19,8 @@ struct PreZLB {
   using this_type = PreZLB<VT>;
   using dual_type = PreZUB<VT>;
   using value_type = VT;
-  using increasing_type = dual_type;
+  using lower_bound_type = this_type;
+  using upper_bound_type = dual_type;
 
   static_assert(std::is_integral_v<value_type>, "PreZLB only works over integer types.");
 
@@ -30,8 +31,8 @@ struct PreZLB {
   constexpr static const bool preserve_meet = true;
   constexpr static const bool injective_concretization = true;
   constexpr static const bool preserve_concrete_covers = true;
-  constexpr static const bool complemented = false;
-  constexpr static const bool increasing = false;
+  constexpr static const bool is_lower_bound = true;
+  constexpr static const bool is_upper_bound = false;
   constexpr static const char *name = "ZLB";
   constexpr static const bool is_arithmetic = true;
   CUDA constexpr static value_type zero() { return 0; }

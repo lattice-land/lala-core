@@ -127,34 +127,34 @@ public:
   constexpr static const bool preserve_meet = pre_universe::preserve_meet;
   constexpr static const bool injective_concretization = pre_universe::injective_concretization;
   constexpr static const bool preserve_concrete_covers = pre_universe::preserve_concrete_covers;
-  constexpr static const bool increasing = pre_universe::increasing;
+  constexpr static const bool is_lower_bound = pre_universe::is_lower_bound;
+  constexpr static const bool is_upper_bound = pre_universe::is_upper_bound;
   constexpr static const char* name = pre_universe::name;
 
   constexpr static const bool is_arithmetic = pre_universe::is_arithmetic;
 
   static_assert(is_totally_ordered, "The underlying pre-universe must be totally ordered.");
+  static_assert(is_arithmetic, "The underlying pre-universe must be arithmetic (e.g. integers, floating-point numbers).");
 
   /** A pre-interpreted formula `x >= value` ready to use.
    * This is mainly for optimization purpose to avoid calling `interpret` each time we need it. */
   CUDA static constexpr this_type geq_k(value_type k) {
-    if constexpr(increasing && is_arithmetic) {
+    if constexpr(is_lower_bound) {
       return this_type(k);
     }
     else {
-      static_assert(increasing && is_arithmetic,
-        "The pre-interpreted formula x >= k is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
-        Moreover, the underlying abstract universe must be increasing, otherwise this formula is not supported.");
+      static_assert(is_lower_bound,
+        "The pre-interpreted formula x >= k is only available over abstract universe modelling lower bounds.");
     }
   }
 
   CUDA static constexpr this_type leq_k(value_type k) {
-    if constexpr(!increasing && is_arithmetic) {
+    if constexpr(is_upper_bound) {
       return this_type(k);
     }
     else {
-      static_assert(!increasing && is_arithmetic,
-        "The pre-interpreted formula x <= k is only available over arithmetic universe such as integers, floating-point numbers and Boolean.\
-        Moreover, the underlying abstract universe must be decreasing, otherwise this formula is not supported.");
+      static_assert(is_upper_bound,
+        "The pre-interpreted formula x <= k is only available over abstract universe modelling upper bounds.");
     }
   }
 
@@ -163,14 +163,14 @@ private:
   atomic_type val;
 
 public:
-  /** Similar to \f$[\![\mathit{true}]\!]\f$ if `preserve_bot` is true. */
-  CUDA static constexpr local_type bot() { return local_type(); }
+  /** Similar to \f$[\![\mathit{false}]\!]\f$ if `preserve_bot` is true. */
+  CUDA static constexpr local_type bot() { return local_type(U::bot()); }
 
-  /** Similar to \f$[\![\mathit{false}]\!]\f$ if `preserve_top` is true. */
+  /** Similar to \f$[\![\mathit{true}]\!]\f$ if `preserve_top` is true. */
   CUDA static constexpr local_type top() { return local_type(U::top()); }
-  /** Initialize an upset universe to bottom. */
-  CUDA constexpr ArithBound(): val(U::bot()) {}
-  /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
+  /** Initialize an upset universe to top. */
+  CUDA constexpr ArithBound(): val(U::top()) {}
+  /** Similar to \f$[\![x \leq_A i]\!]\f$ for any name `x` where \f$ \leq_A \f$ is the lattice order. */
   CUDA constexpr ArithBound(value_type x): val(x) {}
   CUDA constexpr ArithBound(const this_type& other): ArithBound(other.value()) {}
   constexpr ArithBound(this_type&& other) = default;
@@ -249,18 +249,18 @@ public:
     return false;
   }
 
-  /** \return \f$ x \geq i \f$ where `x` is a variable's name and `i` the current value.
-  If `U` preserves bottom `true` is returned whenever \f$ a = \bot \f$, if it preserves top `false` is returned whenever \f$ a = \top \f$.
+  /** \return \f$ x <op> i \f$ where `x` is a variable's name, `i` the current value and `<op>` depends on the underlying universe.
+  If `U` preserves top, `true` is returned whenever \f$ a = \top \f$, if it preserves bottom `false` is returned whenever \f$ a = \bot \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function.
   */
   template<class Env, class Allocator = typename Env::allocator_type>
   CUDA NI TFormula<Allocator> deinterpret(AVar avar, const Env& env, const Allocator& allocator = Allocator()) const {
     using F = TFormula<Allocator>;
     if(preserve_top && is_top()) {
-      return F::make_false();
+      return F::make_true();
     }
     else if(preserve_bot && is_bot()) {
-      return F::make_true();
+      return F::make_false();
     }
     return F::make_binary(
       deinterpret<F>(),
@@ -454,57 +454,51 @@ public:
   }
 
   /** Unary function of type `fun: FlatUniverse -> ArithBound`.
-   * If `a` is `top`, we join top in-place.
-   * Otherwise, we apply the function `fun` to `a` and join the result.
+   * If `a` is `bot`, we meet with bottom in-place.
+   * Otherwise, we apply the function `fun` to `a` and meet the result.
    * \remark The result of the function is always over-approximated (or exact when possible).
   */
   CUDA constexpr void project(Sig fun, const local_flat_type& a) {
-    if(a.is_top()) { join_top(); }
-    else if(!a.is_bot()) {
-      join(local_type(pre_universe::project(fun, a)));
+    if(a.is_bot()) { meet_bot(); }
+    else if(!a.is_top()) {
+      meet(local_type(pre_universe::project(fun, a)));
     }
   }
 
   /** Binary functions of type `project: FlatUniverse x FlatUniverse -> ArithBound`.
-   * If `a` or `b` is `top`, we join top in-place.
-   * Otherwise, we join `fun(a,b)` in-place.
+   * If `a` or `b` is `bot`, we meet bottom in-place.
+   * Otherwise, we meet `fun(a,b)` in-place.
    * \remark The result of the function is always over-approximated (or exact when possible).
    * \remark If the function `fun` is partial (e.g. division), we expect the arguments `a` and `b` to be in the domain of `fun` (e.g. not equal to 0).
    */
   CUDA constexpr void project(Sig fun, const local_flat_type& a, const local_flat_type& b) {
-    if(a.is_top() || b.is_top()) { join_top(); }
-    else if(!a.is_bot() && !b.is_bot()) {
-      join(local_type(pre_universe::project(fun, a.value(), b.value())));
+    if(a.is_bot() || b.is_bot()) { meet_bot(); }
+    else if(!a.is_top() && !b.is_top()) {
+      meet(local_type(pre_universe::project(fun, a.value(), b.value())));
     }
   }
 
   /** In this universe, the non-trivial order-preserving functions are {min, max, +}. */
   CUDA static constexpr bool is_trivial_fun(Sig fun) {
-    return fun != MIN && fun != MAX && fun != ADD;
+    return fun != MIN && fun != MAX && fun != ADD && (is_upper_bound || fun != ABS);
   }
 
   /** The functions that are order-preserving on the natural order of the universe of discourse, and its dual. */
   CUDA static constexpr bool is_order_preserving_fun(Sig fun) {
-    return fun == ADD || fun == MIN || fun == MAX || (increasing && fun == ABS);
+    return fun == ADD || fun == MIN || fun == MAX || (is_lower_bound && fun == ABS);
   }
 
   CUDA constexpr void project(Sig fun, const local_type &a, const local_type &b) {
-    if(fun == ADD) {
-      project(ADD, local_flat_type(a), local_flat_type(b));
-    }
-    else {
-      if (a.is_top() || b.is_top()) { join_top(); return; }
-      switch(fun) {
-        case MIN: { increasing ? join(fmeet(a, b)) : join(fjoin(a, b)); return; }
-        case MAX: { increasing ? join(fjoin(a, b)) : join(fmeet(a, b)); return; }
-      }
+    if (a.is_bot() || b.is_bot()) { meet_bot(); return; }
+    if(!a.is_top() && !b.is_top() && (fun == MIN || fun == MAX || fun == ADD)) {
+      meet(local_type(pre_universe::project(fun, a.value(), b.value())));
     }
   }
 
   CUDA constexpr void project(Sig fun, const local_type &a) {
-    if (a.is_top()) { join_top(); return; }
-    if(fun == ABS && increasing) {
-      join(fjoin(a, local_type(pre_universe::zero())));
+    if (a.is_bot()) { meet_bot(); return; }
+    if (!a.is_top()) {
+      meet(project(fun, a.value()));
     }
   }
 
@@ -555,15 +549,15 @@ CUDA constexpr bool operator!=(const ArithBound<Pre, M1>& a, const ArithBound<Pr
 }
 
 template<class Pre, class M>
-std::ostream& operator<<(std::ostream &s, const ArithBound<Pre, M> &upset) {
-  if(upset.is_bot()) {
+std::ostream& operator<<(std::ostream &s, const ArithBound<Pre, M> &a) {
+  if(a.is_bot()) {
     s << "\u22A5";
   }
-  else if(upset.is_top()) {
+  else if(a.is_top()) {
     s << "\u22A4";
   }
   else {
-    s << upset.value();
+    s << a.value();
   }
   return s;
 }
