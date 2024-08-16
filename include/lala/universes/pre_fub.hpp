@@ -1,23 +1,23 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef LALA_CORE_PRE_FINC_HPP
-#define LALA_CORE_PRE_FINC_HPP
+#ifndef LALA_CORE_PRE_FUB_HPP
+#define LALA_CORE_PRE_FUB_HPP
 
 #include "../logic/logic.hpp"
 
 namespace lala {
 
 template <class VT>
-struct PreFDec;
+struct PreFLB;
 
-/** `PreFInc` is a pre-abstract universe \f$ \langle \mathbb{F}\setminus\{NaN\}, \leq \rangle \f$ totally ordered by the floating-point arithmetic comparison operator.
+/** `PreFUB` is a pre-abstract universe \f$ \langle \mathbb{F}\setminus\{NaN\}, \leq \rangle \f$ totally ordered by the floating-point arithmetic comparison operator.
     We work on a subset of floating-point numbers without NaN.
-    It is used to represent (and possibly approximate) constraints of the form \f$ x \geq k \f$ where \f$ k \f$ is a real number.
+    It is used to represent (and possibly approximate) constraints of the form \f$ x \leq k \f$ where \f$ k \f$ is a real number.
 */
 template<class VT>
-struct PreFInc {
-  using this_type = PreFInc<VT>;
-  using dual_type = PreFDec<VT>;
+struct PreFUB {
+  using this_type = PreFUB<VT>;
+  using dual_type = PreFLB<VT>;
   using value_type = VT;
   using increasing_type = this_type;
 
@@ -31,7 +31,7 @@ struct PreFInc {
   constexpr static const bool preserve_concrete_covers = false;
   constexpr static const bool complemented = false;
   constexpr static const bool increasing = true;
-  constexpr static const char* name = "FInc";
+  constexpr static const char* name = "FUB";
   constexpr static const bool is_arithmetic = true;
   CUDA constexpr static value_type zero() { return 0.0; }
   CUDA constexpr static value_type one() { return 1.0; }
@@ -43,19 +43,19 @@ private:
       auto z = f.z();
       // We do not consider the min and max values of integers to be infinities when they are part of the logical formula.
       if constexpr(is_tell) {
-        k = battery::rd_cast<value_type, decltype(z), false>(z);
+        k = battery::ru_cast<value_type, decltype(z), false>(z);
       }
       else {
-        k = battery::ru_cast<value_type, decltype(z), false>(z);
+        k = battery::rd_cast<value_type, decltype(z), false>(z);
       }
       return true;
     }
     else if(f.is(F::R)) {
       if constexpr(is_tell) {
-        k = battery::rd_cast<value_type>(battery::get<0>(f.r()));
+        k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
       }
       else {
-        k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
+        k = battery::rd_cast<value_type>(battery::get<0>(f.r()));
       }
       return true;
     }
@@ -63,10 +63,10 @@ private:
   }
 
 public:
-  /** Interpret a constant in the lattice of increasing floating-point numbers `FInc` according to the upset semantics (see universe.hpp for explanation).
+  /** Interpret a constant in the lattice of increasing floating-point numbers `FInc` according to the downset semantics.
       Interpretations:
         * Formulas of kind `F::Z` might be over-approximated (if the integer cannot be represented in a floating-point number because it is too large).
-        * Formulas of kind `F::R` might be over-approximated to the lower bound of the interval (if the real number is represented by an interval [lb..ub] where lb != ub).
+        * Formulas of kind `F::R` might be over-approximated to the upper bound of the interval (if the real number is represented by an interval [lb..ub] where lb != ub).
         * Other kind of formulas are not supported. */
   template<bool diagnose, class F>
   CUDA static bool interpret_tell(const F& f, value_type& k, IDiagnostics& diagnostics) {
@@ -81,19 +81,19 @@ public:
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
       Interpretations:
-        * Variables of type `Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\bot) \f$).
-        * Variables of type `Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\bot) \f$). */
-  template<bool diagnose, class F>
+        * Variables of type `Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\top) \f$).
+        * Variables of type `Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\top) \f$). */
+  template<bool diagnose, class F, bool dualize = false>
   CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
     assert(f.is(F::E));
     const auto& vname = battery::get<0>(f.exists());
     const auto& cty = battery::get<1>(f.exists());
     if(cty.is_int()) {
-      k = bot();
+      k = dualize ? bot() : top();
       RETURN_INTERPRETATION_WARNING("Variable `" + vname + "` of sort `Int` is over-approximated in a floating-point abstract universe.");
     }
     else if(cty.is_real()) {
-      k = bot();
+      k = dualize ? bot() : top();
       return true;
     }
     else {
@@ -171,42 +171,19 @@ public:
     return battery::nextafter(x, bot());
   }
 
-  CUDA NI static constexpr bool is_supported_fun(Sig fun) {
-    switch(fun) {
-      case NEG:
-      case ABS:
-      case MIN:
-      case MAX:
-      case EQ:
-      case NEQ:
-      case LEQ:
-      case GEQ:
-      case LT:
-      case GT:
-      case ADD:
-      case SUB:
-      case MUL:
-      case DIV:
-        return true;
-      default: return false;
-    }
-  }
-
   CUDA static constexpr value_type project(Sig fun, value_type x) {
-    // Negation and absolute functions are exact in floating-point arithmetic.
     switch(fun) {
       case NEG: return -x;
-      case ABS: return abs(x);
-      default: assert(0); return x; // "Unsupported unary function."
+      default: return top();
     }
   }
 
   CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
     switch(fun) {
-      case ADD: return battery::add_down(x, y);
-      case SUB: return battery::sub_down(x, y);
-      case MUL: return battery::mul_down(x, y);
-      case DIV: return battery::div_down(x, y);
+      case ADD: return battery::add_up(x, y);
+      case SUB: return battery::sub_up(x, y);
+      case MUL: return battery::mul_up(x, y);
+      case DIV: return battery::div_up(x, y);
       case MIN: return battery::min(x, y);
       case MAX: return battery::max(x, y);
       case EQ: return x == y;
@@ -215,7 +192,7 @@ public:
       case GEQ: return x >= y;
       case LT: return x < y;
       case GT: return x >= y;
-      default: assert(0); return x; //  "Unsupported binary function."
+      default: return top();
     }
   }
 };

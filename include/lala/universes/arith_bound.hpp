@@ -1,43 +1,41 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef LALA_CORE_PRIMITIVE_UPSET_HPP
-#define LALA_CORE_PRIMITIVE_UPSET_HPP
+#ifndef LALA_CORE_ARITH_BOUND_HPP
+#define LALA_CORE_ARITH_BOUND_HPP
 
 #include <type_traits>
 #include <utility>
 #include <cmath>
 #include <iostream>
 #include "../logic/logic.hpp"
-#include "pre_binc.hpp"
-#include "pre_finc.hpp"
-#include "pre_zinc.hpp"
-#include "pre_bdec.hpp"
-#include "pre_fdec.hpp"
-#include "pre_zdec.hpp"
+#include "pre_flb.hpp"
+#include "pre_fub.hpp"
+#include "pre_zlb.hpp"
+#include "pre_zub.hpp"
 #include "../b.hpp"
 #include "battery/memory.hpp"
 
 /** A pre-abstract universe is a lattice (with usual operations join, order, ...) equipped with a simple logical interpretation function and a next/prev functions.
-    We consider totally ordered pre-abstract universes with an upset semantics.
-    For any lattice \f$ L \f$, we consider an element \f$ a \in L \f$ to represent all the concrete elements equal to or above it.
-    This set is called the upset of \f$ a \f$ and is denoted \f$ \mathord{\uparrow}{a} \f$.
-    The concretization function \f$ \gamma \f$ formalizes this idea: \f$ \gamma(a) = \{x \mapsto b \;|\; b \in \mathord{\uparrow}{a} \cap U \} \f$ where \f$ U \f$ is the universe of discourse.
+    We consider totally ordered pre-abstract universes with a downset semantics.
+    For any lattice \f$ L \f$, we consider an element \f$ a \in L \f$ to represent all the concrete elements equal to or below it.
+    This set is called the downset of \f$ a \f$ and is denoted \f$ \mathord{\downarrow}{a} \f$.
+    The concretization function \f$ \gamma \f$ formalizes this idea: \f$ \gamma(a) = \{x \mapsto b \;|\; b \in \mathord{\downarrow}{a} \cap U \} \f$ where \f$ U \f$ is the universe of discourse.
     The intersection with \f$ U \f$ is necessary to remove potential elements in the abstract universe that are not in the concrete universe of discourse (e.g., \f$ -\infty, \infty \f$ below).
 
-    The upset semantics associates each element of a lattice to its concrete upset.
-    It is possible to decide that each element is associated to the concrete downset instead.
+    The downset semantics associates each element of a lattice to its concrete downset.
+    It is possible to decide that each element is associated to the concrete upset instead.
     Doing so will reverse our usage of the lattice-theoretic operations (join instead of meet, <= instead of >=, etc.).
     Instead of considering the upset semantics, it is more convenient to consider the downset semantics of the dual lattice.
 
     Example:
-      * The lattice of increasing integer \f$ \mathit{ZInc} = \langle \{-\infty, \ldots, -2, -1, 0, 1, 2, \ldots, \infty\}, \leq \rangle \f$ is ordered by the natural arithmetic comparison operator.
-        Using the upset semantics, we can represent simple constraints such as \f$ x \geq 3 \f$, in which case the upset \f$ \mathord{\uparrow}{3} = \{3, 4, \ldots\} \f$ represents all the values of \f$ x \f$ satisfying the constraints \f$ x \geq 3 \f$, that is, the solutions of the constraints.
-      * By taking the downset semantics of \f$ \mathit{ZInc} \f$, we can represent constraints such as \f$ x \leq 3 \f$.
-      * Alternatively, we can take the dual lattice of decreasing integers \f$ \mathit{ZDec} = \langle \{\infty, \ldots, 2, 1, 0, -1, -2, \ldots, -\infty\}, \geq \rangle \f$.
-        The upset semantics of \f$ \mathit{ZDec} \f$ corresponds to the downset semantics of \f$ \mathit{ZInc} \f$.
+      * The lattice of increasing integer \f$ \mathit{ZUB} = \langle \{-\infty, \ldots, -2, -1, 0, 1, 2, \ldots, \infty\}, \leq \rangle \f$ is ordered by the natural arithmetic comparison operator, it represents an upper bound on the set of integers represented.
+        Using the downset semantics, we can represent simple constraints such as \f$ x \leq 3 \f$, in which case the downset \f$ \mathord{\downarrow}{3} = \{\ldots, 1, 2, 3\} \f$ represents all the values of \f$ x \f$ satisfying the constraints \f$ x \leq 3 \f$, that is, the solutions of the constraints.
+      * By taking the upset semantics of \f$ \mathit{ZUB} \f$, we can represent constraints such as \f$ x \geq 3 \f$.
+      * Alternatively, we can take the dual lattice of decreasing integers \f$ \mathit{ZLB} = \langle \{\infty, \ldots, 2, 1, 0, -1, -2, \ldots, -\infty\}, \geq \rangle \f$.
+        The downset semantics of \f$ \mathit{ZLB} \f$ corresponds to the upset semantics of \f$ \mathit{ZUB} \f$.
 
   From a pre-abstract universe, we obtain an abstract universe using the `Universe` class below.
-  We also define various aliases to abstract universes such as `ZInc`, `ZDec`, etc.
+  We also define various aliases to abstract universes such as `ZLB`, `ZUB`, etc.
 */
 
 namespace lala {
@@ -46,64 +44,50 @@ template<class PreUniverse, class Mem>
 class FlatUniverse;
 
 template<class PreUniverse, class Mem>
-class PrimitiveUpset;
+class ArithBound;
 
-/** Lattice of increasing integers.
-Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \leq y\} \f$. */
+/** Lattice of integer lower bounds. */
 template<class VT, class Mem>
-using ZInc = PrimitiveUpset<PreZInc<VT>, Mem>;
+using ZLB = ArithBound<PreZLB<VT>, Mem>;
 
-/** Lattice of decreasing integers.
-Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; x \geq y\} \f$. */
+/** Lattice of integer upper bounds. */
 template<class VT, class Mem>
-using ZDec = PrimitiveUpset<PreZDec<VT>, Mem>;
+using ZUB = ArithBound<PreZUB<VT>, Mem>;
 
-/** Lattice of increasing floating-point numbers.
-Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; y \in \mathbb{R}, x \leq y\} \f$. */
+/** Lattice of floating-point lower bounds. */
 template<class VT, class Mem>
-using FInc = PrimitiveUpset<PreFInc<VT>, Mem>;
+using FLB = ArithBound<PreFLB<VT>, Mem>;
 
-/** Lattice of decreasing floating-point numbers.
-Concretization function: \f$ \gamma(x) = \{_ \mapsto y \;|\; y \in \mathbb{R}, x \geq y\} \f$. */
+/** Lattice of floating-point upper bounds. */
 template<class VT, class Mem>
-using FDec = PrimitiveUpset<PreFDec<VT>, Mem>;
-
-/** Lattice of increasing Boolean where \f$ \mathit{false} \leq \mathit{true} \f$. */
-template<class Mem>
-using BInc = PrimitiveUpset<PreBInc, Mem>;
-
-/** Lattice of decreasing Boolean where \f$ \mathit{true} \leq \mathit{false} \f$. */
-template<class Mem>
-using BDec = PrimitiveUpset<PreBDec, Mem>;
+using FUB = ArithBound<PreFUB<VT>, Mem>;
 
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
 namespace local {
-  using ZInc = ::lala::ZInc<int, battery::local_memory>;
-  using ZDec = ::lala::ZDec<int, battery::local_memory>;
-  using FInc = ::lala::FInc<double, battery::local_memory>;
-  using FDec = ::lala::FDec<double, battery::local_memory>;
-  using BInc = ::lala::BInc<battery::local_memory>;
-  using BDec = ::lala::BDec<battery::local_memory>;
+  using ZLB = ::lala::ZLB<int, battery::local_memory>;
+  using ZUB = ::lala::ZUB<int, battery::local_memory>;
+  using FLB = ::lala::FLB<double, battery::local_memory>;
+  using FUB = ::lala::FUB<double, battery::local_memory>;
 }
 
 namespace impl {
   template<class T>
-  struct is_primitive_upset {
+  struct is_arith_bound {
     static constexpr bool value = false;
   };
 
   template<class PreUniverse, class Mem>
-  struct is_primitive_upset<PrimitiveUpset<PreUniverse, Mem>> {
+  struct is_arith_bound<ArithBound<PreUniverse, Mem>> {
     static constexpr bool value = true;
   };
 
   template <class T>
-  inline constexpr bool is_primitive_upset_v = is_primitive_upset<T>::value;
+  inline constexpr bool is_arith_bound_v = is_arith_bound<T>::value;
 }
 
 /** This function is useful when we need to convert a value to its dual.
-    The dual is the downset of the current element, therefore, if we have \f$ x >= 10 \f$, the dual is given by the formula \f$ x <= 10 \f$ interpreted in the dual lattice.
+    The dual is the upset of the current element, therefore, if we have \f$ x <= 10 \f$, the dual is given by the formula \f$ x >= 10 \f$ interpreted in the dual lattice.
     In that case, it just changes the type of the lattice without changing the value.
     A difference occurs on the bottom and top element.
     Indeed, by our representation of bot and top, the bottom value in a lattice L equals the top value in its dual, but we need them to remain the same, so the dual of `L::bot()` is `LDual::bot()`.*/
@@ -115,18 +99,18 @@ CUDA constexpr LDual dual(const L& x) {
 }
 
 template<class PreUniverse, class Mem>
-class PrimitiveUpset
+class ArithBound
 {
   using U = PreUniverse;
 public:
   using pre_universe = PreUniverse;
   using value_type = typename pre_universe::value_type;
   using memory_type = Mem;
-  using this_type = PrimitiveUpset<pre_universe, memory_type>;
-  using dual_type = PrimitiveUpset<typename pre_universe::dual_type, memory_type>;
+  using this_type = ArithBound<pre_universe, memory_type>;
+  using dual_type = ArithBound<typename pre_universe::dual_type, memory_type>;
 
   template<class M>
-  using this_type2 = PrimitiveUpset<pre_universe, M>;
+  using this_type2 = ArithBound<pre_universe, M>;
 
   using local_type = this_type2<battery::local_memory>;
 
@@ -143,7 +127,6 @@ public:
   constexpr static const bool preserve_meet = pre_universe::preserve_meet;
   constexpr static const bool injective_concretization = pre_universe::injective_concretization;
   constexpr static const bool preserve_concrete_covers = pre_universe::preserve_concrete_covers;
-  constexpr static const bool complemented = pre_universe::complemented;
   constexpr static const bool increasing = pre_universe::increasing;
   constexpr static const char* name = pre_universe::name;
 
@@ -186,14 +169,14 @@ public:
   /** Similar to \f$[\![\mathit{false}]\!]\f$ if `preserve_top` is true. */
   CUDA static constexpr local_type top() { return local_type(U::top()); }
   /** Initialize an upset universe to bottom. */
-  CUDA constexpr PrimitiveUpset(): val(U::bot()) {}
+  CUDA constexpr ArithBound(): val(U::bot()) {}
   /** Similar to \f$[\![x \geq_A i]\!]\f$ for any name `x` where \f$ \geq_A \f$ is the lattice order. */
-  CUDA constexpr PrimitiveUpset(value_type x): val(x) {}
-  CUDA constexpr PrimitiveUpset(const this_type& other): PrimitiveUpset(other.value()) {}
-  constexpr PrimitiveUpset(this_type&& other) = default;
+  CUDA constexpr ArithBound(value_type x): val(x) {}
+  CUDA constexpr ArithBound(const this_type& other): ArithBound(other.value()) {}
+  constexpr ArithBound(this_type&& other) = default;
 
   template <class M>
-  CUDA constexpr PrimitiveUpset(const this_type2<M>& other): PrimitiveUpset(other.value()) {}
+  CUDA constexpr ArithBound(const this_type2<M>& other): ArithBound(other.value()) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
@@ -204,7 +187,7 @@ public:
       return *this;
     }
     else {
-      static_assert(sequential, "The operator= in `PrimitiveUpset` can only be used when the underlying memory is `sequential`.");
+      static_assert(sequential, "The operator= in `ArithBound` can only be used when the underlying memory is `sequential`.");
     }
   }
 
@@ -214,7 +197,7 @@ public:
       return *this;
     }
     else {
-      static_assert(sequential, "The operator= in `PrimitiveUpset` can only be used when the underlying memory is `sequential`.");
+      static_assert(sequential, "The operator= in `ArithBound` can only be used when the underlying memory is `sequential`.");
     }
   }
 
@@ -347,7 +330,7 @@ private:
         tell.join(local_type(value));
       }
       else if(sig == NEQ || sig == U::sig_strict_order()) {
-        // We could actually do a little bit better in the case of FInc/FDec.
+        // We could actually do a little bit better in the case of FLB/FUB.
         // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
         tell.join(local_type(pre_universe::next(value)));
       }
@@ -470,7 +453,7 @@ public:
     return local_type(pre_universe::prev(a.value()));
   }
 
-  /** Unary function of type `fun: FlatUniverse -> PrimitiveUpset`.
+  /** Unary function of type `fun: FlatUniverse -> ArithBound`.
    * If `a` is `top`, we join top in-place.
    * Otherwise, we apply the function `fun` to `a` and join the result.
    * \remark The result of the function is always over-approximated (or exact when possible).
@@ -482,7 +465,7 @@ public:
     }
   }
 
-  /** Binary functions of type `project: FlatUniverse x FlatUniverse -> PrimitiveUpset`.
+  /** Binary functions of type `project: FlatUniverse x FlatUniverse -> ArithBound`.
    * If `a` or `b` is `top`, we join top in-place.
    * Otherwise, we join `fun(a,b)` in-place.
    * \remark The result of the function is always over-approximated (or exact when possible).
@@ -526,53 +509,53 @@ public:
   }
 
   template<class Pre2, class Mem2>
-  friend class PrimitiveUpset;
+  friend class ArithBound;
 };
 
 // Lattice operators
 
 template<class Pre, class M1, class M2>
-CUDA constexpr PrimitiveUpset<Pre, battery::local_memory> fjoin(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr ArithBound<Pre, battery::local_memory> fjoin(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
   return Pre::join(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr PrimitiveUpset<Pre, battery::local_memory> fmeet(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr ArithBound<Pre, battery::local_memory> fmeet(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
   return Pre::meet(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator<=(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr bool operator<=(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
   return Pre::order(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator<(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr bool operator<(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
   return Pre::strict_order(a, b);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator>=(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr bool operator>=(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
   return Pre::order(b, a);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator>(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr bool operator>(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
   return Pre::strict_order(b, a);
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator==(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr bool operator==(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
   return a.value() == b.value();
 }
 
 template<class Pre, class M1, class M2>
-CUDA constexpr bool operator!=(const PrimitiveUpset<Pre, M1>& a, const PrimitiveUpset<Pre, M2>& b) {
+CUDA constexpr bool operator!=(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
   return a.value() != b.value();
 }
 
 template<class Pre, class M>
-std::ostream& operator<<(std::ostream &s, const PrimitiveUpset<Pre, M> &upset) {
+std::ostream& operator<<(std::ostream &s, const ArithBound<Pre, M> &upset) {
   if(upset.is_bot()) {
     s << "\u22A5";
   }

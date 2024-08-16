@@ -3,7 +3,7 @@
 #ifndef LALA_CORE_FLAT_UNIVERSE_HPP
 #define LALA_CORE_FLAT_UNIVERSE_HPP
 
-#include "primitive_upset.hpp"
+#include "arith_bound.hpp"
 
 namespace lala {
 
@@ -12,11 +12,11 @@ class FlatUniverse;
 
 /** Lattice of flat integers. */
 template<class VT, class Mem>
-using ZFlat = FlatUniverse<PreZInc<VT>, Mem>;
+using ZFlat = FlatUniverse<PreZLB<VT>, Mem>;
 
 /** Lattice of flat floating-point numbers. */
 template<class VT, class Mem>
-using FFlat = FlatUniverse<PreFInc<VT>, Mem>;
+using FFlat = FlatUniverse<PreFLB<VT>, Mem>;
 
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
@@ -51,7 +51,6 @@ public:
   constexpr static const bool preserve_meet = false;
   constexpr static const bool injective_concretization = pre_universe::injective_concretization;
   constexpr static const bool preserve_concrete_covers = true;
-  constexpr static const bool complemented = false;
   constexpr static const char* name = "Flat";
   constexpr static const bool is_arithmetic = pre_universe::is_arithmetic;
 

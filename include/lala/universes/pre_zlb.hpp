@@ -1,59 +1,55 @@
 // Copyright 2023 Pierre Talbot
 
-#ifndef LALA_CORE_PRE_FDEC_HPP
-#define LALA_CORE_PRE_FDEC_HPP
+#ifndef LALA_CORE_PRE_ZLB_HPP
+#define LALA_CORE_PRE_ZLB_HPP
 
 #include "../logic/logic.hpp"
-#include "pre_finc.hpp"
+#include "pre_zinc.hpp"
 
 namespace lala {
 
-template<class VT>
-struct PreFInc;
+template <class VT>
+struct PreZUB;
 
-/** `PreFDec` is a pre-abstract universe \f$ \langle \mathbb{F}\setminus\{NaN\}, \leq \rangle \f$ totally ordered by the reversed floating-point arithmetic comparison operator.
-    We work on a subset of floating-point numbers without NaN.
-    It is used to represent (and possibly approximate) constraints of the form \f$ x \leq k \f$ where \f$ k \f$ is a real number.
+/** `PreZLB` is a pre-abstract universe \f$ \langle \{\infty, \ldots, 2, 1, 0, -1, -2, \ldots, -\infty\}, \geq \rangle \f$ totally ordered by the reversed natural arithmetic comparison operator.
+    It is used to represent constraints of the form \f$ x \geq k \f$ where \f$ k \f$ is an integer.
 */
-template<class VT>
-struct PreFDec {
-  using this_type = PreFDec<VT>;
-  using dual_type = PreFInc<VT>;
+template <class VT>
+struct PreZLB {
+  using this_type = PreZLB<VT>;
+  using dual_type = PreZUB<VT>;
   using value_type = VT;
   using increasing_type = dual_type;
+
+  static_assert(std::is_integral_v<value_type>, "PreZLB only works over integer types.");
 
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;
   constexpr static const bool preserve_top = true;
   constexpr static const bool preserve_join = true;
   constexpr static const bool preserve_meet = true;
-  /** Note that -0 and +0 are treated as the same element. */
   constexpr static const bool injective_concretization = true;
-  constexpr static const bool preserve_concrete_covers = false;
+  constexpr static const bool preserve_concrete_covers = true;
   constexpr static const bool complemented = false;
   constexpr static const bool increasing = false;
-  constexpr static const char* name = "FDec";
+  constexpr static const char *name = "ZLB";
   constexpr static const bool is_arithmetic = true;
-  CUDA constexpr static value_type zero() { return 0.0; }
-  CUDA constexpr static value_type one() { return 1.0; }
+  CUDA constexpr static value_type zero() { return 0; }
+  CUDA constexpr static value_type one() { return 1; }
 
   template <bool diagnose, class F>
   CUDA static bool interpret_tell(const F &f, value_type& tell, IDiagnostics& diagnostics) {
-    return dual_type::template interpret_ask<diagnose>(f, tell, diagnostics);
+    return dual_type::template interpret_tell<diagnose, F, true>(f, tell, diagnostics);
   }
 
   template <bool diagnose, class F>
   CUDA static bool interpret_ask(const F &f, value_type& ask, IDiagnostics& diagnostics) {
-    return dual_type::template interpret_tell<diagnose>(f, ask, diagnostics);
+    return dual_type::template interpret_ask<diagnose, F, true>(f, ask, diagnostics);
   }
 
-  template<bool diagnose, class F>
-  CUDA static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    bool res = dual_type::template interpret_type<diagnose>(f, k, diagnostics);
-    if (res && k == dual_type::bot()) {
-      k = bot();
-    }
-    return res;
+  template <bool diagnose, class F>
+  CUDA static bool interpret_type(const F &f, value_type& k, IDiagnostics& diagnostics) {
+    return dual_type::template interpret_type<diagnose, F, true>(f, k, diagnostics);
   }
 
   template<class F>
@@ -71,22 +67,14 @@ struct PreFDec {
   CUDA static constexpr bool strict_order(value_type x, value_type y) { return dual_type::strict_order(y, x); }
   CUDA static constexpr value_type next(value_type x) { return dual_type::prev(x); }
   CUDA static constexpr value_type prev(value_type x) { return dual_type::next(x); }
-  CUDA static constexpr bool is_supported_fun(Sig fun) { return fun != ABS && dual_type::is_supported_fun(fun); }
-
   CUDA static constexpr value_type project(Sig fun, value_type x) {
-    assert(is_supported_fun(fun)); // "Unsupported unary function."
-    return dual_type::project(fun, x);
-  }
-
-  CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
-    assert(is_supported_fun(fun)); // "Unsupported binary function."
-    switch(fun) {
-      case ADD: return battery::add_up(x, y);
-      case SUB: return battery::sub_up(x, y);
-      case MUL: return battery::mul_up(x, y);
-      case DIV: return battery::div_up(x, y);
-      default: return dual_type::project(fun, x, y);
+    if(fun == ABS) { return x >= 0 ? x : 0; }
+    else {
+      return dual_type::project(fun, x);
     }
+  }
+  CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
+    return dual_type::project(fun, x, y);
   }
 };
 

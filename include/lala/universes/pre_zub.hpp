@@ -1,39 +1,39 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef LALA_CORE_PRE_ZINC_HPP
-#define LALA_CORE_PRE_ZINC_HPP
+#ifndef LALA_CORE_PRE_ZUB_HPP
+#define LALA_CORE_PRE_ZUB_HPP
 
 #include "../logic/logic.hpp"
 
 namespace lala {
 
 template<class VT>
-struct PreZDec;
+struct PreZLB;
 
-/** `PreZInc` is a pre-abstract universe \f$ \langle \{-\infty, \ldots, -2, -1, 0, 1, 2, \ldots, \infty\}, \leq \rangle \f$ totally ordered by the natural arithmetic comparison operator.
-    It is used to represent constraints of the form \f$ x \geq k \f$ where \f$ k \f$ is an integer.
+/** `PreZUB` is a pre-abstract universe \f$ \langle \{-\infty, \ldots, -2, -1, 0, 1, 2, \ldots, \infty\}, \leq \rangle \f$ totally ordered by the natural arithmetic comparison operator.
+    It is used to represent constraints of the form \f$ x \leq k \f$ where \f$ k \f$ is an integer.
 */
 template<class VT>
-struct PreZInc {
-  using this_type = PreZInc<VT>;
-  using dual_type = PreZDec<VT>;
+struct PreZUB {
+  using this_type = PreZUB<VT>;
+  using dual_type = PreZLB<VT>;
   using value_type = VT;
   using increasing_type = this_type;
 
-  static_assert(std::is_integral_v<value_type>, "PreZInc only works over integer types.");
+  static_assert(std::is_integral_v<value_type>, "PreZUB only works over integer types.");
 
   constexpr static const bool is_totally_ordered = true;
 
-  /** `true` if \f$ \gamma(\bot) = \bot^\flat \f$. */
+  /** `true` if \f$ \gamma(\bot) = \{\} \f$. */
   constexpr static const bool preserve_bot = true;
 
-  /** `true` if \f$ \gamma(\top) = \top^\flat \f$. */
+  /** `true` if \f$ \gamma(\top) = U \f$. */
   constexpr static const bool preserve_top = true;
 
-  /** `true` if \f$ \gamma(a \sqcup b) = \gamma(a) \cap \gamma(b) \f$ .*/
+  /** `true` if \f$ \gamma(a \sqcup b) = \gamma(a) \cup \gamma(b) \f$ .*/
   constexpr static const bool preserve_join = true;
 
-    /** `true` if \f$ \gamma(a \sqcap b) = \gamma(a) \cup \gamma(b) \f$ .*/
+    /** `true` if \f$ \gamma(a \sqcap b) = \gamma(a) \cap \gamma(b) \f$ .*/
   constexpr static const bool preserve_meet = true;
 
   /** The concretization is injective when each abstract element maps to a distinct concrete element.
@@ -45,20 +45,17 @@ struct PreZInc {
    */
   constexpr static const bool preserve_concrete_covers = true;
 
-  /** `true` if for all element \f$ x \in A \f$, there exists a unique element \f$ \lnot x \in A \f$ such that \f$ x \sqcup \lnot x = \top \f$ and \f$ x \sqcap \lnot x = \bot \f$. */
-  constexpr static const bool complemented = false;
-
   /** `true` if the natural order of the universe of discourse coincides with the lattice order of this pre-universe, `false` if it is reversed. */
   constexpr static const bool increasing = true;
 
-  constexpr static const char* name = "ZInc";
+  constexpr static const char* name = "ZUB";
 
   constexpr static const bool is_arithmetic = true;
   CUDA constexpr static value_type zero() { return 0; }
   CUDA constexpr static value_type one() { return 1; }
 
 private:
-  template<bool diagnose, bool is_tell, class F>
+  template<bool diagnose, bool is_tell, bool dualize, class F>
   CUDA NI static bool interpret(const F& f, value_type& k, IDiagnostics& diagnostics) {
     if(f.is(F::Z)) {
       auto z = f.z();
@@ -69,11 +66,21 @@ private:
       return true;
     }
     else if(f.is(F::R)) {
-      if constexpr(is_tell) {
-        k = battery::ru_cast<value_type>(battery::get<0>(f.r()));
+      if constexpr(dualize) {
+        if constexpr(is_tell) {
+          k = battery::ru_cast<value_type>(battery::get<0>(f.r()));
+        }
+        else {
+          k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
+        }
       }
       else {
-        k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
+        if constexpr(is_tell) {
+          k = battery::rl_cast<value_type>(battery::get<1>(f.r()));
+        }
+        else {
+          k = battery::rl_cast<value_type>(battery::get<0>(f.r()));
+        }
       }
       return true;
     }
@@ -81,40 +88,42 @@ private:
       k = f.b() ? one() : zero();
       return true;
     }
-    RETURN_INTERPRETATION_ERROR("Only constant of sorts `Int` and `Real` can be interpreted by an integer abstract universe.");
+    RETURN_INTERPRETATION_ERROR("Only constants of sorts `Int`, `Bool` and `Real` can be interpreted by an integer abstract universe.");
   }
 
 public:
-  /** Interpret a constant in the lattice of increasing integers according to the upset semantics (see universe.hpp for explanation).
-      Overflows are not verified (issue #1).
+  /** Interpret a constant in the lattice of increasing integers according to the downset semantics.
+      Overflows are not verified.
       Interpretations:
-        * Formulas of kind `F::Z` are interpreted exactly: \f$ [\![ x:\mathbb{Z} \geq k:\mathbb{Z} ]\!] = k \f$.
-        * Formulas of kind `F::R` are over-approximated: \f$ [\![ x:\mathbb{Z} \geq [l..u]:\mathbb{R} ]\!] = \lceil l \rceil \f$.
-          Note that all elements in \f$ [l..\lceil l \rceil[\f$ do not belong to \f$ \mathbb{Z} \f$, so they can be safely ignored.
+        * Formulas of kind `F::Z` are interpreted exactly: \f$ [\![ x:\mathbb{Z} \leq k:\mathbb{Z} ]\!] = k \f$.
+        * Formulas of kind `F::R` are over-approximated: \f$ [\![ x:\mathbb{Z} \leq [l..u]:\mathbb{R} ]\!] = \lfloor u \rfloor \f$.
       Examples:
-        * \f$ [\![x >= [2.5..2.5]:R ]\!] = 3 \f$.
-        * \f$ [\![x >= [2.9..3.1]:R ]\!] = 3 \f$.
+        * \f$ [\![x <= [3.5..3.5]:R ]\!] = 3 \f$: there is no integer greater than 3 satisfying this constraint.
+        * \f$ [\![x <= [2.9..3.1]:R ]\!] = 3 \f$.
   */
-  template<bool diagnose, class F>
+  template<bool diagnose, class F, bool dualize = false>
   CUDA static bool interpret_tell(const F& f, value_type& tell, IDiagnostics& diagnostics) {
-    return interpret<diagnose, true>(f, tell, diagnostics);
+    return interpret<diagnose, true, dualize>(f, tell, diagnostics);
   }
 
-  /** Similar to `interpret_tell` but the formula is under-approximated, in particular: \f$ [\![ x:\mathbb{Z} \geq [l..u]:\mathbb{R} ]\!] = \lceil u \rceil \f$. */
-  template<bool diagnose, class F>
+  /** Similar to `interpret_tell` but the formula is under-approximated, in particular: \f$ [\![ x:\mathbb{Z} \leq [l..u]:\mathbb{R} ]\!] = \lfloor u \rfloor \f$.
+      Examples:
+        * \f$ [\![x <= [3.5..3.5]:R ]\!] = 3 \f$.
+        * \f$ [\![x <= [2.9..3.1]:R ]\!] = 2 \f$: the constraint is entailed only when x is less or equal to 2.9. */
+  template<bool diagnose, class F, bool dualize = false>
   CUDA static bool interpret_ask(const F& f, value_type& ask, IDiagnostics& diagnostics) {
-    return interpret<diagnose, false>(f, ask, diagnostics);
+    return interpret<diagnose, false, dualize>(f, ask, diagnostics);
   }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
-      Variables of type `Int` are interpreted exactly (\f$ \mathbb{Z} = \gamma(\bot) \f$).
+      Variables of type `Int` are interpreted exactly (\f$ \mathbb{Z} = \gamma(\top) \f$).
       Note that we assume there is no overflow, that might be taken into account the future. */
-  template<bool diagnose, class F>
+  template<bool diagnose, class F, bool dualize = false>
   CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
     assert(f.is(F::E));
     const auto& sort = battery::get<1>(f.exists());
     if(sort.is_int()) {
-      k = bot();
+      k = dualize ? bot() : top();
       return true;
     }
     else {
@@ -183,44 +192,15 @@ public:
     return x - (x != top() && x != bot());
   }
 
-  CUDA NI static constexpr bool is_supported_fun(Sig fun) {
-    switch(fun) {
-      case NEG:
-      case ABS:
-      case ADD:
-      case SUB:
-      case MUL:
-      case TDIV:
-      case TMOD:
-      case FDIV:
-      case FMOD:
-      case CDIV:
-      case CMOD:
-      case EDIV:
-      case EMOD:
-      case POW:
-      case MIN:
-      case MAX:
-      case EQ:
-      case NEQ:
-      case LEQ:
-      case GEQ:
-      case LT:
-      case GT: return true;
-      default: return false;
-    }
-  }
-
   /** `project: value_type -> ZInc` is an abstract function on `ZInc` over-approximating the function denoted by `fun` on the concrete domain.
-   * \tparam fun The signature of the function to over-approximate, can be either `NEG` or `ABS`.
+   * \tparam fun The signature of the function to over-approximate (only `NEG`).
    * \param x The argument of the function, which is a constant value in the underlying universe of discourse.
    * \note Since `x` is a constant, we do not check for equality with `bot()` or `top()`.
    */
   CUDA static constexpr value_type project(Sig fun, value_type x) {
     switch(fun) {
       case NEG: return -x;
-      case ABS: return abs(x);
-      default: assert(0); return x; //  "Unsupported unary function."
+      default: return top();
     }
   }
 
@@ -251,7 +231,7 @@ public:
       case GEQ: return x >= y;
       case LT: return x < y;
       case GT: return x >= y;
-      default: assert(0); return x; // "Unsupported binary function."
+      default: return top();
     }
   }
 };
