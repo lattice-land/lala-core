@@ -45,13 +45,12 @@ public:
   constexpr static const bool is_abstract_universe = true;
   constexpr static const bool sequential = CP::sequential;
   constexpr static const bool is_totally_ordered = false;
-  constexpr static const bool preserve_bot = CP::preserve_bot;
-  constexpr static const bool preserve_top = true;
-  constexpr static const bool preserve_join = true;
-  constexpr static const bool preserve_meet = false;
+  constexpr static const bool preserve_top = CP::preserve_top;
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_meet = true;
+  constexpr static const bool preserve_join = false;
   constexpr static const bool injective_concretization = CP::injective_concretization;
   constexpr static const bool preserve_concrete_covers = CP::preserve_concrete_covers;
-  constexpr static const bool complemented = false;
   constexpr static const char* name = "Interval";
 
 private:
@@ -94,8 +93,8 @@ public:
 
   CUDA constexpr static local_type bot() { return Interval(CP::bot()); }
   CUDA constexpr static local_type top() { return Interval(CP::top()); }
-  CUDA constexpr local::B is_top() const { return cp.is_top() || (!ub().is_bot() && lb() > dual<LB2>(ub())); }
-  CUDA constexpr local::B is_bot() const { return cp.is_bot(); }
+  CUDA constexpr local::B is_bot() const { return cp.is_bot() || (!ub().is_top() && lb() > dual<LB2>(ub())); }
+  CUDA constexpr local::B is_top() const { return cp.is_top(); }
   CUDA constexpr const CP& as_product() const { return cp; }
   CUDA constexpr value_type value() const { return cp.value(); }
 
@@ -126,7 +125,7 @@ public:
       if(f.is(F::E)) {
         auto sort = f.sort();
         if(sort.has_value() && sort->is_bool()) {
-          k.join(local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one())));
+          k.meet(local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one())));
           return true;
         }
       }
@@ -140,7 +139,7 @@ public:
    *    * `x in {[l..u]} is interpreted by under-approximating `x >= l` and `x <= u`. */
   template<bool diagnose = false, class F, class Env, class U2>
   CUDA NI static bool interpret_ask(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
-    local_type itv = local_type::bot();
+    local_type itv = local_type::top();
     if(f.is_binary() && f.sig() == NEQ) {
       return LB::template interpret_ask<diagnose>(f, env, k.lb(), diagnostics);
     }
@@ -150,7 +149,7 @@ public:
         (LB::template interpret_tell<diagnose>(f, env, itv.lb(), diagnostics) &&
          UB::template interpret_tell<diagnose>(f, env, itv.ub(), diagnostics) &&
          itv.lb() == itv.ub()),
-        (k.join(itv)));
+        (k.meet(itv)));
     }
     else if(f.is_binary() && f.sig() == IN && f.seq(0).is_variable()
      && f.seq(1).is(F::S) && f.seq(1).s().size() == 1)
@@ -166,7 +165,7 @@ public:
         "Failed to interpret the decomposition of set membership `x in {[l..u]}` into `x >= l /\\ x <= u`.",
         (LB::template interpret_ask<diagnose>(F::make_binary(f.seq(0), geq_of_constant(lb), lb), env, itv.lb(), diagnostics) &&
          UB::template interpret_ask<diagnose>(F::make_binary(f.seq(0), leq_of_constant(ub), ub), env, itv.ub(), diagnostics)),
-        (k.join(itv))
+        (k.meet(itv))
       );
     }
     return CP::template interpret_ask<diagnose>(f, env, k.cp, diagnostics);
@@ -289,9 +288,9 @@ public:
   CUDA constexpr void abs(const local_type& x) {
     local_type nx{};
     nx.neg(x);
-    nx.join_lb(LB2::geq_k(LB2::pre_universe::zero()));
-    join_lb(fjoin(x.lb(), nx.lb()));
-    join_ub(fmeet(x.ub(), nx.ub()));
+    nx.meet_lb(LB2::geq_k(LB2::pre_universe::zero()));
+    meet_lb(fmeet(x.lb(), nx.lb()));
+    meet_ub(fjoin(x.ub(), nx.ub()));
   }
 
   CUDA constexpr void project(Sig fun, const local_type& x) {
@@ -347,7 +346,7 @@ private:
      In the discrete case, we can precompute the products in `l` and `u`.
      Otherwise, due to rounding, al*bl can be rounded downwards or upwards, and therefore must be computed differently for (1) and (2).
 
-    We do not check if a and b are top. This is the responsibility of the caller depending if it could pose issues with the function `fun`.
+    We do not check if a and b are bot. This is the responsibility of the caller depending if it could pose issues with the function `fun`.
   */
   CUDA constexpr void piecewise_monotone_fun(Sig fun, const local_type& a, const local_type& b) {
     if constexpr(preserve_concrete_covers) {
@@ -355,14 +354,14 @@ private:
       local_type u{};
       local_type br{};
       l.flat_fun(fun, a, b);
-      br.join(reverse(b));
+      br.meet(reverse(b));
       u.flat_fun(fun, a, br);
-      join_lb(fmeet(
-        fmeet(l.lb(), u.lb()),
-        fmeet(dual<LB2>(l.ub()), dual<LB2>(u.ub()))));
-      join_ub(fmeet(
-        fmeet(dual<UB2>(l.lb()), dual<UB2>(u.lb())),
-        fmeet(l.ub(), u.ub())));
+      meet_lb(fjoin(
+        fjoin(l.lb(), u.lb()),
+        fjoin(dual<LB2>(l.ub()), dual<LB2>(u.ub()))));
+      meet_ub(fjoin(
+        fjoin(dual<UB2>(l.lb()), dual<UB2>(u.lb())),
+        fjoin(l.ub(), u.ub())));
     }
     else {
       local_type al{a.lb2()};
@@ -377,14 +376,14 @@ private:
       lu.flat_fun(fun, al, bu);
       ul.flat_fun(fun, au, bl);
       uu.flat_fun(fun, au, bu);
-      join_lb(fmeet(fmeet(ll.lb(), lu.lb()), fmeet(ul.lb(), uu.lb())));
-      join_ub(fmeet(fmeet(ll.ub(), lu.ub()), fmeet(ul.ub(), uu.ub())));
+      meet_lb(fjoin(fjoin(ll.lb(), lu.lb()), fjoin(ul.lb(), uu.lb())));
+      meet_ub(fjoin(fjoin(ll.ub(), lu.ub()), fjoin(ul.ub(), uu.ub())));
     }
   }
 
 public:
   CUDA constexpr void mul(const local_type& a, const local_type& b) {
-    if(a.is_top() || b.is_top()) { join_top(); return; } // Perhaps not necessary?
+    if(a.is_bot() || b.is_bot()) { meet_bot(); return; } // Perhaps not necessary?
     piecewise_monotone_fun(MUL, a, b);
   }
 
@@ -393,7 +392,7 @@ public:
     constexpr auto zero = LB2::pre_universe::zero();
     using flat_type = LB2::local_flat_type;
     constexpr auto fzero = flat_type::eq_k(zero);
-    if(a.is_top() || b.is_top() || (b.lb().value() == zero && b.ub().value() == zero)) { join_top(); return; }
+    if(a.is_bot() || b.is_bot() || (b.lb().value() == zero && b.ub().value() == zero)) { meet_bot(); return; }
     // Interval division, [rl..ru] = [al..au] / [bl..bu]
     if constexpr(preserve_concrete_covers) {
       // Remove 0 from the bounds of b if any is equal to it.
@@ -409,8 +408,8 @@ public:
 
       // The case where 0 in [bl, bu].
       if(bl <= fzero && bu >= fzero) {
-        if(bl == fzero && bu == fzero) { join_top(); return; }  // b is a singleton equal to zero.
-        if(al == fzero && au == fzero) { join_lb(LB2::geq_k(zero)); join_ub(UB2::leq_k(zero)); return; } // 0 / b = 0 (b != 0)
+        if(bl == fzero && bu == fzero) { meet_bot(); return; }  // b is a singleton equal to zero.
+        if(al == fzero && au == fzero) { meet_lb(LB2::geq_k(zero)); meet_ub(UB2::leq_k(zero)); return; } // 0 / b = 0 (b != 0)
         if(bl == fzero) { lb().project(divfun, al, bu); return; } // If bl is 0, then the upper bound is infinite.
         ub().project(divfun, al, bl);  // if bu is 0, then the lower bound is infinite.
         return;
@@ -422,14 +421,14 @@ public:
   }
 
   CUDA constexpr void mod(Sig modfun, const local_type& a, const local_type& b) {
-    if(a.is_top() || b.is_top()) { join_top(); return; }
+    if(a.is_bot() || b.is_bot()) { meet_bot(); return; }
     if(a.lb() == dual<LB2>(a.ub()) && b.lb() == dual<LB2>(b.ub())) {
       flat_fun(modfun, a, b);
     }
   }
 
   CUDA constexpr void pow(const local_type& a, const local_type& b) {
-    if(a.is_top() || b.is_top()) { join_top(); return; }
+    if(a.is_bot() || b.is_bot()) { meet_bot(); return; }
     if(a.lb() == dual<LB2>(a.ub()) && b.lb() == dual<LB2>(b.ub())) {
       flat_fun(POW, a, b);
     }
@@ -465,8 +464,8 @@ public:
   CUDA constexpr local_type median() const {
     static_assert(LB::is_totally_ordered && LB::is_arithmetic,
       "Median function is only defined for totally ordered arithmetic intervals.");
-    if(is_top()) { return local_type::top(); }
-    if(lb().is_bot() || ub().is_bot()) { return local_type::bot(); }
+    if(is_bot()) { return local_type::bot(); }
+    if(lb().is_top() || ub().is_top()) { return local_type::top(); }
     auto l = lb().value();
     auto u = ub().value();
     return local_type(l + battery::fdiv((u - l), 2), l + battery::cdiv((u - l), 2));
@@ -478,27 +477,27 @@ public:
 template<class L, class K>
 CUDA constexpr auto fjoin(const Interval<L>& a, const Interval<K>& b)
 {
+  if(a.is_bot()) { return b; }
+  if(b.is_bot()) { return a; }
   return impl::make_itv(fjoin(a.as_product(), b.as_product()));
 }
 
 template<class L, class K>
 CUDA constexpr auto fmeet(const Interval<L>& a, const Interval<K>& b)
 {
-  if(a.is_top()) { return b; }
-  if(b.is_top()) { return a; }
   return impl::make_itv(fmeet(a.as_product(), b.as_product()));
 }
 
 template<class L, class K>
 CUDA constexpr bool operator<=(const Interval<L>& a, const Interval<K>& b)
 {
-  return b.is_top() || a.as_product() <= b.as_product();
+  return a.is_bot() || a.as_product() <= b.as_product();
 }
 
 template<class L, class K>
 CUDA constexpr bool operator<(const Interval<L>& a, const Interval<K>& b)
 {
-  return (b.is_top() && !a.is_top()) || a.as_product() < b.as_product();
+  return (a.is_bot() && !b.is_bot()) || a.as_product() < b.as_product();
 }
 
 template<class L, class K>
@@ -516,13 +515,13 @@ CUDA constexpr bool operator>(const Interval<L>& a, const Interval<K>& b)
 template<class L, class K>
 CUDA constexpr bool operator==(const Interval<L>& a, const Interval<K>& b)
 {
-  return a.as_product() == b.as_product() || (a.is_top() && b.is_top());
+  return a.as_product() == b.as_product() || (a.is_bot() && b.is_bot());
 }
 
 template<class L, class K>
 CUDA constexpr bool operator!=(const Interval<L>& a, const Interval<K>& b)
 {
-  return a.as_product() != b.as_product() && !(a.is_top() && b.is_top());
+  return a.as_product() != b.as_product() && !(a.is_bot() && b.is_bot());
 }
 
 template<class L>

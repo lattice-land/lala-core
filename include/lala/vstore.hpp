@@ -20,16 +20,16 @@ namespace lala {
 
 /** The variable store abstract domain is a _domain transformer_ built on top of an abstract universe `U`.
 Concretization function: \f$ \gamma(\rho) := \bigcap_{x \in \pi(\rho)} \gamma_{U_x}(\rho(x)) \f$.
-The top element is smashed and the equality between two stores is represented by the following equivalence relation, for two stores \f$ S \f$ and \f$ T \f$:
-\f$ S \equiv T \Leftrightarrow \forall{x \in \mathit{Vars}},~S(x) = T(x) \lor \exists{x \in \mathit{dom}(S)},\exists{y \in \mathit{dom}(T)},~S(x) = \top \land T(y) = \top \f$.
-Intuitively, it means that either all elements are equal or both stores have a top element, in which case they "collapse" to the top element, and are considered equal.
+The bot element is smashed and the equality between two stores is represented by the following equivalence relation, for two stores \f$ S \f$ and \f$ T \f$:
+\f$ S \equiv T \Leftrightarrow \forall{x \in \mathit{Vars}},~S(x) = T(x) \lor \exists{x \in \mathit{dom}(S)},\exists{y \in \mathit{dom}(T)},~S(x) = \bot \land T(y) = \bot \f$.
+Intuitively, it means that either all elements are equal or both stores have a bot element, in which case they "collapse" to the bot element, and are considered equal.
 
-The bottom element is the element \f$ \langle \bot, \ldots \rangle \f$, that is an infinite number of variables initialized to bottom.
-In practice, we cannot represent infinite collections, so we represent bottom either as the empty collection or with a finite number of bottom elements.
-Any finite store \f$ \langle x_1, \ldots, x_n \rangle \f$ should be seen as the concrete store \f$ \langle x_1, \ldots, x_n, \bot, \ldots \rangle \f$.
+The top element is the element \f$ \langle \top, \ldots \rangle \f$, that is an infinite number of variables initialized to top.
+In practice, we cannot represent infinite collections, so we represent top either as the empty collection or with a finite number of top elements.
+Any finite store \f$ \langle x_1, \ldots, x_n \rangle \f$ should be seen as the concrete store \f$ \langle x_1, \ldots, x_n, \top, \ldots \rangle \f$.
 
 This semantics has implication when joining or merging two elements.
-For instance, \f$ \langle 1 \rangle.\mathit{dtell}(\langle \bot, 4 \rangle) \f$ will be equal to bottom, in that case represented by \f$ \langle \bot \rangle \f$.
+For instance, \f$ \langle 1 \rangle.\mathit{meet}(\langle \bot, 4 \rangle) \f$ will be equal to bottom, in that case represented by \f$ \langle \bot \rangle \f$.
 
 Template parameters:
   - `U` is the type of the abstract universe.
@@ -83,30 +83,30 @@ private:
 
   AType atype;
   store_type data;
-  B<memory_type> is_at_top;
+  B<memory_type> is_at_bot;
 
 public:
   CUDA VStore(const this_type& other)
-    : atype(other.atype), data(other.data), is_at_top(other.is_at_top)
+    : atype(other.atype), data(other.data), is_at_bot(other.is_at_bot)
   {}
 
   /** Initialize an empty store. */
   CUDA VStore(AType atype, const allocator_type& alloc = allocator_type())
-   : atype(atype), data(alloc), is_at_top(false)
+   : atype(atype), data(alloc), is_at_bot(false)
   {}
 
   CUDA VStore(AType atype, size_t size, const allocator_type& alloc = allocator_type())
-   : atype(atype), data(size, alloc), is_at_top(false)
+   : atype(atype), data(size, alloc), is_at_bot(false)
   {}
 
   template<class R>
   CUDA VStore(const VStore<R, allocator_type>& other)
-    : atype(other.atype), data(other.data), is_at_top(other.is_at_top)
+    : atype(other.atype), data(other.data), is_at_bot(other.is_at_bot)
   {}
 
   template<class R, class Alloc2>
   CUDA VStore(const VStore<R, Alloc2>& other, const allocator_type& alloc = allocator_type())
-    : atype(other.atype), data(other.data, alloc), is_at_top(other.is_at_top)
+    : atype(other.atype), data(other.data, alloc), is_at_bot(other.is_at_bot)
   {}
 
   /** Copy the vstore `other` in the current element.
@@ -116,7 +116,7 @@ public:
    : VStore(other, deps.template get_allocator<allocator_type>()) {}
 
   CUDA VStore(this_type&& other):
-    atype(other.atype), data(std::move(other.data)), is_at_top(other.is_at_top) {}
+    atype(other.atype), data(std::move(other.data)), is_at_bot(other.is_at_bot) {}
 
   CUDA allocator_type get_allocator() const {
     return data.get_allocator();
@@ -131,18 +131,18 @@ public:
     return data.size();
   }
 
-  CUDA static this_type bot(AType atype = UNTYPED,
+  CUDA static this_type top(AType atype = UNTYPED,
     const allocator_type& alloc = allocator_type{})
   {
     return VStore(atype, alloc);
   }
 
   /** A special symbolic element representing top. */
-  CUDA static this_type top(AType atype = UNTYPED,
+  CUDA static this_type bot(AType atype = UNTYPED,
     const allocator_type& alloc = allocator_type{})
   {
     auto s = VStore{atype, alloc};
-    s.join_top();
+    s.meet_bot();
     return std::move(s);
   }
 
@@ -160,20 +160,20 @@ public:
     return top(env.extends_abstract_dom(), alloc);
   }
 
-  /** \return `true` if at least one element is equal to top in the store, `false` otherwise.
+  /** \return `true` if at least one element is equal to bot in the store, `false` otherwise.
    * @parallel @order-preserving @increasing
   */
-  CUDA local::B is_top() const {
-    return is_at_top;
+  CUDA local::B is_bot() const {
+    return is_at_bot;
   }
 
   /** The bottom element of a store of `n` variables is when all variables are at bottom, or the store is empty.
    * We do not expect to use this operation a lot, so its complexity is linear in the number of variables.
    * @parallel @order-preserving @decreasing */
-  CUDA local::B is_bot() const {
-    if(is_at_top) { return false; }
+  CUDA local::B is_top() const {
+    if(is_at_bot) { return false; }
     for(int i = 0; i < vars(); ++i) {
-      if(!data[i].is_bot()) {
+      if(!data[i].is_top()) {
         return false;
       }
     }
@@ -191,10 +191,10 @@ public:
     while(snap.size() < data.size()) {
       data.pop_back();
     }
-    is_at_top.meet_bot();
+    is_at_bot.meet_bot();
     for(int i = 0; i < snap.size(); ++i) {
-      data[i].meet(snap[i]);
-      is_at_top.join(data[i].is_top());
+      data[i].join(snap[i]);
+      is_at_bot.join(data[i].is_bot());
     }
     return *this;
   }
@@ -220,7 +220,7 @@ private:
       return true;
     }
     else if(f.is_false()) {
-      tell.push_back(var_dom<Alloc2>(AVar{}, U::top()));
+      tell.push_back(var_dom<Alloc2>(AVar{}, U::bot()));
       return true;
     }
     else {
@@ -289,7 +289,7 @@ public:
   /** The store of variables lattice expects a formula with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
    *
    * Variables must be existentially quantified before a formula containing variables can be interpreted.
-   * Variables are immediately assigned to an index of `VStore` and initialized to \f$ \bot_U \f$.
+   * Variables are immediately assigned to an index of `VStore` and initialized to \f$ \top_U \f$.
    * Shadowing/redeclaration of variables with existential quantifier is not supported.
    * The variable mapping is added to the environment only if the interpretation succeeds.
 
@@ -309,7 +309,7 @@ public:
   }
 
   CUDA void project(AVar x, universe_type& u) const {
-    u.join(project(x));
+    u.meet(project(x));
   }
 
   CUDA const universe_type& project(AVar x) const {
@@ -323,8 +323,8 @@ public:
     return data[x];
   }
 
-  CUDA void join_top() {
-    is_at_top.join_top();
+  CUDA void meet_bot() {
+    is_at_bot.join_top();
   }
 
   /** Given an abstract variable `v`, `embed(VID(v), dom)` will update the domain of this variable with the new information `dom`.
@@ -333,8 +333,8 @@ public:
   */
   CUDA bool embed(int x, const universe_type& dom) {
     assert(x < data.size());
-    bool has_changed = data[x].join(dom);
-    has_changed |= is_at_top.join(data[x].is_top());
+    bool has_changed = data[x].meet(dom);
+    has_changed |= is_at_bot.join(data[x].is_bot());
     return has_changed;
   }
 
@@ -353,7 +353,7 @@ public:
       return false;
     }
     if(t[0].avar == AVar{}) {
-      return is_at_top.join(local::B(true));
+      return is_at_bot.join(local::B(true));
     }
     if(t.back().avar.vid() >= data.size()) {
       data.resize(t.back().avar.vid()+1);
@@ -367,41 +367,41 @@ public:
 
   /** Precondition: `other` must be smaller or equal in size than the current store. */
   template <class U2, class Alloc2>
-  CUDA bool join(const VStore<U2, Alloc2>& other) {
-    bool has_changed = is_at_top.join(other.is_at_top);
+  CUDA bool meet(const VStore<U2, Alloc2>& other) {
+    bool has_changed = is_at_bot.join(other.is_at_bot);
     int min_size = battery::min(vars(), other.vars());
     for(int i = 0; i < min_size; ++i) {
-      has_changed |= data[i].join(other[i]);
+      has_changed |= data[i].meet(other[i]);
     }
     for(int i = min_size; i < other.vars(); ++i) {
-      assert(other[i].is_bot()); // the size of the current store cannot be modified.
+      assert(other[i].is_top()); // the size of the current store cannot be modified.
     }
     return has_changed;
   }
 
-  CUDA void meet_bot() {
-    is_at_top.meet_bot();
+  CUDA void join_top() {
+    is_at_bot.meet_bot();
     for(int i = 0; i < data.size(); ++i) {
-      data[i].meet_bot();
+      data[i].join_top();
     }
   }
 
   /** Precondition: `other` must be smaller or equal in size than the current store. */
   template <class U2, class Alloc2>
-  CUDA bool meet(const VStore<U2, Alloc2>& other)  {
-    if(other.is_top()) {
+  CUDA bool join(const VStore<U2, Alloc2>& other)  {
+    if(other.is_bot()) {
       return false;
     }
     int min_size = battery::min(vars(), other.vars());
-    bool has_changed = is_at_top.meet(other.is_at_top);
+    bool has_changed = is_at_bot.meet(other.is_at_bot);
     for(int i = 0; i < min_size; ++i) {
-      has_changed |= data[i].meet(other[i]);
+      has_changed |= data[i].join(other[i]);
     }
     for(int i = min_size; i < vars(); ++i) {
-      has_changed |= data[i].meet(U::bot());
+      has_changed |= data[i].join(U::top());
     }
     for(int i = min_size; i < other.vars(); ++i) {
-      assert(other[i].is_bot());
+      assert(other[i].is_top());
     }
     return has_changed;
   }
@@ -412,7 +412,7 @@ public:
   template <class Alloc2>
   CUDA local::B ask(const ask_type<Alloc2>& t) const {
     for(int i = 0; i < t.size(); ++i) {
-      if(!(data[t[i].avar.vid()] >= t[i].dom)) {
+      if(!(data[t[i].avar.vid()] <= t[i].dom)) {
         return false;
       }
     }
@@ -428,7 +428,7 @@ public:
    */
   template<class ExtractionStrategy = NonAtomicExtraction>
   CUDA bool is_extractable(const ExtractionStrategy& strategy = ExtractionStrategy()) const {
-    if(is_top()) {
+    if(is_bot()) {
       return false;
     }
     if constexpr(ExtractionStrategy::atoms) {
@@ -441,14 +441,14 @@ public:
     return true;
   }
 
-  /** Whenever `this` is different from `top`, we extract its data into `ua`.
+  /** Whenever `this` is different from `bot`, we extract its data into `ua`.
    * \pre `is_extractable()` must be `true`.
    * For now, we suppose VStore is only used to store under-approximation, I'm not sure yet how we would interact with over-approximation. */
   template<class U2, class Alloc2>
   CUDA void extract(VStore<U2, Alloc2>& ua) const {
     if((void*)&ua != (void*)this) {
       ua.data = data;
-      ua.is_at_top.meet_bot();
+      ua.is_at_bot.join_top();
     }
   }
 
@@ -510,17 +510,17 @@ public:
 // These operations are only considering the indices of the elements.
 
 template<class L, class K, class Alloc>
-CUDA auto fjoin(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+CUDA auto fmeet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 {
-  using U = decltype(fjoin(a[0], b[0]));
-  if(a.is_top() || b.is_top()) {
-    return VStore<U, Alloc>::top(UNTYPED, a.get_allocator());
+  using U = decltype(fmeet(a[0], b[0]));
+  if(a.is_bot() || b.is_bot()) {
+    return VStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
   }
   int max_size = battery::max(a.vars(), b.vars());
   int min_size = battery::min(a.vars(), b.vars());
   VStore<U, Alloc> res(UNTYPED, max_size, a.get_allocator());
   for(int i = 0; i < min_size; ++i) {
-    res.embed(i, fjoin(a[i], b[i]));
+    res.embed(i, fmeet(a[i], b[i]));
   }
   for(int i = min_size; i < a.vars(); ++i) {
     res.embed(i, a[i]);
@@ -532,25 +532,25 @@ CUDA auto fjoin(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 }
 
 template<class L, class K, class Alloc>
-CUDA auto fmeet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+CUDA auto fjoin(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 {
-  using U = decltype(fmeet(a[0], b[0]));
-  if(a.is_top()) {
-    if(b.is_top()) {
-      return VStore<U, Alloc>::top(UNTYPED, a.get_allocator());
+  using U = decltype(fjoin(a[0], b[0]));
+  if(a.is_bot()) {
+    if(b.is_bot()) {
+      return VStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
     }
     else {
       return VStore<U, Alloc>(b);
     }
   }
-  else if(b.is_top()) {
+  else if(b.is_bot()) {
     return VStore<U, Alloc>(a);
   }
   else {
     int min_size = battery::min(a.vars(), b.vars());
     VStore<U, Alloc> res(UNTYPED, min_size, a.get_allocator());
     for(int i = 0; i < min_size; ++i) {
-      res.embed(i, fmeet(a[i], b[i]));
+      res.embed(i, fjoin(a[i], b[i]));
     }
     return res;
   }
@@ -565,7 +565,7 @@ CUDA bool operator<=(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
   else {
     int min_size = battery::min(a.vars(), b.vars());
     for(int i = 0; i < min_size; ++i) {
-      if(a[i] > b[i]) {
+      if(!(a[i] <= b[i])) {
         return false;
       }
     }

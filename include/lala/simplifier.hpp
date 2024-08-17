@@ -62,7 +62,7 @@ private:
   // eliminated_formulas[i] is `true` when the formula `i` is entailed.
   battery::dynamic_bitset<memory_type, allocator_type> eliminated_formulas;
   // `equivalence_classes[i]` contains the index of the representative variable in the equivalence class of the variable `i`.
-  battery::vector<ZDec<int, memory_type>, allocator_type> equivalence_classes;
+  battery::vector<ZUB<int, memory_type>, allocator_type> equivalence_classes;
   // `constants[i]` contains the universe value of the representative variables `i`, aggregated by join on the values of all variables in the equivalence class.
   battery::vector<universe_type, allocator_type> constants;
 
@@ -104,8 +104,8 @@ public:
   }
 
   /** @parallel @order-preserving @increasing  */
-  CUDA local::B is_top() const {
-    return sub->is_top();
+  CUDA local::B is_bot() const {
+    return sub->is_bot();
   }
 
   /** Returns the number of variables currently represented by this abstract element. */
@@ -157,7 +157,7 @@ public:
     constants.resize(t.num_vars);
     equivalence_classes.resize(t.num_vars);
     for(int i = 0; i < equivalence_classes.size(); ++i) {
-      equivalence_classes[i].join(local::ZDec(i));
+      equivalence_classes[i].meet(local::ZUB(i));
     }
     formulas = std::move(t.formulas);
     simplified_formulas.resize(formulas.size());
@@ -222,7 +222,7 @@ private:
   CUDA bool vrefine(size_t i) {
     const auto& u = sub->project(to_sub_var(i));
     size_t j = equivalence_classes[i];
-    bool has_changed = constants[j].join(u);
+    bool has_changed = constants[j].meet(u);
     if(constants[j].lb().value() == constants[j].ub().value()) {
       has_changed |= eliminate(eliminated_variables, j);
     }
@@ -235,8 +235,8 @@ private:
     if(is_var_equality(formulas[i])) {
       AVar x = var_of(formulas[i].seq(0));
       AVar y = var_of(formulas[i].seq(1));
-      bool has_changed = equivalence_classes[x.vid()].join(local::ZDec(equivalence_classes[y.vid()]));
-      has_changed |= equivalence_classes[y.vid()].join(local::ZDec(equivalence_classes[x.vid()]));
+      bool has_changed = equivalence_classes[x.vid()].meet(local::ZUB(equivalence_classes[y.vid()]));
+      has_changed |= equivalence_classes[y.vid()].meet(local::ZUB(equivalence_classes[x.vid()]));
       has_changed |= eliminate(eliminated_formulas, i);
       return has_changed;
     }
