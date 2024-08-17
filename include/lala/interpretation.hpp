@@ -14,12 +14,12 @@
 namespace lala {
 
 /** Interpret `true` in the lattice `L`.
- * \return `true` if `L` preserves the bottom element w.r.t. the concrete domain or if `true` is interpreted by under-approximation (kind == ASK).
+ * \return `true` if `L` preserves the top element w.r.t. the concrete domain or if `true` is interpreted by under-approximation (kind == ASK).
  */
 template <class L, IKind kind, bool diagnose = false, class F>
 CUDA bool ginterpret_true(const F& f, IDiagnostics& diagnostics) {
   assert(f.is_true());
-  if constexpr(kind == IKind::ASK || L::preserve_bot) {
+  if constexpr(kind == IKind::ASK || L::preserve_top) {
     return true;
   }
   else {
@@ -38,15 +38,15 @@ CUDA bool ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiag
     return ginterpret_true<A, kind, diagnose>(f, diagnostics);
   }
   else if(f.is_false()) {
-    if constexpr(kind == IKind::TELL || A::preserve_top) {
-      return a.template interpret<kind, diagnose>(f, env, intermediate, diagnostics); // We don't know how `top` is represented by this abstract domain, so we just forward the interpretation call.
+    if constexpr(kind == IKind::TELL || A::preserve_bot) {
+      return a.template interpret<kind, diagnose>(f, env, intermediate, diagnostics); // We don't know how `bot` is represented by this abstract domain, so we just forward the interpretation call.
     }
     else {
-      RETURN_INTERPRETATION_ERROR("Top is not preserved, hence we cannot under-approximate `true` in this abstract domain.");
+      RETURN_INTERPRETATION_ERROR("Bot is not preserved, hence we cannot under-approximate `true` in this abstract domain.");
     }
   }
   else if(f.is(F::Seq) && f.sig() == AND) {
-    if constexpr(kind == IKind::ASK || A::preserve_join) {
+    if constexpr(kind == IKind::ASK || A::preserve_meet) {
       for(int i = 0; i < f.seq().size(); ++i) {
         if(!ginterpret_in<kind, diagnose>(a, f.seq(i), env, intermediate, diagnostics)) {
           return false;
@@ -55,7 +55,7 @@ CUDA bool ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiag
       return true;
     }
     else {
-      RETURN_INTERPRETATION_ERROR("Join is not preserved, hence we cannot over-approximate conjunctions in this abstract domain.");
+      RETURN_INTERPRETATION_ERROR("Meet is not preserved, hence we cannot over-approximate conjunctions in this abstract domain.");
     }
   }
   // In the other cases, we cannot provide a default interpretation, so we forward the call to the abstract domain.
@@ -71,17 +71,17 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diag
     return ginterpret_true<U, kind, diagnose>(f, diagnostics);
   }
   else if(f.is_false()) {
-    if constexpr(kind == IKind::TELL || U::preserve_top) {
-      value.join_top();
+    if constexpr(kind == IKind::TELL || U::preserve_bot) {
+      value.meet_bot();
       return true;
     }
     else {
-      RETURN_INTERPRETATION_ERROR("Top is not preserved, hence we cannot under-approximate `true` in this abstract universe.");
+      RETURN_INTERPRETATION_ERROR("Bot is not preserved, hence we cannot under-approximate `true` in this abstract universe.");
     }
   }
   else if(f.is(F::Seq)) {
     if(f.sig() == AND) {
-      if constexpr(kind == IKind::ASK || U::preserve_join) {
+      if constexpr(kind == IKind::ASK || U::preserve_meet) {
         for(int i = 0; i < f.seq().size(); ++i) {
           if(!ginterpret_in<kind, diagnose>(f.seq(i), env, value, diagnostics)) {
             return false;
@@ -90,25 +90,25 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diag
         return true;
       }
       else {
-        RETURN_INTERPRETATION_ERROR("Join is not preserved, hence we cannot over-approximate conjunctions in this abstract universe.");
+        RETURN_INTERPRETATION_ERROR("Meet is not preserved, hence we cannot over-approximate conjunctions in this abstract universe.");
       }
     }
     else if(f.sig() == OR) {
-      if constexpr(kind == IKind::TELL || U::preserve_meet) {
+      if constexpr(kind == IKind::TELL || U::preserve_join) {
         using U2 = typename U::local_type;
-        U2 meet_value = U2::top();
+        U2 join_value = U2::bot();
         for(int i = 0; i < f.seq().size(); ++i) {
-          U2 x = U2::bot();
+          U2 x = U2::top();
           if(!ginterpret_in<kind, diagnose>(f.seq(i), env, x, diagnostics)) {
             return false;
           }
-          meet_value.meet(x);
+          join_value.join(x);
         }
-        value.join(meet_value);
+        value.meet(join_value);
         return true;
       }
       else {
-        RETURN_INTERPRETATION_ERROR("Meet is not preserved, hence we cannot under-approximate disjunctions in this abstract universe.");
+        RETURN_INTERPRETATION_ERROR("Join is not preserved, hence we cannot under-approximate disjunctions in this abstract universe.");
       }
     }
   }
@@ -132,12 +132,12 @@ CUDA bool top_level_ginterpret_in(const A& a, const F& f, Env& env, I& intermedi
 }
 
 template <class A, class Alloc = battery::standard_allocator, class Env>
-CUDA A make_bot(Env& env, Alloc alloc = Alloc{}) {
+CUDA A make_top(Env& env, Alloc alloc = Alloc{}) {
   if constexpr(A::is_abstract_universe) {
-    return A::bot();
+    return A::top();
   }
   else {
-    return A::bot(env, alloc);
+    return A::top(env, alloc);
   }
 }
 
@@ -165,7 +165,7 @@ CUDA std::optional<A> create_and_interpret_and_tell(const F& f,
  TellAlloc tell_alloc = TellAlloc{})
 {
   auto snap = env.snapshot();
-  A a{make_bot<A>(env, alloc)};
+  A a{make_top<A>(env, alloc)};
   if(interpret_and_tell<diagnose>(f, env, a, diagnostics, tell_alloc)) {
     return {std::move(a)};
   }

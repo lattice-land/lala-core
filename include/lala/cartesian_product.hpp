@@ -8,7 +8,7 @@
 #include "battery/tuple.hpp"
 #include "battery/variant.hpp"
 #include "logic/logic.hpp"
-#include "universes/primitive_upset.hpp"
+#include "universes/arith_bound.hpp"
 
 namespace lala {
 
@@ -78,18 +78,17 @@ public:
   constexpr static const bool is_totally_ordered = false;
   constexpr static const bool preserve_bot = (... && As::preserve_bot);
   constexpr static const bool preserve_top = (... && As::preserve_top);
-  constexpr static const bool preserve_join = (... && As::preserve_join);
-  constexpr static const bool preserve_meet = false; // false in general, not sure if there are conditions the underlying universes could satisfy to make this true.
+  constexpr static const bool preserve_join = false; // false in general, not sure if there are conditions the underlying universes could satisfy to make this true.
+  constexpr static const bool preserve_meet = (... && As::preserve_meet);
   constexpr static const bool injective_concretization = (... && As::injective_concretization);
   constexpr static const bool preserve_concrete_covers = (... && As::preserve_concrete_covers);
-  constexpr static const bool complemented = false;
   constexpr static const char* name = "CartesianProduct";
 
 private:
   battery::tuple<As...> val;
 
 public:
-  /** Initialize a Cartesian product to bottom using default constructors. */
+  /** Initialize a Cartesian product to top using default constructors. */
   constexpr CartesianProduct() = default;
   CUDA constexpr CartesianProduct(const As&... as): val(battery::make_tuple(as...)) {}
   CUDA constexpr CartesianProduct(As&&... as): val(battery::make_tuple(std::forward<As>(as)...)) {}
@@ -190,12 +189,12 @@ private:
 
   template<size_t... I>
   CUDA constexpr local::B is_top_(std::index_sequence<I...>) const {
-    return (... || project<I>().is_top());
+    return (... && project<I>().is_top());
   }
 
   template<size_t... I>
   CUDA constexpr local::B is_bot_(std::index_sequence<I...>) const {
-    return (... && project<I>().is_bot());
+    return (... || project<I>().is_bot());
   }
 
 public:
@@ -213,14 +212,13 @@ public:
   CUDA constexpr value_type value() const {
     return value_(std::index_sequence_for<As...>{});
   }
-
-  /** \return `true` if \f$ \exists{j \geq i},~\gamma(a_j) = \top^\flat \f$, `false` otherwise.
+  /** \return `true` if \f$ \forall{j},~\gamma(a_j) = U \f$ with U the universe of discourse of \f$ a_j \f$, `false` otherwise.
    * @parallel @order-preserving @increasing */
   CUDA constexpr local::B is_top() const {
     return is_top_(std::index_sequence_for<As...>{});
   }
 
-  /** \return `true` if \f$ \forall{j \geq i},~\gamma(a_j) = \bot^\flat \f$, `false` otherwise.
+  /** \return `true` if \f$ \exists{j},~\gamma(a_j) = \{\} \f$, `false` otherwise.
    * @parallel @order-preserving @decreasing
    */
   CUDA constexpr local::B is_bot() const {
@@ -468,18 +466,6 @@ namespace impl {
   {
     return leq_(a, b, std::index_sequence<I...>{}) && neq_(a, b, std::index_sequence<I...>{});
   }
-
-  template<class A, class B, size_t... I>
-  CUDA constexpr bool geq_(const A& a, const B& b, std::index_sequence<I...>)
-  {
-    return (... && (project<I>(a) >= project<I>(b)));
-  }
-
-  template<class A, class B, size_t... I>
-  CUDA constexpr bool gt_(const A& a, const B& b, std::index_sequence<I...>)
-  {
-    return geq_(a, b, std::index_sequence<I...>{}) && neq_(a, b, std::index_sequence<I...>{});
-  }
 }
 
 /** \f$ (a_1, \ldots, a_n) \sqcup (b_1, \ldots, b_n) = (a_1 \sqcup_1 b_1, \ldots, a_n \sqcup_n b_n) \f$ */
@@ -500,36 +486,40 @@ CUDA constexpr auto fmeet(const CartesianProduct<As...>& a, const CartesianProdu
 template<class... As, class... Bs>
 CUDA constexpr bool operator<=(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
 {
+  if(a.is_bot()) { return true; }
   return impl::leq_(a, b, impl::index_sequence_of(a, b));
 }
 
 template<class... As, class... Bs>
 CUDA constexpr bool operator<(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
 {
+  if(a.is_bot()) { return !b.is_bot(); }
   return impl::lt_(a, b, impl::index_sequence_of(a, b));
 }
 
 template<class... As, class... Bs>
 CUDA constexpr bool operator>=(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
 {
-  return impl::geq_(a, b, impl::index_sequence_of(a, b));
+  return b <= a;
 }
 
 template<class... As, class... Bs>
 CUDA constexpr bool operator>(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
 {
-  return impl::gt_(a, b, impl::index_sequence_of(a, b));
+  return b < a;
 }
 
 template<class... As, class... Bs>
 CUDA constexpr bool operator==(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
 {
+  if(a.is_bot() && b.is_bot()) { return true; }
   return impl::eq_(a, b, impl::index_sequence_of(a, b));
 }
 
 template<class... As, class... Bs>
 CUDA constexpr bool operator!=(const CartesianProduct<As...>& a, const CartesianProduct<Bs...>& b)
 {
+  if(a.is_bot() != b.is_bot()) { return true; }
   return impl::neq_(a, b, impl::index_sequence_of(a, b));
 }
 

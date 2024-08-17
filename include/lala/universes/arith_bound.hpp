@@ -296,21 +296,21 @@ public:
   }
 
 private:
-  /** Interpret a formula of the form `k <sig> x`. */
+  /** Interpret a formula of the form `x <sig> k`. */
   template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_tell_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics& diagnostics) {
-    value_type value = pre_universe::bot();
-    bool res = pre_universe::template interpret_tell<diagnose>(k, value, diagnostics);
+  CUDA NI static bool interpret_tell_x_op_k(const F& f, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+    value_type value = pre_universe::top();
+    bool res = pre_universe::template interpret_tell<diagnose>(f.seq(1), value, diagnostics);
     if(res) {
       if(sig == EQ || sig == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
-        tell.join(local_type(value));
+        tell.meet(local_type(value));
       }
       else if(sig == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
         if constexpr(preserve_concrete_covers) {
-          tell.join(local_type(pre_universe::next(value)));
+          tell.meet(local_type(pre_universe::next(value)));
         }
         else {
-          tell.join(local_type(value));
+          tell.meet(local_type(value));
         }
       }
       else {
@@ -320,19 +320,19 @@ private:
     return res;
   }
 
-  /** Interpret a formula of the form `k <sig> x`. */
+  /** Interpret a formula of the form `x <sig> k`. */
   template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_ask_k_op_x(const F& f, const F& k, Sig sig, this_type2<M2>& tell, IDiagnostics& diagnostics) {
-    value_type value = pre_universe::bot();
-    bool res = pre_universe::template interpret_ask<diagnose>(k, value, diagnostics);
+  CUDA NI static bool interpret_ask_x_op_k(const F& f, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+    value_type value = pre_universe::top();
+    bool res = pre_universe::template interpret_ask<diagnose>(f.seq(1), value, diagnostics);
     if(res) {
       if(sig == U::sig_order()) {
-        tell.join(local_type(value));
+        tell.meet(local_type(value));
       }
       else if(sig == NEQ || sig == U::sig_strict_order()) {
         // We could actually do a little bit better in the case of FLB/FUB.
         // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
-        tell.join(local_type(pre_universe::next(value)));
+        tell.meet(local_type(pre_universe::next(value)));
       }
       else {
         RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the ask language of this universe.");
@@ -342,32 +342,35 @@ private:
   }
 
   template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M2>& tell, IDiagnostics& diagnostics) {
-    const auto& set = k.s();
+  CUDA NI static bool interpret_tell_set(const F& f, this_type2<M2>& tell, IDiagnostics& diagnostics) {
+    if(!f.seq(1).is(F::S)) {
+      RETURN_INTERPRETATION_ERROR("The constant `S` in a constraint `x in S` must be a set.");
+    }
+    const auto& set = f.seq(1).s();
     if(set.size() == 0) {
-      tell.join_top();
+      tell.meet_bot();
       return true;
     }
-    value_type meet_s = pre_universe::top();
-    constexpr int bound_index = increasing ? 0 : 1;
+    value_type join_s = pre_universe::bot();
+    constexpr int bound_index = is_lower_bound ? 0 : 1;
     // We interpret each component of the set and take the meet of all the results.
     for(int i = 0; i < set.size(); ++i) {
       auto bound = battery::get<bound_index>(set[i]);
-      value_type set_element = pre_universe::bot();
+      value_type set_element = pre_universe::top();
       bool res = pre_universe::template interpret_tell<diagnose>(bound, set_element, diagnostics);
       if(!res) {
         return false;
       }
-      meet_s = pre_universe::meet(meet_s, set_element);
+      join_s = pre_universe::join(join_s, set_element);
     }
-    tell.join(local_type(meet_s));
+    tell.meet(local_type(join_s));
     return true;
   }
 
 public:
-  /** Expects a predicate of the form `x <op> k`, `k <op> x` or `x in k`, where `x` is any variable's name, and `k` a constant.
-   * The symbol `<op>` is expected to be `U::sig_order()`, `U::sig_strict_order()` and `=`.
-   * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom) depending on the underlying pre-universe.
+  /** Expects a predicate of the form `x <op> k` where `x` is any variable's name, and `k` a constant.
+   * The symbol `<op>` is expected to be `U::sig_order()`, `U::sig_strict_order()`,  `=` or `in`.
+   * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to top) depending on the underlying pre-universe.
    */
   template<bool diagnose = false, class F, class Env, class M2>
   CUDA NI static bool interpret_tell(const F& f, const Env&, this_type2<M2>& tell, IDiagnostics& diagnostics) {
@@ -375,36 +378,22 @@ public:
       typename U::value_type val;
       bool res = pre_universe::template interpret_type<diagnose>(f, val, diagnostics);
       if(res) {
-        tell.join(local_type(val));
+        tell.meet(local_type(val));
       }
       return res;
     }
     else {
-      if(f.is_binary()) {
-        int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
-        int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
-        if(idx_constant + idx_variable != 1) {
-          RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.")
-        }
-        const auto& k = f.seq(idx_constant);
+      if(f.is_binary() && f.seq(0).is_variable() && f.seq(1).is_constant()) {
+        // `x in k` is equivalent to `x >= meet k` where `>=` is the lattice order `U::sig_order()`.
         if(f.sig() == IN) {
-          if(idx_constant == 0) { // `k in x` is equivalent to `{k} \subseteq x`.
-            RETURN_INTERPRETATION_ERROR("The formula `k in x` is not supported in this abstract universe (`x in k` is supported).")
-          }
-          else { // `x in k` is equivalent to `x >= meet k` where `>=` is the lattice order `U::sig_order()`.
-            return interpret_tell_set<diagnose>(f, k, tell, diagnostics);
-          }
-        }
-        else if(is_comparison(f)) {
-          Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
-          return interpret_tell_k_op_x<diagnose>(f, k, sig, tell, diagnostics);
+          return interpret_tell_set<diagnose>(f, tell, diagnostics);
         }
         else {
-          RETURN_INTERPRETATION_ERROR("This symbol is not supported.")
+          return interpret_tell_x_op_k<diagnose>(f, tell, diagnostics);
         }
       }
       else {
-        RETURN_INTERPRETATION_ERROR("Only binary constraints are supported.")
+        RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `x <sig> k` where if x is a variable and k is a constant are supported.");
       }
     }
   }
@@ -414,23 +403,11 @@ public:
    */
   template<bool diagnose = false, class F, class Env, class M2>
   CUDA NI static bool interpret_ask(const F& f, const Env&, this_type2<M2>& ask, IDiagnostics& diagnostics) {
-    if(f.is_binary()) {
-      int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
-      int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
-      if(idx_constant + idx_variable != 1) {
-        RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.");
-      }
-      const auto& k = f.seq(idx_constant);
-      if(is_comparison(f)) {
-        Sig sig = idx_constant == 1 ? converse_comparison(f.sig()) : f.sig();
-        return interpret_ask_k_op_x<diagnose>(f, k, sig, ask, diagnostics);
-      }
-      else {
-        RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
-      }
+    if(f.is_binary() && f.seq(0).is_variable() && f.seq(1).is_constant()) {
+      return interpret_ask_x_op_k<diagnose>(f, ask, diagnostics);
     }
     else {
-      RETURN_INTERPRETATION_ERROR("Only binary constraints are supported.");
+      RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `x <sig> k` where if x is a variable and k is a constant are supported.");
     }
   }
 

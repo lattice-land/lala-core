@@ -32,7 +32,7 @@ public:
   CUDA size_t fixpoint(A& a, local::B& has_changed) {
     size_t iterations = 0;
     local::B changed(true);
-    while(changed && !a.is_top()) {
+    while(changed && !a.is_bot()) {
       changed = false;
       iterate(a, changed);
       has_changed.join(changed);
@@ -68,7 +68,7 @@ public:
 private:
   using atomic_bool = B<memory_type>;
   battery::vector<atomic_bool, allocator_type> changed;
-  battery::vector<atomic_bool, allocator_type> is_top;
+  battery::vector<atomic_bool, allocator_type> is_bot;
   Group group;
 
   CUDA void assert_cuda_arch() {
@@ -80,14 +80,14 @@ private:
     changed[0].join_top();
     changed[1].meet_bot();
     changed[2].meet_bot();
-    for(int i = 0; i < is_top.size(); ++i) {
-      is_top[i].meet_bot();
+    for(int i = 0; i < is_bot.size(); ++i) {
+      is_bot[i].meet_bot();
     }
   }
 
 public:
   CUDA AsynchronousIterationGPU(const Group& group, const allocator_type& alloc = allocator_type()):
-    group(group), changed(3, alloc), is_top(3, alloc)
+    group(group), changed(3, alloc), is_bot(3, alloc)
   {}
 
   CUDA void barrier() {
@@ -120,11 +120,11 @@ public:
     reset();
     barrier();
     size_t i;
-    for(i = 1; changed[(i-1)%3] && !is_top[(i-1)%3]; ++i) {
+    for(i = 1; changed[(i-1)%3] && !is_bot[(i-1)%3]; ++i) {
       iterate(a, changed[i%3]);
       changed[(i+1)%3].meet_bot(); // reinitialize changed for the next iteration.
-      is_top[i%3].join(a.is_top());
-      is_top[i%3].join(local::B{*stop});
+      is_bot[i%3].join(a.is_bot());
+      is_bot[i%3].join(local::B{*stop});
       barrier();
     }
     // It changes if we performed several iteration, or if the first iteration changed the abstract domain.
