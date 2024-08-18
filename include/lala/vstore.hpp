@@ -569,8 +569,8 @@ CUDA bool operator<=(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
         return false;
       }
     }
-    for(int i = min_size; i < a.vars(); ++i) {
-      if(!a[i].is_bot()) {
+    for(int i = min_size; i < b.vars(); ++i) {
+      if(!b[i].is_top()) {
         return false;
       }
     }
@@ -581,27 +581,28 @@ CUDA bool operator<=(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 template<class L, class K, class Alloc1, class Alloc2>
 CUDA bool operator<(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 {
-  if(b.is_top()) {
-    return !a.is_top();
+  if(a.is_bot()) {
+    return !b.is_bot();
   }
   else {
     int min_size = battery::min(a.vars(), b.vars());
     bool strict = false;
-    for(int i = 0; i < b.vars(); ++i) {
-      if(i < a.vars()) {
+    for(int i = 0; i < a.vars(); ++i) {
+      if(i < b.vars()) {
         if(a[i] < b[i]) {
           strict = true;
         }
-        else if(a[i] > b[i]) {
+        else if(!(a[i] <= b[i])) {
           return false;
         }
       }
-      else if(!b[i].is_bot()) {
+      else if(!a[i].is_top()) {
         strict = true;
+        break;
       }
     }
-    for(int i = min_size; i < a.vars(); ++i) {
-      if(!a[i].is_bot()) {
+    for(int i = min_size; i < b.vars(); ++i) {
+      if(!b[i].is_top()) {
         return false;
       }
     }
@@ -624,10 +625,10 @@ CUDA bool operator>(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 template<class L, class K, class Alloc1, class Alloc2>
 CUDA bool operator==(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 {
-  if(a.is_top()) {
-    return b.is_top();
+  if(a.is_bot()) {
+    return b.is_bot();
   }
-  else if(b.is_top()) {
+  else if(b.is_bot()) {
     return false;
   }
   else {
@@ -638,12 +639,12 @@ CUDA bool operator==(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
       }
     }
     for(int i = min_size; i < a.vars(); ++i) {
-      if(!a[i].is_bot()) {
+      if(!a[i].is_top()) {
         return false;
       }
     }
     for(int i = min_size; i < b.vars(); ++i) {
-      if(!b[i].is_bot()) {
+      if(!b[i].is_top()) {
         return false;
       }
     }
@@ -659,8 +660,8 @@ CUDA bool operator!=(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
 
 template<class L, class Alloc>
 std::ostream& operator<<(std::ostream &s, const VStore<L, Alloc> &vstore) {
-  if(vstore.is_top()) {
-    s << "\u22A4: ";
+  if(vstore.is_bot()) {
+    s << "\u22A5: ";
   }
   else {
     s << "<";
