@@ -263,9 +263,9 @@ public:
       return F::make_false();
     }
     return F::make_binary(
-      deinterpret<F>(),
-      U::sig_order(),
       F::make_avar(avar),
+      U::sig_order(),
+      deinterpret<F>(),
       UNTYPED, allocator);
   }
 

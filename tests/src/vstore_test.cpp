@@ -25,19 +25,19 @@ TEST(VStoreTest, BotTopTests) {
 TEST(VStoreTest, JoinMeetTest) {
   ZStore one = create_and_interpret_and_tell<ZStore>("var int: x; constraint int_ge(x, 1);");
   ZStore two = create_and_interpret_and_tell<ZStore>("var int: x; var int: y; constraint int_ge(x, -1); constraint int_ge(y, 10);");
-  ZStore joined = create_and_interpret_and_tell<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 10);");
-  ZStore met = create_and_interpret_and_tell<ZStore>("var int: x; constraint int_ge(x, -1);");
+  ZStore met = create_and_interpret_and_tell<ZStore>("var int: x; var int: y; constraint int_ge(x, 1); constraint int_ge(y, 10);");
+  ZStore joined = create_and_interpret_and_tell<ZStore>("var int: x; constraint int_ge(x, -1);");
 
   std::cout << one << "\n" << two << "\n" << joined << "\n" << met << std::endl;
 
   join_meet_generic_test(ZStore::bot(), ZStore::top());
   join_meet_generic_test(met, met);
-  join_meet_generic_test(met, one);
-  // tell is not commutative when stores have a different number of variables.
-  join_meet_generic_test(met, two, true, false);
-  join_meet_generic_test(one, joined, true, false);
-  join_meet_generic_test(two, joined);
+  join_meet_generic_test(met, two);
+  join_meet_generic_test(one, joined);
   join_meet_generic_test(joined, joined);
+  // join and meet are not commutative when stores have a different number of variables.
+  join_meet_generic_test(met, one, false, false);
+  join_meet_generic_test(two, joined, false, false);
 }
 
 TEST(VStoreTest, CopyConstructor) {
@@ -102,14 +102,14 @@ TEST(VStoreTest, InterpretationZStore) {
 
 TEST(VStoreTest, InterpretationCPStore) {
   interpret_and_test<CPStore>("var int: x; constraint int_gt(x, 4); constraint int_lt(x, 6);", {CP(zlb(5), zub(5))});
-  interpret_and_test<CPStore>("var int: x; var int: y; constraint int_gt(x, 4); constraint int_lt(x, 6); constraint int_le(y, 1);", {CP(zlb(5), zub(5)), CP(zlb::bot(), zub(1))});
+  interpret_and_test<CPStore>("var int: x; var int: y; constraint int_gt(x, 4); constraint int_lt(x, 6); constraint int_le(y, 1);", {CP(zlb(5), zub(5)), CP(zlb::top(), zub(1))});
   interpret_must_error<IKind::TELL, CPStore>("var int: x; constraint int_gt(x, 4); constraint int_lt(x, 6); constraint int_le(y, 1);");
 }
 
 TEST(VStoreTest, InterpretationIStore) {
   IStore s1 = interpret_and_test<IStore>("var int: x; constraint int_gt(x, 4); constraint int_lt(x, 4);", {Itv(5, 3)});
   EXPECT_TRUE(s1.is_bot());
-  IStore s2 = interpret_and_test<IStore>("var int: x; var int: y; constraint int_gt(x, 4); constraint int_lt(x, 4); constraint int_lt(y, 2);", {Itv(5, 3), Itv(zlb::bot(), zub(1))});
+  IStore s2 = interpret_and_test<IStore>("var int: x; var int: y; constraint int_gt(x, 4); constraint int_lt(x, 4); constraint int_lt(y, 2);", {Itv::bot(), Itv(zlb::top(), zub(1))});
   EXPECT_TRUE(s2.is_bot());
   IStore s3 = interpret_and_test<IStore>("var int: x; constraint int_ge(x, 4); constraint int_le(x, 4);", {Itv(4, 4)});
   interpret_and_test<IStore>("var int: x; constraint int_eq(x, 4);", {Itv(4, 4)});

@@ -6,7 +6,7 @@
 #include "battery/memory.hpp"
 #include "battery/allocator.hpp"
 #include "lala/fixpoint.hpp"
-#include "lala/universes/primitive_upset.hpp"
+#include "lala/universes/arith_bound.hpp"
 
 using namespace battery;
 using namespace lala;
@@ -24,12 +24,12 @@ public:
   CUDA int num_refinements() { return data->size(); }
   template<class M>
   CUDA void refine(int i, B<M>& has_changed) {
-    has_changed.join(local::B(result.join(local::ZUB((*data)[i]))));
+    has_changed.join(local::B(result.meet(local::ZUB((*data)[i]))));
   }
   CUDA int extract() {
     return result;
   }
-  CUDA local::B is_top() const { return false; }
+  CUDA local::B is_bot() const { return false; }
 };
 
 __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {

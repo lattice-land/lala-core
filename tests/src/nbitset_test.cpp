@@ -111,41 +111,42 @@ TEST(NBitsetTest, JoinMeetTest) {
   join_meet_generic_test(NBit::bot(), NBit::top());
   join_meet_generic_test(NBit(0), NBit(0));
   join_meet_generic_test(NBit(0,1), NBit(0,1));
-  join_meet_generic_test(NBit(0,10), NBit(0,5));
-  join_meet_generic_test(NBit(0,10), NBit(5,5));
-  join_meet_generic_test(NBit(0,1), NBit(0,0));
-  join_meet_generic_test(NBit(0,1), NBit(1,1));
+  join_meet_generic_test(NBit(0,5), NBit(0,10));
+  join_meet_generic_test(NBit(5,5), NBit(0,10));
+  join_meet_generic_test(NBit(0,0), NBit(0,1));
+  join_meet_generic_test(NBit(1,1), NBit(0,1));
 
-  join_meet_generic_test(NBit(-1,1), NBit(-1,0));
-  join_meet_generic_test(NBit(-1,1), NBit(-1,-1));
-  join_meet_generic_test(NBit(-1,100), NBit(-1,10));
-  join_meet_generic_test(NBit(0,1000), NBit(10, 1000));
+  join_meet_generic_test(NBit(-1,0), NBit(-1,1));
+  join_meet_generic_test(NBit(-1,-1), NBit(-1,1));
+  join_meet_generic_test(NBit(-1,10), NBit(-1,100));
+  join_meet_generic_test(NBit(10,1000), NBit(0,1000));
 
   join_meet_generic_test(NBit::from_set({0,5}), NBit::from_set({0,5}));
-  join_meet_generic_test(NBit::from_set({0,5,10}), NBit::from_set({0,10}));
-  join_meet_generic_test(NBit::from_set({0,5,10,1000}), NBit::from_set({0,1000}));
-  join_meet_generic_test(NBit::from_set({0,5,10,1000}), NBit::from_set({1000}));
-  join_meet_generic_test(NBit::from_set({-1,5,10,1000}), NBit::from_set({1000}));
-  join_meet_generic_test(NBit::from_set({-1,5,10,1000}), NBit::from_set({-1}));
-  join_meet_generic_test(NBit::from_set({-1,5,10,1000}), NBit::from_set({5}));
-  join_meet_generic_test(NBit::from_set({-1,5,10,1000}), NBit::from_set({}));
+  join_meet_generic_test(NBit::from_set({0,10}), NBit::from_set({0,5,10}));
+  join_meet_generic_test(NBit::from_set({0,1000}), NBit::from_set({0,5,10,1000}));
+  join_meet_generic_test(NBit::from_set({1000}), NBit::from_set({0,5,10,1000}));
+  join_meet_generic_test(NBit::from_set({1000}), NBit::from_set({-1,5,10,1000}));
+  join_meet_generic_test(NBit::from_set({-1}), NBit::from_set({-1,5,10,1000}));
+  join_meet_generic_test(NBit::from_set({5}), NBit::from_set({-1,5,10,1000}));
+  join_meet_generic_test(NBit::from_set({}), NBit::from_set({-1,5,10,1000}));
 }
 
 TEST(NBitsetTest, OrderTest) {
   EXPECT_FALSE(NBit(10, 20) <= NBit(8, 12));
   EXPECT_TRUE(NBit(8, 12) <= NBit(8, 12));
-  EXPECT_TRUE(NBit(7, 13) <= NBit(8, 12));
-  EXPECT_FALSE(NBit(10, 12) <= NBit(8, 12));
+  EXPECT_FALSE(NBit(7, 13) <= NBit(8, 12));
+  EXPECT_TRUE(NBit(7, 13) >= NBit(8, 12));
+  EXPECT_TRUE(NBit(10, 12) <= NBit(8, 12));
 
   EXPECT_FALSE(NBit(8, 12) <= NBit(10, 20));
   EXPECT_TRUE(NBit(8, 12) <= NBit(8, 12));
-  EXPECT_FALSE(NBit(8, 12) <= NBit(7, 13));
-  EXPECT_TRUE(NBit(8, 12) <= NBit(10, 12));
+  EXPECT_TRUE(NBit(8, 12) <= NBit(7, 13));
+  EXPECT_FALSE(NBit(8, 12) <= NBit(10, 12));
 
-  EXPECT_TRUE(NBit::from_set({-2, 10, 100}) <= NBit::from_set({10, 100}));
-  EXPECT_TRUE(NBit::from_set({-2, 10, 100}) <= NBit::from_set({10}));
-  EXPECT_TRUE(NBit::from_set({-2, 1000}) <= NBit::from_set({1000}));
-  EXPECT_TRUE(NBit::from_set({-2, 1000}) <= NBit::from_set({-2}));
+  EXPECT_TRUE(NBit::from_set({-2, 10, 100}) >= NBit::from_set({10, 100}));
+  EXPECT_TRUE(NBit::from_set({-2, 10, 100}) >= NBit::from_set({10}));
+  EXPECT_TRUE(NBit::from_set({-2, 1000}) >= NBit::from_set({1000}));
+  EXPECT_TRUE(NBit::from_set({-2, 1000}) >= NBit::from_set({-2}));
 }
 
 TEST(NBitsetTest, GenericFunTests) {
@@ -176,7 +177,7 @@ TEST(NBitsetTest, Width) {
   EXPECT_EQ(NBit(0, 10).width(), NBit(11));
   EXPECT_EQ(NBit(5, 10).width(), NBit(6));
   EXPECT_EQ(NBit::top().width(), NBit::top());
-  EXPECT_EQ(NBit::top().width(), NBit(0));
+  EXPECT_EQ(NBit::bot().width(), NBit(0));
 }
 
 TEST(NBitsetTest, Projections) {

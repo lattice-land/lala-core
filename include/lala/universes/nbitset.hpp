@@ -302,8 +302,8 @@ public:
 
   template<class M>
   CUDA constexpr bool join(const this_type2<M>& other) {
-    if(!bits.is_subset_of(other.bits)) {
-      bits &= other.bits;
+    if(!other.bits.is_subset_of(bits)) {
+      bits |= other.bits;
       return true;
     }
     return false;
@@ -315,8 +315,8 @@ public:
 
   template<class M>
   CUDA constexpr bool meet(const this_type2<M>& other) {
-    if(!other.bits.is_subset_of(bits)) {
-      bits |= other.bits;
+    if(!bits.is_subset_of(other.bits)) {
+      bits &= other.bits;
       return true;
     }
     return false;
@@ -461,7 +461,7 @@ public:
     for(int i = 0; i < bits.size(); ++i) {
       if(bits.test(i)) {
         ++current;
-        if(current == total/2) {
+        if(current == total/2 || total == 1) {
           return local_type(i-1);
         }
       }
@@ -475,25 +475,25 @@ public:
 template<size_t N, class M1, class M2, class T>
 CUDA constexpr NBitset<N, battery::local_memory, T> fjoin(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
-  return NBitset<N, battery::local_memory, T>(a.value() & b.value());
+  return NBitset<N, battery::local_memory, T>(a.value() | b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
 CUDA constexpr NBitset<N, battery::local_memory, T> fmeet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
-  return NBitset<N, battery::local_memory, T>(a.value() | b.value());
+  return NBitset<N, battery::local_memory, T>(a.value() & b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
 CUDA constexpr bool operator<=(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
-  return b.value().is_subset_of(a.value());
+  return a.value().is_subset_of(b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
 CUDA constexpr bool operator<(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
-  return b.value().is_proper_subset_of(a.value());
+  return a.value().is_proper_subset_of(b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
