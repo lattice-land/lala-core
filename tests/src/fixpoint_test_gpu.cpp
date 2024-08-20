@@ -17,14 +17,14 @@ using cpu_gpu_vec_ptr = shared_ptr<cpu_gpu_vec, managed_allocator>;
 template <class AtomicMem>
 class Minimum {
   cpu_gpu_vec* data;
-  ZDec<int, AtomicMem> result;
+  ZUB<int, AtomicMem> result;
 
 public:
   CUDA Minimum(cpu_gpu_vec* data) : data(data), result() {}
   CUDA int num_refinements() { return data->size(); }
   template<class M>
   CUDA void refine(int i, B<M>& has_changed) {
-    has_changed.join(local::B(result.join(local::ZDec((*data)[i]))));
+    has_changed.join(local::B(result.join(local::ZUB((*data)[i]))));
   }
   CUDA int extract() {
     return result;

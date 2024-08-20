@@ -6,9 +6,7 @@
 #include "lala/fixpoint.hpp"
 #include "abstract_testing.hpp"
 
-using zi = local::ZInc;
-using zd = local::ZDec;
-using Itv = Interval<zi>;
+using Itv = Interval<local::ZLB>;
 using IStore = VStore<Itv, standard_allocator>;
 
 void test_simplification(

@@ -65,18 +65,18 @@ TEST(NBitsetTest, TellInterpretation) {
 
 TEST(NBitsetTest, AskInterpretation) {
   VarEnv<standard_allocator> env;
-  expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, -100);", NBit::top(), env, true);
-  expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, -1);", NBit::top(), env, true);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, -100);", NBit::bot(), env, true);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, -1);", NBit::bot(), env, true);
   expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, 0);", NBit(0), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, 10);", NBit(10), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, 125);", NBit(125), env, false);
-  expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, 126);", NBit::top(), env, true);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, 126);", NBit::bot(), env, true);
 
-  expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, 0); constraint int_eq(x, 10);", NBit::top(), env, false);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_eq(x, 0); constraint int_eq(x, 10);", NBit::bot(), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint nbool_or(int_eq(x, 0), int_eq(x, 10));", NBit::from_set({0, 10}), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint set_in(x, {0, 10});", NBit::from_set({0, 10}), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint nbool_or(int_eq(x, -1), int_eq(x, 100), int_eq(x, 126));", NBit(100), env, true);
-  expect_interpret_equal_to<IKind::ASK>("constraint set_in(x, {-1, 1000});", NBit::top(), env, true);
+  expect_interpret_equal_to<IKind::ASK>("constraint set_in(x, {-1, 1000});", NBit::bot(), env, true);
 
   expect_interpret_equal_to<IKind::ASK>("constraint int_ne(x, 0);", NBit(0).complement(), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint int_ne(x, 0); constraint int_ne(x, 10);", NBit::from_set({0, 10}).complement(), env, false);
@@ -89,9 +89,9 @@ TEST(NBitsetTest, AskInterpretation) {
   expect_interpret_equal_to<IKind::ASK>("constraint int_ge(x, 10);", NBit(10,1000), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint int_gt(x, 10);", NBit(11,1000), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint int_ge(x, 126);", NBit(126), env, false);
-  expect_interpret_equal_to<IKind::ASK>("constraint int_ge(x, 1000);", NBit::top(), env, true);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_ge(x, 1000);", NBit::bot(), env, true);
 
-  expect_interpret_equal_to<IKind::ASK>("constraint int_le(x, -2);", NBit::top(), env, true);
+  expect_interpret_equal_to<IKind::ASK>("constraint int_le(x, -2);", NBit::bot(), env, true);
   expect_interpret_equal_to<IKind::ASK>("constraint int_le(x, -1);", NBit(-1), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint int_le(x, 0);", NBit(-1,0), env, false);
   expect_interpret_equal_to<IKind::ASK>("constraint int_le(x, 10);", NBit(-1, 10), env, false);
@@ -155,7 +155,7 @@ TEST(NBitsetTest, GenericFunTests) {
 
 TEST(NBitsetTest, Negation) {
   EXPECT_EQ((project_fun(NEG, NBit(5, 10))), NBit(-1));
-  EXPECT_EQ((project_fun(NEG, NBit(-10, 10))), NBit::bot());
+  EXPECT_EQ((project_fun(NEG, NBit(-10, 10))), NBit::top());
   EXPECT_EQ((project_fun(NEG, NBit(-10, -1))), NBit(0,1000));
   EXPECT_EQ((project_fun(NEG, NBit(0, 1000))), NBit(-1));
 }
@@ -171,11 +171,11 @@ TEST(NBitsetTest, Absolute) {
 
 TEST(NBitsetTest, Width) {
   EXPECT_EQ(NBit(0,0).width(), NBit(1));
-  EXPECT_EQ(NBit(-10, 10).width(), NBit::bot());
-  EXPECT_EQ(NBit(0, 1000).width(), NBit::bot());
+  EXPECT_EQ(NBit(-10, 10).width(), NBit::top());
+  EXPECT_EQ(NBit(0, 1000).width(), NBit::top());
   EXPECT_EQ(NBit(0, 10).width(), NBit(11));
   EXPECT_EQ(NBit(5, 10).width(), NBit(6));
-  EXPECT_EQ(NBit::bot().width(), NBit::bot());
+  EXPECT_EQ(NBit::top().width(), NBit::top());
   EXPECT_EQ(NBit::top().width(), NBit(0));
 }
 
@@ -184,18 +184,18 @@ TEST(NBitsetTest, Projections) {
   using UB = NBit::UB;
   EXPECT_EQ(NBit(0,0).lb(), LB(0));
   EXPECT_EQ(NBit(0,0).ub(), UB(0));
-  EXPECT_EQ(NBit(-10, 10).lb(), LB::bot());
+  EXPECT_EQ(NBit(-10, 10).lb(), LB::top());
   EXPECT_EQ(NBit(-10, 10).ub(), UB(10));
   EXPECT_EQ(NBit(0, 1000).lb(), LB(0));
-  EXPECT_EQ(NBit(0, 1000).ub(), UB::bot());
+  EXPECT_EQ(NBit(0, 1000).ub(), UB::top());
   EXPECT_EQ(NBit(5, 10).lb(), LB(5));
   EXPECT_EQ(NBit(5, 10).ub(), UB(10));
-  EXPECT_EQ(NBit::bot().lb(), LB::bot());
-  EXPECT_EQ(NBit::bot().ub(), UB::bot());
   EXPECT_EQ(NBit::top().lb(), LB::top());
   EXPECT_EQ(NBit::top().ub(), UB::top());
+  EXPECT_EQ(NBit::bot().lb(), LB::bot());
+  EXPECT_EQ(NBit::bot().ub(), UB::bot());
   EXPECT_EQ(NBit(1000, 1000).lb(), LB(126));
-  EXPECT_EQ(NBit(1000, 1000).ub(), UB::bot());
-  EXPECT_EQ(NBit(-1, -1).lb(), LB::bot());
+  EXPECT_EQ(NBit(1000, 1000).ub(), UB::top());
+  EXPECT_EQ(NBit(-1, -1).lb(), LB::top());
   EXPECT_EQ(NBit(-1, -1).ub(), UB(-1));
 }

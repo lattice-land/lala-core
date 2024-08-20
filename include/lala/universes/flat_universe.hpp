@@ -287,7 +287,6 @@ public:
 
   /** In-place projection of the result of the binary function `fun(a, b)`. */
   CUDA constexpr void project(Sig fun, const local_type& a, const local_type& b) {
-    assert(is_supported_fun(fun));
     if(a.is_bot() || b.is_bot()) {
       meet_bot();
     }

@@ -6,7 +6,7 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include "lala/logic/logic.hpp"
-#include "lala/universes/primitive_upset.hpp"
+#include "lala/universes/arith_bound.hpp"
 #include "lala/interpretation.hpp"
 #include "lala/flatzinc_parser.hpp"
 
@@ -47,7 +47,7 @@ void interpret_must_error(const char* fzn, VarEnv<standard_allocator> env = VarE
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   IDiagnostics diagnostics;
-  L value = make_bot<L>(env);
+  L value = make_top<L>(env);
   bool res;
   if constexpr(L::is_abstract_universe) {
     res = ginterpret_in<kind, true>(*f, env, value, diagnostics);
@@ -135,7 +135,7 @@ L create_and_interpret_and_tell(const char* fzn, bool has_warning = false) {
 
 template <IKind kind, class L>
 void expect_interpret_equal_to(const char* fzn, const L& expect, VarEnv<standard_allocator> env = VarEnv<standard_allocator>{}, bool has_warning = false) {
-  L value{L::bot()};
+  L value{L::top()};
   interpret_must_succeed<kind>(fzn, value, env, has_warning);
   EXPECT_EQ(value, expect);
 }
@@ -184,11 +184,11 @@ void bot_top_test(const A& mid) {
   EXPECT_TRUE(bot < mid) << bot << " " << mid;
   EXPECT_TRUE(mid < top);
 
-  expect_interpret_equal_to<IKind::TELL, A>("constraint true;", bot);
-  expect_interpret_equal_to<IKind::TELL, A>("constraint false;", top);
+  expect_interpret_equal_to<IKind::TELL, A>("constraint true;", top);
+  expect_interpret_equal_to<IKind::TELL, A>("constraint false;", bot);
   if constexpr(A::is_abstract_universe) {
-    expect_interpret_equal_to<IKind::ASK, A>("constraint true;", bot);
-    expect_interpret_equal_to<IKind::ASK, A>("constraint false;", top);
+    expect_interpret_equal_to<IKind::ASK, A>("constraint true;", top);
+    expect_interpret_equal_to<IKind::ASK, A>("constraint false;", bot);
   }
 }
 
@@ -254,12 +254,12 @@ R project_fun(Sig fun, const A& a) {
 template <class A, class R = A>
 void generic_unary_fun_test(Sig fun) {
   R r{};
-  r.project(fun, A::bot());
-  EXPECT_TRUE(r.is_bot());
-  EXPECT_FALSE(r.is_top());
   r.project(fun, A::top());
   EXPECT_TRUE(r.is_top());
   EXPECT_FALSE(r.is_bot());
+  r.project(fun, A::bot());
+  EXPECT_TRUE(r.is_bot());
+  EXPECT_FALSE(r.is_top());
 }
 
 template <class A>
@@ -268,7 +268,7 @@ void generic_abs_test() {
   auto env = env_with_x();
   interpret_must_succeed<IKind::TELL>("constraint int_ge(x, 0);", a, env);
   A r{};
-  r.project(ABS, A::bot());
+  r.project(ABS, A::top());
   EXPECT_EQ(r, a);
 }
 
@@ -276,8 +276,9 @@ template <class A, class R = A>
 void generic_binary_fun_test(Sig fun, const A& a) {
   battery::print(fun);
   EXPECT_EQ((project_fun<A, R>(fun, A::bot(), A::bot())), R::bot());
-  EXPECT_EQ((project_fun<A, R>(fun, A::top(), A::bot())), R::top());
-  EXPECT_EQ((project_fun<A, R>(fun, A::bot(), A::top())), R::top());
+  EXPECT_EQ((project_fun<A, R>(fun, A::top(), A::top())), R::top());
+  EXPECT_EQ((project_fun<A, R>(fun, A::top(), A::bot())), R::bot());
+  EXPECT_EQ((project_fun<A, R>(fun, A::bot(), A::top())), R::bot());
   EXPECT_EQ((project_fun<A, R>(fun, A::top(), a)), R::top());
   EXPECT_EQ((project_fun<A, R>(fun, a, A::top())), R::top());
   EXPECT_EQ((project_fun<A, R>(fun, A::bot(), a)), R::bot());
@@ -310,7 +311,7 @@ void check_interpret_idempotence(const char* fzn) {
   F f1 = value1.deinterpret(env1);
   f1.print(true);
   printf("\n");
-  L value2 = make_bot<L>(env2);
+  L value2 = make_top<L>(env2);
   IDiagnostics diagnostics;
   EXPECT_TRUE(interpret_and_tell(f1, env2, value2, diagnostics));
   EXPECT_EQ(value1, value2);

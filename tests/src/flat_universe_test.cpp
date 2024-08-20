@@ -19,6 +19,7 @@ TEST(FlatUniverseTest, JoinMeetTest) {
   join_meet_generic_test(ZF::bot(), ZF(0));
   join_meet_generic_test(ZF(1), ZF::top());
   join_one_test(ZF(0), ZF(1), ZF::top(), true);
+  meet_one_test(ZF(0), ZF(1), ZF::bot(), true);
 }
 
 TEST(FlatUniverseTest, ArithmeticTest) {
@@ -28,24 +29,24 @@ TEST(FlatUniverseTest, ArithmeticTest) {
 }
 
 TEST(FlatUniverseTest, ConversionUpset) {
-  EXPECT_EQ((ZF(local::ZInc::top())), ZF::top());
-  EXPECT_EQ((ZF(local::ZDec::top())), ZF::top());
-  EXPECT_EQ((ZF(local::ZInc::bot())), ZF::bot());
-  EXPECT_EQ((ZF(local::ZDec::bot())), ZF::bot());
+  EXPECT_EQ((ZF(local::ZLB::top())), ZF::top());
+  EXPECT_EQ((ZF(local::ZUB::top())), ZF::top());
+  EXPECT_EQ((ZF(local::ZLB::bot())), ZF::bot());
+  EXPECT_EQ((ZF(local::ZUB::bot())), ZF::bot());
 }
 
 TEST(FlatUniverseTest, InterpretIntegerType) {
   std::cout << "Z ";
-  expect_interpret_equal_to<IKind::TELL>("var int: x;", ZF::bot());
+  expect_interpret_equal_to<IKind::TELL>("var int: x;", ZF::top());
   std::cout << "F ";
-  expect_interpret_equal_to<IKind::TELL>("var int: x;", local::FFlat::bot(), VarEnv<standard_allocator>{}, true);
+  expect_interpret_equal_to<IKind::TELL>("var int: x;", local::FFlat::top(), VarEnv<standard_allocator>{}, true);
 }
 
 TEST(FlatUniverseTest, InterpretRealType) {
   std::cout << "Z ";
   interpret_must_error<IKind::TELL, ZF>("var real: x;");
   std::cout << "F ";
-  expect_interpret_equal_to<IKind::TELL>("var real: x;", local::FFlat::bot());
+  expect_interpret_equal_to<IKind::TELL>("var real: x;", local::FFlat::top());
 }
 
 TEST(FlatUniverseTest, InterpretBoolType) {
@@ -56,8 +57,8 @@ TEST(FlatUniverseTest, InterpretBoolType) {
 }
 
 TEST(FlatUniverseTest, ZFlatInterpretation) {
-  expect_both_interpret_equal_to("constraint true;", ZF::bot());
-  expect_both_interpret_equal_to("constraint false;", ZF::top());
+  expect_both_interpret_equal_to("constraint true;", ZF::top());
+  expect_both_interpret_equal_to("constraint false;", ZF::bot());
 
   VarEnv<standard_allocator> env = env_with_x();
   expect_interpret_equal_to<IKind::TELL>("constraint int_eq(x, 0);", ZF(0), env);

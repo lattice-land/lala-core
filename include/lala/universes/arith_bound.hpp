@@ -115,7 +115,7 @@ public:
   using local_type = this_type2<battery::local_memory>;
 
   template<class M>
-  using flat_type = FlatUniverse<typename pre_universe::increasing_type, M>;
+  using flat_type = FlatUniverse<typename pre_universe::upper_bound_type, M>;
   using local_flat_type = flat_type<battery::local_memory>;
 
   constexpr static const bool is_abstract_universe = true;
@@ -302,19 +302,19 @@ private:
     value_type value = pre_universe::top();
     bool res = pre_universe::template interpret_tell<diagnose>(f.seq(1), value, diagnostics);
     if(res) {
-      if(sig == EQ || sig == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
+      if(f.sig() == EQ || f.sig() == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
         tell.meet(local_type(value));
       }
-      else if(sig == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
+      else if(f.sig() == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
         if constexpr(preserve_concrete_covers) {
-          tell.meet(local_type(pre_universe::next(value)));
+          tell.meet(local_type(pre_universe::prev(value)));
         }
         else {
           tell.meet(local_type(value));
         }
       }
       else {
-        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the tell language of this universe.");
+        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(f.sig())) + "` is not supported in the tell language of this universe.");
       }
     }
     return res;
@@ -326,16 +326,16 @@ private:
     value_type value = pre_universe::top();
     bool res = pre_universe::template interpret_ask<diagnose>(f.seq(1), value, diagnostics);
     if(res) {
-      if(sig == U::sig_order()) {
+      if(f.sig() == U::sig_order()) {
         tell.meet(local_type(value));
       }
-      else if(sig == NEQ || sig == U::sig_strict_order()) {
+      else if(f.sig() == NEQ || f.sig() == U::sig_strict_order()) {
         // We could actually do a little bit better in the case of FLB/FUB.
         // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
-        tell.meet(local_type(pre_universe::next(value)));
+        tell.meet(local_type(pre_universe::prev(value)));
       }
       else {
-        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(sig)) + "` is not supported in the ask language of this universe.");
+        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(f.sig())) + "` is not supported in the ask language of this universe.");
       }
     }
     return res;
@@ -398,7 +398,7 @@ public:
     }
   }
 
-  /** Expects a predicate of the form `x <op> k` or `k <op> x`, where `x` is any variable's name, and `k` a constant.
+  /** Expects a predicate of the form `x <op> k` where `x` is any variable's name, and `k` a constant.
    * The symbol `<op>` is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`.
    */
   template<bool diagnose = false, class F, class Env, class M2>
@@ -467,7 +467,7 @@ public:
 
   CUDA constexpr void project(Sig fun, const local_type &a, const local_type &b) {
     if (a.is_bot() || b.is_bot()) { meet_bot(); return; }
-    if(!a.is_top() && !b.is_top() && (fun == MIN || fun == MAX || fun == ADD)) {
+    if(fun == MIN || fun == MAX || (!a.is_top() && !b.is_top() && ADD)) {
       meet(local_type(pre_universe::project(fun, a.value(), b.value())));
     }
   }

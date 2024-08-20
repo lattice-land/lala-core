@@ -4,7 +4,7 @@
 #define LALA_CORE_SIMPLIFIER_HPP
 
 #include "logic/logic.hpp"
-#include "universes/primitive_upset.hpp"
+#include "universes/arith_bound.hpp"
 #include "abstract_deps.hpp"
 #include "battery/dynamic_bitset.hpp"
 

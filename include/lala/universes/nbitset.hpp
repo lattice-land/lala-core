@@ -3,7 +3,7 @@
 #ifndef LALA_CORE_NBITSET_HPP
 #define LALA_CORE_NBITSET_HPP
 
-#include "primitive_upset.hpp"
+#include "arith_bound.hpp"
 #include "battery/bitset.hpp"
 
 namespace lala {
@@ -114,8 +114,8 @@ public:
 
   CUDA constexpr static local_type bot() { return NBitset(bot_constructor_tag{}); }
   CUDA constexpr static local_type top() { return NBitset(); }
-  CUDA constexpr local::BInc is_top() const { return bits.all(); }
-  CUDA constexpr local::BDec is_bot() const { return bits.none(); }
+  CUDA constexpr local::B is_top() const { return bits.all(); }
+  CUDA constexpr local::B is_bot() const { return bits.none(); }
   CUDA constexpr const bitset_type& value() const { return bits; }
 
 private:
@@ -204,10 +204,10 @@ private:
   template<bool diagnose, bool negated, class F, class Env, class M>
   CUDA NI static bool interpret_binary(const F& f, const Env& env, this_type2<M>& tell, IDiagnostics& diagnostics) {
     if(f.sig() == IN) {
-      return interpret_tell_set<diagnose, negated>(f, tell, diagnostics);
+      return interpret_tell_set<diagnose, negated>(f, f.seq(1), tell, diagnostics);
     }
     else if(f.seq(1).is(F::Z) || f.seq(1).is(F::B)) {
-      return interpret_tell_x_op_k<diagnose>(f, k.to_z(), f.sig(), tell, diagnostics);
+      return interpret_tell_x_op_k<diagnose>(f, f.seq(1).to_z(), f.sig(), tell, diagnostics);
     }
     else {
       RETURN_INTERPRETATION_ERROR("Only integer and Boolean constants are supported in NBitset.");

@@ -4,7 +4,7 @@
 #define FIXPOINT_HPP
 
 #include "logic/logic.hpp"
-#include "universes/primitive_upset.hpp"
+#include "b.hpp"
 #include "battery/memory.hpp"
 
 #ifdef __CUDACC__

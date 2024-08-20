@@ -93,7 +93,7 @@ public:
 
   CUDA constexpr static local_type bot() { return Interval(CP::bot()); }
   CUDA constexpr static local_type top() { return Interval(CP::top()); }
-  CUDA constexpr local::B is_bot() const { return cp.is_bot() || (!ub().is_top() && lb() > dual<LB2>(ub())); }
+  CUDA constexpr local::B is_bot() const { return cp.is_bot() || (!lb().is_top() && dual<UB2>(lb()) > ub()); }
   CUDA constexpr local::B is_top() const { return cp.is_top(); }
   CUDA constexpr const CP& as_product() const { return cp; }
   CUDA constexpr value_type value() const { return cp.value(); }

@@ -4,7 +4,7 @@
 #define LALA_CORE_VSTORE_HPP
 
 #include "logic/logic.hpp"
-#include "universes/primitive_upset.hpp"
+#include "universes/arith_bound.hpp"
 #include "abstract_deps.hpp"
 #include <optional>
 
@@ -433,7 +433,7 @@ public:
     }
     if constexpr(ExtractionStrategy::atoms) {
       for(int i = 0; i < data.size(); ++i) {
-        if(data[i].lb() < dual<typename universe_type::LB>(data[i].ub())) {
+        if(dual<typename universe_type::UB>(data[i].lb()) < data[i].ub()) {
           return false;
         }
       }

@@ -4,7 +4,7 @@
 #define LALA_CORE_PRE_ZLB_HPP
 
 #include "../logic/logic.hpp"
-#include "pre_zinc.hpp"
+#include "pre_zub.hpp"
 
 namespace lala {
 
@@ -40,12 +40,12 @@ struct PreZLB {
 
   template <bool diagnose, class F>
   CUDA static bool interpret_tell(const F &f, value_type& tell, IDiagnostics& diagnostics) {
-    return dual_type::template interpret_tell<diagnose, F, true>(f, tell, diagnostics);
+    return dual_type::template interpret_ask<diagnose, F, true>(f, tell, diagnostics);
   }
 
   template <bool diagnose, class F>
   CUDA static bool interpret_ask(const F &f, value_type& ask, IDiagnostics& diagnostics) {
-    return dual_type::template interpret_ask<diagnose, F, true>(f, ask, diagnostics);
+    return dual_type::template interpret_tell<diagnose, F, true>(f, ask, diagnostics);
   }
 
   template <bool diagnose, class F>

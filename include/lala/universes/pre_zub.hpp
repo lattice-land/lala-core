@@ -78,10 +78,10 @@ private:
       }
       else {
         if constexpr(is_tell) {
-          k = battery::rl_cast<value_type>(battery::get<1>(f.r()));
+          k = battery::rd_cast<value_type>(battery::get<1>(f.r()));
         }
         else {
-          k = battery::rl_cast<value_type>(battery::get<0>(f.r()));
+          k = battery::rd_cast<value_type>(battery::get<0>(f.r()));
         }
       }
       return true;
