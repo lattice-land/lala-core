@@ -236,7 +236,7 @@ private:
     if(res) {
       const auto& varf = var_in(f);
       // When it is not necessary, we try to avoid using the environment.
-      // This is for instance useful when refinement operators add new constraints but do not have access to the environment (e.g., split()), and to avoid passing the environment around everywhere.
+      // This is for instance useful when deduction operators add new constraints but do not have access to the environment (e.g., split()), and to avoid passing the environment around everywhere.
       if(varf.is(F::V)) {
         tell.push_back(var_dom<Alloc2>(varf.v(), u));
       }
@@ -344,11 +344,11 @@ public:
     return embed(x.vid(), dom);
   }
 
-  /** This refine method can grow the store if required, and therefore do not satisfy the PCCP model.
+  /** This deduce method can grow the store if required, and therefore do not satisfy the PCCP model.
    * @sequential @order-preserving @increasing
   */
   template <class Alloc2>
-  CUDA bool refine(const tell_type<Alloc2>& t) {
+  CUDA bool deduce(const tell_type<Alloc2>& t) {
     if(t.size() == 0) {
       return false;
     }
@@ -419,9 +419,9 @@ public:
     return true;
   }
 
-  CUDA size_t num_refinements() const { return 0; }
+  CUDA size_t num_deductions() const { return 0; }
   template <class M>
-  CUDA void refine(size_t, B<M>&) const { assert(false); }
+  CUDA void deduce(size_t, B<M>&) const { assert(false); }
 
   /**  An abstract element is extractable when it is not equal to top.
    * If the strategy is `atoms`, we check the domains are singleton.

@@ -238,20 +238,6 @@ void join_meet_generic_test(const A& a, const A& b, bool commutative_tell = true
 }
 
 template <class A, class R = A>
-R project_fun(Sig fun, const A& a, const A& b) {
-  R r{};
-  r.project(fun, a, b);
-  return r;
-}
-
-template <class A, class R = A>
-R project_fun(Sig fun, const A& a) {
-  R r{};
-  r.project(fun, a);
-  return r;
-}
-
-template <class A, class R = A>
 void generic_unary_fun_test(Sig fun) {
   R r{};
   r.project(fun, A::top());

@@ -11,7 +11,7 @@
 namespace lala {
 
 /** This abstract domain works at the level of logical formulas.
- * It refines the formula by performing a number of simplifications w.r.t. an underlying abstract domain including:
+ * It deduces the formula by performing a number of simplifications w.r.t. an underlying abstract domain including:
  *  1. Removing assigned variables.
  *  2. Removing unused variables.
  *  3. Removing entailed formulas.
@@ -51,7 +51,7 @@ private:
   AType atype;
   abstract_ptr<sub_type> sub;
   // We keep a copy of the variable environment in which the formula has been initially interpreted.
-  // This is necessary to project the variables and ask constraints in the subdomain during refinement.
+  // This is necessary to project the variables and ask constraints in the subdomain during deduction.
   VarEnv<allocator_type> env;
   // Read-only conjunctive formula, where each is treated independently.
   formula_sequence formulas;
@@ -149,7 +149,7 @@ public:
 
   /** @sequential */
   template <class Alloc2>
-  CUDA bool refine(tell_type<Alloc2>&& t) {
+  CUDA bool deduce(tell_type<Alloc2>&& t) {
     assert(t.env != nullptr);
     env = *(t.env);
     eliminated_variables.resize(t.num_vars);
@@ -219,7 +219,7 @@ private:
   }
 
   // We eliminate the representative of the variable `i` if it is a singleton.
-  CUDA bool vrefine(size_t i) {
+  CUDA bool vdeduce(size_t i) {
     const auto& u = sub->project(to_sub_var(i));
     size_t j = equivalence_classes[i];
     bool has_changed = constants[j].meet(u);
@@ -229,7 +229,7 @@ private:
     return has_changed;
   }
 
-  CUDA bool cons_refine(size_t i) {
+  CUDA bool cons_deduce(size_t i) {
     using F = TFormula<allocator_type>;
     // Eliminate constraint of the form x = y, and add x,y in the same equivalence class.
     if(is_var_equality(formulas[i])) {
@@ -286,19 +286,19 @@ private:
   }
 
 public:
-  /** We have one refinement operator per variable and one per constraint in the interpreted formula. */
-  CUDA size_t num_refinements() const {
+  /** We have one deduction operator per variable and one per constraint in the interpreted formula. */
+  CUDA size_t num_deductions() const {
     return constants.size() + formulas.size();
   }
 
   template <class Mem>
-  CUDA void refine(size_t i, B<Mem>& has_changed) {
-    assert(i < num_refinements());
+  CUDA void deduce(size_t i, B<Mem>& has_changed) {
+    assert(i < num_deductions());
     if(i < constants.size()) {
-      has_changed.join(local::B(vrefine(i)));
+      has_changed.join(local::B(vdeduce(i)));
     }
     else {
-      has_changed.join(local::B(cons_refine(i - constants.size())));
+      has_changed.join(local::B(cons_deduce(i - constants.size())));
     }
   }
 

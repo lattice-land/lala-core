@@ -14,7 +14,7 @@
 namespace lala {
 
 /** A simple form of sequential fixpoint computation based on Kleene fixpoint.
- * At each iteration, the refinement operations \f$ f_1, \ldots, f_n \f$ are simply composed by functional composition \f$ f = f_n \circ \ldots \circ f_1 \f$.
+ * At each iteration, the deduction operations \f$ f_1, \ldots, f_n \f$ are simply composed by functional composition \f$ f = f_n \circ \ldots \circ f_1 \f$.
  * This strategy basically corresponds to the Gauss-Seidel iteration method. */
 class GaussSeidelIteration {
 public:
@@ -22,9 +22,9 @@ public:
 
   template <class A>
   CUDA void iterate(A& a, local::B& has_changed) {
-    size_t n = a.num_refinements();
+    size_t n = a.num_deductions();
     for(size_t i = 0; i < n; ++i) {
-      a.refine(i, has_changed);
+      a.deduce(i, has_changed);
     }
   }
 
@@ -52,11 +52,11 @@ public:
 #ifdef __CUDACC__
 
 /** A simple form of fixpoint computation based on Kleene fixpoint.
- * At each iteration, the refinement operations \f$ f_1, \ldots, f_n \f$ are composed by parallel composition \f$ f = f_1 \| \ldots \| f_n \f$ meaning they are executed in parallel by different threads.
+ * At each iteration, the deduction operations \f$ f_1, \ldots, f_n \f$ are composed by parallel composition \f$ f = f_1 \| \ldots \| f_n \f$ meaning they are executed in parallel by different threads.
  * This is called an asynchronous iteration and it is due to (Cousot, Asynchronous iterative methods for solving a fixed point system of monotone equations in a complete lattice, 1977).
  * The underlying lattice on which we iterate must provide two methods:
- * - `a.refine(int, B&)`: call the ith refinement functions and set `has_changed` to `true` if `a` has changed.
- * - `a.num_refinements()`: return the number of refinement functions.
+ * - `a.deduce(int, B&)`: call the ith deduction functions and set `has_changed` to `true` if `a` has changed.
+ * - `a.num_deductions()`: return the number of deduction functions.
  * \tparam Group is a CUDA cooperative group class.
  * \tparam Memory is an atomic memory, that must be compatible with the cooperative group chosen (e.g., don't use atomic_memory_block if the group contains multiple blocks). */
 template <class Group, class Memory, class Allocator>
@@ -103,9 +103,9 @@ public:
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
   #else
-    size_t n = a.num_refinements();
+    size_t n = a.num_deductions();
     for (size_t t = group.thread_rank(); t < n; t += group.num_threads()) {
-      a.refine(t, has_changed);
+      a.deduce(t, has_changed);
       if((t-group.thread_rank()) + group.num_threads() < n) __syncwarp();
     }
   #endif

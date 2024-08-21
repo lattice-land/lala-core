@@ -34,7 +34,7 @@ void test_simplification(
 
   simplifier_type::tell_type<standard_allocator> tell;
   EXPECT_TRUE((ginterpret_in<IKind::TELL, true>(simplifier, f2, env, tell, diagnostics)));
-  simplifier.refine(std::move(tell));
+  simplifier.deduce(std::move(tell));
   local::B has_changed = GaussSeidelIteration{}.fixpoint(simplifier);
   EXPECT_TRUE(has_changed);
 

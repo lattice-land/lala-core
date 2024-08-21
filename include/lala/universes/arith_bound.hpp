@@ -86,6 +86,21 @@ namespace impl {
   inline constexpr bool is_arith_bound_v = is_arith_bound<T>::value;
 }
 
+
+template <class A, class R = A>
+R project_fun(Sig fun, const A& a, const A& b) {
+  R r{};
+  r.project(fun, a, b);
+  return r;
+}
+
+template <class A, class R = A>
+R project_fun(Sig fun, const A& a) {
+  R r{};
+  r.project(fun, a);
+  return r;
+}
+
 /** This function is useful when we need to convert a value to its dual.
     The dual is the upset of the current element, therefore, if we have \f$ x <= 10 \f$, the dual is given by the formula \f$ x >= 10 \f$ interpreted in the dual lattice.
     In that case, it just changes the type of the lattice without changing the value.
