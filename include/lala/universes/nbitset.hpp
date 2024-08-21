@@ -40,6 +40,7 @@ public:
   constexpr static const bool preserve_meet = true;
   constexpr static const bool injective_concretization = true;
   constexpr static const bool preserve_concrete_covers = false;
+  constexpr static const bool complemented = true;
   constexpr static const char* name = "NBitset";
 
 private:

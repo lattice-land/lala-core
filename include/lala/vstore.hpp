@@ -420,10 +420,9 @@ public:
   }
 
   CUDA size_t num_deductions() const { return 0; }
-  template <class M>
-  CUDA void deduce(size_t, B<M>&) const { assert(false); }
+  CUDA bool deduce(size_t) const { assert(false); return false; }
 
-  /**  An abstract element is extractable when it is not equal to top.
+  /**  An abstract element is extractable when it is not equal to bot.
    * If the strategy is `atoms`, we check the domains are singleton.
    */
   template<class ExtractionStrategy = NonAtomicExtraction>

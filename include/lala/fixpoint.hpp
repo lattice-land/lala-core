@@ -21,11 +21,13 @@ public:
   CUDA void barrier() {}
 
   template <class A>
-  CUDA void iterate(A& a, local::B& has_changed) {
+  CUDA local::B iterate(A& a) {
     size_t n = a.num_deductions();
+    bool has_changed = false;
     for(size_t i = 0; i < n; ++i) {
-      a.deduce(i, has_changed);
+      has_changed |= a.deduce(i);
     }
+    return has_changed;
   }
 
   template <class A>
@@ -33,8 +35,7 @@ public:
     size_t iterations = 0;
     local::B changed(true);
     while(changed && !a.is_bot()) {
-      changed = false;
-      iterate(a, changed);
+      changed = iterate(a);
       has_changed.join(changed);
       iterations++;
     }
@@ -98,16 +99,19 @@ public:
   #endif
   }
 
-  template <class A, class M>
-  CUDA void iterate(A& a, B<M>& has_changed) {
+  template <class A>
+  CUDA bool iterate(A& a) {
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
+    return false;
   #else
     size_t n = a.num_deductions();
+    bool has_changed = false;
     for (size_t t = group.thread_rank(); t < n; t += group.num_threads()) {
-      a.deduce(t, has_changed);
+      has_changed |= a.deduce(t);
       if((t-group.thread_rank()) + group.num_threads() < n) __syncwarp();
     }
+    return has_changed;
   #endif
   }
 
@@ -121,7 +125,7 @@ public:
     barrier();
     size_t i;
     for(i = 1; changed[(i-1)%3] && !is_bot[(i-1)%3]; ++i) {
-      iterate(a, changed[i%3]);
+      changed[i%3].join(iterate(a));
       changed[(i+1)%3].meet_bot(); // reinitialize changed for the next iteration.
       is_bot[i%3].join(a.is_bot());
       is_bot[i%3].join(local::B{*stop});

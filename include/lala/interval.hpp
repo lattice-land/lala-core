@@ -51,6 +51,7 @@ public:
   constexpr static const bool preserve_join = false;
   constexpr static const bool injective_concretization = CP::injective_concretization;
   constexpr static const bool preserve_concrete_covers = CP::preserve_concrete_covers;
+  constexpr static const bool complemented = false;
   constexpr static const char* name = "Interval";
 
 private:

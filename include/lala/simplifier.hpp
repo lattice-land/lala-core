@@ -291,14 +291,13 @@ public:
     return constants.size() + formulas.size();
   }
 
-  template <class Mem>
-  CUDA void deduce(size_t i, B<Mem>& has_changed) {
+  CUDA bool deduce(size_t i) {
     assert(i < num_deductions());
     if(i < constants.size()) {
-      has_changed.join(local::B(vdeduce(i)));
+      return vdeduce(i);
     }
     else {
-      has_changed.join(local::B(cons_deduce(i - constants.size())));
+      return cons_deduce(i - constants.size());
     }
   }
 
