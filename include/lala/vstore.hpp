@@ -447,7 +447,7 @@ public:
   CUDA void extract(VStore<U2, Alloc2>& ua) const {
     if((void*)&ua != (void*)this) {
       ua.data = data;
-      ua.is_at_bot.join_top();
+      ua.is_at_bot.meet_bot();
     }
   }
 

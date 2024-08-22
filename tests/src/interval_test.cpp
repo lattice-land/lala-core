@@ -123,6 +123,9 @@ TEST(IntervalTest, Multiplication) {
 
   EXPECT_EQ((project_fun(MUL, Itv(-10, 10), Itv(9, -9))), Itv::bot());
   EXPECT_EQ((project_fun(MUL, Itv(9, -9), Itv(-10, 10))), Itv::bot());
+
+  EXPECT_EQ((project_fun(MUL, Itv(zlb::top(), 2), Itv(2, 2))), Itv(zlb::top(), 4));
+  EXPECT_EQ((project_fun(MUL, Itv(-2, -2), Itv(2, zub::top()))), Itv(-4, zub::top()));
 }
 
 // Based on the table provided in (Leijen D. (2003). Division and Modulus for Computer Scientists).
@@ -202,6 +205,9 @@ TEST(IntervalTest, EuclideanDivision) {
   EXPECT_EQ((project_fun(EDIV, Itv(-1, 0), Itv(0, 0))), Itv::bot());
   EXPECT_EQ((project_fun(EDIV, Itv(-1, 0), Itv(1, 1))), Itv(-1, 0));
   EXPECT_EQ((project_fun(EDIV, Itv(-1, 0), Itv(-1, 1))), Itv(-1, 1));
+
+  EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(2, 2))), Itv(zlb::top(), 1));
+  EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(2, zlb::top()))), Itv(zlb::top(), 1));
 }
 
 TEST(IntervalTest, Width) {

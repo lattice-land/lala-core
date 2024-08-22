@@ -52,6 +52,7 @@ public:
   constexpr static const bool injective_concretization = CP::injective_concretization;
   constexpr static const bool preserve_concrete_covers = CP::preserve_concrete_covers;
   constexpr static const bool complemented = false;
+  constexpr static const bool is_arithmetic = LB::is_arithmetic;
   constexpr static const char* name = "Interval";
 
 private:
@@ -62,7 +63,7 @@ private:
   CUDA constexpr local_type lb2() const { return local_type(lb(), dual<UB2>(lb())); }
   CUDA constexpr local_type ub2() const { return local_type(dual<LB2>(ub()), ub()); }
 public:
-  /** Initialize the interval to bottom using the default constructor of the bounds. */
+  /** Initialize the interval to top using the default constructor of the bounds. */
   CUDA constexpr Interval() {}
   /** Given a value \f$ x \in U \f$ where \f$ U \f$ is the universe of discourse, we initialize a singleton interval \f$ [x..x] \f$. */
   CUDA constexpr Interval(const typename U::value_type& x): cp(x, x) {}
@@ -351,18 +352,36 @@ private:
   */
   CUDA constexpr void piecewise_monotone_fun(Sig fun, const local_type& a, const local_type& b) {
     if constexpr(preserve_concrete_covers) {
+      // using flat_type = typename LB::template flat_type<battery::local_memory>;
+      // flat_type x1{};
+      // flat_type x2{};
+      // flat_type x3{};
+      // flat_type x4{};
+      // x1.project(fun, a.lb(), b.lb());
+
+
       local_type l{};
       local_type u{};
       local_type br{};
       l.flat_fun(fun, a, b);
       br.meet(reverse(b));
       u.flat_fun(fun, a, br);
+      printf("l = "); l.print(); printf("\n");
+      printf("br = "); br.print(); printf("\n");
+      printf("u = "); u.print(); printf("\n");
+      printf("this = "); print(); printf("\n");
+      printf("fjoin(l.lb(), u.lb()) = "); fjoin(l.lb(), u.lb()).print(); printf("\n");
+      printf("fjoin(dual<LB2>(l.ub()), dual<LB2>(u.ub())) = "); fjoin(dual<LB2>(l.ub()), dual<LB2>(u.ub())).print(); printf("\n");
+      printf("fjoin(dual<UB2>(l.lb()), dual<UB2>(u.lb()) = "); fjoin(dual<UB2>(l.lb()), dual<UB2>(u.lb())).print(); printf("\n");
+      printf("fjoin(l.ub(), u.ub()) = "); fjoin(l.ub(), u.ub()).print(); printf("\n");
       meet_lb(fjoin(
         fjoin(l.lb(), u.lb()),
         fjoin(dual<LB2>(l.ub()), dual<LB2>(u.ub()))));
+      printf("this = "); print(); printf("\n");
       meet_ub(fjoin(
         fjoin(dual<UB2>(l.lb()), dual<UB2>(u.lb())),
         fjoin(l.ub(), u.ub())));
+      printf("this = "); print(); printf("\n");
     }
     else {
       local_type al{a.lb2()};

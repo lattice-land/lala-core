@@ -41,6 +41,7 @@ public:
   constexpr static const bool injective_concretization = true;
   constexpr static const bool preserve_concrete_covers = false;
   constexpr static const bool complemented = true;
+  constexpr static const bool is_arithmetic = true;
   constexpr static const char* name = "NBitset";
 
 private:
@@ -314,6 +315,16 @@ public:
     bits.reset();
   }
 
+  template<class A>
+  CUDA constexpr bool meet_lb(const A& lb) {
+    return meet(local_type(lb.value(), bits.size()));
+  }
+
+  template<class A>
+  CUDA constexpr bool meet_ub(const A& ub) {
+    return meet(local_type(-1, ub.value()));
+  }
+
   template<class M>
   CUDA constexpr bool meet(const this_type2<M>& other) {
     if(!bits.is_subset_of(other.bits)) {
@@ -443,7 +454,7 @@ public:
     ptr[1] = 193;
   }
 
-  CUDA constexpr void fun(Sig fun, const local_type& x, const local_type& y) {
+  CUDA constexpr void project(Sig fun, const local_type& x, const local_type& y) {
     printf("%% binary functions %s are unsupported\n", string_of_sig(fun));
     int* ptr = nullptr;
     ptr[1] = 193;
