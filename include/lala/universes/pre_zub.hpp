@@ -207,7 +207,7 @@ public:
 
 private:
   CUDA INLINE static constexpr bool has_not_inf(value_type x) {
-    return (x & inf()) != inf();
+    return x != inf() && x != neg_inf();
   }
 
   CUDA INLINE static constexpr bool has_inf(value_type x) {
