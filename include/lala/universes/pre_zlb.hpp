@@ -71,11 +71,11 @@ struct PreZLB {
   CUDA static constexpr value_type project(Sig fun, value_type x) {
     if(fun == ABS) { return x >= 0 ? x : 0; }
     else {
-      return dual_type::project(fun, x);
+      return dual_type::template dproject<true>(fun, x);
     }
   }
   CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
-    return dual_type::project(fun, x, y);
+    return dual_type::template dproject<true>(fun, x, y);
   }
 };
 

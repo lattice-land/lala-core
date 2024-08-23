@@ -482,7 +482,7 @@ public:
 
   CUDA constexpr void project(Sig fun, const local_type &a, const local_type &b) {
     if (a.is_bot() || b.is_bot()) { meet_bot(); return; }
-    if(fun == MIN || fun == MAX || (!a.is_top() && !b.is_top() && ADD)) {
+    if(fun == MIN || fun == MAX || ADD) {
       meet(local_type(pre_universe::project(fun, a.value(), b.value())));
     }
   }

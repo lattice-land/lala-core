@@ -351,53 +351,29 @@ private:
     We do not check if a and b are bot. This is the responsibility of the caller depending if it could pose issues with the function `fun`.
   */
   CUDA constexpr void piecewise_monotone_fun(Sig fun, const local_type& a, const local_type& b) {
-    if constexpr(preserve_concrete_covers) {
-      // using flat_type = typename LB::template flat_type<battery::local_memory>;
-      // flat_type x1{};
-      // flat_type x2{};
-      // flat_type x3{};
-      // flat_type x4{};
-      // x1.project(fun, a.lb(), b.lb());
-
-
-      local_type l{};
-      local_type u{};
-      local_type br{};
-      l.flat_fun(fun, a, b);
-      br.meet(reverse(b));
-      u.flat_fun(fun, a, br);
-      printf("l = "); l.print(); printf("\n");
-      printf("br = "); br.print(); printf("\n");
-      printf("u = "); u.print(); printf("\n");
-      printf("this = "); print(); printf("\n");
-      printf("fjoin(l.lb(), u.lb()) = "); fjoin(l.lb(), u.lb()).print(); printf("\n");
-      printf("fjoin(dual<LB2>(l.ub()), dual<LB2>(u.ub())) = "); fjoin(dual<LB2>(l.ub()), dual<LB2>(u.ub())).print(); printf("\n");
-      printf("fjoin(dual<UB2>(l.lb()), dual<UB2>(u.lb()) = "); fjoin(dual<UB2>(l.lb()), dual<UB2>(u.lb())).print(); printf("\n");
-      printf("fjoin(l.ub(), u.ub()) = "); fjoin(l.ub(), u.ub()).print(); printf("\n");
-      meet_lb(fjoin(
-        fjoin(l.lb(), u.lb()),
-        fjoin(dual<LB2>(l.ub()), dual<LB2>(u.ub()))));
-      printf("this = "); print(); printf("\n");
-      meet_ub(fjoin(
-        fjoin(dual<UB2>(l.lb()), dual<UB2>(u.lb())),
-        fjoin(l.ub(), u.ub())));
-      printf("this = "); print(); printf("\n");
+    using PLB = typename LB::pre_universe;
+    using PUB = typename UB::pre_universe;
+    using value_t = typename PUB::value_type;
+    if(preserve_concrete_covers && !is_division(fun)) {
+      value_t x1 = PUB::project(fun, a.lb().value(), b.lb().value());
+      value_t x2 = PUB::project(fun, a.lb().value(), b.ub().value());
+      value_t x3 = PUB::project(fun, a.ub().value(), b.lb().value());
+      value_t x4 = PUB::project(fun, a.ub().value(), b.ub().value());
+      meet_lb(LB(PLB::join(PLB::join(x1, x2), PLB::join(x3, x4))));
+      meet_ub(UB(PUB::join(PUB::join(x1, x2), PUB::join(x3, x4))));
     }
     else {
-      local_type al{a.lb2()};
-      local_type au{a.ub2()};
-      local_type bl{b.lb2()};
-      local_type bu{b.ub2()};
-      local_type ll{};
-      local_type lu{};
-      local_type ul{};
-      local_type uu{};
-      ll.flat_fun(fun, al, bl);
-      lu.flat_fun(fun, al, bu);
-      ul.flat_fun(fun, au, bl);
-      uu.flat_fun(fun, au, bu);
-      meet_lb(fjoin(fjoin(ll.lb(), lu.lb()), fjoin(ul.lb(), uu.lb())));
-      meet_ub(fjoin(fjoin(ll.ub(), lu.ub()), fjoin(ul.ub(), uu.ub())));
+      value_t x1 = PLB::project(fun, a.lb().value(), b.lb().value());
+      value_t x2 = PLB::project(fun, a.lb().value(), b.ub().value());
+      value_t x3 = PLB::project(fun, a.ub().value(), b.lb().value());
+      value_t x4 = PLB::project(fun, a.ub().value(), b.ub().value());
+      meet_lb(LB(PLB::join(PLB::join(x1, x2), PLB::join(x3, x4))));
+
+      x1 = PUB::project(fun, a.lb().value(), b.lb().value());
+      x2 = PUB::project(fun, a.lb().value(), b.ub().value());
+      x3 = PUB::project(fun, a.ub().value(), b.lb().value());
+      x4 = PUB::project(fun, a.ub().value(), b.ub().value());
+      meet_ub(UB(PUB::join(PUB::join(x1, x2), PUB::join(x3, x4))));
     }
   }
 

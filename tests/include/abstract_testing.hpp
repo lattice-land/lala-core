@@ -265,8 +265,10 @@ void generic_binary_fun_test(Sig fun, const A& a) {
   EXPECT_EQ((project_fun<A, R>(fun, A::top(), A::top())), R::top());
   EXPECT_EQ((project_fun<A, R>(fun, A::top(), A::bot())), R::bot());
   EXPECT_EQ((project_fun<A, R>(fun, A::bot(), A::top())), R::bot());
-  EXPECT_EQ((project_fun<A, R>(fun, A::top(), a)), R::top());
-  EXPECT_EQ((project_fun<A, R>(fun, a, A::top())), R::top());
+  if(!is_division(fun)) {
+    EXPECT_EQ((project_fun<A, R>(fun, A::top(), a)), R::top()) << A::top() << " " << string_of_sig(fun) << " " << a;
+    EXPECT_EQ((project_fun<A, R>(fun, a, A::top())), R::top()) << a  << " " << string_of_sig(fun) << " " << A::top();
+  }
   EXPECT_EQ((project_fun<A, R>(fun, A::bot(), a)), R::bot());
   EXPECT_EQ((project_fun<A, R>(fun, a, A::bot())), R::bot());
 }

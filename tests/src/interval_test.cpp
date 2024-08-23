@@ -125,7 +125,7 @@ TEST(IntervalTest, Multiplication) {
   EXPECT_EQ((project_fun(MUL, Itv(9, -9), Itv(-10, 10))), Itv::bot());
 
   EXPECT_EQ((project_fun(MUL, Itv(zlb::top(), 2), Itv(2, 2))), Itv(zlb::top(), 4));
-  EXPECT_EQ((project_fun(MUL, Itv(-2, -2), Itv(2, zub::top()))), Itv(-4, zub::top()));
+  EXPECT_EQ((project_fun(MUL, Itv(-2, -2), Itv(2, zub::top()))), Itv(zlb::top(), -4));
 }
 
 // Based on the table provided in (Leijen D. (2003). Division and Modulus for Computer Scientists).
@@ -207,7 +207,20 @@ TEST(IntervalTest, EuclideanDivision) {
   EXPECT_EQ((project_fun(EDIV, Itv(-1, 0), Itv(-1, 1))), Itv(-1, 1));
 
   EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(2, 2))), Itv(zlb::top(), 1));
-  EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(2, zlb::top()))), Itv(zlb::top(), 1));
+
+  EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(2, zub::top()))), Itv::top());
+  EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(zlb::top(), 2))), Itv::top());
+  EXPECT_EQ((project_fun(EDIV, Itv(-10, 10), Itv::top())), Itv::top());
+  EXPECT_EQ((project_fun(EDIV, Itv::top(), Itv::top())), Itv::top());
+
+  // These tests should be considered if we ever improve division over infinite numbers.
+
+  // EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(2, zub::top()))), Itv(zlb::top(), 1));
+  // EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), -2), Itv(2, zub::top()))), Itv(zlb::top(), 0));
+
+  // EXPECT_EQ((project_fun(EDIV, Itv(-10, 10), Itv::top())), Itv(-10, 10));
+  // EXPECT_EQ((project_fun(EDIV, Itv(0, 10), Itv::top())), Itv(-10, 10));
+  // EXPECT_EQ((project_fun(EDIV, Itv(-10, 0), Itv::top())), Itv(-10, 10));
 }
 
 TEST(IntervalTest, Width) {
