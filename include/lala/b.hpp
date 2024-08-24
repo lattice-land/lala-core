@@ -137,6 +137,16 @@ public:
     ::battery::print(value());
   }
 
+  CUDA constexpr this_type& operator|= (const this_type& other) {
+    join(other);
+    return *this;
+  }
+
+  CUDA constexpr this_type& operator&= (const this_type& other) {
+    meet(other);
+    return *this;
+  }
+
   template<class Mem2>
   friend class B;
 };
