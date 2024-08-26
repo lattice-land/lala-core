@@ -210,7 +210,7 @@ public:
 
 private:
   /** \return `true` if mask[i] was changed. */
-  CUDA bool eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
+  CUDA local::B eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
     if(!mask.test(i)) {
       mask.set(i, true);
       return true;
@@ -219,23 +219,23 @@ private:
   }
 
   // We eliminate the representative of the variable `i` if it is a singleton.
-  CUDA bool vdeduce(size_t i) {
+  CUDA local::B vdeduce(size_t i) {
     const auto& u = sub->project(to_sub_var(i));
     size_t j = equivalence_classes[i];
-    bool has_changed = constants[j].meet(u);
+    local::B has_changed = constants[j].meet(u);
     if(constants[j].lb().value() == constants[j].ub().value()) {
       has_changed |= eliminate(eliminated_variables, j);
     }
     return has_changed;
   }
 
-  CUDA bool cons_deduce(size_t i) {
+  CUDA local::B cons_deduce(size_t i) {
     using F = TFormula<allocator_type>;
     // Eliminate constraint of the form x = y, and add x,y in the same equivalence class.
     if(is_var_equality(formulas[i])) {
       AVar x = var_of(formulas[i].seq(0));
       AVar y = var_of(formulas[i].seq(1));
-      bool has_changed = equivalence_classes[x.vid()].meet(local::ZUB(equivalence_classes[y.vid()]));
+      local::B has_changed = equivalence_classes[x.vid()].meet(local::ZUB(equivalence_classes[y.vid()]));
       has_changed |= equivalence_classes[y.vid()].meet(local::ZUB(equivalence_classes[x.vid()]));
       has_changed |= eliminate(eliminated_formulas, i);
       return has_changed;
@@ -291,7 +291,7 @@ public:
     return constants.size() + formulas.size();
   }
 
-  CUDA bool deduce(size_t i) {
+  CUDA local::B deduce(size_t i) {
     assert(i < num_deductions());
     if(i < constants.size()) {
       return vdeduce(i);

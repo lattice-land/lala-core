@@ -420,7 +420,7 @@ public:
   }
 
   CUDA size_t num_deductions() const { return 0; }
-  CUDA bool deduce(size_t) const { assert(false); return false; }
+  CUDA local::B deduce(size_t) const { assert(false); return false; }
 
   /**  An abstract element is extractable when it is not equal to bot.
    * If the strategy is `atoms`, we check the domains are singleton.

@@ -130,6 +130,14 @@ public:
     return false;
   }
 
+  CUDA constexpr bool join(value_type other) {
+    return join(local::B(other));
+  }
+
+  CUDA constexpr bool meet(value_type other) {
+    return meet(local::B(other));
+  }
+
   /** Print the current element.
    * @sequential
   */
@@ -146,6 +154,17 @@ public:
     meet(other);
     return *this;
   }
+
+  CUDA constexpr this_type& operator|= (value_type other) {
+    join(other);
+    return *this;
+  }
+
+  CUDA constexpr this_type& operator&= (value_type other) {
+    meet(other);
+    return *this;
+  }
+
 
   template<class Mem2>
   friend class B;
