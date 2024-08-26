@@ -21,7 +21,7 @@ struct PreZUB {
   using lower_bound_type = dual_type;
   using upper_bound_type = this_type;
 
-  static_assert(std::is_integral_v<value_type> && std::is_signed_v<value_type>, "PreZUB only works over signed integer types.");
+  static_assert(std::is_integral_v<value_type> /* && std::is_signed_v<value_type> */, "PreZUB only works over signed integer types.");
 
   constexpr static const bool is_totally_ordered = true;
 
@@ -246,14 +246,16 @@ public:
   }
 
 private:
-  /** Look-up table for multiplication (division) between x * y (x / y) in presence of infinities.
-   */
-  static constexpr value_type infs[3][3] = {
-  //          y < 0, y == 0, y > 0
-  /* x < 0 */ {inf(), 0, neg_inf()},
-  /* x = 0 */ {0, 0, 0},
-  /* x > 0 */ {neg_inf(), 0, inf()}
-  };
+  CUDA static constexpr value_type infs(size_t i, size_t j) {
+    /** Look-up table for multiplication (division) between x * y (x / y) in presence of infinities. */
+    const value_type values[3][3] = { // static doesn't work with constexpr functions.
+      //          y < 0, y == 0, y > 0
+      /* x < 0 */ {inf(), 0, neg_inf()},
+      /* x = 0 */ {0, 0, 0},
+      /* x > 0 */ {neg_inf(), 0, inf()}
+    };
+    return values[i][j];
+  }
 
 public:
   /** The projection of a function `fun` on two arguments `x` and `y` is simply the standard application of the operation, with specific cases for infinities.
@@ -273,18 +275,18 @@ public:
     switch(fun) {
       case ADD: return has_inf(x, y) ? (has_inf(x) ? x : y) : x + y;
       case SUB: return has_inf(x, y) ? (has_inf(x) ? x : -y) : x - y;
-      case MUL: return has_inf(x, y) ? infs[sign(x)][sign(y)] : x * y;
+      case MUL: return has_inf(x, y) ? infs(sign(x), sign(y)) : x * y;
       // Truncated division and modulus, by default in C++.
-      case TDIV: return has_inf(x, y) ? (has_inf(x) ? infs[sign(x)][sign(y)] : dtop<dualize>()) : x / y;
+      case TDIV: return has_inf(x, y) ? (has_inf(x) ? infs(sign(x), sign(y)) : dtop<dualize>()) : x / y;
       case TMOD: return x % y;
       // Floor division and modulus, see (Leijen D. (2003). Division and Modulus for Computer Scientists).
-      case FDIV: return has_inf(x, y) ? (has_inf(x) ? infs[sign(x)][sign(y)] : dtop<dualize>()) : battery::fdiv(x, y);
+      case FDIV: return has_inf(x, y) ? (has_inf(x) ? infs(sign(x), sign(y)) : dtop<dualize>()) : battery::fdiv(x, y);
       case FMOD: return battery::fmod(x, y);
       // Ceil division and modulus.
-      case CDIV: return has_inf(x, y) ? (has_inf(x) ? infs[sign(x)][sign(y)] : dtop<dualize>()) : battery::cdiv(x, y);
+      case CDIV: return has_inf(x, y) ? (has_inf(x) ? infs(sign(x), sign(y)) : dtop<dualize>()) : battery::cdiv(x, y);
       case CMOD: return battery::cmod(x, y);
       // Euclidean division and modulus, see (Leijen D. (2003). Division and Modulus for Computer Scientists).
-      case EDIV: return has_inf(x, y) ? (has_inf(x) ? infs[sign(x)][sign(y)] : dtop<dualize>()) : battery::ediv(x, y);
+      case EDIV: return has_inf(x, y) ? (has_inf(x) ? infs(sign(x), sign(y)) : dtop<dualize>()) : battery::ediv(x, y);
       case EMOD: return battery::emod(x, y);
       case POW: return battery::ipow(x, y);
       case MIN: return battery::min(x, y);

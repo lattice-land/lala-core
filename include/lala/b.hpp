@@ -76,6 +76,10 @@ public:
     }
   }
 
+  CUDA constexpr this_type& operator=(bool other) {
+    return operator=(local::B(other));
+  }
+
   /** @parallel */
   CUDA constexpr value_type value() const { return memory_type::load(val); }
 

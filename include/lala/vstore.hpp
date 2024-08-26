@@ -308,7 +308,8 @@ public:
     return const_cast<this_type*>(this)->interpret<IKind::ASK, diagnose>(f, const_cast<Env&>(env), ask, diagnostics);
   }
 
-  CUDA void project(AVar x, universe_type& u) const {
+  template <class Univ>
+  CUDA void project(AVar x, Univ& u) const {
     u.meet(project(x));
   }
 
@@ -432,7 +433,7 @@ public:
     }
     if constexpr(ExtractionStrategy::atoms) {
       for(int i = 0; i < data.size(); ++i) {
-        if(dual<typename universe_type::UB>(data[i].lb()) < data[i].ub()) {
+        if(dual<typename universe_type::UB>(data[i].lb()) != data[i].ub()) {
           return false;
         }
       }

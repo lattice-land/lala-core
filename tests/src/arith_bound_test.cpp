@@ -15,6 +15,15 @@ TEST(ArithBoundTest, BotTopTest) {
   bot_top_test(local::ZUB(0));
 }
 
+TEST(ArithBoundTest, OrderTest) {
+  EXPECT_TRUE(local::ZLB(10) < local::ZLB::top());
+  EXPECT_TRUE(local::ZLB(10) < local::ZLB(0));
+  EXPECT_TRUE(local::ZLB(10) > local::ZLB::bot());
+  EXPECT_TRUE(local::ZUB(10) < local::ZUB::top());
+  EXPECT_TRUE(local::ZUB(10) > local::ZUB(0));
+  EXPECT_TRUE(local::ZUB(10) > local::ZUB::bot());
+}
+
 TEST(ArithBoundTest, JoinMeetTest) {
   join_meet_generic_test(local::ZLB::bot(), local::ZLB::top());
   join_meet_generic_test(local::ZLB(0), local::ZLB(0));

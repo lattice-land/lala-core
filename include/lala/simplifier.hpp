@@ -150,18 +150,20 @@ public:
   /** @sequential */
   template <class Alloc2>
   CUDA bool deduce(tell_type<Alloc2>&& t) {
-    assert(t.env != nullptr);
-    env = *(t.env);
-    eliminated_variables.resize(t.num_vars);
-    eliminated_formulas.resize(t.formulas.size());
-    constants.resize(t.num_vars);
-    equivalence_classes.resize(t.num_vars);
-    for(int i = 0; i < equivalence_classes.size(); ++i) {
-      equivalence_classes[i].meet(local::ZUB(i));
+    if(t.env != nullptr) { // could be nullptr if the interpreted formula is true.
+      env = *(t.env);
+      eliminated_variables.resize(t.num_vars);
+      eliminated_formulas.resize(t.formulas.size());
+      constants.resize(t.num_vars);
+      equivalence_classes.resize(t.num_vars);
+      for(int i = 0; i < equivalence_classes.size(); ++i) {
+        equivalence_classes[i].meet(local::ZUB(i));
+      }
+      formulas = std::move(t.formulas);
+      simplified_formulas.resize(formulas.size());
+      return true;
     }
-    formulas = std::move(t.formulas);
-    simplified_formulas.resize(formulas.size());
-    return true;
+    return false;
   }
 
 private:

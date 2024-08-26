@@ -218,6 +218,7 @@ public:
 
   CUDA constexpr value_type value() const { return memory_type::load(val); }
 
+  // This is dangerous because a conversion to `value_type` can be done implicitly, and overloaded operators <, >, ... can be used on the underlying value_type instead of the abstract universe.
   CUDA constexpr operator value_type() const { return value(); }
 
   /** \return `true` whenever \f$ a = \top \f$, `false` otherwise.
@@ -502,32 +503,32 @@ public:
 
 template<class Pre, class M1, class M2>
 CUDA constexpr ArithBound<Pre, battery::local_memory> fjoin(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
-  return Pre::join(a, b);
+  return Pre::join(a.value(), b.value());
 }
 
 template<class Pre, class M1, class M2>
 CUDA constexpr ArithBound<Pre, battery::local_memory> fmeet(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
-  return Pre::meet(a, b);
+  return Pre::meet(a.value(), b.value());
 }
 
 template<class Pre, class M1, class M2>
 CUDA constexpr bool operator<=(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
-  return Pre::order(a, b);
+  return Pre::order(a.value(), b.value());
 }
 
 template<class Pre, class M1, class M2>
 CUDA constexpr bool operator<(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
-  return Pre::strict_order(a, b);
+  return Pre::strict_order(a.value(), b.value());
 }
 
 template<class Pre, class M1, class M2>
 CUDA constexpr bool operator>=(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
-  return Pre::order(b, a);
+  return Pre::order(b.value(), a.value());
 }
 
 template<class Pre, class M1, class M2>
 CUDA constexpr bool operator>(const ArithBound<Pre, M1>& a, const ArithBound<Pre, M2>& b) {
-  return Pre::strict_order(b, a);
+  return Pre::strict_order(b.value(), a.value());
 }
 
 template<class Pre, class M1, class M2>

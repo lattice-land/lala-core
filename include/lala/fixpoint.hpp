@@ -78,11 +78,11 @@ private:
   }
 
   CUDA void reset() {
-    changed[0].join_top();
-    changed[1].meet_bot();
-    changed[2].meet_bot();
+    changed[0].join(true);
+    changed[1].meet(false);
+    changed[2].meet(false);
     for(int i = 0; i < is_bot.size(); ++i) {
-      is_bot[i].meet_bot();
+      is_bot[i].meet(false);
     }
   }
 
@@ -126,9 +126,9 @@ public:
     size_t i;
     for(i = 1; changed[(i-1)%3] && !is_bot[(i-1)%3]; ++i) {
       changed[i%3].join(iterate(a));
-      changed[(i+1)%3].meet_bot(); // reinitialize changed for the next iteration.
+      changed[(i+1)%3].meet(false); // reinitialize changed for the next iteration.
       is_bot[i%3].join(a.is_bot());
-      is_bot[i%3].join(local::B{*stop});
+      is_bot[i%3].join(*stop);
       barrier();
     }
     // It changes if we performed several iteration, or if the first iteration changed the abstract domain.
