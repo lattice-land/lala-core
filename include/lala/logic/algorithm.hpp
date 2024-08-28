@@ -393,26 +393,6 @@ CUDA NI inline Sig converse_comparison(Sig sig) {
   return sig;
 }
 
-// /** Given a predicate of the form `t <op> u` (e.g., `x + y <= z + 4`), it transforms it into an equivalent predicate of the form `s <op> k` where `k` is a constant (e.g., `x + y - (z + 4) <= 0`).
-// If the formula is not a predicate, it is returned unchanged. */
-// template <class F>
-// CUDA NI F move_constants_on_rhs(const F& f) {
-//   if(is_comparison(f) && !f.seq(1).is_constant()) {
-//     AType aty = f.type();
-//     if(f.seq(0).is_constant()) {
-//       return F::make_binary(f.seq(1), converse_comparison(f.sig()), f.seq(0), aty);
-//     }
-//     else {
-//       return F::make_binary(
-//         F::make_binary(f.seq(0), SUB, f.seq(1), aty),
-//         f.sig(),
-//         F::make_z(0),
-//         aty);
-//     }
-//   }
-//   return f;
-// }
-
 /** Given a formula `f`, we transform all occurrences of `AVar` into logical variables. */
 template <class F, class Env>
 CUDA NI void map_avar_to_lvar(F& f, const Env& env, bool erase_type = false) {
