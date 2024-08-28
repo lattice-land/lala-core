@@ -22,9 +22,8 @@ class Minimum {
 public:
   CUDA Minimum(cpu_gpu_vec* data) : data(data), result() {}
   CUDA int num_deductions() { return data->size(); }
-  template<class M>
-  CUDA void deduce(int i, B<M>& has_changed) {
-    has_changed.join(local::B(result.meet(local::ZUB((*data)[i]))));
+  CUDA bool deduce(size_t i) {
+    return result.meet(local::ZUB((*data)[i]));
   }
   CUDA int extract() {
     return result;
