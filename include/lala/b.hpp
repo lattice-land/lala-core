@@ -56,24 +56,14 @@ public:
    * @sequential @order-preserving */
   template <class M>
   CUDA constexpr this_type& operator=(const this_type2<M>& other) {
-   if constexpr(sequential) {
-      memory_type::store(val, other.value());
-      return *this;
-    }
-    else {
-      static_assert(sequential, "The operator= in `B` can only be used when the underlying memory is `sequential`.");
-    }
+    memory_type::store(val, other.value());
+    return *this;
   }
 
   /** @sequential @order-preserving */
   CUDA constexpr this_type& operator=(const this_type& other) {
-    if constexpr(sequential) {
-      memory_type::store(val, other.value());
-      return *this;
-    }
-    else {
-      static_assert(sequential, "The operator= in `B` can only be used when the underlying memory is `sequential`.");
-    }
+    memory_type::store(val, other.value());
+    return *this;
   }
 
   CUDA constexpr this_type& operator=(bool other) {

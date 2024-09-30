@@ -311,6 +311,9 @@ public:
   template <class Group, class Store>
   CUDA void copy_to(Group& group, Store& store) const {
     assert(vars() == store.vars());
+    if(group.thread_rank() == 0) {
+      store.is_at_bot = is_at_bot;
+    }
     for (size_t i = group.thread_rank(); i < store.vars(); i += group.num_threads()) {
       store.data[i] = data[i];
     }
