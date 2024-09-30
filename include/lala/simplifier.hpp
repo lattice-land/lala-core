@@ -225,7 +225,7 @@ private:
     const auto& u = sub->project(to_sub_var(i));
     size_t j = equivalence_classes[i];
     local::B has_changed = constants[j].meet(u);
-    if(constants[j].lb().value() == constants[j].ub().value()) {
+    if(!constants[j].is_bot() && constants[j].lb() == dual<typename universe_type::LB>(constants[j].ub())) {
       has_changed |= eliminate(eliminated_variables, j);
     }
     return has_changed;
@@ -320,6 +320,10 @@ public:
   CUDA NI TFormula<allocator_type> deinterpret() {
     using F = TFormula<allocator_type>;
     typename F::Sequence seq(get_allocator());
+
+    if(is_bot()) {
+      return F::make_false();
+    }
 
     // A representative variable is eliminated if all variables in its equivalence class must be eliminated.
     for(int i = 0; i < equivalence_classes.size(); ++i) {

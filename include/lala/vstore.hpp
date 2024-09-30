@@ -308,6 +308,14 @@ public:
     return const_cast<this_type*>(this)->interpret<IKind::ASK, diagnose>(f, const_cast<Env&>(env), ask, diagnostics);
   }
 
+  template <class Group, class Store>
+  CUDA void copy_to(Group& group, Store& store) const {
+    assert(vars() == store.vars());
+    for (size_t i = group.thread_rank(); i < store.vars(); i += group.num_threads()) {
+      store.data[i] = data[i];
+    }
+  }
+
   template <class Univ>
   CUDA void project(AVar x, Univ& u) const {
     u.meet(project(x));

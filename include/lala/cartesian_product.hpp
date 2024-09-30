@@ -104,23 +104,13 @@ public:
    * It is monotone but not extensive. */
   template <class... Bs>
   CUDA constexpr this_type& operator=(const CartesianProduct<Bs...>& other) {
-    if constexpr(sequential) {
-      val = other.val;
-      return *this;
-    }
-    else {
-      static_assert(sequential, "operator= seq (CartesianProduct).");
-    }
+    val = other.val;
+    return *this;
   }
 
   CUDA constexpr this_type& operator=(const this_type& other) {
-    if constexpr(sequential) {
-      val = other.val;
-      return *this;
-    }
-    else {
-      static_assert(sequential, "operator= seq (CartesianProduct).");
-    }
+    val = other.val;
+    return *this;
   }
 
   /** Cartesian product initialized to \f$ (\bot_1, \ldots, \bot_n) \f$. */

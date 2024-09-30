@@ -236,6 +236,9 @@ public:
   template<class Env, class Allocator = typename Env::allocator_type>
   CUDA TFormula<Allocator> deinterpret(AVar x, const Env& env, const Allocator& allocator = Allocator()) const {
     using F = TFormula<Allocator>;
+    if(is_bot()) {
+      return F::make_false();
+    }
     if(lb().is_top() || ub().is_top() || lb().is_bot() || ub().is_bot()) {
       return cp.deinterpret(x, env);
     }
@@ -258,6 +261,9 @@ public:
     if(logical_lb.is(F::R)) {
       F logical_ub = ub().template deinterpret<F>();
       battery::get<1>(logical_lb.r()) = battery::get<0>(logical_ub.r());
+    }
+    else {
+      assert(lb() == dual<LB>(ub()));
     }
     return logical_lb;
   }

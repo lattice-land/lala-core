@@ -90,23 +90,13 @@ public:
    * It is monotone but not extensive. */
   template <class M>
   CUDA constexpr this_type& operator=(const this_type2<M>& other) {
-    if constexpr(sequential) {
-      bits = other.bits;
-      return *this;
-    }
-    else {
-      static_assert(sequential, "The operator= in `NBitset` can only be used when the underlying memory is `sequential`.");
-    }
+    bits = other.bits;
+    return *this;
   }
 
   CUDA constexpr this_type& operator=(const this_type& other) {
-    if constexpr(sequential) {
-      bits = other.bits;
-      return *this;
-    }
-    else {
-      static_assert(sequential, "The operator= in `NBitset` can only be used when the underlying memory is `sequential`.");
-    }
+    bits = other.bits;
+    return *this;
   }
 
   /** Pre-interpreted formula `x == 0`. */
