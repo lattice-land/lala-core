@@ -138,17 +138,23 @@ public:
   #endif
   }
 
-  template <class A, class M>
-  CUDA size_t fixpoint(A& a, B<M>& has_changed) {
-    bool stop = false;
-    return fixpoint(a, has_changed, &stop);
-  }
-
   template <class A>
-  CUDA local::B fixpoint(A& a) {
-    local::B has_changed(false);
-    fixpoint(a, has_changed);
-    return has_changed;
+  CUDA size_t fixpoint(A& a) {
+  #ifndef __CUDA_ARCH__
+    assert_cuda_arch();
+    return 0;
+  #else
+    reset();
+    barrier();
+    size_t i;
+    for(i = 1; changed[(i-1)%3] && !is_bot[(i-1)%3]; ++i) {
+      changed[i%3].join(iterate(a));
+      changed[(i+1)%3].meet(false); // reinitialize changed for the next iteration.
+      is_bot[i%3].join(a.is_bot());
+      barrier();
+    }
+    return i - 1;
+  #endif
   }
 };
 
