@@ -173,8 +173,8 @@ public:
     }
   }
 
-private:
   using atomic_type = memory_type::template atomic_type<value_type>;
+private:
   atomic_type val;
 
 public:
@@ -207,6 +207,8 @@ public:
   }
 
   CUDA constexpr value_type value() const { return memory_type::load(val); }
+
+  CUDA constexpr atomic_type& atomic() { return val; }
 
   // This is dangerous because a conversion to `value_type` can be done implicitly, and overloaded operators <, >, ... can be used on the underlying value_type instead of the abstract universe.
   CUDA constexpr operator value_type() const { return value(); }
