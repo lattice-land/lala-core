@@ -319,6 +319,11 @@ public:
     }
   }
 
+  /** Change the allocator of the underlying data, and reallocate the memory without copying the old data. */
+  CUDA void reset_data(allocator_type alloc) {
+    data = store_type(data.size(), alloc);
+  }
+
   template <class Univ>
   CUDA void project(AVar x, Univ& u) const {
     u.meet(project(x));

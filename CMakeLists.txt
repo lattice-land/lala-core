@@ -35,7 +35,7 @@ else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-    GIT_TAG        v1.5.3
+    GIT_TAG        v1.5.4
   )
   if(GPU)
     FetchContent_Declare(
@@ -92,7 +92,7 @@ else()
   FetchContent_Declare(
     lala_parsing
     GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-    GIT_TAG        v1.2.0
+    GIT_TAG        v1.2.1
   )
 endif()
 FetchContent_MakeAvailable(lala_parsing)
