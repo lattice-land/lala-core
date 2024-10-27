@@ -32,7 +32,7 @@ public:
 };
 
 __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {
-  using FP_engine = BlockAsynchronousIterationGPU<global_allocator>;
+  using FP_engine = BlockAsynchronousIterationGPU;
   using Min = Minimum<atomic_memory_block>;
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;
@@ -47,7 +47,7 @@ __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {
 }
 
 __global__ void minimum_kernel_on_grid(cpu_gpu_vec* g, int* result) {
-  using FP_engine = GridAsynchronousIterationGPU<global_allocator>;
+  using FP_engine = GridAsynchronousIterationGPU;
   using Min = Minimum<atomic_memory_grid>;
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;

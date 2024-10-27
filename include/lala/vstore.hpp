@@ -319,6 +319,12 @@ public:
     }
   }
 
+#ifdef __CUDACC__
+  void prefetch(int dstDevice) const {
+    cudaMemPrefetchAsync(data.data(), data.size() * sizeof(universe_type), dstDevice);
+  }
+#endif
+
   /** Change the allocator of the underlying data, and reallocate the memory without copying the old data. */
   CUDA void reset_data(allocator_type alloc) {
     data = store_type(data.size(), alloc);
