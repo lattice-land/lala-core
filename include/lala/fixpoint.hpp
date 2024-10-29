@@ -6,6 +6,7 @@
 #include "logic/logic.hpp"
 #include "b.hpp"
 #include "battery/memory.hpp"
+#include "battery/vector.hpp"
 
 #ifdef __CUDACC__
   #include <cooperative_groups.h>
@@ -245,6 +246,41 @@ public:
     size_t i;
     for(i = 1; changed[(i-1)%3] && !is_bot[(i-1)%3]; ++i) {
       changed[i%3].join(iterate(a));
+      changed[(i+1)%3].meet(false); // reinitialize changed for the next iteration.
+      is_bot[i%3].join(a.is_bot());
+      barrier();
+    }
+    return i - 1;
+  #endif
+  }
+
+  template <class Alloc, class A>
+  CUDA bool iterate(const battery::vector<int, Alloc>& indexes, A& a) {
+  #ifndef __CUDA_ARCH__
+    assert_cuda_arch();
+    return false;
+  #else
+    assert(a.num_deductions() >= indexes.size());
+    bool has_changed = false;
+    for (size_t t = threadIdx.x; t < indexes.size(); t += blockDim.x) {
+      has_changed |= a.deduce(indexes[t]);
+      if((t-threadIdx.x) + blockDim.x < indexes.size()) __syncwarp();
+    }
+    return has_changed;
+  #endif
+  }
+
+  template <class Alloc, class A>
+  CUDA size_t fixpoint(const battery::vector<int, Alloc>& indexes, A& a) {
+  #ifndef __CUDA_ARCH__
+    assert_cuda_arch();
+    return 0;
+  #else
+    reset();
+    barrier();
+    size_t i;
+    for(i = 1; changed[(i-1)%3] && !is_bot[(i-1)%3]; ++i) {
+      changed[i%3].join(iterate(indexes, a));
       changed[(i+1)%3].meet(false); // reinitialize changed for the next iteration.
       is_bot[i%3].join(a.is_bot());
       barrier();
