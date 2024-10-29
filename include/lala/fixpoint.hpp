@@ -89,9 +89,7 @@ private:
 public:
   CUDA AsynchronousIterationGPU(const Group& group):
     group(group)
-  {
-    printf("Group size: %d\n", sizeof(Group));
-  }
+  {}
 
   CUDA void barrier() {
   #ifndef __CUDA_ARCH__

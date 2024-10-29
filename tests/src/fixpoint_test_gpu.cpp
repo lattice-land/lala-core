@@ -37,7 +37,7 @@ __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;
   auto block = cooperative_groups::this_thread_block();
-  FP_engine& fp = battery::make_unique_block<FP_engine, global_allocator>(fp_engine, block);
+  FP_engine& fp = battery::make_unique_block<FP_engine, global_allocator>(fp_engine);
   Min& m = battery::make_unique_block<Min, global_allocator>(minimum, g);
   fp.fixpoint(m);
   cooperative_groups::invoke_one(block, [&](){
