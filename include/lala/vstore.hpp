@@ -314,10 +314,21 @@ public:
     if(group.thread_rank() == 0) {
       store.is_at_bot = is_at_bot;
     }
+    if(is_at_bot) {
+      return;
+    }
     for (size_t i = group.thread_rank(); i < store.vars(); i += group.num_threads()) {
       store.data[i] = data[i];
     }
   }
+
+#ifdef __CUDACC__
+  void prefetch(int dstDevice) const {
+    if(!is_at_bot) {
+      cudaMemPrefetchAsync(data.data(), data.size() * sizeof(universe_type), dstDevice);
+    }
+  }
+#endif
 
   /** Change the allocator of the underlying data, and reallocate the memory without copying the old data. */
   CUDA void reset_data(allocator_type alloc) {
@@ -456,6 +467,32 @@ public:
     }
     return true;
   }
+
+#ifdef __CUDACC__
+  template<class ExtractionStrategy = NonAtomicExtraction>
+  __device__ bool is_extractable(auto& group, const ExtractionStrategy& strategy = ExtractionStrategy()) const {
+    if(is_bot()) {
+      return false;
+    }
+    if constexpr(ExtractionStrategy::atoms) {
+      __shared__ bool res;
+      if(group.thread_rank() == 0) {
+        res = true;
+      }
+      group.sync();
+      for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
+        if(dual<typename universe_type::UB>(data[i].lb()) != data[i].ub()) {
+          res = false;
+        }
+      }
+      group.sync();
+      return res;
+    }
+    else {
+      return true;
+    }
+  }
+#endif
 
   /** Whenever `this` is different from `bot`, we extract its data into `ua`.
    * \pre `is_extractable()` must be `true`.
