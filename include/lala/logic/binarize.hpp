@@ -127,7 +127,7 @@ namespace lala
         }
         else
         {
-          fprintf(stderr, "Unary operator %s not supported\n", string_of_sig(f.sig()));
+          printf("Unary operator %s not supported\n", string_of_sig(f.sig()));
           assert(false);
         }
       }
