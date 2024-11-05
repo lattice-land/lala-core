@@ -6,7 +6,7 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include "lala/logic/logic.hpp"
-#include "lala/universes/primitive_upset.hpp"
+#include "lala/universes/arith_bound.hpp"
 #include "lala/interpretation.hpp"
 #include "lala/flatzinc_parser.hpp"
 
@@ -47,7 +47,7 @@ void interpret_must_error(const char* fzn, VarEnv<standard_allocator> env = VarE
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   IDiagnostics diagnostics;
-  L value = make_bot<L>(env);
+  L value = make_top<L>(env);
   bool res;
   if constexpr(L::is_abstract_universe) {
     res = ginterpret_in<kind, true>(*f, env, value, diagnostics);
@@ -135,7 +135,7 @@ L create_and_interpret_and_tell(const char* fzn, bool has_warning = false) {
 
 template <IKind kind, class L>
 void expect_interpret_equal_to(const char* fzn, const L& expect, VarEnv<standard_allocator> env = VarEnv<standard_allocator>{}, bool has_warning = false) {
-  L value{L::bot()};
+  L value{L::top()};
   interpret_must_succeed<kind>(fzn, value, env, has_warning);
   EXPECT_EQ(value, expect);
 }
@@ -184,33 +184,31 @@ void bot_top_test(const A& mid) {
   EXPECT_TRUE(bot < mid) << bot << " " << mid;
   EXPECT_TRUE(mid < top);
 
-  expect_interpret_equal_to<IKind::TELL, A>("constraint true;", bot);
-  expect_interpret_equal_to<IKind::TELL, A>("constraint false;", top);
+  expect_interpret_equal_to<IKind::TELL, A>("constraint true;", top);
+  expect_interpret_equal_to<IKind::TELL, A>("constraint false;", bot);
   if constexpr(A::is_abstract_universe) {
-    expect_interpret_equal_to<IKind::ASK, A>("constraint true;", bot);
-    expect_interpret_equal_to<IKind::ASK, A>("constraint false;", top);
+    expect_interpret_equal_to<IKind::ASK, A>("constraint true;", top);
+    expect_interpret_equal_to<IKind::ASK, A>("constraint false;", bot);
   }
 }
 
 template <class A>
 void join_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  local::BInc has_changed = local::BInc::bot();
-  EXPECT_EQ(join(a, b), expect)  << "join(" << a << ", " << b << ")";;
+  EXPECT_EQ(fjoin(a, b), expect)  << "join(" << a << ", " << b << ")";;
   if(test_tell) {
     A c(a);
-    EXPECT_EQ(c.tell(b, has_changed), expect) << a << ".tell(" << b << ") == " << expect;
-    EXPECT_EQ(has_changed, has_changed_expect) << a << ".tell(" << b << ")";
+    EXPECT_EQ(c.join(b), has_changed_expect) << a << ".join(" << b << ") == " << expect;
+    EXPECT_EQ(c, expect) << a << ".join(" << b << ")";
   }
 }
 
 template <class A>
 void meet_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  local::BInc has_changed = local::BInc::bot();
-  EXPECT_EQ(meet(a, b), expect) << "meet(" << a << ", " << b << ")";
+  EXPECT_EQ(fmeet(a, b), expect) << "meet(" << a << ", " << b << ")";
   if(test_tell) {
     A c(a);
-    EXPECT_EQ(c.dtell(b, has_changed), expect) << c << ".dtell(" << b << ")";
-    EXPECT_EQ(has_changed, has_changed_expect) << c << ".dtell(" << b << ")";
+    EXPECT_EQ(c.meet(b), has_changed_expect) << c << ".meet(" << b << ")";
+    EXPECT_EQ(c, expect) << c << ".meet(" << b << ")";
   }
 }
 
@@ -239,12 +237,15 @@ void join_meet_generic_test(const A& a, const A& b, bool commutative_tell = true
   join_one_test(b, A::bot(), b, false);
 }
 
-template <Sig sig, class A, class R = A>
-void generic_unary_fun_test() {
-  if constexpr(R::is_supported_fun(sig)) {
-    EXPECT_EQ((R::template fun<sig>(A::bot())), R::bot());
-    EXPECT_EQ((R::template fun<sig>(A::top())), R::top());
-  }
+template <class A, class R = A>
+void generic_unary_fun_test(Sig fun) {
+  R r{};
+  r.project(fun, A::top());
+  EXPECT_TRUE(r.is_top());
+  EXPECT_FALSE(r.is_bot());
+  r.project(fun, A::bot());
+  EXPECT_TRUE(r.is_bot());
+  EXPECT_FALSE(r.is_top());
 }
 
 template <class A>
@@ -252,38 +253,41 @@ void generic_abs_test() {
   A a;
   auto env = env_with_x();
   interpret_must_succeed<IKind::TELL>("constraint int_ge(x, 0);", a, env);
-  EXPECT_EQ((A::template fun<ABS>(A::bot())), a);
+  A r{};
+  r.project(ABS, A::top());
+  EXPECT_EQ(r, a);
 }
 
-template <Sig sig, class A, class R = A>
-void generic_binary_fun_test(const A& a) {
-  if constexpr(R::is_supported_fun(sig)) {
-    battery::print(sig);
-    EXPECT_EQ((R::template fun<sig>(A::bot(), A::bot())), R::bot());
-    EXPECT_EQ((R::template fun<sig>(A::top(), A::bot())), R::top());
-    EXPECT_EQ((R::template fun<sig>(A::bot(), A::top())), R::top());
-    EXPECT_EQ((R::template fun<sig>(A::top(), a)), R::top());
-    EXPECT_EQ((R::template fun<sig>(a, A::top())), R::top());
-    EXPECT_EQ((R::template fun<sig>(A::bot(), a)), R::bot());
-    EXPECT_EQ((R::template fun<sig>(a, A::bot())), R::bot());
+template <class A, class R = A>
+void generic_binary_fun_test(Sig fun, const A& a) {
+  battery::print(fun);
+  EXPECT_EQ((project_fun<A, R>(fun, A::bot(), A::bot())), R::bot());
+  EXPECT_EQ((project_fun<A, R>(fun, A::top(), A::top())), R::top());
+  EXPECT_EQ((project_fun<A, R>(fun, A::top(), A::bot())), R::bot());
+  EXPECT_EQ((project_fun<A, R>(fun, A::bot(), A::top())), R::bot());
+  if(!is_division(fun)) {
+    EXPECT_EQ((project_fun<A, R>(fun, A::top(), a)), R::top()) << A::top() << " " << string_of_sig(fun) << " " << a;
+    EXPECT_EQ((project_fun<A, R>(fun, a, A::top())), R::top()) << a  << " " << string_of_sig(fun) << " " << A::top();
   }
+  EXPECT_EQ((project_fun<A, R>(fun, A::bot(), a)), R::bot());
+  EXPECT_EQ((project_fun<A, R>(fun, a, A::bot())), R::bot());
 }
 
 template <class A, class R = A>
 void generic_arithmetic_fun_test(const A& a) {
-  generic_unary_fun_test<NEG, A, R>();
-  generic_binary_fun_test<ADD, A, R>(a);
-  generic_binary_fun_test<SUB, A, R>(a);
-  generic_binary_fun_test<MUL, A, R>(a);
-  generic_binary_fun_test<TDIV, A, R>(a);
-  generic_binary_fun_test<FDIV, A, R>(a);
-  generic_binary_fun_test<CDIV, A, R>(a);
-  generic_binary_fun_test<EDIV, A, R>(a);
-  generic_binary_fun_test<TMOD, A, R>(a);
-  generic_binary_fun_test<FMOD, A, R>(a);
-  generic_binary_fun_test<CMOD, A, R>(a);
-  generic_binary_fun_test<EMOD, A, R>(a);
-  generic_binary_fun_test<POW, A, R>(a);
+  generic_unary_fun_test<A, R>(NEG);
+  generic_binary_fun_test<A, R>(ADD, a);
+  generic_binary_fun_test<A, R>(SUB, a);
+  generic_binary_fun_test<A, R>(MUL, a);
+  generic_binary_fun_test<A, R>(TDIV, a);
+  generic_binary_fun_test<A, R>(FDIV, a);
+  generic_binary_fun_test<A, R>(CDIV, a);
+  generic_binary_fun_test<A, R>(EDIV, a);
+  generic_binary_fun_test<A, R>(TMOD, a);
+  generic_binary_fun_test<A, R>(FMOD, a);
+  generic_binary_fun_test<A, R>(CMOD, a);
+  generic_binary_fun_test<A, R>(EMOD, a);
+  generic_binary_fun_test<A, R>(POW, a);
 }
 
 /** Check that \f$ \llbracket . \rrbracket = \llbracket . \rrbracket \circ \rrbacket . \llbracket \circ \llbracket . \rrbracket \f$ */
@@ -295,7 +299,7 @@ void check_interpret_idempotence(const char* fzn) {
   F f1 = value1.deinterpret(env1);
   f1.print(true);
   printf("\n");
-  L value2 = make_bot<L>(env2);
+  L value2 = make_top<L>(env2);
   IDiagnostics diagnostics;
   EXPECT_TRUE(interpret_and_tell(f1, env2, value2, diagnostics));
   EXPECT_EQ(value1, value2);

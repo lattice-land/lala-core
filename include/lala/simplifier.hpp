@@ -4,14 +4,14 @@
 #define LALA_CORE_SIMPLIFIER_HPP
 
 #include "logic/logic.hpp"
-#include "universes/primitive_upset.hpp"
+#include "universes/arith_bound.hpp"
 #include "abstract_deps.hpp"
 #include "battery/dynamic_bitset.hpp"
 
 namespace lala {
 
 /** This abstract domain works at the level of logical formulas.
- * It refines the formula by performing a number of simplifications w.r.t. an underlying abstract domain including:
+ * It deduces the formula by performing a number of simplifications w.r.t. an underlying abstract domain including:
  *  1. Removing assigned variables.
  *  2. Removing unused variables.
  *  3. Removing entailed formulas.
@@ -51,7 +51,7 @@ private:
   AType atype;
   abstract_ptr<sub_type> sub;
   // We keep a copy of the variable environment in which the formula has been initially interpreted.
-  // This is necessary to project the variables and ask constraints in the subdomain during refinement.
+  // This is necessary to project the variables and ask constraints in the subdomain during deduction.
   VarEnv<allocator_type> env;
   // Read-only conjunctive formula, where each is treated independently.
   formula_sequence formulas;
@@ -62,7 +62,7 @@ private:
   // eliminated_formulas[i] is `true` when the formula `i` is entailed.
   battery::dynamic_bitset<memory_type, allocator_type> eliminated_formulas;
   // `equivalence_classes[i]` contains the index of the representative variable in the equivalence class of the variable `i`.
-  battery::vector<ZDec<int, memory_type>, allocator_type> equivalence_classes;
+  battery::vector<ZUB<int, memory_type>, allocator_type> equivalence_classes;
   // `constants[i]` contains the universe value of the representative variables `i`, aggregated by join on the values of all variables in the equivalence class.
   battery::vector<universe_type, allocator_type> constants;
 
@@ -103,8 +103,9 @@ public:
     return atype;
   }
 
-  CUDA local::BInc is_top() const {
-    return sub->is_top();
+  /** @parallel @order-preserving @increasing  */
+  CUDA local::B is_bot() const {
+    return sub->is_bot();
   }
 
   /** Returns the number of variables currently represented by this abstract element. */
@@ -146,27 +147,23 @@ public:
     return interpret_tell<diagnose>(f, env, tell, diagnostics);
   }
 
-  template <class Alloc2, class Mem>
-  CUDA this_type& tell(tell_type<Alloc2>&& t, BInc<Mem>& has_changed) {
-    assert(t.env != nullptr);
-    env = *(t.env);
-    eliminated_variables.resize(t.num_vars);
-    eliminated_formulas.resize(t.formulas.size());
-    constants.resize(t.num_vars);
-    equivalence_classes.resize(t.num_vars);
-    for(int i = 0; i < equivalence_classes.size(); ++i) {
-      equivalence_classes[i].tell(local::ZDec(i));
-    }
-    formulas = std::move(t.formulas);
-    simplified_formulas.resize(formulas.size());
-    has_changed.tell_top();
-    return *this;
-  }
-
+  /** @sequential */
   template <class Alloc2>
-  CUDA this_type& tell(tell_type<Alloc2>&& t) {
-    local::BInc has_changed;
-    return tell(std::move(t), has_changed);
+  CUDA bool deduce(tell_type<Alloc2>&& t) {
+    if(t.env != nullptr) { // could be nullptr if the interpreted formula is true.
+      env = *(t.env);
+      eliminated_variables.resize(t.num_vars);
+      eliminated_formulas.resize(t.formulas.size());
+      constants.resize(t.num_vars);
+      equivalence_classes.resize(t.num_vars);
+      for(int i = 0; i < equivalence_classes.size(); ++i) {
+        equivalence_classes[i].meet(local::ZUB(i));
+      }
+      formulas = std::move(t.formulas);
+      simplified_formulas.resize(formulas.size());
+      return true;
+    }
+    return false;
   }
 
 private:
@@ -199,8 +196,8 @@ private:
 public:
   /** Print the abstract universe of `vname` taking into account simplifications (representative variable and constant).
   */
-  template <class Alloc, class B, class Env>
-  CUDA void print_variable(const LVar<Alloc>& vname, const Env& benv, const B& b) const {
+  template <class Alloc, class Abs, class Env>
+  CUDA void print_variable(const LVar<Alloc>& vname, const Env& benv, const Abs& b) const {
     const auto& local_var = env.variable_of(vname)->get();
     int rep = equivalence_classes[local_var.avar_of(aty())->vid()];
     const auto& rep_name = env.name_of(AVar{aty(), rep});
@@ -214,35 +211,36 @@ public:
   }
 
 private:
-  template <class Mem>
-  CUDA void eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i, BInc<Mem>& has_changed) {
+  /** \return `true` if mask[i] was changed. */
+  CUDA local::B eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
     if(!mask.test(i)) {
       mask.set(i, true);
-      has_changed.tell_top();
+      return true;
     }
+    return false;
   }
 
   // We eliminate the representative of the variable `i` if it is a singleton.
-  template <class Mem>
-  CUDA void vrefine(size_t i, BInc<Mem>& has_changed) {
+  CUDA local::B vdeduce(size_t i) {
     const auto& u = sub->project(to_sub_var(i));
     size_t j = equivalence_classes[i];
-    constants[j].tell(u, has_changed);
-    if(constants[j].lb().value() == constants[j].ub().value()) {
-      eliminate(eliminated_variables, j, has_changed);
+    local::B has_changed = constants[j].meet(u);
+    if(!constants[j].is_bot() && constants[j].lb() == dual<typename universe_type::LB>(constants[j].ub())) {
+      has_changed |= eliminate(eliminated_variables, j);
     }
+    return has_changed;
   }
 
-  template <class Mem>
-  CUDA void crefine(size_t i, BInc<Mem>& has_changed) {
+  CUDA local::B cons_deduce(size_t i) {
     using F = TFormula<allocator_type>;
     // Eliminate constraint of the form x = y, and add x,y in the same equivalence class.
     if(is_var_equality(formulas[i])) {
       AVar x = var_of(formulas[i].seq(0));
       AVar y = var_of(formulas[i].seq(1));
-      equivalence_classes[x.vid()].tell(local::ZDec(equivalence_classes[y.vid()]), has_changed);
-      equivalence_classes[y.vid()].tell(local::ZDec(equivalence_classes[x.vid()]), has_changed);
-      eliminate(eliminated_formulas, i, has_changed);
+      local::B has_changed = equivalence_classes[x.vid()].meet(local::ZUB(equivalence_classes[y.vid()]));
+      has_changed |= equivalence_classes[y.vid()].meet(local::ZUB(equivalence_classes[x.vid()]));
+      has_changed |= eliminate(eliminated_formulas, i);
+      return has_changed;
     }
     else {
       // Eliminate entailed formulas.
@@ -254,8 +252,7 @@ private:
       if(sub->template interpret_ask(formulas[i], env, ask, diagnostics)) {
 #endif
         if(sub->ask(ask)) {
-          eliminate(eliminated_formulas, i, has_changed);
-          return;
+          return eliminate(eliminated_formulas, i);
         }
       }
       // Replace assigned variables by constants.
@@ -280,29 +277,29 @@ private:
       });
       f = eval(f);
       if(f.is_true()) {
-        eliminate(eliminated_formulas, i, has_changed);
+        return eliminate(eliminated_formulas, i);
       }
       if(f != simplified_formulas[i]) {
         simplified_formulas[i] = f;
-        has_changed.tell_top();
+        return true;
       }
+      return false;
     }
   }
 
 public:
-  /** We have one refinement operator per variable and one per constraint in the interpreted formula. */
-  CUDA size_t num_refinements() const {
+  /** We have one deduction operator per variable and one per constraint in the interpreted formula. */
+  CUDA size_t num_deductions() const {
     return constants.size() + formulas.size();
   }
 
-  template <class Mem>
-  CUDA void refine(size_t i, BInc<Mem>& has_changed) {
-    assert(i < num_refinements());
+  CUDA local::B deduce(size_t i) {
+    assert(i < num_deductions());
     if(i < constants.size()) {
-      vrefine(i, has_changed);
+      return vdeduce(i);
     }
     else {
-      crefine(i - constants.size(), has_changed);
+      return cons_deduce(i - constants.size());
     }
   }
 
@@ -324,6 +321,10 @@ public:
     using F = TFormula<allocator_type>;
     typename F::Sequence seq(get_allocator());
 
+    if(is_bot()) {
+      return F::make_false();
+    }
+
     // A representative variable is eliminated if all variables in its equivalence class must be eliminated.
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       eliminated_variables.set(equivalence_classes[i], eliminated_variables.test(equivalence_classes[i]) && eliminated_variables.test(i));
@@ -334,7 +335,7 @@ public:
       if(equivalence_classes[i] == i && !eliminated_variables.test(i)) {
         const auto& x = env[AVar{aty(), i}];
         seq.push_back(F::make_exists(UNTYPED, x.name, x.sort));
-        auto domain_constraint = constants[i].deinterpret(AVar(aty(), i), env);
+        auto domain_constraint = constants[i].deinterpret(AVar(aty(), i), env, get_allocator());
         map_avar_to_lvar(domain_constraint, env, true);
         seq.push_back(domain_constraint);
       }

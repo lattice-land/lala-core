@@ -545,6 +545,15 @@ public:
     return false;
   }
 
+  CUDA NI bool is_predicate() const {
+    if(is(Seq)) {
+      Sig s = sig();
+      return s == IN || s == SUBSET || s == SUBSETEQ || s == SUPSET || s == SUPSETEQ ||
+        s == EQ || s == NEQ || s == LEQ || s == GEQ || s == LT || s == GT;
+    }
+    return false;
+  }
+
   CUDA const ExtendedSig& esig() const {
     return battery::get<0>(battery::get<ESeq>(formula));
   }

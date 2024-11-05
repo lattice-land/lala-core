@@ -3,7 +3,7 @@
 #ifndef LALA_CORE_FLAT_UNIVERSE_HPP
 #define LALA_CORE_FLAT_UNIVERSE_HPP
 
-#include "primitive_upset.hpp"
+#include "arith_bound.hpp"
 
 namespace lala {
 
@@ -12,11 +12,11 @@ class FlatUniverse;
 
 /** Lattice of flat integers. */
 template<class VT, class Mem>
-using ZFlat = FlatUniverse<PreZInc<VT>, Mem>;
+using ZFlat = FlatUniverse<PreZUB<VT>, Mem>;
 
 /** Lattice of flat floating-point numbers. */
 template<class VT, class Mem>
-using FFlat = FlatUniverse<PreFInc<VT>, Mem>;
+using FFlat = FlatUniverse<PreFUB<VT>, Mem>;
 
 /** Aliases for lattice allocated on the stack (as local variable) and accessed by only one thread.
  * To make things simpler, the underlying type is also chosen (when required). */
@@ -37,7 +37,7 @@ public:
   template <class M> using this_type2 = FlatUniverse<pre_universe, M>;
   using local_type = this_type2<battery::local_memory>;
 
-  static_assert(pre_universe::increasing);
+  static_assert(pre_universe::is_upper_bound);
   static_assert(pre_universe::preserve_bot && pre_universe::preserve_top,
     "The Flat lattice construction reuse the bottom and top elements of the pre-universe.\
     Therefore, it must preserve bottom and top.");
@@ -51,7 +51,6 @@ public:
   constexpr static const bool preserve_meet = false;
   constexpr static const bool injective_concretization = pre_universe::injective_concretization;
   constexpr static const bool preserve_concrete_covers = true;
-  constexpr static const bool complemented = false;
   constexpr static const char* name = "Flat";
   constexpr static const bool is_arithmetic = pre_universe::is_arithmetic;
 
@@ -66,17 +65,17 @@ private:
   atomic_type val;
 
 public:
-  /** Similar to \f$[\![\mathit{true}]\!]\f$. */
+  /** Similar to \f$[\![\mathit{false}]\!]\f$. */
   CUDA static constexpr local_type bot() {
-    return local_type();
+    return local_type(U::bot());
   }
 
-  /** Similar to \f$[\![\mathit{false}]\!]\f$. */
+  /** Similar to \f$[\![\mathit{true}]\!]\f$. */
   CUDA static constexpr local_type top() {
-    return local_type(U::top());
+    return local_type();
   }
-  /** Initialize to the bottom of the flat lattice. */
-  CUDA constexpr FlatUniverse(): val(U::bot()) {}
+  /** Initialize to the top of the flat lattice. */
+  CUDA constexpr FlatUniverse(): val(U::top()) {}
   /** Similar to \f$[\![x = k]\!]\f$ for any name `x` where \f$ = \f$ is the equality. */
   CUDA constexpr FlatUniverse(value_type k): val(k) {}
   CUDA constexpr FlatUniverse(const this_type& other): FlatUniverse(other.value()) {}
@@ -86,135 +85,97 @@ public:
   CUDA constexpr FlatUniverse(const this_type2<M>& other): FlatUniverse(other.value()) {}
 
   template <class M>
-  CUDA constexpr FlatUniverse(const PrimitiveUpset<pre_universe, M>& other)
+  CUDA constexpr FlatUniverse(const ArithBound<pre_universe, M>& other)
     : FlatUniverse(other.value()) {}
 
   template <class M>
-  CUDA constexpr FlatUniverse(const PrimitiveUpset<typename pre_universe::dual_type, M> &other)
-    : FlatUniverse(dual<PrimitiveUpset<pre_universe, battery::local_memory>>(other)) {}
+  CUDA constexpr FlatUniverse(const ArithBound<typename pre_universe::dual_type, M> &other)
+    : FlatUniverse(dual<ArithBound<pre_universe, battery::local_memory>>(other)) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
   template <class M>
   CUDA constexpr this_type& operator=(const this_type2<M>& other) {
-   if constexpr(sequential) {
-      memory_type::store(val, other.value());
-      return *this;
-    }
-    else {
-      static_assert(sequential, "The operator= in `FlatUniverse` can only be used when the underlying memory is `sequential`.");
-    }
+    memory_type::store(val, other.value());
+    return *this;
   }
 
   CUDA constexpr this_type& operator=(const this_type& other) {
-    if constexpr(sequential) {
-      memory_type::store(val, other.value());
-      return *this;
-    }
-    else {
-      static_assert(sequential, "The operator= in `FlatUniverse` can only be used when the underlying memory is `sequential`.");
-    }
+    memory_type::store(val, other.value());
+    return *this;
   }
 
   CUDA constexpr value_type value() const { return memory_type::load(val); }
 
   CUDA constexpr operator value_type() const { return value(); }
 
-  /** `true` whenever \f$ a = \top \f$, `false` otherwise. */
-  CUDA constexpr local::BInc is_top() const {
+  /** \return `true` whenever \f$ a = \top \f$, `false` otherwise.
+   * @parallel @order-preserving @increasing
+   */
+  CUDA constexpr local::B is_top() const {
     return value() == U::top();
   }
 
-  /** `true` whenever \f$ a = \bot \f$, `false` otherwise. */
-  CUDA constexpr local::BDec is_bot() const {
+  /** \return `true` whenever \f$ a = \bot \f$, `false` otherwise.
+   * @parallel @order-preserving @decreasing
+   */
+  CUDA constexpr local::B is_bot() const {
     return value() == U::bot();
   }
 
-  CUDA constexpr this_type& tell_top() {
+  CUDA constexpr void join_top() {
     memory_type::store(val, U::top());
-    return *this;
-  }
-
-  template<class M1, class M2>
-  CUDA constexpr this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    if(other.is_bot() || *this == other || is_top()) {
-      return *this;
-    }
-    has_changed.tell_top();
-    if(is_bot()) {
-      memory_type::store(val, other.value());
-      return *this;
-    }
-    else {
-      return tell_top();
-    }
   }
 
   template<class M1>
-  CUDA constexpr this_type& tell(const this_type2<M1>& other) {
+  CUDA constexpr bool join(const this_type2<M1>& other) {
     if(other.is_bot() || *this == other || is_top()) {
-      return *this;
+      return false;
     }
     if(is_bot()) {
       memory_type::store(val, other.value());
-      return *this;
     }
     else {
-      return tell_top();
+      join_top();
     }
+    return true;
   }
 
-  CUDA constexpr this_type& dtell_bot() {
+  CUDA constexpr void meet_bot() {
     memory_type::store(val, U::bot());
-    return *this;
-  }
-
-  template<class M1, class M2>
-  CUDA constexpr this_type& dtell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    if(is_bot() || *this == other || other.is_top()) {
-      return *this;
-    }
-    has_changed.tell_top();
-    if(is_top()) {
-      memory_type::store(val, other.value());
-      return *this;
-    }
-    else {
-      return dtell_bot();
-    }
   }
 
   template<class M1>
-  CUDA constexpr this_type& dtell(const this_type2<M1>& other) {
+  CUDA constexpr bool meet(const this_type2<M1>& other) {
     if(is_bot() || *this == other || other.is_top()) {
-      return *this;
+      return false;
     }
     if(is_top()) {
       memory_type::store(val, other.value());
-      return *this;
     }
     else {
-      return dtell_bot();
+      meet_bot();
     }
+    return true;
   }
 
   /** \return \f$ x = k \f$ where `x` is a variable's name and `k` the current value.
-  `true` is returned whenever \f$ a = \bot \f$, and `false` is returned whenever \f$ a = \top \f$.
+  `true` is returned whenever \f$ a = \top \f$, and `false` is returned whenever \f$ a = \bot \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function. */
-  template<class Env>
-  CUDA NI TFormula<typename Env::allocator_type> deinterpret(AVar avar, const Env& env) const {
-    using F = TFormula<typename Env::allocator_type>;
-    if(is_top()) {
+  template<class Env, class Allocator = typename Env::allocator_type>
+  CUDA NI TFormula<Allocator> deinterpret(AVar avar, const Env& env, const Allocator& allocator = Allocator()) const {
+    using F = TFormula<Allocator>;
+    if(is_bot()) {
       return F::make_false();
     }
-    else if(is_bot()) {
+    else if(is_top()) {
       return F::make_true();
     }
     return F::make_binary(
       F::make_avar(avar),
       EQ,
       deinterpret<F>(),
-      UNTYPED, env.get_allocator());
+      UNTYPED, allocator);
   }
 
   /** Deinterpret the current value to a logical constant. */
@@ -245,14 +206,14 @@ public:
 
 public:
   /** Expects a predicate of the form `x = k` or `k = x`, where `x` is any variable's name, and `k` a constant.
-      Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to bottom). */
+      Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to top). */
   template<bool diagnose = false, class F, class Env, class M2>
   CUDA NI static bool interpret_tell(const F& f, const Env& env, this_type2<M2>& tell, IDiagnostics& diagnostics) {
     if(f.is(F::E)) {
       value_type k;
       bool res = pre_universe::template interpret_type<diagnose>(f, k, diagnostics);
       if(res) {
-        tell.tell(local_type(k));
+        tell.meet(local_type(k));
       }
       return res;
     }
@@ -268,7 +229,7 @@ public:
             value_type a;
             if(pre_universe::template interpret_ask<diagnose>(k, a, diagnostics)) {
               if(a == t) {
-                tell.tell(local_type(t));
+                tell.meet(local_type(t));
                 return true;
               }
               else {
@@ -303,43 +264,31 @@ public:
     }
   }
 
-  CUDA static constexpr bool is_supported_fun(Sig sig) {
-    return pre_universe::is_supported_fun(sig);
-  }
-
 public:
-  /** Unary function over `value_type`. */
-  template<Sig sig, class M1>
-  CUDA static constexpr local_type fun(const this_type2<M1>& u) {
-    static_assert(is_supported_fun(sig));
-    auto a = u.value();
-    if(U::top() == a) {
-      return local_type::top();
+  /** In-place projection of the result of the unary function `fun(a)`. */
+  CUDA constexpr void project(Sig fun, const local_type& a) {
+    if(a.is_bot()) {
+      meet_bot();
     }
-    else if(U::bot() == a) {
-      return local_type::bot();
+    else if(!a.is_top()) {
+      meet(local_type(pre_universe::project(fun, a.value())));
     }
-    return pre_universe::template fun<sig>(a);
   }
 
-  /** Binary functions over `value_type`. */
-  template<Sig sig, class M1, class M2>
-  CUDA static constexpr local_type fun(const this_type2<M1>& l, const this_type2<M2>& k) {
-    static_assert(is_supported_fun(sig));
-    auto a = l.value();
-    auto b = k.value();
-    if(U::top() == a || U::top() == b) {
-      return local_type::top();
+  /** In-place projection of the result of the binary function `fun(a, b)`. */
+  CUDA constexpr void project(Sig fun, const local_type& a, const local_type& b) {
+    if(a.is_bot() || b.is_bot()) {
+      meet_bot();
     }
-    else if(U::bot() == a || U::bot() == b) {
-      return local_type::bot();
-    }
-    if constexpr(is_division(sig) && is_arithmetic) {
-      if(b == pre_universe::zero()) {
-        return local_type::top();
+    else if(!a.is_top() && !b.is_top()) {
+      if constexpr(is_arithmetic) {
+        if(is_division(fun) && b == pre_universe::zero()) {
+          meet_bot();
+          return;
+        }
       }
+      meet(local_type(pre_universe::project(fun, a.value(), b.value())));
     }
-    return pre_universe::template fun<sig>(a, b);
   }
 
   template<class Pre2, class Mem2>
@@ -349,7 +298,7 @@ public:
 // Lattice operators
 
 template<class Pre>
-CUDA constexpr FlatUniverse<Pre, battery::local_memory> join(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
+CUDA constexpr FlatUniverse<Pre, battery::local_memory> fjoin(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
   if(a == b) {
     return a;
   }
@@ -365,7 +314,7 @@ CUDA constexpr FlatUniverse<Pre, battery::local_memory> join(const FlatUniverse<
 }
 
 template<class Pre>
-CUDA constexpr FlatUniverse<Pre, battery::local_memory> meet(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
+CUDA constexpr FlatUniverse<Pre, battery::local_memory> fmeet(const FlatUniverse<Pre, battery::local_memory>& a, const FlatUniverse<Pre, battery::local_memory>& b) {
   if(a == b) {
     return a;
   }

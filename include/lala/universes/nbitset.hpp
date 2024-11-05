@@ -3,7 +3,7 @@
 #ifndef LALA_CORE_NBITSET_HPP
 #define LALA_CORE_NBITSET_HPP
 
-#include "primitive_upset.hpp"
+#include "arith_bound.hpp"
 #include "battery/bitset.hpp"
 
 namespace lala {
@@ -24,8 +24,8 @@ public:
   template <class M> using this_type2 = NBitset<N, M, T>;
   using local_type = this_type2<battery::local_memory>;
 
-  using LB = local::ZInc;
-  using UB = local::ZDec;
+  using LB = local::ZLB;
+  using UB = local::ZUB;
   using value_type = typename LB::value_type;
 
   template <size_t N2, class Mem2, class T2>
@@ -41,22 +41,23 @@ public:
   constexpr static const bool injective_concretization = true;
   constexpr static const bool preserve_concrete_covers = false;
   constexpr static const bool complemented = true;
+  constexpr static const bool is_arithmetic = true;
   constexpr static const char* name = "NBitset";
 
 private:
   bitset_type bits;
 
-  struct top_constructor_tag {};
-  CUDA constexpr NBitset(top_constructor_tag) {}
+  struct bot_constructor_tag {};
+  CUDA constexpr NBitset(bot_constructor_tag) {}
 
 public:
-  /** Initialize to bottom (all bits at `1`). */
+  /** Initialize to top (all bits at `1`). */
   CUDA constexpr NBitset() {
     bits.set();
   }
 
   CUDA constexpr static this_type from_set(const battery::vector<int>& values) {
-    this_type b(top());
+    this_type b(bot());
     for(int i = 0; i < values.size(); ++i) {
       b.bits.set(battery::min(static_cast<int>(N)-1, battery::max(values[i]+1,0)), true);
     }
@@ -103,10 +104,10 @@ public:
   /** Pre-interpreted formula `x == 1`. */
   CUDA constexpr static local_type eq_one() { return local_type(1); }
 
-  CUDA constexpr static local_type bot() { return NBitset(); }
-  CUDA constexpr static local_type top() { return NBitset(top_constructor_tag{}); }
-  CUDA constexpr local::BInc is_top() const { return bits.none(); }
-  CUDA constexpr local::BDec is_bot() const { return bits.all(); }
+  CUDA constexpr static local_type bot() { return NBitset(bot_constructor_tag{}); }
+  CUDA constexpr static local_type top() { return NBitset(); }
+  CUDA constexpr local::B is_top() const { return bits.all(); }
+  CUDA constexpr local::B is_bot() const { return bits.none(); }
   CUDA constexpr const bitset_type& value() const { return bits; }
 
 private:
@@ -117,7 +118,7 @@ private:
       return true;
     }
     else if(sort.is_bool()) {
-      k.tell(local_type(0,1));
+      k.meet(local_type(0,1));
       return true;
     }
     else {
@@ -129,29 +130,29 @@ private:
   template<bool diagnose, bool negated, class F, class M>
   CUDA NI static bool interpret_tell_set(const F& f, const F& k, this_type2<M>& tell, IDiagnostics& diagnostics) {
     using sort_type = Sort<typename F::allocator_type>;
-    std::optional<sort_type> sort = k.sort();
+    std::optional<sort_type> sort = f.seq(1).sort();
     if(sort.has_value() &&
        (sort.value() == sort_type(sort_type::Set, sort_type(sort_type::Int))
      || sort.value() == sort_type(sort_type::Set, sort_type(sort_type::Bool))))
     {
-      const auto& set = k.s();
-      local_type meet_s(top_constructor_tag{});
+      const auto& set = f.seq(1).s();
+      local_type join_s(bot_constructor_tag{});
       bool over_appx = false;
       for(int i = 0; i < set.size(); ++i) {
         int l = battery::get<0>(set[i]).to_z();
         int u = battery::get<1>(set[i]).to_z();
-        meet_s.dtell(local_type(l, u));
-        if(l < 0 || u >= meet_s.bits.size() - 2) {
+        join_s.join(local_type(l, u));
+        if(l < 0 || u >= join_s.bits.size() - 2) {
           over_appx = true;
         }
       }
       if constexpr(negated) {
-        meet_s = meet_s.complement();
+        join_s = join_s.complement();
         // In any case it must be set to true: if no element is below zero, then some elements in the negation are; and if some elements are below zero it's not all of them.
-        meet_s.bits.set(0, true);
-        meet_s.bits.set(meet_s.bits.size()-1, true);
+        join_s.bits.set(0, true);
+        join_s.bits.set(join_s.bits.size()-1, true);
       }
-      tell.tell(meet_s);
+      tell.meet(join_s);
       if(over_appx) {
         RETURN_INTERPRETATION_WARNING("Constraint `x in S` is over-approximated because some elements of `S` fall outside the bitset.");
       }
@@ -176,17 +177,17 @@ private:
       }
       else {
         INTERPRETATION_WARNING("Constraint `x <op> k` is over-approximated because `k` is not representable in the bitset. Note that for a bitset of size `n`, the only values representable exactly are in the interval `[0, n-3]` because two bits are used to represent all negative values and all values exceeding the size of the bitset.");
-        // If it is NEQ, we can't give a better approximation than bot.
+        // If it is NEQ, we can't give a better approximation than top.
         if(sig == NEQ) {
           return true;
         }
       }
     }
     switch(sig) {
-      case EQ: tell.tell(local_type(k, k)); break;
-      case NEQ: tell.tell(local_type(k, k).complement()); break;
-      case LEQ: tell.tell(local_type(-1, k)); break;
-      case GEQ: tell.tell(local_type(k, tell.bits.size())); break;
+      case EQ: tell.meet(local_type(k, k)); break;
+      case NEQ: tell.meet(local_type(k, k).complement()); break;
+      case LEQ: tell.meet(local_type(-1, k)); break;
+      case GEQ: tell.meet(local_type(k, tell.bits.size())); break;
       default: RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
     }
     return true;
@@ -194,32 +195,14 @@ private:
 
   template<bool diagnose, bool negated, class F, class Env, class M>
   CUDA NI static bool interpret_binary(const F& f, const Env& env, this_type2<M>& tell, IDiagnostics& diagnostics) {
-    int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
-    int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
-    if(idx_constant + idx_variable != 1) {
-      RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `t1 <sig> t2` where if t1 is a constant and t2 is a variable (or conversely) are supported.");
-    }
-    const auto& k = f.seq(idx_constant);
     if(f.sig() == IN) {
-      if(idx_constant == 0) { // `k in x` is equivalent to `{k} \subseteq x`.
-        RETURN_INTERPRETATION_ERROR("The formula `k in x` is not supported in this abstract universe (`x in k` is supported).");
-      }
-      else {
-        return interpret_tell_set<diagnose, negated>(f, k, tell, diagnostics);
-      }
+      return interpret_tell_set<diagnose, negated>(f, f.seq(1), tell, diagnostics);
     }
-    else if(is_arithmetic_comparison(f)) {
-      Sig sig = idx_constant == 0 ? converse_comparison(f.sig()) : f.sig();
-      sig = negated ? negate_arithmetic_comparison(sig) : sig;
-      if(f.seq(idx_constant).is(F::Z) || f.seq(idx_constant).is(F::B)) {
-        return interpret_tell_x_op_k<diagnose>(f, k.to_z(), sig, tell, diagnostics);
-      }
-      else {
-        RETURN_INTERPRETATION_ERROR("Only integer and Boolean constants are supported in NBitset.");
-      }
+    else if(f.seq(1).is(F::Z) || f.seq(1).is(F::B)) {
+      return interpret_tell_x_op_k<diagnose>(f, f.seq(1).to_z(), f.sig(), tell, diagnostics);
     }
     else {
-      RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
+      RETURN_INTERPRETATION_ERROR("Only integer and Boolean constants are supported in NBitset.");
     }
   }
 
@@ -239,18 +222,18 @@ public:
     else if(f.is_unary() && f.sig() == NOT && f.seq(0).is_binary()) {
       return interpret_binary<diagnose, true>(f.seq(0), env, tell, diagnostics);
     }
-    else if(f.is_binary()) {
+    else if(f.is_binary() && f.seq(0).is_variable() && f.seq(1).is_constant()) {
       return interpret_binary<diagnose, false>(f, env, tell, diagnostics);
     }
     else {
-      RETURN_INTERPRETATION_ERROR("Only binary constraints are supported.");
+      RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `x <sig> k` where if x is a variable and k is a constant are supported. We also supports existential quantifier and membership in a set of integers (x in S).");
     }
   }
 
   /** Support the same language than the "tell language" without existential. */
   template<bool diagnose = false, class F, class Env, class M>
   CUDA NI static bool interpret_ask(const F& f, const Env& env, this_type2<M>& k, IDiagnostics& diagnostics) {
-    local_type b = local_type::bot();
+    local_type b = local_type::top();
     auto nf = negate(f);
     if(!nf.has_value()) {
       RETURN_INTERPRETATION_ERROR("Could not negate the formula in order to interpret_ask it.");
@@ -259,7 +242,7 @@ public:
       RETURN_INTERPRETATION_ERROR("Existential quantification is not supported in ask interpretation.");
     }
     if(interpret_tell<diagnose>(nf.value(), env, b, diagnostics)) {
-      k.tell(b.complement());
+      k.meet(b.complement());
       return true;
     }
     else {
@@ -279,14 +262,14 @@ public:
 
   CUDA constexpr LB lb() const {
     value_type l = bits.countr_zero();
-    return l == 0 ? LB::bot() :
-      (l == bits.size() ? LB::top() : LB::geq_k(l-1));
+    return l == 0 ? LB::top() :
+      (l == bits.size() ? LB::bot() : LB::geq_k(l-1));
   }
 
   CUDA constexpr UB ub() const {
     value_type r = bits.countl_zero();
-    return r == 0 ? UB::bot() :
-      (r == bits.size() ? UB::top() : UB::leq_k(bits.size() - r - 2));
+    return r == 0 ? UB::top() :
+      (r == bits.size() ? UB::bot() : UB::leq_k(bits.size() - r - 2));
   }
 
   CUDA constexpr local_type complement() const {
@@ -295,58 +278,50 @@ public:
     return c;
   }
 
-  CUDA constexpr this_type& tell_top() {
-    bits.reset();
-    return *this;
-  }
-
-  template<class A, class M>
-  CUDA constexpr this_type& tell_lb(const A& lb, BInc<M>& has_changed) {
-    return tell(local_type(lb.value(), bits.size()), has_changed);
-  }
-
-  template<class A, class M>
-  CUDA constexpr this_type& tell_ub(const A& ub, BInc<M>& has_changed) {
-    return tell(local_type(-1, ub.value()), has_changed);
-  }
-
-  template<class M1, class M2>
-  CUDA constexpr this_type& tell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    if(!bits.is_subset_of(other.bits)) {
-      bits &= other.bits;
-      has_changed.tell_top();
-    }
-    return *this;
-  }
-
-  template<class M>
-  CUDA constexpr this_type& tell(const this_type2<M>& other) {
-    if(!bits.is_subset_of(other.bits)) {
-      bits &= other.bits;
-    }
-    return *this;
-  }
-
-  CUDA constexpr this_type& dtell_bot() {
+  CUDA constexpr void join_top() {
     bits.set();
-    return *this;
   }
 
-  template<class M1, class M2>
-  CUDA constexpr this_type& dtell(const this_type2<M1>& other, BInc<M2>& has_changed) {
-    if(!other.bits.is_subset_of(bits)) {
-      bits |= other.bits;
-      has_changed.tell_top();
-    }
-    return *this;
+  template<class A>
+  CUDA constexpr bool join_lb(const A& lb) {
+    return join(local_type(lb.value(), bits.size()));
+  }
+
+  template<class A>
+  CUDA constexpr bool join_ub(const A& ub) {
+    return join(local_type(-1, ub.value()));
   }
 
   template<class M>
-  CUDA constexpr this_type& dtell(const this_type2<M>& other) {
+  CUDA constexpr bool join(const this_type2<M>& other) {
     if(!other.bits.is_subset_of(bits)) {
       bits |= other.bits;
+      return true;
     }
-    return *this;
+    return false;
+  }
+
+  CUDA constexpr void meet_bot() {
+    bits.reset();
+  }
+
+  template<class A>
+  CUDA constexpr bool meet_lb(const A& lb) {
+    return meet(local_type(lb.value(), bits.size()));
+  }
+
+  template<class A>
+  CUDA constexpr bool meet_ub(const A& ub) {
+    return meet(local_type(-1, ub.value()));
+  }
+
+  template<class M>
+  CUDA constexpr bool meet(const this_type2<M>& other) {
+    if(!bits.is_subset_of(other.bits)) {
+      bits &= other.bits;
+      return true;
+    }
+    return false;
   }
 
   template <class M>
@@ -355,24 +330,24 @@ public:
     return true;
   }
 
-  template<class Env>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar x, const Env& env) const {
-    using F = TFormula<typename Env::allocator_type>;
+  template<class Env, class Allocator = typename Env::allocator_type>
+  CUDA TFormula<Allocator> deinterpret(AVar x, const Env& env, const Allocator& allocator = Allocator()) const {
+    using F = TFormula<Allocator>;
     if(is_bot()) {
-      return F::make_true();
-    }
-    else if(is_top()) {
       return F::make_false();
     }
+    else if(is_top()) {
+      return F::make_true();
+    }
     else {
-      typename F::Sequence seq{env.get_allocator()};
+      typename F::Sequence seq{allocator};
       if(bits.test(0)) {
-        seq.push_back(F::make_binary(F::make_avar(x), LEQ, F::make_z(-1), UNTYPED, env.get_allocator()));
+        seq.push_back(F::make_binary(F::make_avar(x), LEQ, F::make_z(-1), UNTYPED, allocator));
       }
       if(bits.test(bits.size()-1)) {
-        seq.push_back(F::make_binary(F::make_avar(x), GEQ, F::make_z(bits.size()-2), UNTYPED, env.get_allocator()));
+        seq.push_back(F::make_binary(F::make_avar(x), GEQ, F::make_z(bits.size()-2), UNTYPED, allocator));
       }
-      logic_set<F> logical_set(env.get_allocator());
+      logic_set<F> logical_set(allocator);
       for(int i = 1; i < bits.size()-1; ++i) {
         if(bits.test(i)) {
           int l = i - 1;
@@ -382,7 +357,7 @@ public:
         }
       }
       if(logical_set.size() > 0) {
-        seq.push_back(F::make_binary(F::make_avar(x), IN, F::make_set(std::move(logical_set)), UNTYPED, env.get_allocator()));
+        seq.push_back(F::make_binary(F::make_avar(x), IN, F::make_set(std::move(logical_set)), UNTYPED, allocator));
       }
       if(seq.size() == 1) {
         return std::move(seq[0]);
@@ -422,103 +397,105 @@ public:
     printf("}");
   }
 
-  CUDA NI constexpr static bool is_supported_fun(Sig sig) {
+  CUDA NI constexpr static bool is_trivial_fun(Sig sig) {
     switch(sig) {
       case ABS:
-      case NEG: return true;
-      default: return false;
+      case NEG: return false;
+      default: return true;
     }
   }
 
 public:
-  template<class M>
-  CUDA constexpr static local_type neg(const this_type2<M>& x) {
+  CUDA constexpr void neg(const local_type& x) {
+    // if `x` represents all negative numbers, then the negation is all positive numbers.
     if(x.bits.test(0)) {
-      return x.bits.count() == 1 ? x.complement() : local_type::bot();
+      if(x.bits.count() == 1) {
+        bits.set(0, false);
+      }
+    }
+    else if(x.bits.count() == 0) {
+      meet_bot();
     }
     else {
-      return x.bits.count() == 0 ? local_type::top() : local_type(-1);
+      meet(local_type(-1));
     }
   }
 
-  template<class M>
-  CUDA constexpr static local_type abs(const this_type2<M>& x) {
-    return x.bits.test(0) ? local_type(0, x.bits.size()) : x;
-  }
-
-  template<Sig sig, class M>
-  CUDA constexpr static local_type fun(const this_type2<M>& x) {
-    static_assert(sig == NEG || sig == ABS, "Unsupported unary function.");
-    switch(sig) {
-      case NEG: return neg(x);
-      case ABS: return abs(x);
-      default:
-        assert(0); return x;
+  CUDA constexpr void abs(const local_type& x) {
+    // If the first bit is set, it means all negative numbers are represented, so it only constrains the current value to be positive. Otherwise, we just take the meet with `x`.
+    if(x.bits.test(0)) {
+      bits.set(0, false);
+    }
+    else {
+      meet(x);
     }
   }
 
-  template <class M>
-  CUDA constexpr static local_type additive_inverse(const this_type2<M>& x) {
+  CUDA constexpr void project(Sig fun, const local_type& x)  {
+    switch(fun) {
+      case NEG: neg(x); break;
+      case ABS: abs(x); break;
+    }
+  }
+
+  CUDA constexpr void additive_inverse(const local_type& x) {
     printf("%% additive_inverse is unsupported\n");
     int* ptr = nullptr;
     ptr[1] = 193;
-    return local_type::bot();
   }
 
-  template<Sig sig, class M1, class M2>
-  CUDA constexpr static local_type fun(const this_type2<M1>& x, const this_type2<M2>& y) {
-    printf("%% binary functions %s are unsupported\n", string_of_sig(sig));
+  CUDA constexpr void project(Sig fun, const local_type& x, const local_type& y) {
+    printf("%% binary functions %s are unsupported\n", string_of_sig(fun));
     int* ptr = nullptr;
     ptr[1] = 193;
-    return local_type::bot();
   }
 
   CUDA constexpr local_type width() const {
-    if(bits.test(0) || bits.test(bits.size() - 1)) { return bot(); }
+    if(bits.test(0) || bits.test(bits.size() - 1)) { return top(); }
     else { return local_type(bits.count()); }
   }
 
   /** \return The median value of the bitset. */
   CUDA constexpr local_type median() const {
-    if(is_top()) { return local_type::top(); }
+    if(is_bot()) { return local_type::bot(); }
     int total = bits.count();
     int current = 0;
     for(int i = 0; i < bits.size(); ++i) {
       if(bits.test(i)) {
         ++current;
-        if(current == total/2) {
+        if(current == total/2 || total == 1) {
           return local_type(i-1);
         }
       }
     }
-    return local_type::top();
+    return local_type::bot();
   }
 };
 
 // Lattice operations
 
 template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> join(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
-{
-  return NBitset<N, battery::local_memory, T>(a.value() & b.value());
-}
-
-template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> meet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
+CUDA constexpr NBitset<N, battery::local_memory, T> fjoin(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
   return NBitset<N, battery::local_memory, T>(a.value() | b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
+CUDA constexpr NBitset<N, battery::local_memory, T> fmeet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
+{
+  return NBitset<N, battery::local_memory, T>(a.value() & b.value());
+}
+
+template<size_t N, class M1, class M2, class T>
 CUDA constexpr bool operator<=(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
-  return b.value().is_subset_of(a.value());
+  return a.value().is_subset_of(b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
 CUDA constexpr bool operator<(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
-  return b.value().is_proper_subset_of(a.value());
+  return a.value().is_proper_subset_of(b.value());
 }
 
 template<size_t N, class M1, class M2, class T>

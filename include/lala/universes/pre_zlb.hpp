@@ -1,27 +1,28 @@
 // Copyright 2023 Pierre Talbot
 
-#ifndef LALA_CORE_PRE_ZDEC_HPP
-#define LALA_CORE_PRE_ZDEC_HPP
+#ifndef LALA_CORE_PRE_ZLB_HPP
+#define LALA_CORE_PRE_ZLB_HPP
 
 #include "../logic/logic.hpp"
-#include "pre_zinc.hpp"
+#include "pre_zub.hpp"
 
 namespace lala {
 
 template <class VT>
-struct PreZInc;
+struct PreZUB;
 
-/** `PreZDec` is a pre-abstract universe \f$ \langle \{\infty, \ldots, 2, 1, 0, -1, -2, \ldots, -\infty\}, \leq \rangle \f$ totally ordered by the reversed natural arithmetic comparison operator.
-    It is used to represent constraints of the form \f$ x \leq k \f$ where \f$ k \f$ is an integer.
+/** `PreZLB` is a pre-abstract universe \f$ \langle \{\infty, \ldots, 2, 1, 0, -1, -2, \ldots, -\infty\}, \geq \rangle \f$ totally ordered by the reversed natural arithmetic comparison operator.
+    It is used to represent constraints of the form \f$ x \geq k \f$ where \f$ k \f$ is an integer.
 */
 template <class VT>
-struct PreZDec {
-  using this_type = PreZDec<VT>;
-  using dual_type = PreZInc<VT>;
+struct PreZLB {
+  using this_type = PreZLB<VT>;
+  using dual_type = PreZUB<VT>;
   using value_type = VT;
-  using increasing_type = dual_type;
+  using lower_bound_type = this_type;
+  using upper_bound_type = dual_type;
 
-  static_assert(std::is_integral_v<value_type>, "PreZDec only works over integer types.");
+  static_assert(std::is_integral_v<value_type>, "PreZLB only works over integer types.");
 
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;
@@ -30,31 +31,26 @@ struct PreZDec {
   constexpr static const bool preserve_meet = true;
   constexpr static const bool injective_concretization = true;
   constexpr static const bool preserve_concrete_covers = true;
-  constexpr static const bool complemented = false;
-  constexpr static const bool increasing = false;
-  constexpr static const char *name = "ZDec";
+  constexpr static const bool is_lower_bound = true;
+  constexpr static const bool is_upper_bound = false;
+  constexpr static const char *name = "ZLB";
   constexpr static const bool is_arithmetic = true;
   CUDA constexpr static value_type zero() { return 0; }
   CUDA constexpr static value_type one() { return 1; }
 
   template <bool diagnose, class F>
   CUDA static bool interpret_tell(const F &f, value_type& tell, IDiagnostics& diagnostics) {
-    return dual_type::template interpret_ask<diagnose>(f, tell, diagnostics);
+    return dual_type::template interpret_ask<diagnose, F, true>(f, tell, diagnostics);
   }
 
   template <bool diagnose, class F>
   CUDA static bool interpret_ask(const F &f, value_type& ask, IDiagnostics& diagnostics) {
-    return dual_type::template interpret_tell<diagnose>(f, ask, diagnostics);
+    return dual_type::template interpret_tell<diagnose, F, true>(f, ask, diagnostics);
   }
 
   template <bool diagnose, class F>
   CUDA static bool interpret_type(const F &f, value_type& k, IDiagnostics& diagnostics) {
-    bool res = dual_type::template interpret_type<diagnose>(f, k, diagnostics);
-    // We reverse top and bottom due to the dual interpretation.
-    if (res && k == dual_type::bot()) {
-      k = bot();
-    }
-    return res;
+    return dual_type::template interpret_type<diagnose, F, true>(f, k, diagnostics);
   }
 
   template<class F>
@@ -72,12 +68,15 @@ struct PreZDec {
   CUDA static constexpr bool strict_order(value_type x, value_type y) { return dual_type::strict_order(y, x); }
   CUDA static constexpr value_type next(value_type x) { return dual_type::prev(x); }
   CUDA static constexpr value_type prev(value_type x) { return dual_type::next(x); }
-  CUDA static constexpr bool is_supported_fun(Sig sig) { return sig != ABS && dual_type::is_supported_fun(sig); }
-  template <Sig sig> CUDA static constexpr value_type fun(value_type x) {
-    static_assert(is_supported_fun(sig), "Unsupported unary function.");
-    return dual_type::template fun<sig>(x);
+  CUDA static constexpr value_type project(Sig fun, value_type x) {
+    if(fun == ABS) { return x >= 0 ? x : 0; }
+    else {
+      return dual_type::template dproject<true>(fun, x);
+    }
   }
-  template <Sig sig> CUDA static constexpr value_type fun(value_type x, value_type y) { return dual_type::template fun<sig>(x, y); }
+  CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
+    return dual_type::template dproject<true>(fun, x, y);
+  }
 };
 
 } // namespace lala

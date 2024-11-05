@@ -343,9 +343,9 @@ private:
     auto var = variable_of(vname);
     if(var.has_value()) {
       if(f.type() != UNTYPED) {
-        auto avar = var->get().avar_of(f.type());
-        if(avar.has_value()) {
-          avar = AVar(*avar);
+        auto avarf = var->get().avar_of(f.type());
+        if(avarf.has_value()) {
+          avar = AVar(*avarf);
           return true;
         }
         else {

@@ -1,26 +1,27 @@
 // Copyright 2023 Pierre Talbot
 
-#ifndef LALA_CORE_PRE_FDEC_HPP
-#define LALA_CORE_PRE_FDEC_HPP
+#ifndef LALA_CORE_PRE_FLB_HPP
+#define LALA_CORE_PRE_FLB_HPP
 
 #include "../logic/logic.hpp"
-#include "pre_finc.hpp"
+#include "pre_fub.hpp"
 
 namespace lala {
 
 template<class VT>
-struct PreFInc;
+struct PreFUB;
 
-/** `PreFDec` is a pre-abstract universe \f$ \langle \mathbb{F}\setminus\{NaN\}, \leq \rangle \f$ totally ordered by the reversed floating-point arithmetic comparison operator.
+/** `PreFLB` is a pre-abstract universe \f$ \langle \mathbb{F}\setminus\{NaN\}, \geq \rangle \f$ totally ordered by the reversed floating-point arithmetic comparison operator.
     We work on a subset of floating-point numbers without NaN.
-    It is used to represent (and possibly approximate) constraints of the form \f$ x \leq k \f$ where \f$ k \f$ is a real number.
+    It is used to represent (and possibly approximate) constraints of the form \f$ x \geq k \f$ where \f$ k \f$ is a real number.
 */
 template<class VT>
-struct PreFDec {
-  using this_type = PreFDec<VT>;
-  using dual_type = PreFInc<VT>;
+struct PreFLB {
+  using this_type = PreFLB<VT>;
+  using dual_type = PreFUB<VT>;
   using value_type = VT;
-  using increasing_type = dual_type;
+  using lower_bound_type = this_type;
+  using upper_bound_type = dual_type;
 
   constexpr static const bool is_totally_ordered = true;
   constexpr static const bool preserve_bot = true;
@@ -30,9 +31,9 @@ struct PreFDec {
   /** Note that -0 and +0 are treated as the same element. */
   constexpr static const bool injective_concretization = true;
   constexpr static const bool preserve_concrete_covers = false;
-  constexpr static const bool complemented = false;
-  constexpr static const bool increasing = false;
-  constexpr static const char* name = "FDec";
+  constexpr static const bool is_lower_bound = true;
+  constexpr static const bool is_upper_bound = false;
+  constexpr static const char* name = "FLB";
   constexpr static const bool is_arithmetic = true;
   CUDA constexpr static value_type zero() { return 0.0; }
   CUDA constexpr static value_type one() { return 1.0; }
@@ -49,11 +50,7 @@ struct PreFDec {
 
   template<bool diagnose, class F>
   CUDA static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    bool res = dual_type::template interpret_type<diagnose>(f, k, diagnostics);
-    if (res && k == dual_type::bot()) {
-      k = bot();
-    }
-    return res;
+    return dual_type::template interpret_type<diagnose, F, true>(f, k, diagnostics);
   }
 
   template<class F>
@@ -71,23 +68,21 @@ struct PreFDec {
   CUDA static constexpr bool strict_order(value_type x, value_type y) { return dual_type::strict_order(y, x); }
   CUDA static constexpr value_type next(value_type x) { return dual_type::prev(x); }
   CUDA static constexpr value_type prev(value_type x) { return dual_type::next(x); }
-  CUDA static constexpr bool is_supported_fun(Sig sig) { return sig != ABS && dual_type::is_supported_fun(sig); }
 
-  template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x) {
-    static_assert(is_supported_fun(sig), "Unsupported unary function.");
-    return dual_type::template fun<sig>(x);
+  CUDA static constexpr value_type project(Sig fun, value_type x) {
+    if(fun == ABS) { return x >= 0 ? x : 0; }
+    else {
+      return dual_type::project(fun, x);
+    }
   }
 
-  template<Sig sig>
-  CUDA static constexpr value_type fun(value_type x, value_type y) {
-    static_assert(is_supported_fun(sig), "Unsupported binary function.");
-    switch(sig) {
-      case ADD: return battery::add_up(x, y);
-      case SUB: return battery::sub_up(x, y);
-      case MUL: return battery::mul_up(x, y);
-      case DIV: return battery::div_up(x, y);
-      default: return dual_type::template fun<sig>(x, y);
+  CUDA static constexpr value_type project(Sig fun, value_type x, value_type y) {
+    switch(fun) {
+      case ADD: return battery::add_down(x, y);
+      case SUB: return battery::sub_down(x, y);
+      case MUL: return battery::mul_down(x, y);
+      case DIV: return battery::div_down(x, y);
+      default: return dual_type::project(fun, x, y);
     }
   }
 };

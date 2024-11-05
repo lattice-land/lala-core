@@ -6,9 +6,7 @@
 #include "lala/fixpoint.hpp"
 #include "abstract_testing.hpp"
 
-using zi = local::ZInc;
-using zd = local::ZDec;
-using Itv = Interval<zi>;
+using Itv = Interval<local::ZLB>;
 using IStore = VStore<Itv, standard_allocator>;
 
 void test_simplification(
@@ -36,8 +34,8 @@ void test_simplification(
 
   simplifier_type::tell_type<standard_allocator> tell;
   EXPECT_TRUE((ginterpret_in<IKind::TELL, true>(simplifier, f2, env, tell, diagnostics)));
-  simplifier.tell(std::move(tell));
-  local::BInc has_changed = GaussSeidelIteration{}.fixpoint(simplifier);
+  simplifier.deduce(std::move(tell));
+  local::B has_changed = GaussSeidelIteration{}.fixpoint(simplifier);
   EXPECT_TRUE(has_changed);
 
   printf("fixed point reached\n");

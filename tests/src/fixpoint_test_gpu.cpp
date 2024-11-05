@@ -6,7 +6,7 @@
 #include "battery/memory.hpp"
 #include "battery/allocator.hpp"
 #include "lala/fixpoint.hpp"
-#include "lala/universes/primitive_upset.hpp"
+#include "lala/universes/arith_bound.hpp"
 
 using namespace battery;
 using namespace lala;
@@ -17,28 +17,27 @@ using cpu_gpu_vec_ptr = shared_ptr<cpu_gpu_vec, managed_allocator>;
 template <class AtomicMem>
 class Minimum {
   cpu_gpu_vec* data;
-  ZDec<int, AtomicMem> result;
+  ZUB<int, AtomicMem> result;
 
 public:
   CUDA Minimum(cpu_gpu_vec* data) : data(data), result() {}
-  CUDA int num_refinements() { return data->size(); }
-  template<class M>
-  CUDA void refine(int i, BInc<M>& has_changed) {
-    result.tell(local::ZDec((*data)[i]), has_changed);
+  CUDA int num_deductions() { return data->size(); }
+  CUDA bool deduce(size_t i) {
+    return result.meet(local::ZUB((*data)[i]));
   }
   CUDA int extract() {
     return result;
   }
-  CUDA local::BInc is_top() const { return false; }
+  CUDA local::B is_bot() const { return false; }
 };
 
 __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {
-  using FP_engine = BlockAsynchronousIterationGPU<global_allocator>;
+  using FP_engine = BlockAsynchronousIterationGPU;
   using Min = Minimum<atomic_memory_block>;
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;
   auto block = cooperative_groups::this_thread_block();
-  FP_engine& fp = battery::make_unique_block<FP_engine, global_allocator>(fp_engine, block);
+  FP_engine& fp = battery::make_unique_block<FP_engine, global_allocator>(fp_engine);
   Min& m = battery::make_unique_block<Min, global_allocator>(minimum, g);
   fp.fixpoint(m);
   cooperative_groups::invoke_one(block, [&](){
@@ -48,7 +47,7 @@ __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {
 }
 
 __global__ void minimum_kernel_on_grid(cpu_gpu_vec* g, int* result) {
-  using FP_engine = GridAsynchronousIterationGPU<global_allocator>;
+  using FP_engine = GridAsynchronousIterationGPU;
   using Min = Minimum<atomic_memory_grid>;
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;
