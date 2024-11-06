@@ -225,7 +225,7 @@ private:
     const auto& u = sub->project(to_sub_var(i));
     size_t j = equivalence_classes[i];
     local::B has_changed = constants[j].meet(u);
-    if(!constants[j].is_bot() && constants[j].lb() == dual<typename universe_type::LB>(constants[j].ub())) {
+    if(!constants[j].is_bot() && constants[j].lb().value() == constants[j].ub().value()) {
       has_changed |= eliminate(eliminated_variables, j);
     }
     return has_changed;

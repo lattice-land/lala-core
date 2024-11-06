@@ -462,7 +462,7 @@ public:
     }
     if constexpr(ExtractionStrategy::atoms) {
       for(int i = 0; i < data.size(); ++i) {
-        if(dual<typename universe_type::UB>(data[i].lb()) != data[i].ub()) {
+        if(data[i].lb().value() != data[i].ub().value()) {
           return false;
         }
       }
@@ -483,7 +483,7 @@ public:
       }
       group.sync();
       for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
-        if(dual<typename universe_type::UB>(data[i].lb()) != data[i].ub()) {
+        if(data[i].lb().value() != data[i].ub().value()) {
           res = false;
         }
       }

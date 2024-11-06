@@ -107,7 +107,7 @@ R project_fun(Sig fun, const A& a) {
     A difference occurs on the bottom and top element.
     Indeed, by our representation of bot and top, the bottom value in a lattice L equals the top value in its dual, but we need them to remain the same, so the dual of `L::bot()` is `LDual::bot()`.*/
 template <class LDual, class L>
-CUDA constexpr LDual dual(const L& x) {
+CUDA constexpr LDual dual_bound(const L& x) {
   if(x.is_bot()) return LDual::bot();
   if(x.is_top()) return LDual::top();
   return LDual(x.value());
