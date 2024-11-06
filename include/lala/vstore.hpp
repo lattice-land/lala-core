@@ -462,7 +462,7 @@ public:
     }
     if constexpr(ExtractionStrategy::atoms) {
       for(int i = 0; i < data.size(); ++i) {
-        if(dual<typename universe_type::UB>(data[i].lb()) != data[i].ub()) {
+        if(data[i].lb().value() != data[i].ub().value()) {
           return false;
         }
       }
@@ -483,7 +483,7 @@ public:
       }
       group.sync();
       for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
-        if(dual<typename universe_type::UB>(data[i].lb()) != data[i].ub()) {
+        if(data[i].lb().value() != data[i].ub().value()) {
           res = false;
         }
       }
@@ -520,6 +520,9 @@ public:
   template<class Env, class Allocator2 = typename Env::allocator_type>
   CUDA NI TFormula<Allocator2> deinterpret(const Env& env, const Allocator2& allocator = Allocator2()) const {
     using F = TFormula<Allocator2>;
+    if(data.size() == 0) {
+      return is_bot() ? F::make_false() : F::make_true();
+    }
     typename F::Sequence seq{allocator};
     for(int i = 0; i < data.size(); ++i) {
       AVar v(aty(), i);

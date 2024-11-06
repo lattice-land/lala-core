@@ -90,7 +90,7 @@ public:
 
   template <class M>
   CUDA constexpr FlatUniverse(const ArithBound<typename pre_universe::dual_type, M> &other)
-    : FlatUniverse(dual<ArithBound<pre_universe, battery::local_memory>>(other)) {}
+    : FlatUniverse(dual_bound<ArithBound<pre_universe, battery::local_memory>>(other)) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
