@@ -62,6 +62,7 @@ private:
   CUDA constexpr Interval(const CP& cp): cp(cp) {}
   CUDA constexpr local_type lb2() const { return local_type(lb(), dual_bound<UB2>(lb())); }
   CUDA constexpr local_type ub2() const { return local_type(dual_bound<LB2>(ub()), ub()); }
+
 public:
   /** Initialize the interval to top using the default constructor of the bounds. */
   CUDA constexpr Interval() {}
