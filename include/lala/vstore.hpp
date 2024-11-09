@@ -351,6 +351,10 @@ public:
     return data[x];
   }
 
+  CUDA const universe_type& operator[](AVar x) const {
+    return project(x);
+  }
+
   CUDA void meet_bot() {
     is_at_bot.join_top();
   }

@@ -175,7 +175,6 @@ CUDA std::optional<A> create_and_interpret_and_tell(const F& f,
   }
 }
 
-
 }
 
 #endif
