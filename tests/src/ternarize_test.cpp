@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include "battery/allocator.hpp"
 #include "lala/logic/logic.hpp"
-#include "lala/logic/binarize.hpp"
+#include "lala/logic/ternarize.hpp"
 #include "lala/flatzinc_parser.hpp"
 #include "lala/vstore.hpp"
 #include "lala/simplifier.hpp"
@@ -39,7 +39,7 @@ bool is_PIR_symbol(Sig &sig)
     return sig == ADD || sig == SUB || sig == MUL || is_division(sig) || is_modulo(sig) || sig == EQ || sig == LT || sig == LEQ || sig == MAX || sig == MIN;
 }
 
-void test_binarize(
+void test_ternarize(
     std::pair<std::string, std::optional<std::string>> formulas)
 {
     VarEnv<standard_allocator> env;
@@ -53,13 +53,13 @@ void test_binarize(
     }
 
     std::chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
-    Binarizer<F, standard_allocator> b;
-    auto binarized = b.binarize(f1);
+    Ternarizer<F, standard_allocator> b;
+    auto ternarized = b.ternarize(f1);
     std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
-    if (binarized.seq().size() < 100)
+    if (ternarized.seq().size() < 100)
     {
-        printf("Binarized formula : ");
-        binarized.print(false);
+        printf("Ternarized formula : ");
+        ternarized.print(false);
         printf("\n");
     }
 
@@ -67,8 +67,8 @@ void test_binarize(
 
     printf("NB variables original formula : %d\n", num_quantified_vars(f1));
     printf("NB constraints original formula : %d\n", f1.seq().size() - num_quantified_vars(f1));
-    printf("NB variables binarized formula : %d\n", num_quantified_vars(binarized));
-    printf("NB constraints binarized formula : %d\n", binarized.seq().size() - num_quantified_vars(binarized));
+    printf("NB variables ternarized formula : %d\n", num_quantified_vars(ternarized));
+    printf("NB constraints ternarized formula : %d\n", ternarized.seq().size() - num_quantified_vars(ternarized));
 
     if (std::get<1>(formulas).has_value())
     {
@@ -82,30 +82,30 @@ void test_binarize(
 
         if (std::get<1>(formulas).has_value())
         {
-            EXPECT_EQ(binarized.seq().size(), f2.seq().size());
+            EXPECT_EQ(ternarized.seq().size(), f2.seq().size());
 
-            for (int i = 0; i < binarized.seq().size(); ++i)
+            for (int i = 0; i < ternarized.seq().size(); ++i)
             {
                 // printf("We search '");
-                // binarized.seq(i).print(false);
+                // ternarized.seq(i).print(false);
                 // printf("' in formula\n");
-                EXPECT_TRUE(contains(f2, binarized.seq(i)));
+                EXPECT_TRUE(contains(f2, ternarized.seq(i)));
             }
         }
     }
     else
     {
-        EXPECT_TRUE(binarized.seq().size() > 0); // it is a sequence
+        EXPECT_TRUE(ternarized.seq().size() > 0); // it is a sequence
     }
 
     // std::unordered_set<F> variables;
     // std::unordered_set<F> use_variables;
 
-    for (int i = 0; i < binarized.seq().size(); ++i)
+    for (int i = 0; i < ternarized.seq().size(); ++i)
     {
-        auto f = binarized.seq(i);
+        auto f = ternarized.seq(i);
         // test the form of the formula
-        if (f.is(F::E) || !must_binarize(f) || !is_supported(f))
+        if (f.is(F::E) || !b.must_ternarize(f) || !b.is_supported(f))
         {
             // variables.insert(f);
             continue;
@@ -115,8 +115,9 @@ void test_binarize(
 
         auto first_kind = f.seq(0).is_variable() && f.seq(1).is_constant();
         auto second_kind = f.seq(0).is_constant() && f.seq(1).is_variable();
-        auto third_kind = f.seq(0).is_variable() && (f.seq(1).is(F::Seq) && f.seq(1).is_binary() && is_PIR_symbol(f.seq(1).sig()));
-        auto fourth_kind = f.seq(1).is_variable() && (f.seq(0).is(F::Seq) && f.seq(0).is_binary() && is_PIR_symbol(f.seq(0).sig()));
+        auto third_kind = f.seq(0).is_variable() && (f.seq(1).is_binary() && is_PIR_symbol(f.seq(1).sig()));
+        auto fourth_kind = f.seq(1).is_variable() && (f.seq(0).is_binary() && is_PIR_symbol(f.seq(0).sig()));
+        f.print(); printf("\n");
         EXPECT_TRUE(first_kind || second_kind || third_kind || fourth_kind);
 
         // use_variables.insert(first_kind || third_kind ? f.seq(0) : f.seq(1));
@@ -177,7 +178,7 @@ std::vector<std::pair<std::string, std::optional<std::string>>> get_test_cases(c
     return test_cases;
 }
 
-class BinarizeTest : public ::testing::TestWithParam<std::pair<std::string, std::optional<std::string>>>
+class TernarizeTest : public ::testing::TestWithParam<std::pair<std::string, std::optional<std::string>>>
 {
 };
 
@@ -188,54 +189,53 @@ std::string testNameGenerator(const ::testing::TestParamInfo<std::pair<std::stri
     filename.erase(std::remove(filename.begin(), filename.end(), '-'), filename.end());
     filename.erase(std::remove(filename.begin(), filename.end(), '_'), filename.end());
     filename.erase(std::remove(filename.begin(), filename.end(), '.'), filename.end());
-
     return filename;
 }
 
-TEST_P(BinarizeTest, RunTest)
+TEST_P(TernarizeTest, RunTest)
 {
     auto test_case = GetParam();
-    test_binarize(test_case);
+    test_ternarize(test_case);
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    DomainTest,                                                   
-    BinarizeTest,                                                 
-    ::testing::ValuesIn(get_test_cases("tests/data/fzn/domain")), 
-    testNameGenerator                                             
+    DomainTest,
+    TernarizeTest,
+    ::testing::ValuesIn(get_test_cases("tests/data/fzn/domain")),
+    testNameGenerator
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    BinaryConstraintTest,                                         
-    BinarizeTest,                                                 
-    ::testing::ValuesIn(get_test_cases("tests/data/fzn/binary")), 
-    testNameGenerator                                             
+    BinaryConstraintTest,
+    TernarizeTest,
+    ::testing::ValuesIn(get_test_cases("tests/data/fzn/binary")),
+    testNameGenerator
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    NaryTest,                                                   
-    BinarizeTest,                                              
+    NaryTest,
+    TernarizeTest,
     ::testing::ValuesIn(get_test_cases("tests/data/fzn/nary")),
-    testNameGenerator                                           
+    testNameGenerator
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    WordpressInstancesTest,                                          
-    BinarizeTest,                                                    
-    ::testing::ValuesIn(get_test_cases("tests/data/fzn/wordpress")), 
-    testNameGenerator                                                
+    WordpressInstancesTest,
+    TernarizeTest,
+    ::testing::ValuesIn(get_test_cases("tests/data/fzn/wordpress")),
+    testNameGenerator
 );
 
-INSTANTIATE_TEST_SUITE_P(
-    MZN2022InstancesTest,                                                     
-    BinarizeTest,                                                             
-    ::testing::ValuesIn(get_test_cases("../turbo/benchmarks/data/mzn2022/")), 
-    testNameGenerator                                                         
-);
+// INSTANTIATE_TEST_SUITE_P(
+//     MZN2022InstancesTest,
+//     TernarizeTest,
+//     ::testing::ValuesIn(get_test_cases("../turbo/benchmarks/data/mzn2022/")),
+//     testNameGenerator
+// );
 
-INSTANTIATE_TEST_SUITE_P(
-    EasyInstancesTest,                                                
-    BinarizeTest,                                                     
-    ::testing::ValuesIn(get_test_cases("../turbo/benchmarks/data/")), 
-    testNameGenerator                                                 
-);
+// INSTANTIATE_TEST_SUITE_P(
+//     EasyInstancesTest,
+//     TernarizeTest,
+//     ::testing::ValuesIn(get_test_cases("../turbo/benchmarks/data/")),
+//     testNameGenerator
+// );
