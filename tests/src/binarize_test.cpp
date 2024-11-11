@@ -199,43 +199,43 @@ TEST_P(BinarizeTest, RunTest)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    DomainTest,                                                   // Nom de l'instance de la suite de tests
-    BinarizeTest,                                                 // Nom du Test Fixture
-    ::testing::ValuesIn(get_test_cases("tests/data/fzn/domain")), // Paires de fichiers d'entrée/sortie
-    testNameGenerator                                             // Fonction de génération des noms de tests
+    DomainTest,                                                   
+    BinarizeTest,                                                 
+    ::testing::ValuesIn(get_test_cases("tests/data/fzn/domain")), 
+    testNameGenerator                                             
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    BinaryConstraintTest,                                         // Nom de l'instance de la suite de tests
-    BinarizeTest,                                                 // Nom du Test Fixture
-    ::testing::ValuesIn(get_test_cases("tests/data/fzn/binary")), // Paires de fichiers d'entrée/sortie
-    testNameGenerator                                             // Fonction de génération des noms de tests
+    BinaryConstraintTest,                                         
+    BinarizeTest,                                                 
+    ::testing::ValuesIn(get_test_cases("tests/data/fzn/binary")), 
+    testNameGenerator                                             
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    NaryTest,                                                   // Nom de l'instance de la suite de tests
-    BinarizeTest,                                               // Nom du Test Fixture
-    ::testing::ValuesIn(get_test_cases("tests/data/fzn/nary")), // Paires de fichiers d'entrée/sortie
-    testNameGenerator                                           // Fonction de génération des noms de tests
+    NaryTest,                                                   
+    BinarizeTest,                                              
+    ::testing::ValuesIn(get_test_cases("tests/data/fzn/nary")),
+    testNameGenerator                                           
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    WordpressInstancesTest,                                          // Nom de l'instance de la suite de tests
-    BinarizeTest,                                                    // Nom du Test Fixture
-    ::testing::ValuesIn(get_test_cases("tests/data/fzn/wordpress")), // Paires de fichiers d'entrée/sortie
-    testNameGenerator                                                // Fonction de génération des noms de tests
+    WordpressInstancesTest,                                          
+    BinarizeTest,                                                    
+    ::testing::ValuesIn(get_test_cases("tests/data/fzn/wordpress")), 
+    testNameGenerator                                                
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    MZN2022InstancesTest,                                                     // Nom de l'instance de la suite de tests
-    BinarizeTest,                                                             // Nom du Test Fixture
-    ::testing::ValuesIn(get_test_cases("../turbo/benchmarks/data/mzn2022/")), // Paires de fichiers d'entrée/sortie
-    testNameGenerator                                                         // Fonction de génération des noms de tests
+    MZN2022InstancesTest,                                                     
+    BinarizeTest,                                                             
+    ::testing::ValuesIn(get_test_cases("../turbo/benchmarks/data/mzn2022/")), 
+    testNameGenerator                                                         
 );
 
 INSTANTIATE_TEST_SUITE_P(
-    EasyInstancesTest,                                                // Nom de l'instance de la suite de tests
-    BinarizeTest,                                                     // Nom du Test Fixture
-    ::testing::ValuesIn(get_test_cases("../turbo/benchmarks/data/")), // Paires de fichiers d'entrée/sortie
-    testNameGenerator                                                 // Fonction de génération des noms de tests
+    EasyInstancesTest,                                                
+    BinarizeTest,                                                     
+    ::testing::ValuesIn(get_test_cases("../turbo/benchmarks/data/")), 
+    testNameGenerator                                                 
 );
