@@ -1,0 +1,36 @@
+var int: x;
+var int: y;
+var int: z_0;
+var int: c_5;
+var int: c_0;
+
+% constraint int_eq(c_0,0);
+% constraint int_eq(c_10,10);
+
+% constraints for x
+% constraint int_eq(z_0,int_minus(c_0,x));
+% constraint int_eq(z_1,int_minus(c_0,c_0));
+% constraint int_eq(b_2,int_le(z_0,z_1)); 
+% constraint int_eq(b_3,int_le(x,c_10));
+constraint int_ge(x,0); 
+constraint int_le(x,10);
+
+% constraints for y
+% constraint int_eq(z_4,int_minus(c_0,y));
+% constraint int_eq(z_5,int_minus(c_0,c_0));
+% constraint int_eq(b_6,int_le(z_4,z_5)); 
+% constraint int_eq(b_7,int_le(y,c_10));
+constraint int_ge(y,0); 
+constraint int_le(y,10);
+
+% constraints for int_le(int_plus(x,y),5)
+constraint int_eq(c_5,5);
+constraint int_eq(c_0,0);
+constraint int_eq(z_0,int_plus(x,y));
+constraint int_eq(c_0,int_eq(z_0,c_5)); 
+
+
+
+
+
+

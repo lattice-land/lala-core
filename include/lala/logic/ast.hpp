@@ -205,6 +205,10 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
     return sig == ADD || sig == MUL || sig == AND || sig == OR || sig == EQUIV || sig == XOR
       || sig == UNION || sig == INTERSECTION || sig == MAX || sig == MIN;
   }
+
+  CUDA NI inline constexpr bool is_arithmetic_comparison(Sig sig) {
+    return sig == LEQ || sig == GEQ || sig == EQ || sig == NEQ || sig == GT || sig == LT;
+  }
 }
 
 namespace battery {
@@ -550,6 +554,14 @@ public:
       Sig s = sig();
       return s == IN || s == SUBSET || s == SUBSETEQ || s == SUPSET || s == SUPSETEQ ||
         s == EQ || s == NEQ || s == LEQ || s == GEQ || s == LT || s == GT;
+    }
+    return false;
+  }
+
+  CUDA NI bool is_comparison() const {
+    if(is(Seq)) {
+      Sig s = sig();
+      return is_arithmetic_comparison(s);
     }
     return false;
   }
