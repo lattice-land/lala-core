@@ -60,8 +60,9 @@ private:
   using UB2 = typename UB::local_type;
   CP cp;
   CUDA constexpr Interval(const CP& cp): cp(cp) {}
-  CUDA constexpr local_type lb2() const { return local_type(lb(), dual<UB2>(lb())); }
-  CUDA constexpr local_type ub2() const { return local_type(dual<LB2>(ub()), ub()); }
+  CUDA constexpr local_type lb2() const { return local_type(lb(), dual_bound<UB2>(lb())); }
+  CUDA constexpr local_type ub2() const { return local_type(dual_bound<LB2>(ub()), ub()); }
+
 public:
   /** Initialize the interval to top using the default constructor of the bounds. */
   CUDA constexpr Interval() {}
@@ -95,7 +96,10 @@ public:
 
   CUDA constexpr static local_type bot() { return Interval(CP::bot()); }
   CUDA constexpr static local_type top() { return Interval(CP::top()); }
-  CUDA constexpr local::B is_bot() const { return cp.is_bot() || (!lb().is_top() && dual<UB2>(lb()) > ub()); }
+  CUDA constexpr local::B is_bot() const {
+    // The conversion to UB2 is possible because we have verified that lb() is different from bot and top.
+    return cp.is_bot() || (!is_top() && UB2(lb().value()) > ub());
+  }
   CUDA constexpr local::B is_top() const { return cp.is_top(); }
   CUDA constexpr const CP& as_product() const { return cp; }
   CUDA constexpr value_type value() const { return cp.value(); }
@@ -263,7 +267,7 @@ public:
       battery::get<1>(logical_lb.r()) = battery::get<0>(logical_ub.r());
     }
     else {
-      assert(lb() == dual<LB>(ub()));
+      assert(lb().value() == ub().value());
     }
     return logical_lb;
   }
@@ -285,7 +289,7 @@ public:
 
   template<class L>
   CUDA constexpr static local_type reverse(const Interval<L>& x) {
-    return local_type(dual<LB2>(x.ub()), dual<UB2>(x.lb()));
+    return local_type(dual_bound<LB2>(x.ub()), dual_bound<UB2>(x.lb()));
   }
 
   CUDA constexpr void neg(const local_type& x) {
@@ -424,14 +428,14 @@ public:
 
   CUDA constexpr void mod(Sig modfun, const local_type& a, const local_type& b) {
     if(a.is_bot() || b.is_bot()) { meet_bot(); return; }
-    if(a.lb() == dual<LB2>(a.ub()) && b.lb() == dual<LB2>(b.ub())) {
+    if(a.lb().value() == a.ub().value() && b.lb().value() == b.ub().value()) {
       flat_fun(modfun, a, b);
     }
   }
 
   CUDA constexpr void pow(const local_type& a, const local_type& b) {
     if(a.is_bot() || b.is_bot()) { meet_bot(); return; }
-    if(a.lb() == dual<LB2>(a.ub()) && b.lb() == dual<LB2>(b.ub())) {
+    if(a.lb().value() == a.ub().value() && b.lb().value() == b.ub().value()) {
       flat_fun(POW, a, b);
     }
   }

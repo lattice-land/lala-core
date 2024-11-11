@@ -136,6 +136,13 @@ TEST(VStoreTest, AskOperation) {
   EXPECT_FALSE(interpret_and_ask("constraint int_ge(x, 10);", store, env));
 }
 
+TEST(VStoreTest, AskOperationInfiniteDom) {
+  VarEnv<standard_allocator> env;
+  IStore store = create_and_interpret_and_tell<IStore>("var int: x;", env);
+  EXPECT_FALSE(interpret_and_ask("constraint int_le(x, 5);", store, env));
+  EXPECT_FALSE(interpret_and_ask("constraint int_gt(x, 5);", store, env));
+}
+
 TEST(VStoreTest, CopyAndAllocator) {
   IStore vstore = create_and_interpret_and_tell<IStore>("array[1..10] of var int: x;");
   using stat_alloc = statistics_allocator<standard_allocator>;

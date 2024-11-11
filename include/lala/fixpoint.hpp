@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef FIXPOINT_HPP
-#define FIXPOINT_HPP
+#ifndef LALA_CORE_FIXPOINT_HPP
+#define LALA_CORE_FIXPOINT_HPP
 
 #include "logic/logic.hpp"
 #include "b.hpp"
