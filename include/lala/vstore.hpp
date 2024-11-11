@@ -362,7 +362,9 @@ public:
   CUDA bool embed(int x, const universe_type& dom) {
     assert(x < data.size());
     bool has_changed = data[x].meet(dom);
-    has_changed |= is_at_bot.join(data[x].is_bot());
+    if(has_changed && data[x].is_bot()) {
+      is_at_bot.join_top();
+    }
     return has_changed;
   }
 

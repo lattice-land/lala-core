@@ -22,7 +22,7 @@ namespace lala
   template <class F>
   CUDA NI bool is_supported(const F &f)
   {
-    return f.is(F::E) || (f.is(F::Seq) && f.sig() != MINIMIZE && f.sig() != MAXIMIZE);
+    return f.is(F::E) || (f.is(F::Seq) && f.sig() != IN &&f.sig() != MINIMIZE && f.sig() != MAXIMIZE);
   }
 
   template <class F, class Allocator>
@@ -80,7 +80,9 @@ namespace lala
         this->constant2lvar[f.z()] = lvar;
         this->conjunction.push_back(F::make_binary(var, EQ, f));
         return var;
-      }else if(f.is(F::B)){
+      }
+      else if (f.is(F::B))
+      {
         auto suffix = std::to_string((int)f.b());
         auto lvar = make_aux_with_name("c_" + suffix);
         auto var = introduce_var(lvar);
@@ -98,13 +100,6 @@ namespace lala
       else if (f.is(F::Z) || f.is(F::B))
       {
         return binarize_constant(f);
-      }
-      else if (f.is(F::E))
-      {
-        this->existentials.push_back(f);
-        auto lv = battery::get<0>(f.exists());
-        auto var = F::make_lvar(UNTYPED, lv);
-        return var;
       }
       else if (f.is_unary())
       {
@@ -134,26 +129,27 @@ namespace lala
       else if (f.is_binary())
       {
 
-        if (f.sig() == IN)
-        {
-          battery::vector<F, Allocator> disjunction;
-          for (int i = 0; i < f.seq(1).s().size(); i++)
-          {
-            auto set = f.seq(1).s()[i];
-            auto geq = F::make_binary(f.seq(0), GEQ, battery::get<0>(set));
-            auto leq = F::make_binary(f.seq(0), LEQ, battery::get<1>(set));
-            disjunction.push_back(F::make_binary(geq, AND, leq));
-          }
+        // if (f.sig() == IN)
+        // {
+        //   // battery::vector<F, Allocator> disjunction;
+        //   // for (int i = 0; i < f.seq(1).s().size(); i++)
+        //   // {
+        //   //   auto set = f.seq(1).s()[i];
+        //   //   auto geq = F::make_binary(battery::get<0>(set), LEQ, f.seq(0));
+        //   //   auto leq = F::make_binary(f.seq(0), LEQ, battery::get<1>(set));
+        //   //   disjunction.push_back(F::make_binary(geq, AND, leq));
+        //   // }
 
-          if (disjunction.size() == 1)
-          {
-            return internal_binarize(disjunction[0]);
-          }
-          else
-          {
-            return internal_binarize(F::make_nary(OR, std::move(disjunction)));
-          }
-        }
+        //   // if (disjunction.size() == 1)
+        //   // {
+        //   //   return internal_binarize(disjunction[0]);
+        //   // }
+        //   // else
+        //   // {
+        //   //   return internal_binarize(F::make_nary(OR, std::move(disjunction)));
+        //   // }
+        //   this->conjunction.push_back(f);
+        // }
 
         auto t1 = internal_binarize(f.seq(0));
         auto t2 = internal_binarize(f.seq(1));
@@ -165,13 +161,13 @@ namespace lala
           if (f.sig() == AND || f.sig() == MIN)
           {
             auto result = introduce_bool_var();
-            this->conjunction.push_back(F::make_binary(result, EQ, F::make_nary(MIN, {t1, t2})));
+            this->conjunction.push_back(F::make_binary(result, EQ, F::make_nary(AND, {t1, t2})));
             return result;
           }
           else if (f.sig() == OR || f.sig() == MAX)
           {
             auto result = introduce_bool_var();
-            this->conjunction.push_back(F::make_binary(result, EQ, F::make_nary(MAX, {t1, t2})));
+            this->conjunction.push_back(F::make_binary(result, EQ, F::make_nary(OR, {t1, t2})));
             return result;
           }
           else if (f.sig() == IMPLY)
@@ -198,15 +194,13 @@ namespace lala
         {
           if (f.sig() == EQ || f.sig() == LEQ || f.sig() == LT)
           {
-            auto result = introduce_bool_var();
-            this->conjunction.push_back(F::make_binary(result, EQ, F::make_binary(t1, f.sig(), t2)));
-            return result;
+            auto b = introduce_bool_var();
+            this->conjunction.push_back(F::make_binary(b, EQ, F::make_binary(t1, f.sig(), t2)));
+            return b;
           }
           else if (f.sig() == NEQ)
           {
-            auto c_0 = internal_binarize(F::make_z(0));
-            this->conjunction.push_back(F::make_binary(c_0, EQ, F::make_binary(t1, EQ, t2)));
-            return c_0; // c_0 is false
+            return internal_binarize(F::make_unary(NOT, F::make_binary(t1, EQ, t2)));
           }
           else if (f.sig() == GT)
           {
@@ -281,9 +275,16 @@ namespace lala
         auto seq = f.seq();
         for (int i = 0; i < seq.size(); ++i)
         {
+          if (seq[i].is(F::E))
+          {
+            this->existentials.push_back(seq[i]);
+            continue;
+          }
+
           if (must_binarize(seq[i]) && is_supported(seq[i]))
           {
-            internal_binarize(seq[i]);
+            auto v = internal_binarize(seq[i]);
+            this->conjunction.push_back(F::make_binary(v, EQ, binarize_constant(F::make_z(1))));
           }
           else
           {
@@ -292,10 +293,11 @@ namespace lala
         }
       }
       else
-      {
+      { 
         if (must_binarize(f) && is_supported(f))
         {
-          internal_binarize(f);
+          auto v = internal_binarize(f);
+          this->conjunction.push_back(F::make_binary(v, EQ, binarize_constant(F::make_z(1))));
         }
         else
         {
