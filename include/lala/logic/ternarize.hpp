@@ -4,264 +4,307 @@
 #include "ast.hpp"
 
 namespace lala {
+namespace impl {
 
-template <class F, class Allocator>
-struct Ternarizer
+template <class F>
+class Ternarizer
 {
-  battery::vector<F, Allocator> conjunction;
-  battery::vector<F, Allocator> existentials;
-  std::unordered_map<int, LVar<Allocator>> constant2lvar;
-  // std::unordered_map<LVar<Allocator>, F> lvar2formula;
-  unsigned int counter_aux = 0;
+public:
+  using allocator_type = battery::standard_allocator;
 
-  bool must_ternarize(const F& f) {
-    if (!f.is_binary()) {
-      return true;
-    }
-    auto symbol = f.sig() == EQ || f.sig() == LEQ || f.sig() == GEQ;
-    auto variable_constant = f.seq(0).is_variable() && f.seq(1).is_constant();
-    auto constant_variable = f.seq(0).is_constant() && f.seq(1).is_variable();
-    return !(symbol && (variable_constant || constant_variable));
+  /** A constraint in ternary form is either unary or of the form `x = (y <op> z)`. */
+  static bool is_ternary_form(const F& f) {
+    int vars = num_vars(f);
+    return vars == 1 ||
+      (vars == 3 && f.is_binary() && f.sig() == EQ &&
+         ((f.seq(0).is_variable() && f.seq(1).is_binary() && is_ternary_op(f.seq(1).sig()) && f.seq(1).seq(0).is_variable() && f.seq(1).seq(1).is_variable())
+       || (f.seq(1).is_variable() && f.seq(0).is_binary() && is_ternary_op(f.seq(0).sig()) && f.seq(0).seq(0).is_variable() && f.seq(0).seq(1).is_variable())));
   }
 
-  bool is_supported(const F& f) {
-    return f.is(F::E) || (f.is(F::Seq) && f.sig() != IN && f.sig() != MINIMIZE && f.sig() != MAXIMIZE);
+  static bool is_ternary_op(Sig sig) {
+    return sig == MAX || sig == MIN || sig == EQ || sig == LEQ || (!is_logical(sig) && !is_predicate(sig));
   }
+
+  Ternarizer():
+    introduced_int_vars(0),
+    introduced_bool_vars(0),
+    introduced_constants(0)
+  {}
 
 private:
-  LVar<Allocator> make_aux_with_name(std::string name) {
-    return LVar<Allocator>(name);
+  battery::vector<F, allocator_type> conjunction;
+  battery::vector<F, allocator_type> existentials;
+  std::unordered_map<std::string, int> name2exists;
+  unsigned int introduced_int_vars;
+  unsigned int introduced_bool_vars;
+  unsigned int introduced_constants;
+
+  F introduce_var(const std::string& name, auto sort, bool constant) {
+    auto var_name = LVar<allocator_type>(name.data());
+    existentials.push_back(F::make_exists(UNTYPED, var_name, sort));
+    assert(!name2exists.contains(name));
+    name2exists[name] = existentials.size() - 1;
+    if(constant) { introduced_constants++; }
+    else if(sort.is_int()) { introduced_int_vars++; }
+    else if(sort.is_bool()) { introduced_bool_vars++; }
+    return F::make_lvar(UNTYPED, var_name);
   }
 
-  LVar<Allocator> make_aux_lvar(std::string prefix = "t_") {
-    return make_aux_with_name(prefix + std::to_string(counter_aux++));
+  F introduce_int_var() {
+    std::string name = "__VAR_Z_" + std::to_string(introduced_int_vars);
+    return introduce_var(name, Sort<allocator_type>(Sort<allocator_type>::Int), false);
   }
 
-  F introduce_var(LVar<Allocator>& lvar) {
-    auto var = F::make_lvar(UNTYPED, lvar);
-    existentials.push_back(F::make_exists(UNTYPED, lvar, lala::Sort<Allocator>::Int));
-    return var;
+  F introduce_bool_var() {
+    std::string name = "__VAR_B_" + std::to_string(introduced_bool_vars);
+    return introduce_var(name, Sort<allocator_type>(Sort<allocator_type>::Bool), false);
   }
 
-  F introduce_z_var(std::string prefix = "z_"){
-    auto lvar = make_aux_lvar(prefix);
-    auto var = F::make_lvar(UNTYPED, lvar);
-    existentials.push_back(F::make_exists(UNTYPED, lvar, lala::Sort<Allocator>::Int));
-    return var;
-  }
-
-  F introduce_bool_var(std::string prefix = "b_") {
-    auto lvar = make_aux_lvar(prefix);
-    auto var = F::make_lvar(UNTYPED, lvar);
-    existentials.push_back(F::make_exists(UNTYPED, lvar, lala::Sort<Allocator>::Bool));
-    return var;
+  F var_of(int x) const {
+    return F::make_lvar(UNTYPED, battery::get<0>(existentials[x].exists()));
   }
 
   F ternarize_constant(const F& f) {
+    assert(f.is(F::Z) || f.is(F::B));
     auto index = f.is(F::Z) ? f.z() : (int)f.b();
+    std::string name = "__CONSTANT_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(abs(index));
     // if the constant is already a logical variable, we return it.
-    if (constant2lvar.find(index) != constant2lvar.end()) {
-      return F::make_lvar(UNTYPED, constant2lvar[index]);
+    if (name2exists.contains(name)) {
+      return var_of(name2exists[name]);
     }
-    if (f.is(F::Z)) {
-      auto suffix = f.z() < 0 ? "minus_" + std::to_string(abs(f.z())) : std::to_string(f.z());
-      auto lvar = make_aux_with_name("c_" + suffix);
-      auto var = introduce_var(lvar);
-      constant2lvar[f.z()] = lvar;
-      conjunction.push_back(F::make_binary(var, EQ, f));
-      return var;
-    }
-    else {
-      assert(f.is(F::B));
-      auto suffix = std::to_string((int)f.b());
-      auto lvar = make_aux_with_name("c_" + suffix);
-      auto var = introduce_var(lvar);
-      constant2lvar[(int)f.b()] = lvar;
-      conjunction.push_back(F::make_binary(var, EQ, f));
-      return var;
+    auto var = introduce_var(name, f.sort().value(), true);
+    conjunction.push_back(F::make_binary(var, EQ, f));
+    return var;
+  }
+
+  /** Create the ternary formula `x = y <sig> z`. */
+  F push_ternary(const F& x, const F& y, Sig sig, const F& z) {
+    conjunction.push_back(
+      F::make_binary(x, EQ, F::make_binary(y, sig, z)));
+    return x;
+  }
+
+  F ternarize_unary(const F& f) {
+    auto x = ternarize(f.seq(0));
+    switch(f.sig()) {
+      /** -x ~~> t = 0 - x */
+      case NEG: return push_ternary(introduce_int_var(), ternarize(F::make_z(0)), SUB, x);
+      /** |x| ~~> t1 = 0 - x /\ t2 = max(x, t1) */
+      case ABS: return push_ternary(introduce_int_var(), x, MAX, ternarize(F::make_unary(NEG, x)));
+      /** NOT x ~~> ternarize(x = 0) ~~> t = (x = 0) */
+      case NOT: return ternarize(F::make_binary(x, EQ, F::make_z(0)));
+      default: {
+        printf("Unary operator %s not supported\n", string_of_sig(f.sig()));
+        printf("In formula: "); f.print(); printf("\n");
+        // assert(false);
+        return f;
+      }
     }
   }
 
-  F internal_ternarize(const F& f) {
+  bool is_boolean(const F& f) {
+    assert(f.is(F::LV));
+    std::string varname(f.lv().data());
+    assert(name2exists.contains(varname));
+    return battery::get<1>(existentials[name2exists[varname]].exists()).is_bool();
+  }
+
+  /** Let `t` be a variable in a logical context, e.g. X OR Y.
+   * If `t` is an integer, the semantics is that `t` is true whenever `t != 0`, and not only when `t == 1`.
+   */
+  F booleanize(const F& t, Sig sig) {
+    if(is_logical(sig) && !is_boolean(t)) {
+      return ternarize(F::make_binary(t, NEQ, F::make_z(0)));
+    }
+    return t;
+  }
+
+  F ternarize_binary(F f, bool toplevel) {
+    /** We introduce a new temporary variable `t0`.
+     * The type of `t0` is decided by the return type of the operator and whether we are at toplevel or not.
+     */
+    F t0;
+    F t1;
+    F t2;
+    /** We first handle "almost ternarized" constraint.
+     * If the symbol is already an equality with a variable on one side, we only need to ternarize the other half.
+     * We set t0 to be the variable and proceeds. */
+    if((f.seq(0).is_variable() && f.seq(1).is_binary()) || (f.seq(1).is_variable() && f.seq(0).is_binary()) && (f.sig() == EQUIV || f.sig() == EQ))  {
+      int left = f.seq(1).is_variable();
+      int right = f.seq(0).is_variable();
+      t0 = f.seq(left);
+      f = f.seq(right);
+      toplevel = false;
+    }
+    /** We don't need to create t0 for these formulas at toplevel. */
+    else if(toplevel && (f.sig() == NEQ || f.sig() == XOR || f.sig() == IMPLY || f.sig() == GT || f.sig() == LT)) {}
+    else if(is_logical(f.sig()) || is_predicate(f.sig())
+      || ((f.sig() == MIN || f.sig() == MAX) && is_boolean(t1) && is_boolean(t2)))
+    {
+      t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_bool_var();
+    }
+    else {
+      t0 = introduce_int_var();
+      if(toplevel) {
+        ternarize_binary(F::make_binary(t0, NEQ, F::make_z(0)), true);
+      }
+    }
+    t1 = ternarize(f.seq(0));
+    t1 = booleanize(t1, f.sig());
+    t2 = ternarize(f.seq(1));
+    t2 = booleanize(t2, f.sig());
+    switch(f.sig()) {
+      case AND:
+      case MIN: return push_ternary(t0, t1, MIN, t2);
+      case OR:
+      case MAX: return push_ternary(t0, t1, MAX, t2);
+      case EQ:
+      case EQUIV: return push_ternary(t0, t1, EQ, t2);
+      // x xor y ~~> t1 = not t2 /\ t1 = (x = y)
+      case NEQ:
+      case XOR: {
+        if(toplevel) {
+          return push_ternary(ternarize_constant(F::make_z(0)), t1, EQ, t2);
+        }
+        push_ternary(ternarize(F::make_unary(NOT, t0)), t1, EQ, t2);
+        return t0;
+      }
+      case IMPLY: {
+        t1 = ternarize(F::make_unary(NOT, t1));
+        if(toplevel) {
+          return push_ternary(ternarize_constant(F::make_z(1)), t1, MAX, t2);
+        }
+        return push_ternary(t0, t1, MAX, t2);
+      }
+      case LEQ: return push_ternary(t0, t1, LEQ, t2);
+      // x >= y ~~> y <= x
+      case GEQ: return push_ternary(t0, t2, LEQ, t1);
+      // x > y ~~> !(x <= y)
+      case GT: {
+        if(toplevel) {
+          return push_ternary(ternarize_constant(F::make_z(0)), t1, LEQ, t2);
+        }
+        push_ternary(ternarize(F::make_unary(NOT, t0)), t1, LEQ, t2);
+        return t0;
+      }
+      // x < y ~~> y > x ~~> !(y <= x)
+      case LT: {
+        if(toplevel) {
+          return push_ternary(ternarize_constant(F::make_z(0)), t2, LEQ, t1);
+        }
+        push_ternary(ternarize(F::make_unary(NOT, t0)), t2, LEQ, t1);
+        return t0;
+      }
+      default: {
+        return push_ternary(t0, t1, f.sig(), t2);
+      }
+    }
+  }
+
+  std::pair<F, F> binarize_middle(const F& f) {
+    assert(f.is(F::Seq) && f.seq().size() > 2);
+    battery::vector<F, allocator_type> left;
+    battery::vector<F, allocator_type> right;
+    int i;
+    for(i = 0; i < f.seq().size() / 2; ++i) {
+      left.push_back(f.seq(i));
+    }
+    for(; i < f.seq().size(); ++i) {
+      right.push_back(f.seq(i));
+    }
+    return {
+      ternarize(left.size() == 1 ? left.back() : F::make_nary(f.sig(), std::move(left))),
+      ternarize(right.size() == 1 ? right.back() : F::make_nary(f.sig(), std::move(right)))};
+  }
+
+  F ternarize_nary(const F& f, bool toplevel) {
+    if(is_associative(f.sig())) {
+      auto [t1, t2] = binarize_middle(f);
+      return ternarize(F::make_binary(t1, f.sig(), t2), toplevel);
+    }
+    else {
+      auto tmp = ternarize(F::make_binary(f.seq(0), f.sig(), f.seq(1)));
+      for (int i = 2; i < f.seq().size() - 1; i++) {
+        tmp = ternarize(F::make_binary(tmp, f.sig(), f.seq(i)));
+      }
+      return ternarize(F::make_binary(tmp, f.sig(), f.seq(f.seq().size() - 1)), true);
+    }
+  }
+
+  F ternarize(const F& f, bool toplevel = false) {
     if (f.is_variable()) {
+      if(toplevel) {
+        return ternarize(F::make_binary(f, NEQ, F::make_z(0)), true);
+      }
       return f;
     }
     else if (f.is(F::Z) || f.is(F::B)) {
+      if(toplevel) {
+        return f.z() != 0 ? F::make_true() : F::make_false();
+      }
       return ternarize_constant(f);
     }
     else if (f.is_unary()) {
-      auto sub = internal_ternarize(f.seq(0));
-      if (f.sig() == NEG) {
-        auto result = introduce_z_var();
-        conjunction.push_back(F::make_binary(result, EQ, F::make_binary(internal_ternarize(F::make_z(0)), SUB, sub)));
-        return result;
+      auto t = ternarize_unary(f);
+      if(toplevel) {
+        return ternarize(F::make_binary(t, NEQ, F::make_z(0)), true);
       }
-      else if (f.sig() == ABS) {
-        auto result = introduce_z_var();
-        conjunction.push_back(F::make_binary(result, EQ, F::make_nary(MAX, {sub, internal_ternarize(F::make_unary(NEG, sub))}, UNTYPED, false)));
-        return result;
-      }
-      else if (f.sig() == NOT) {
-        return internal_ternarize(F::make_binary(sub, EQ, F::make_z(0)));
-      }
-      else {
-        printf("Unary operator %s not supported\n", string_of_sig(f.sig()));
-        assert(false);
-      }
+      return t;
     }
     else if (f.is_binary()) {
-      // if (f.sig() == IN)
-      // {
-      //   // battery::vector<F, Allocator> disjunction;
-      //   // for (int i = 0; i < f.seq(1).s().size(); i++)
-      //   // {
-      //   //   auto set = f.seq(1).s()[i];
-      //   //   auto geq = F::make_binary(battery::get<0>(set), LEQ, f.seq(0));
-      //   //   auto leq = F::make_binary(f.seq(0), LEQ, battery::get<1>(set));
-      //   //   disjunction.push_back(F::make_binary(geq, AND, leq));
-      //   // }
-
-      //   // if (disjunction.size() == 1)
-      //   // {
-      //   //   return internal_ternarize(disjunction[0]);
-      //   // }
-      //   // else
-      //   // {
-      //   //   return internal_ternarize(F::make_nary(OR, std::move(disjunction)));
-      //   // }
-      //   conjunction.push_back(f);
-      // }
-
-      auto t1 = internal_ternarize(f.seq(0));
-      auto t2 = internal_ternarize(f.seq(1));
-
-      if (f.is_logical() || f.sig() == MIN || f.sig() == MAX) {
-        // transform to min/max form
-
-        if (f.sig() == AND || f.sig() == MIN) {
-          auto result = introduce_bool_var();
-          conjunction.push_back(F::make_binary(result, EQ, F::make_nary(AND, {t1, t2})));
-          return result;
-        }
-        else if (f.sig() == OR || f.sig() == MAX) {
-          auto result = introduce_bool_var();
-          conjunction.push_back(F::make_binary(result, EQ, F::make_nary(OR, {t1, t2})));
-          return result;
-        }
-        else if (f.sig() == IMPLY) {
-          return internal_ternarize(F::make_binary(F::make_unary(NEG, t1), OR, t2));
-        }
-        else if (f.sig() == EQUIV) {
-          return internal_ternarize(F::make_binary(F::make_binary(t1, IMPLY, t2), AND, F::make_binary(t2, IMPLY, t1)));
-        }
-        else if (f.sig() == XOR) {
-          return internal_ternarize(F::make_binary(F::make_binary(t1, OR, t2), AND, F::make_binary(F::make_unary(NOT, t1), OR, F::make_unary(NOT, t2))));
-        }
-        else {
-          printf("Logical operator %s not supported\n", string_of_sig(f.sig()));
-          f.print(false);
-          printf("\n");
-          assert(false);
-        }
-      }
-      else if (f.is_comparison()) {
-        if (f.sig() == EQ || f.sig() == LEQ || f.sig() == LT) {
-          auto b = introduce_bool_var();
-          conjunction.push_back(F::make_binary(b, EQ, F::make_binary(t1, f.sig(), t2)));
-          return b;
-        }
-        else if (f.sig() == NEQ) {
-          return internal_ternarize(F::make_unary(NOT, F::make_binary(t1, EQ, t2)));
-        }
-        else if (f.sig() == GT) {
-          return internal_ternarize(F::make_binary(F::make_z(0), EQ, F::make_binary(t1, LT, t2)));
-        }
-        else if (f.sig() == GEQ) {
-          return internal_ternarize(F::make_binary(t2, LEQ, t1));
-        }
-        else {
-          printf("Comparison operator not supported\n");
-          f.print(false);
-          printf("\n");
-        }
-      }
-      else if (f.sig() == ADD || f.sig() == SUB || f.sig() == MUL || is_division(f.sig()) || is_modulo(f.sig())) {
-        auto result = introduce_z_var();
-        conjunction.push_back(F::make_binary(result, EQ, F::make_binary(t1, f.sig(), t2)));
-        return result;
-      }
-      else {
-        printf("Formula not supported \n");
-        f.print(false);
-        printf("\n");
-        assert(false);
-      }
+      return ternarize_binary(f, toplevel);
     }
     else if (f.is(F::Seq) && f.seq().size() > 2) {
-      auto tmp = internal_ternarize(F::make_binary(f.seq(0), f.sig(), f.seq(1)));
-      for (int i = 2; i < f.seq().size(); i++) {
-        tmp = internal_ternarize(F::make_binary(tmp, f.sig(), f.seq(i)));
-      }
-      return tmp;
-    }
-    else {
-      printf("Formula not supported\n");
-      f.print(false);
-      printf("\n");
-      assert(false);
+      return ternarize_nary(f, toplevel);
     }
     return f;
   }
 
 public:
-  Ternarizer() = default;
-
-  /**
-   * Binarize a formula.
-   * For example for the formula \f$x² + y - z/2 \leq w + w\f$, the ternarized formula generates the following formula :
-   * \f[
-   * x² = t_1 \land
-   * z/2 = t_2 \land
-   * y - t_2 = t_3 \land
-   * t_1 + t_3 = t_4 \land
-   * w + w = t_5 \land
-   * t_4 \leq t_5
-   * \f]
-   * @tparam F the formula type
-   * @param f the formula to ternarize
-   * @return the ternarized formula
-   */
-  F ternarize(const F& f) {
-    if (f.is(F::Seq)) {
+  void compute(const F& f) {
+    if (f.is(F::Seq) && f.sig() == AND) {
       auto seq = f.seq();
       for (int i = 0; i < seq.size(); ++i) {
-        if (seq[i].is(F::E)) {
-          existentials.push_back(seq[i]);
-        }
-        else if(must_ternarize(seq[i]) && is_supported(seq[i])) {
-          auto v = internal_ternarize(seq[i]);
-          conjunction.push_back(F::make_binary(v, EQ, ternarize_constant(F::make_z(1))));
-        }
-        else {
-          conjunction.push_back(seq[i]);
-        }
+        compute(f.seq(i));
       }
     }
-    else if (must_ternarize(f) && is_supported(f)) {
-      auto v = internal_ternarize(f);
-      conjunction.push_back(F::make_binary(v, EQ, ternarize_constant(F::make_z(1))));
+    else if(f.is(F::E)) {
+      existentials.push_back(f);
+      name2exists[std::string(battery::get<0>(f.exists()).data())] = existentials.size() - 1;
     }
+    else if(!is_ternary_form(f)) {
+      ternarize(f, true);
+    }
+    // Either it is unary, or already in ternary form.
     else {
       conjunction.push_back(f);
     }
-    auto all_formula = std::move(existentials);
+  }
+
+  F create() && {
+    auto ternarized_formula = std::move(existentials);
     for (int i = 0; i < conjunction.size(); ++i) {
-      all_formula.push_back(conjunction[i]);
+      ternarized_formula.push_back(std::move(conjunction[i]));
     }
-    return F::make_nary(AND, std::move(all_formula), UNTYPED, false);
+    return F::make_nary(AND, std::move(ternarized_formula), UNTYPED, false);
   }
 };
 
+} // namespace impl
+
+/**
+ * Given a formula `f`, we transform it into a conjunction of formulas of this form:
+ * 1. `x <op> c` where `c` is a constant.
+ * 2. `x = (y <op> z)` where `<op>` is a binary operator, either arithmetic or a comparison (`=`, `<=`).
+ * This ternary form is used by the lala-pc/PIR solver.
+ */
+template <class F>
+F ternarize(const F& f) {
+  impl::Ternarizer<F> ternarizer;
+  ternarizer.compute(f);
+  return std::move(ternarizer).create();
 }
+
+} // namespace lala
 
 #endif // LALA_CORE_TERNARIZE_HPP

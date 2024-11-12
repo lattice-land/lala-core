@@ -1,19 +1,6 @@
 var bool: w;
 var bool: z;
 var bool: r;
-var int: c_0;
-var bool: b_0;
-var int : z_1;
-var bool: b_2;
-var int: z_3;
-var bool: b_4;
-var bool: b_5;
 
 % constraints for constraint bool_and(w,z,r);
-constraint int_eq(c_0,0);
-constraint int_eq(b_0, int_min(w, z));
-constraint int_eq(z_1, int_minus(c_0, b_0));
-constraint int_eq(b_2, int_max(z_1, r));
-constraint int_eq(z_3, int_minus(c_0, r));
-constraint int_eq(b_4, int_max(z_3, b_0));
-constraint int_eq(b_5, int_min(b_2, b_4));
+constraint int_eq(r, int_min(w, z));

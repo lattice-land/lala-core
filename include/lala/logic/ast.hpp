@@ -209,6 +209,15 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
   CUDA NI inline constexpr bool is_arithmetic_comparison(Sig sig) {
     return sig == LEQ || sig == GEQ || sig == EQ || sig == NEQ || sig == GT || sig == LT;
   }
+
+  CUDA NI inline constexpr bool is_logical(Sig sig) {
+    return sig == AND || sig == OR || sig == IMPLY || sig == EQUIV || sig == NOT || sig == XOR;
+  }
+
+  CUDA NI inline constexpr bool is_predicate(Sig sig) {
+    return sig == IN || sig == SUBSET || sig == SUBSETEQ || sig == SUPSET || sig == SUPSETEQ ||
+        sig == EQ || sig == NEQ || sig == LEQ || sig == GEQ || sig == LT || sig == GT;
+  }
 }
 
 namespace battery {
@@ -542,18 +551,14 @@ public:
 
   CUDA NI bool is_logical() const {
     if(is(Seq)) {
-      Sig s = sig();
-      return s == AND || s == OR || s == IMPLY
-        || s == EQUIV || s == NOT || s == XOR || s == ITE;
+      return ::lala::is_logical(sig());
     }
     return false;
   }
 
   CUDA NI bool is_predicate() const {
     if(is(Seq)) {
-      Sig s = sig();
-      return s == IN || s == SUBSET || s == SUBSETEQ || s == SUPSET || s == SUPSETEQ ||
-        s == EQ || s == NEQ || s == LEQ || s == GEQ || s == LT || s == GT;
+      return ::lala::is_predicate(sig());
     }
     return false;
   }
