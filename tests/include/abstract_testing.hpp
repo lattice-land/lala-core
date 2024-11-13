@@ -113,6 +113,7 @@ L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_alloca
   EXPECT_TRUE(f);
   if(ternarize_formula) {
     *f = ternarize(*f);
+    *f = normalize(*f);
     f->print(); printf("\n");
   }
   typing(*f);

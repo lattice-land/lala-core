@@ -11,4 +11,4 @@ constraint int_le(y,10);
 constraint int_eq(__CONSTANT_5,5);
 constraint int_eq(__CONSTANT_0,0);
 constraint int_eq(__VAR_Z_0,int_plus(x,y));
-constraint int_eq(__CONSTANT_0,int_eq(__VAR_Z_0,__CONSTANT_5));
+constraint int_ne(__VAR_Z_0,5);

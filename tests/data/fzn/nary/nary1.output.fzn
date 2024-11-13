@@ -44,4 +44,4 @@ constraint int_eq(__VAR_Z_8,int_times(__CONSTANT_m1, z));
 constraint int_eq(__VAR_Z_6,int_plus(__VAR_Z_7, __VAR_Z_8));
 constraint int_eq(__VAR_Z_9,int_plus(__VAR_Z_5, __VAR_Z_6));
 constraint int_eq(__VAR_Z_10,int_plus(__VAR_Z_4, __VAR_Z_9));
-constraint int_eq(__CONSTANT_1,int_le(__VAR_Z_10, __CONSTANT_0));
+constraint int_le(__VAR_Z_10, 0);

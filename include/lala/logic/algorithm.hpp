@@ -800,6 +800,39 @@ CUDA NI F eval(const F& f) {
   }
 }
 
+/** We do simple transformation on the formula to obtain a sort of normal form such that:
+ * 1. For all c <op> t, where `c` is a constant and `t` a term, we transform it into t <converse-op> c, whenever <op> has a converse.
+ *
+ * This avoids to repeat the same transformation in different abstract domains.
+*/
+template <class F>
+CUDA NI F normalize(const F& f) {
+  switch(f.index()) {
+    case F::Z:
+    case F::R:
+    case F::S:
+    case F::B:
+    case F::V:
+    case F::E:
+    case F::LV:
+    case F::ESeq: return f;
+    case F::Seq: {
+      const auto& seq = f.seq();
+      if(f.is_binary() && is_comparison(f) && f.seq(0).is_constant()) {
+        return F::make_binary(f.seq(1), converse_comparison(f.sig()), f.seq(0), f.type());
+      }
+      else {
+        typename F::Sequence normalized_seq;
+        for(int i = 0; i < seq.size(); ++i) {
+          normalized_seq.push_back(normalize(seq[i]));
+        }
+        return F::make_nary(f.sig(), std::move(normalized_seq), f.type(), true);
+      }
+    }
+    default: assert(false); return f;
+  }
+}
+
 }
 
 #endif

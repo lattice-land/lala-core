@@ -389,8 +389,12 @@ public:
     if(t[0].avar == AVar{}) {
       return is_at_bot.join(local::B(true));
     }
-    if(t.back().avar.vid() >= data.size()) {
-      data.resize(t.back().avar.vid()+1);
+    int largest_vid = 0;
+    for(int i = 0; i < t.size(); ++i) {
+      largest_vid = battery::max(largest_vid, t[i].avar.vid());
+    }
+    if(largest_vid >= data.size()) {
+      data.resize(largest_vid+1);
     }
     bool has_changed = false;
     for(int i = 0; i < t.size(); ++i) {

@@ -77,10 +77,67 @@ private:
     return var;
   }
 
+  bool is_constant_var(const F& x) const {
+    if(x.is(F::LV)) {
+      std::string varname(x.lv().data());
+      return varname.starts_with("__CONSTANT_");
+    }
+    return false;
+  }
+
+  int value_of_constant(const F& x) const {
+    assert(is_constant_var(x));
+    std::string varname(x.lv().data());
+    varname = varname.substr(11);
+    varname[0] = varname[0] == 'm' ? '-' : varname[0];
+    return std::stoi(varname);
+  }
+
+  /** We try to simplify the ternary constraint into a unary constraint in case of constant values. */
+  bool try_simplify_push_ternary(const F& x, const F& y, Sig sig, const F& z) {
+    /** We first seek to simply the ternary constraint in case of two constants. */
+    int xc = is_constant_var(x);
+    int yc = is_constant_var(y);
+    int zc = is_constant_var(z);
+    if(yc + zc == 2) {
+      F y_sig_z = F::make_binary(F::make_z(value_of_constant(y)), sig, F::make_z(value_of_constant(z)));
+      F simplified = F::make_binary(x, EQ, eval(y_sig_z));
+      if(is_ternary_form(simplified)) {
+        compute(simplified);
+        return true;
+      }
+    }
+    else if(xc + yc + zc == 2) {
+      assert(xc == 1);
+      F y_sig_z =
+        (yc == 1)
+        ? F::make_binary(F::make_z(value_of_constant(y)), sig, z)
+        : F::make_binary(y, sig, F::make_z(value_of_constant(z)));
+      int x_value = value_of_constant(x);
+      if(x_value == 0) {
+        auto r = negate(y_sig_z);
+        F not_y_sig_z = r.has_value() ? *r : F::make_unary(NOT, y_sig_z);
+        not_y_sig_z = eval(not_y_sig_z);
+        if(is_ternary_form(not_y_sig_z)) {
+          compute(not_y_sig_z);
+          return true;
+        }
+      }
+      else if(is_ternary_form(y_sig_z)) {
+        compute(y_sig_z);
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Create the ternary formula `x = y <sig> z`. */
   F push_ternary(const F& x, const F& y, Sig sig, const F& z) {
-    conjunction.push_back(
-      F::make_binary(x, EQ, F::make_binary(y, sig, z)));
+    if(try_simplify_push_ternary(x, y, sig, z)) {
+      return x;
+    }
+    /** If the simplification was not possible, we add the ternary constraint. */
+    conjunction.push_back(F::make_binary(x, EQ, F::make_binary(y, sig, z)));
     return x;
   }
 
