@@ -24,9 +24,13 @@ using IStore = VStore<Itv, standard_allocator>;
 template <class F>
 bool contains(const F &f, const F &must_contain)
 {
+  F reversed = must_contain;
+  if(must_contain.is_binary() && must_contain.sig() == EQ) {
+    reversed = F::make_binary(must_contain.seq(1), EQ, must_contain.seq(0));
+  }
   for (int i = 0; i < f.seq().size(); ++i)
   {
-    if (f.seq(i) == must_contain)
+    if (f.seq(i) == must_contain || f.seq(i) == reversed)
     {
       return true;
     }

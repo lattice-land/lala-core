@@ -129,10 +129,13 @@ private:
     /** We first handle "almost ternarized" constraint.
      * If the symbol is already an equality with a variable on one side, we only need to ternarize the other half.
      * We set t0 to be the variable and proceeds. */
-    if((f.seq(0).is_variable() && f.seq(1).is_binary()) || (f.seq(1).is_variable() && f.seq(0).is_binary()) && (f.sig() == EQUIV || f.sig() == EQ))  {
-      int left = f.seq(1).is_variable();
-      int right = f.seq(0).is_variable();
-      t0 = f.seq(left);
+    if((((f.seq(0).is_variable() || f.seq(0).is_constant()) && f.seq(1).is_binary())
+     ||((f.seq(1).is_variable() || f.seq(1).is_constant()) && f.seq(0).is_binary()))
+     && (f.sig() == EQUIV || f.sig() == EQ))
+    {
+      int left = f.seq(0).is_binary();
+      int right = f.seq(1).is_binary();
+      t0 = ternarize(f.seq(left));
       f = f.seq(right);
       toplevel = false;
     }
