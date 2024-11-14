@@ -76,12 +76,17 @@ void both_interpret_must_error(const char* fzn, VarEnv<standard_allocator> env =
   interpret_must_error<IKind::ASK, L>(fzn, env);
 }
 
-template <IKind kind, class L>
+template <IKind kind, bool ternarize_formula = false, class L>
 void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator>& env, bool has_warning = false) {
   static_assert(kind == IKind::TELL || L::is_abstract_universe);
   using F = TFormula<standard_allocator>;
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
+  if(ternarize_formula) {
+    *f = ternarize(*f, env);
+    f->print(); printf("\n");
+  }
+  *f = normalize(*f);
   IDiagnostics diagnostics;
   bool res;
   if constexpr(L::is_abstract_universe) {
@@ -112,10 +117,10 @@ L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_alloca
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   if(ternarize_formula) {
-    *f = ternarize(*f);
-    *f = normalize(*f);
+    *f = ternarize(*f, env);
     f->print(); printf("\n");
   }
+  *f = normalize(*f);
   typing(*f);
   IDiagnostics diagnostics;
   auto value = create_and_interpret_and_tell<L, true>(*f, env, diagnostics);
