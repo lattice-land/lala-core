@@ -800,6 +800,101 @@ CUDA NI F eval(const F& f) {
   }
 }
 
+/** We do simple transformation on the formula to obtain a sort of normal form such that:
+ * 1. For all c <op> t, where `c` is a constant and `t` a term, we transform it into t <converse-op> c, whenever <op> has a converse.
+ * 2. Try to push NOT inside the formula (see `negate`).
+ *
+ * This avoids to repeat the same transformation in different abstract domains.
+*/
+template <class F>
+CUDA NI F normalize(const F& f) {
+  switch(f.index()) {
+    case F::Z:
+    case F::R:
+    case F::S:
+    case F::B:
+    case F::V:
+    case F::E:
+    case F::LV:
+    case F::ESeq: return f;
+    case F::Seq: {
+      const auto& seq = f.seq();
+      if(f.sig() == NOT) {
+        auto not_f = negate(f.seq(0));
+        if(not_f.has_value() && *not_f != f) {
+          return normalize(*not_f);
+        }
+      }
+      if(f.is_binary() && is_comparison(f) && f.seq(0).is_constant()) {
+        return F::make_binary(f.seq(1), converse_comparison(f.sig()), f.seq(0), f.type());
+      }
+      else {
+        typename F::Sequence normalized_seq;
+        for(int i = 0; i < seq.size(); ++i) {
+          normalized_seq.push_back(normalize(seq[i]));
+        }
+        return F::make_nary(f.sig(), std::move(normalized_seq), f.type(), true);
+      }
+    }
+    default: assert(false); return f;
+  }
+}
+
+namespace impl {
+/** Given an interval occuring in a set (LogicSet), we decompose it as a formula. */
+template <class F>
+CUDA F itv_to_formula(const F& f, const battery::tuple<F, F>& itv, const typename F::allocator_type& alloc = typename F::allocator_type()) {
+  const auto& [l, u] = itv;
+  if(l == u) {
+    return F::make_binary(f, EQ, l, f.type(), alloc);
+  }
+  else {
+    Sig geq_sig = l.is(F::S) ? SUPSETEQ : GEQ;
+    Sig leq_sig = l.is(F::S) ? SUBSETEQ : LEQ;
+    return
+      F::make_binary(
+        F::make_binary(f, geq_sig, l, f.type(), alloc),
+        AND,
+        F::make_binary(f, leq_sig, u, f.type(), alloc),
+        f.type(),
+        alloc);
+  }
+}
+}
+
+/** Given a constraint of the form `t in S` where S is a set of intervals {[l1,u1],..,[lN,uN]}, create a disjunction where each term represents interval. */
+template <class F>
+CUDA F decompose_in_constraint(const F& f, const typename F::allocator_type& alloc = typename F::allocator_type()) {
+  if(f.is_binary() && f.sig() == IN && f.seq(1).is(F::S)) {
+    const auto& set = f.seq(1).s();
+    if(set.size() == 1) {
+      return impl::itv_to_formula(f.seq(0), set[0], alloc);
+    }
+    else {
+      typename F::Sequence disjunction(alloc);
+      disjunction.reserve(set.size());
+      for(size_t i = 0; i < set.size(); ++i) {
+        disjunction.push_back(impl::itv_to_formula(f.seq(0), set[i], alloc));
+      }
+      return F::make_nary(OR, std::move(disjunction), f.type());
+    }
+  }
+  return f;
+}
+
+// Decompose `t != u` into a disjunction `t < u \/ t > u`.
+template <class F>
+CUDA F decompose_arith_neq_constraint(const F& f, const typename F::allocator_type& alloc = typename F::allocator_type()) {
+  if(f.is_binary() && f.sig() == NEQ) {
+    return F::make_binary(
+      F::make_binary(f.seq(0), LT, f.seq(1), f.type(), alloc),
+      OR,
+      F::make_binary(f.seq(0), GT, f.seq(1), f.type(), alloc),
+      f.type(), alloc);
+  }
+  return f;
+}
+
 }
 
 #endif

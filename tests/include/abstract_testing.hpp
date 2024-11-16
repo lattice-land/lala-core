@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include "lala/logic/logic.hpp"
+#include "lala/logic/ternarize.hpp"
 #include "lala/universes/arith_bound.hpp"
 #include "lala/interpretation.hpp"
 #include "lala/flatzinc_parser.hpp"
@@ -75,12 +76,17 @@ void both_interpret_must_error(const char* fzn, VarEnv<standard_allocator> env =
   interpret_must_error<IKind::ASK, L>(fzn, env);
 }
 
-template <IKind kind, class L>
+template <IKind kind, bool ternarize_formula = false, class L>
 void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator>& env, bool has_warning = false) {
   static_assert(kind == IKind::TELL || L::is_abstract_universe);
   using F = TFormula<standard_allocator>;
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
+  if(ternarize_formula) {
+    *f = ternarize(*f, env);
+    f->print(); printf("\n");
+  }
+  *f = normalize(*f);
   IDiagnostics diagnostics;
   bool res;
   if constexpr(L::is_abstract_universe) {
@@ -106,10 +112,15 @@ void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator
   EXPECT_EQ(diagnostics.has_warning(), has_warning);
 }
 
-template <class L, class Typing>
+template <class L, bool ternarize_formula = false, class Typing>
 L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_allocator>& env, Typing&& typing, bool has_warning = false) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
+  if(ternarize_formula) {
+    *f = ternarize(*f, env);
+    f->print(); printf("\n");
+  }
+  *f = normalize(*f);
   typing(*f);
   IDiagnostics diagnostics;
   auto value = create_and_interpret_and_tell<L, true>(*f, env, diagnostics);
@@ -122,15 +133,15 @@ L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_alloca
   return std::move(value.value());
 }
 
-template <class L>
+template <class L, bool ternarize_formula = false>
 L create_and_interpret_and_tell(const char* fzn, VarEnv<standard_allocator>& env, bool has_warning = false) {
-  return create_and_interpret_and_type_and_tell<L>(fzn, env, [](const F&){}, has_warning);
+  return create_and_interpret_and_type_and_tell<L, ternarize_formula>(fzn, env, [](const F&){}, has_warning);
 }
 
-template <class L>
+template <class L, bool ternarize_formula = false>
 L create_and_interpret_and_tell(const char* fzn, bool has_warning = false) {
   VarEnv<standard_allocator> env;
-  return create_and_interpret_and_tell<L>(fzn, env, has_warning);
+  return create_and_interpret_and_tell<L, ternarize_formula>(fzn, env, has_warning);
 }
 
 template <IKind kind, class L>
@@ -291,11 +302,11 @@ void generic_arithmetic_fun_test(const A& a) {
 }
 
 /** Check that \f$ \llbracket . \rrbracket = \llbracket . \rrbracket \circ \rrbacket . \llbracket \circ \llbracket . \rrbracket \f$ */
-template <class L>
+template <class L, bool ternarize_formula = false>
 void check_interpret_idempotence(const char* fzn) {
   using F = TFormula<standard_allocator>;
   VarEnv<standard_allocator> env1, env2;
-  L value1 = create_and_interpret_and_tell<L>(fzn, env1);
+  L value1 = create_and_interpret_and_tell<L, ternarize_formula>(fzn, env1);
   F f1 = value1.deinterpret(env1);
   f1.print(true);
   printf("\n");
