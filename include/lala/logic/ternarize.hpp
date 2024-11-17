@@ -2,6 +2,7 @@
 #define LALA_CORE_TERNARIZE_HPP
 
 #include "ast.hpp"
+#include "env.hpp"
 
 namespace lala {
 namespace impl {
@@ -25,6 +26,17 @@ public:
     return sig == MAX || sig == MIN || sig == EQ || sig == LEQ || (!is_logical(sig) && !is_predicate(sig));
   }
 
+private:
+  void introduce_existing_var(const std::string& varname) {
+    if(varname.starts_with("__VAR_Z_")) {
+      introduced_int_vars = std::max((unsigned int)std::stoul(varname.substr(8))+1, introduced_int_vars);
+    }
+    else if(varname.starts_with("__VAR_B_")) {
+      introduced_bool_vars = std::max((unsigned int)std::stoul(varname.substr(8))+1, introduced_bool_vars);
+    }
+  }
+
+public:
   /** The environment is helpful to recover the sort of the free variables. */
   Ternarizer(const Env& env, bool ternarize_all):
     introduced_int_vars(0),
@@ -34,15 +46,8 @@ public:
     ternarize_all(ternarize_all)
   {
     /** We skip all the temporary variables already created in the environment. */
-    std::string name = "__VAR_Z_" + std::to_string(introduced_int_vars);
-    while(env.variable_of(name.data()).has_value()) {
-      ++introduced_int_vars;
-      name = "__VAR_Z_" + std::to_string(introduced_int_vars);
-    }
-    name = "__VAR_B_" + std::to_string(introduced_bool_vars);
-    while(env.variable_of(name.data()).has_value()) {
-      ++introduced_bool_vars;
-      name = "__VAR_B_" + std::to_string(introduced_bool_vars);
+    for(int i = 0; i < env.num_vars(); ++i) {
+      introduce_existing_var(std::string(env[i].name.data()));
     }
   }
 
@@ -58,7 +63,7 @@ private:
 
   F introduce_var(const std::string& name, auto sort, bool constant) {
     auto var_name = LVar<allocator_type>(name.data());
-    assert(!env.variable_of(name.data()).has_value());
+    assert(!env.contains(name.data()));
     existentials.push_back(F::make_exists(UNTYPED, var_name, sort));
     assert(!name2exists.contains(name));
     name2exists[name] = existentials.size() - 1;
@@ -80,7 +85,7 @@ private:
 
   F ternarize_constant(const F& f) {
     assert(f.is(F::Z) || f.is(F::B));
-    auto index = f.is(F::Z) ? f.z() : (int)f.b();
+    auto index = f.to_z();
     std::string name = "__CONSTANT_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(abs(index));
     // if the constant is already a logical variable, we return it.
     if (name2exists.contains(name) || env.contains(name.data())) {
@@ -159,11 +164,17 @@ private:
     return x;
   }
 
-  F ternarize_unary(const F& f) {
+  F ternarize_unary(const F& f, bool toplevel = false) {
     F x = ternarize(f.seq(0));
     switch(f.sig()) {
       /** -x ~~> t = 0 - x */
-      case NEG: return push_ternary(introduce_int_var(), ternarize(F::make_z(0)), SUB, x);
+      case NEG: {
+        F t = push_ternary(introduce_int_var(), ternarize(F::make_z(0)), SUB, x);
+        if(toplevel) {
+          return ternarize(F::make_binary(t, NEQ, F::make_z(0)), true);
+        }
+        return t;
+      }
       /** |x| ~~> t1 = 0 - x /\ t2 <= max(x, t1) /\ t2 >= 0 /\ t2 >= x /\ t2 >= t1 */
       case ABS: {
         F t1 = ternarize(F::make_unary(NEG, x));
@@ -172,10 +183,18 @@ private:
         compute(F::make_binary(t2, GEQ, t1));
         compute(F::make_binary(t2, GEQ, x));
         compute(F::make_binary(t2, LEQ, F::make_binary(x, MAX, t1)));
+        if(toplevel) {
+          return ternarize(F::make_binary(t2, NEQ, F::make_z(0)), true);
+        }
         return t2;
       }
       /** NOT x ~~> ternarize(x = 0) ~~> t = (x = 0) */
-      case NOT: return ternarize(F::make_binary(x, EQ, F::make_z(0)));
+      case NOT: return ternarize(F::make_binary(x, EQ, F::make_z(0)), toplevel);
+      case MINIMIZE:
+      case MAXIMIZE: {
+        conjunction.push_back(F::make_unary(f.sig(), x));
+        return x;
+      }
       default: {
         printf("Unary operator %s not supported\n", string_of_sig(f.sig()));
         printf("In formula: "); f.print(); printf("\n");
@@ -197,7 +216,7 @@ private:
         return var_opt->get().sort.is_bool();
       }
     }
-    assert(false);
+    assert(false); // undeclared variable.
     return false;
   }
 
@@ -265,13 +284,7 @@ private:
         push_ternary(ternarize(F::make_unary(NOT, t0)), t1, EQ, t2);
         return t0;
       }
-      case IMPLY: {
-        t1 = ternarize(F::make_unary(NOT, t1));
-        if(toplevel) {
-          return push_ternary(ternarize_constant(F::make_z(1)), t1, MAX, t2);
-        }
-        return push_ternary(t0, t1, MAX, t2);
-      }
+      case IMPLY: return ternarize(F::make_binary(F::make_unary(NOT, t1), OR, t2), toplevel);
       case LEQ: return push_ternary(t0, t1, LEQ, t2);
       // x >= y ~~> y <= x
       case GEQ: return push_ternary(t0, t2, LEQ, t1);
@@ -319,11 +332,12 @@ private:
       return ternarize(F::make_binary(t1, f.sig(), t2), toplevel);
     }
     else {
-      auto tmp = ternarize(F::make_binary(f.seq(0), f.sig(), f.seq(1)));
+      F tmp = ternarize(F::make_binary(f.seq(0), f.sig(), f.seq(1)));
       for (int i = 2; i < f.seq().size() - 1; i++) {
         tmp = ternarize(F::make_binary(tmp, f.sig(), f.seq(i)));
       }
-      return ternarize(F::make_binary(tmp, f.sig(), f.seq(f.seq().size() - 1)), true);
+      tmp = ternarize(F::make_binary(tmp, f.sig(), f.seq(f.seq().size() - 1)), toplevel);
+      return tmp;
     }
   }
 
@@ -336,16 +350,15 @@ private:
     }
     else if (f.is(F::Z) || f.is(F::B)) {
       if(toplevel) {
-        return f.z() != 0 ? F::make_true() : F::make_false();
+        return f.to_z() != 0 ? F::make_true() : F::make_false();
       }
       return ternarize_constant(f);
     }
+    else if (f.is(F::S)) {
+      return f;
+    }
     else if (f.is_unary()) {
-      auto t = ternarize_unary(f);
-      if(toplevel) {
-        return ternarize(F::make_binary(t, NEQ, F::make_z(0)), true);
-      }
-      return t;
+      return ternarize_unary(f, toplevel);
     }
     else if (f.is_binary()) {
       return ternarize_binary(f, toplevel);
@@ -353,7 +366,9 @@ private:
     else if (f.is(F::Seq) && f.seq().size() > 2) {
       return ternarize_nary(f, toplevel);
     }
-    return f;
+    printf("Unsupported formula: "); f.print(false); printf("\n");
+    assert(false);
+    return F::make_false();
   }
 
 public:
@@ -366,9 +381,16 @@ public:
     }
     else if(f.is(F::E)) {
       existentials.push_back(f);
-      name2exists[std::string(battery::get<0>(f.exists()).data())] = existentials.size() - 1;
+      std::string varname(battery::get<0>(f.exists()).data());
+      name2exists[varname] = existentials.size() - 1;
+      /** If ternarize has been called before, some temporary variables __VAR_Z_* and __VAR_B_* might already have been created.
+       * In that case, we need to update the counters to avoid conflicts.
+       * This is not perfect, because it requires existential quantifier are in the beginning of the formula (before we introduce any variable).
+       * For more robustness, we should rename the variables in the formula, if introduced_int_vars >= X in __VAR_Z_X.
+       */
+      introduce_existing_var(varname);
     }
-    else if(!is_ternary_form(f, ternarize_all)) {
+    else if(!f.is(F::ESeq) && !is_ternary_form(f, ternarize_all)) {
       ternarize(f, true);
     }
     // Either it is unary, or already in ternary form.
@@ -397,8 +419,8 @@ public:
  * 2. `x = (y <op> z)` where `<op>` is a binary operator, either arithmetic or a comparison (`=`, `<=`).
  * This ternary form is used by the lala-pc/PIR solver.
  */
-template <class F, class Env>
-F ternarize(const F& f, const Env& env, bool ternarize_all = false) {
+template <class F, class Env = VarEnv<battery::standard_allocator>>
+F ternarize(const F& f, const Env& env = Env(), bool ternarize_all = false) {
   impl::Ternarizer<F, Env> ternarizer(env, ternarize_all);
   ternarizer.compute(f);
   return std::move(ternarizer).create();

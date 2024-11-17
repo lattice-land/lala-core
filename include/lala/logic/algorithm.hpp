@@ -689,7 +689,7 @@ namespace impl {
           return seq[0];
         }
         else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
-          return F::make_unary(NEG, seq[0], atype);
+          return F::make_unary(NEG, seq[1], atype);
         }
         break;
       }
@@ -782,7 +782,7 @@ CUDA NI F eval(const F& f) {
     case F::LV: return f;
     case F::Seq: {
       const auto& seq = f.seq();
-      typename F::Sequence evaluated_seq;
+      typename F::Sequence evaluated_seq(seq.get_allocator());
       for(int i = 0; i < seq.size(); ++i) {
         evaluated_seq.push_back(eval(seq[i]));
       }
@@ -790,7 +790,7 @@ CUDA NI F eval(const F& f) {
     }
     case F::ESeq: {
       auto eseq = f.eseq();
-      typename F::Sequence evaluated_eseq;
+      typename F::Sequence evaluated_eseq(eseq.get_allocator());
       for(int i = 0; i < eseq.size(); ++i) {
         evaluated_eseq.push_back(eval(eseq[i]));
       }
@@ -802,7 +802,10 @@ CUDA NI F eval(const F& f) {
 
 /** We do simple transformation on the formula to obtain a sort of normal form such that:
  * 1. For all c <op> t, where `c` is a constant and `t` a term, we transform it into t <converse-op> c, whenever <op> has a converse.
- * 2. Try to push NOT inside the formula (see `negate`).
+ * 2. For all t <op> v, where `v` is a constant and `t` a term (not a variable or constant), we transform it into v <converse-op> t, whenever <op> has a converse.
+ * 3. Try to push NOT inside the formula (see `negate`).
+ * 4. Transform `not x` into `x = 0`.
+ * 5. Transform `x in {v}` into `x = v`.
  *
  * This avoids to repeat the same transformation in different abstract domains.
 */
@@ -818,20 +821,38 @@ CUDA NI F normalize(const F& f) {
     case F::LV:
     case F::ESeq: return f;
     case F::Seq: {
-      const auto& seq = f.seq();
       if(f.sig() == NOT) {
-        auto not_f = negate(f.seq(0));
+        assert(f.seq().size() == 1);
+        if(f.seq(0).is_variable()) {
+          return F::make_binary(f.seq(0), EQ, F::make_z(0), f.type());
+        }
+        F fi = normalize(f.seq(0));
+        auto not_f = negate(fi);
         if(not_f.has_value() && *not_f != f) {
           return normalize(*not_f);
         }
+        else {
+          return F::make_unary(NOT, std::move(fi), f.type());
+        }
       }
       if(f.is_binary() && is_comparison(f) && f.seq(0).is_constant()) {
-        return F::make_binary(f.seq(1), converse_comparison(f.sig()), f.seq(0), f.type());
+        return F::make_binary(
+          normalize(f.seq(1)), converse_comparison(f.sig()), f.seq(0),
+          f.type(), f.seq().get_allocator());
+      }
+      else if(f.is_binary() && is_comparison(f) && !f.seq(0).is_variable() && f.seq(1).is_variable()) {
+        return F::make_binary(
+          f.seq(1), converse_comparison(f.sig()), normalize(f.seq(0)),
+          f.type(), f.seq().get_allocator());
+      }
+      /** x in {v} --> x = v */
+      else if(f.is_binary() && f.sig() == IN && f.seq(1).is(F::S) && f.seq(1).s().size() == 1 && battery::get<0>(f.seq(1).s()[0]) == battery::get<1>(f.seq(1).s()[0])) {
+        return F::make_binary(f.seq(0), EQ, battery::get<0>(f.seq(1).s()[0]), f.type());
       }
       else {
-        typename F::Sequence normalized_seq;
-        for(int i = 0; i < seq.size(); ++i) {
-          normalized_seq.push_back(normalize(seq[i]));
+        typename F::Sequence normalized_seq(f.seq().get_allocator());
+        for(int i = 0; i < f.seq().size(); ++i) {
+          normalized_seq.push_back(normalize(f.seq(i)));
         }
         return F::make_nary(f.sig(), std::move(normalized_seq), f.type(), true);
       }
