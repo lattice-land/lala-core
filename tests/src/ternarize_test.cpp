@@ -102,7 +102,7 @@ void test_ternarize(
   for (int i = 0; i < ternarized.seq().size(); ++i) {
     auto f = ternarized.seq(i);
     // test the form of the formula
-    if (!::lala::impl::Ternarizer<F>::is_ternary_form(f)) {
+    if (!::lala::impl::Ternarizer<F, VarEnv<standard_allocator>>::is_ternary_form(f)) {
       if(!(f.is(F::ESeq)
         || (f.is(F::Seq) && (f.sig() == MINIMIZE || f.sig() == MAXIMIZE || f.sig() == IN))))
       {
