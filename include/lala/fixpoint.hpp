@@ -10,6 +10,7 @@
 
 #ifdef __CUDACC__
   #include <cooperative_groups.h>
+  #include <cub/block/block_scan.cuh>
 #endif
 
 namespace lala {
@@ -72,6 +73,80 @@ public:
   CUDA size_t fixpoint(size_t n, const F& f) {
     local::B has_changed(false);
     return fixpoint(n, f, has_changed);
+  }
+};
+
+
+/** Add the ability to deactive functions in a fixpoint computation.
+ * Given a function `g`, we select only the functions \f$ f_{i_1} ; \ldots ; f_{i_k} \f$ for which \f$ g(i_k) \f$ is `true`, and compute subsequent fixpoint without them.
+ */
+template <class FixpointEngine>
+class FixpointSubsetCPU {
+private:
+  FixpointEngine fp_engine;
+
+  /** The indexes of all functions. */
+  battery::vector<int> indexes;
+
+  /** The active subset of the functions is from 0..n-1. */
+  size_t n;
+
+public:
+  FixpointSubsetCPU(size_t n) : n(n), indexes(n) {
+    for(int i = 0; i < n; ++i) {
+      indexes[i] = i;
+    }
+  }
+
+  template <class F>
+  bool iterate(const F& f) {
+    return fp_engine.iterate(n, [&](size_t i) { return f(indexes[i]); });
+  }
+
+  template <class F>
+  size_t fixpoint(const F& f) {
+    return fp_engine.fixpoint(n, [&](size_t i) { return f(indexes[i]); });
+  }
+
+  template <class F, class StopFun>
+  size_t fixpoint(const F& f, const StopFun& g) {
+    return fp_engine.fixpoint(n, [&](size_t i) { return f(indexes[i]); }, g);
+  }
+
+  template <class F, class StopFun, class M>
+  size_t fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
+    return fp_engine.fixpoint(n, [&](size_t i) { return f(indexes[i]); }, g);
+  }
+
+  /** \return the number of active functions. */
+  size_t num_active() const {
+    return n;
+  }
+
+  void reset() {
+    n = indexes.size();
+  }
+
+  /** Compute the subset of the functions that are still active.
+   * The subsequent call to `fixpoint` will only consider the function `f_i` for which `g(i)` is `true`. */
+  template <class G>
+  void select(const G& g) {
+    for(int i = 0; i < n; ++i) {
+      if(!g(indexes[i])) {
+        battery::swap(indexes[i], indexes[--n]);
+        i--;
+      }
+    }
+  }
+
+  using snapshot_type = size_t;
+
+  snapshot_type snapshot() const {
+    return snapshot_type(n);
+  }
+
+  void restore(const snapshot_type& snap) {
+    n = snap;
   }
 };
 
@@ -296,6 +371,172 @@ public:
     }
     return has_changed;
   #endif
+  }
+};
+
+/** Add the ability to deactive functions in a fixpoint computation.
+ * Given a function `g`, we select only the functions \f$ f_{i_1} \| \ldots \| f_{i_k} \f$ for which \f$ g(i_k) \f$ is `true`, and compute subsequent fixpoint without them.
+ */
+template <class FixpointEngine, class Allocator, size_t TPB>
+class FixpointSubsetGPU {
+public:
+  using allocator_type = Allocator;
+
+private:
+  FixpointEngine fp_engine;
+
+  /** The indexes of functions that are active. */
+  battery::vector<int, allocator_type> indexes;
+
+  /** A mask to know which functions are still active.
+   * We have `mask[i] <=> g(indexes[i])`.
+  */
+  battery::vector<bool, allocator_type> mask;
+
+  /** A temporary array to compute the prefix sum of `mask`, in order to copy indexes into `indexes2`. */
+  battery::vector<int, allocator_type> sum;
+
+  /** A temporary array when copying the new active functions. */
+  battery::vector<int, allocator_type> indexes2;
+
+  /** The CUB prefix sum temporary storage. */
+  using BlockScan = cub::BlockScan<int, TPB>;
+  typename BlockScan::TempStorage cub_prefixsum_tmp;
+
+  // We round n to the next multiple of TPB (the maximum dimension of the block, for now).
+  __device__ INLINE size_t round_multiple_TPB(size_t n) {
+    return n + ((blockDim.x - n % blockDim.x) % blockDim.x);
+  }
+
+public:
+  FixpointSubsetGPU() = default;
+
+  __device__ void reset(size_t n) {
+    if(threadIdx.x == 0) {
+      indexes.resize(n);
+      indexes2.resize(n);
+    }
+    __syncthreads();
+    for(int i = threadIdx.x; i < indexes.size(); i += blockDim.x) {
+      indexes[i] = i;
+    }
+  }
+
+  __device__ void init(size_t n, const allocator_type& allocator = allocator_type()) {
+    if(threadIdx.x == 0) {
+      indexes = battery::vector<int, allocator_type>(n, allocator);
+      indexes2 = battery::vector<int, allocator_type>(n, allocator);
+      mask = battery::vector<bool, allocator_type>(round_multiple_TPB(n), false, allocator);
+      sum = battery::vector<int, allocator_type>(round_multiple_TPB(n), 0, allocator);
+    }
+    __syncthreads();
+    for(int i = threadIdx.x; i < indexes.size(); i += blockDim.x) {
+      indexes[i] = i;
+    }
+  }
+
+  __device__ void destroy() {
+    if(threadIdx.x == 0) {
+      indexes = battery::vector<int, allocator_type>();
+      indexes2 = battery::vector<int, allocator_type>();
+      mask = battery::vector<bool, allocator_type>();
+      sum = battery::vector<int, allocator_type>();
+    }
+    __syncthreads();
+  }
+
+  CUDA INLINE bool is_thread0() const {
+    return fp_engine.is_thread0();
+  }
+
+  CUDA INLINE void barrier() {
+    fp_engine.barrier();
+  }
+
+  template <class F>
+  CUDA INLINE bool iterate(const F& f) {
+    return fp_engine.iterate(indexes, f);
+  }
+
+  template <class F>
+  CUDA INLINE size_t fixpoint(const F& f) {
+    return fp_engine.fixpoint(indexes, f);
+  }
+
+  template <class F, class StopFun>
+  CUDA INLINE size_t fixpoint(const F& f, const StopFun& g) {
+    return fp_engine.fixpoint(indexes, f, g);
+  }
+
+  template <class F, class StopFun, class M>
+  CUDA INLINE size_t fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
+    return fp_engine.fixpoint(indexes, f, g);
+  }
+
+  /** \return the number of active functions. */
+  CUDA size_t num_active() const {
+    return indexes.size();
+  }
+
+  /** Compute the subset of the functions that are still active.
+   * The subsequent call to `fixpoint` will only consider the function `f_i` for which `g(i)` is `true`. */
+  template <class G>
+  __device__ void select(const G& g) {
+    assert(TPB == blockDim.x);
+    // indexes:   0 1 2 3   (indexes of the propagators)
+    // mask:      1 0 0 1   (filtering entailed functions)
+    // sum:       1 1 1 2   (inclusive prefix sum)
+    // indexes2:      0 3   (new indexes of the propagators)
+    if(indexes.size() == 0) {
+      return;
+    }
+
+    /** I. We perform a parallel map to detect the active functions. */
+    for(int i = threadIdx.x; i < indexes.size(); i += blockDim.x) {
+      mask[i] = g(indexes[i]);
+    }
+
+    /** II. We then compute the prefix sum of the mask in order to compute the new indexes of the active functions. */
+    size_t n = round_multiple_TPB(indexes.size());
+    for(int i = threadIdx.x; i < n; i += blockDim.x) {
+      BlockScan(cub_prefixsum_tmp).InclusiveSum(mask[i], sum[i]);
+      __syncthreads(); // required by BlockScan to reuse the temporary storage.
+    }
+    for(int i = blockDim.x + threadIdx.x; i < n; i += blockDim.x) {
+      sum[i] += sum[i - threadIdx.x - 1];
+      __syncthreads();
+    }
+
+    /** III. We compute the new indexes of the active functions. */
+    if(threadIdx.x == 0) {
+      battery::swap(indexes, indexes2);
+      indexes.resize(sum[indexes2.size()-1]);
+    }
+    __syncthreads();
+    for(int i = threadIdx.x; i < indexes2.size(); i += blockDim.x) {
+      if(mask[i]) {
+        indexes[sum[i]-1] = indexes2[i];
+      }
+    }
+  }
+
+  template <class Alloc = allocator_type>
+  using snapshot_type = battery::vector<int, Alloc>;
+
+  template <class Alloc = allocator_type>
+  CUDA snapshot_type<Alloc> snapshot(const Alloc& alloc = Alloc()) const {
+    return snapshot_type<Alloc>(indexes, alloc);
+  }
+
+  template <class Alloc>
+  __device__ void restore_par(const snapshot_type<Alloc>& snap) {
+    for(int i = threadIdx.x; i < snap.size(); i += blockDim.x) {
+      indexes[i] = snap[i];
+    }
+    if(threadIdx.x == 0) {
+      assert(snap.size() < indexes.capacity());
+      indexes.resize(snap.size());
+    }
   }
 };
 
