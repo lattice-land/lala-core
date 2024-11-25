@@ -32,14 +32,14 @@ public:
 };
 
 __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {
-  using FP_engine = BlockAsynchronousIterationGPU;
+  using FP_engine = BlockAsynchronousFixpointGPU;
   using Min = Minimum<atomic_memory_block>;
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;
   auto block = cooperative_groups::this_thread_block();
   FP_engine& fp = battery::make_unique_block<FP_engine, global_allocator>(fp_engine);
   Min& m = battery::make_unique_block<Min, global_allocator>(minimum, g);
-  fp.fixpoint(m);
+  fp.fixpoint(m.num_deductions(), [&](size_t i){ return m.deduce(i); });
   cooperative_groups::invoke_one(block, [&](){
     *result = m.extract();
   });
@@ -47,14 +47,14 @@ __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {
 }
 
 __global__ void minimum_kernel_on_grid(cpu_gpu_vec* g, int* result) {
-  using FP_engine = GridAsynchronousIterationGPU;
+  using FP_engine = GridAsynchronousFixpointGPU;
   using Min = Minimum<atomic_memory_grid>;
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;
   auto grid = cooperative_groups::this_grid();
   FP_engine& fp = battery::make_unique_grid<FP_engine, global_allocator>(fp_engine, grid);
   Min& m = battery::make_unique_grid<Min, global_allocator>(minimum, g);
-  fp.fixpoint(m);
+  fp.fixpoint(m.num_deductions(), [&](size_t i){ return m.deduce(i); });
   cooperative_groups::invoke_one(grid, [&](){
     *result = m.extract();
   });

@@ -35,7 +35,9 @@ void test_simplification(
   simplifier_type::tell_type<standard_allocator> tell;
   EXPECT_TRUE((ginterpret_in<IKind::TELL, true>(simplifier, f2, env, tell, diagnostics)));
   simplifier.deduce(std::move(tell));
-  local::B has_changed = GaussSeidelIteration{}.fixpoint(simplifier);
+  local::B has_changed = GaussSeidelIteration{}.fixpoint(
+    simplifier.num_deductions(),
+    [&](size_t i) { return simplifier.deduce(i); });
   EXPECT_TRUE(has_changed);
 
   printf("fixed point reached\n");
