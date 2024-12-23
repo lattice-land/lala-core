@@ -559,8 +559,8 @@ public:
   }
 
   CUDA void print() const {
-    if(is_top()) {
-      printf("\u22A4 | ");
+    if(is_bot()) {
+      printf("\u22A5 | ");
     }
     printf("<");
     for(int i = 0; i < vars(); ++i) {
