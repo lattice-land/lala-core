@@ -21,6 +21,7 @@ else()
 endif()
 option(LOCAL_DEPS "LOCAL_DEPS" OFF)
 option(LALA_CORE_BUILD_TESTS "LALA_CORE_BUILD_TESTS" OFF)
+option(LALA_CORE_BUILD_DOC "LALA_CORE_BUILD_DOC" OFF)
 
 # Cuda-battery dependency
 
@@ -32,7 +33,7 @@ else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-    GIT_TAG        v1.5.4
+    GIT_TAG        v1.5.5
   )
 endif()
 
@@ -59,7 +60,7 @@ if(LALA_CORE_BUILD_TESTS)
 FetchContent_Declare(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.14.0
+  GIT_TAG v1.15.2
   GIT_SHALLOW 1
 )
 # For Windows: Prevent overriding the parent project's compiler/linker settings
@@ -76,7 +77,7 @@ else()
   FetchContent_Declare(
     lala_parsing
     GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-    GIT_TAG        v1.2.3
+    GIT_TAG        v1.2.4
   )
 endif()
 FetchContent_MakeAvailable(lala_parsing)
@@ -110,7 +111,7 @@ endif()
 
 # Documentation
 
-if(NOT LALA_CORE_BUILD_TESTS)
+if(LALA_CORE_BUILD_DOC)
 
   find_package(Doxygen REQUIRED doxygen)
 
