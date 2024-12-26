@@ -28,38 +28,22 @@ include(FetchContent)
 
 if(LOCAL_DEPS)
   FetchContent_Declare(cuda_battery SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cuda-battery/")
-  if(GPU)
-    FetchContent_Declare(cccl SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cccl/")
-  endif()
 else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
     GIT_TAG        v1.5.4
   )
-  if(GPU)
-    FetchContent_Declare(
-      cccl
-      GIT_REPOSITORY "https://github.com/NVIDIA/cccl.git"
-      GIT_TAG        v2.5.0
-      GIT_SHALLOW    1
-    )
-  endif()
 endif()
 
 FetchContent_MakeAvailable(cuda_battery)
-if(GPU)
-  FetchContent_MakeAvailable(cccl)
-endif()
 
 # Preparing the library
 
 if(NOT LALA_CORE_BUILD_TESTS) # For tests, lala_core will be built through lala_parsing (which depends on lala_core).
   add_library(lala_core INTERFACE)
-  target_include_directories(lala_core INTERFACE "$<$<BOOL:${GPU}>:${CUDAToolkit_INCLUDE_DIRS}>" include)
-  target_link_libraries(lala_core INTERFACE cuda_battery
-    "$<$<BOOL:${GPU}>:CUDA::cudart>"
-    "$<$<BOOL:${GPU}>:CCCL::CCCL>")
+  target_include_directories(lala_core INTERFACE include)
+  target_link_libraries(lala_core INTERFACE cuda_battery)
   target_compile_options(lala_core INTERFACE
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-diag-suppress 20011,20014>" # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
     "$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/utf-8>"
