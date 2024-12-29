@@ -165,14 +165,32 @@ CUDA NI int num_vars(const F& f)
 
 /** \return The number of existential quantifiers. */
 template<class F>
-CUDA int num_quantified_vars(const F& f) {
+CUDA size_t num_quantified_vars(const F& f) {
   return impl::num_qf_vars(f, false, UNTYPED);
 }
 
 /** \return The number of variables occurring in an existential quantifier that have type `aty`. */
 template<class F>
-CUDA int num_quantified_vars(const F& f, AType aty) {
+CUDA size_t num_quantified_vars(const F& f, AType aty) {
   return impl::num_qf_vars(f, true, aty);
+}
+
+template<class F>
+CUDA size_t num_constraints(const F& f)
+{
+  switch(f.index()) {
+    case F::E: return 0;
+    case F::Seq: {
+      if(f.sig() == AND) {
+        int total = 0;
+        for(int i = 0; i < f.seq().size(); ++i) {
+          total += num_constraints(f.seq(i));
+        }
+        return total;
+      }
+    }
+    default: return 1;
+  }
 }
 
 template<class F>
