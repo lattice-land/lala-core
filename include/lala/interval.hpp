@@ -11,21 +11,6 @@ namespace lala {
 template <class U>
 class Interval;
 
-template<class L, class K>
-CUDA constexpr auto meet(const Interval<L>&, const Interval<K>&);
-
-namespace impl {
-  template <class LB, class UB>
-  constexpr typename Interval<LB>::local_type make_itv(CartesianProduct<LB, UB> cp) {
-    return typename Interval<LB>::local_type(project<0>(cp), project<1>(cp));
-  }
-
-  template <class U> constexpr const typename Interval<U>::LB& lb(const Interval<U>& itv) { return itv.lb(); }
-  template <class L> constexpr const L& lb(const L& other) { return other; }
-  template <class U> constexpr const typename Interval<U>::UB& ub(const Interval<U>& itv) { return itv.ub(); }
-  template <class L> constexpr const L& ub(const L& other) { return other; }
-}
-
 /** An interval is a Cartesian product of a lower and upper bounds, themselves represented as lattices.
     One difference, is that the \f$ \top \f$ can be represented by multiple interval elements, whenever \f$ l > u \f$, therefore some operations are different than on the Cartesian product, e.g., \f$ [3..2] \equiv [4..1] \f$ in the interval lattice. */
 template <class U>
@@ -35,74 +20,75 @@ public:
   using UB = typename LB::dual_type;
   using this_type = Interval<LB>;
   using local_type = Interval<typename LB::local_type>;
-  using CP = CartesianProduct<LB, UB>;
-  using value_type = typename CP::value_type;
-  using memory_type = typename CP::memory_type;
+  using value_type = battery::tuple<typename LB::value_type, typename UB::value_type>;
+  using memory_type = typename LB::memory_type;
 
   template <class A>
   friend class Interval;
 
   constexpr static const bool is_abstract_universe = true;
-  constexpr static const bool sequential = CP::sequential;
+  constexpr static const bool sequential = LB::sequential;
   constexpr static const bool is_totally_ordered = false;
-  constexpr static const bool preserve_top = CP::preserve_top;
+  constexpr static const bool preserve_top = LB::preserve_top && UB::preserve_top;
   constexpr static const bool preserve_bot = true;
   constexpr static const bool preserve_meet = true;
   constexpr static const bool preserve_join = false;
-  constexpr static const bool injective_concretization = CP::injective_concretization;
-  constexpr static const bool preserve_concrete_covers = CP::preserve_concrete_covers;
+  constexpr static const bool injective_concretization = LB::injective_concretization && UB::injective_concretization;
+  constexpr static const bool preserve_concrete_covers = LB::preserve_concrete_covers && UB::preserve_concrete_covers;
   constexpr static const bool complemented = false;
-  constexpr static const bool is_arithmetic = LB::is_arithmetic;
+  constexpr static const bool is_arithmetic = LB::is_arithmetic && UB::is_arithmetic;
   constexpr static const char* name = "Interval";
 
 private:
   using LB2 = typename LB::local_type;
   using UB2 = typename UB::local_type;
-  CP cp;
-  CUDA constexpr Interval(const CP& cp): cp(cp) {}
+  LB l;
+  UB u;
+
   CUDA constexpr local_type lb2() const { return local_type(lb(), dual_bound<UB2>(lb())); }
   CUDA constexpr local_type ub2() const { return local_type(dual_bound<LB2>(ub()), ub()); }
 
 public:
   /** Initialize the interval to top using the default constructor of the bounds. */
-  CUDA constexpr Interval() {}
+  constexpr Interval() = default;
+  constexpr Interval(const this_type&) = default;
+  constexpr Interval(this_type&&) = default;
+
   /** Given a value \f$ x \in U \f$ where \f$ U \f$ is the universe of discourse, we initialize a singleton interval \f$ [x..x] \f$. */
-  CUDA constexpr Interval(const typename U::value_type& x): cp(x, x) {}
-  CUDA constexpr Interval(const LB& lb, const UB& ub): cp(lb, ub) {}
+  CUDA constexpr Interval(const typename U::value_type& x): l(x), u(x) {}
+  CUDA constexpr Interval(const LB& lb, const UB& ub): l(lb), u(ub) {}
 
   template<class A>
-  CUDA constexpr Interval(const Interval<A>& other): cp(other.cp) {}
+  CUDA constexpr Interval(const Interval<A>& other): l(other.l), u(other.u) {}
 
   template<class A>
-  CUDA constexpr Interval(Interval<A>&& other): cp(std::move(other.cp)) {}
+  CUDA constexpr Interval(Interval<A>&& other): l(std::move(other.l)), u(std::move(other.u)) {}
 
   /** The assignment operator can only be used in a sequential context.
    * It is monotone but not extensive. */
   template <class A>
   CUDA constexpr this_type& operator=(const Interval<A>& other) {
-    cp = other.cp;
+    l = other.l;
+    u = other.u;
     return *this;
   }
 
-  CUDA constexpr this_type& operator=(const this_type& other) {
-    cp = other.cp;
-    return *this;
-  }
+  constexpr this_type& operator=(const this_type&) = default;
+  constexpr this_type& operator=(this_type&&) = default;
 
   /** Pre-interpreted formula `x == 0`. */
   CUDA constexpr static local_type eq_zero() { return local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::zero())); }
   /** Pre-interpreted formula `x == 1`. */
   CUDA constexpr static local_type eq_one() { return local_type(LB::geq_k(LB::pre_universe::one()), UB::leq_k(UB::pre_universe::one())); }
 
-  CUDA constexpr static local_type bot() { return Interval(CP::bot()); }
-  CUDA constexpr static local_type top() { return Interval(CP::top()); }
+  CUDA constexpr static local_type bot() { return Interval(LB::bot(), UB::bot()); }
+  CUDA constexpr static local_type top() { return Interval(LB::top(), UB::top()); }
   CUDA constexpr local::B is_bot() const {
     // The conversion to UB2 is possible because we have verified that lb() is different from bot and top.
-    return cp.is_bot() || (!is_top() && UB2(lb().value()) > ub());
+    return l.is_bot() || u.is_bot() || (!is_top() && UB2(lb().value()) > ub());
   }
-  CUDA constexpr local::B is_top() const { return cp.is_top(); }
-  CUDA constexpr const CP& as_product() const { return cp; }
-  CUDA constexpr value_type value() const { return cp.value(); }
+  CUDA constexpr local::B is_top() const { return l.is_top() && u.is_top(); }
+  CUDA constexpr value_type value() const { return battery::make_tuple(l.value(), u.value()); }
 
 private:
   template<class A, class B>
@@ -136,7 +122,12 @@ public:
         }
       }
     }
-    return CP::template interpret_tell<diagnose>(f, env, k.cp, diagnostics);
+    bool r;
+    CALL_WITH_ERROR_CONTEXT(
+      "No component of this interval can interpret this formula.",
+        (r = LB::template interpret_tell<diagnose>(f, env, k.lb(), diagnostics),
+         r |= UB::template interpret_tell<diagnose>(f, env, k.ub(), diagnostics),
+         r));
   }
 
   /** Support the same language than the Cartesian product, and more:
@@ -174,7 +165,12 @@ public:
         (k.meet(itv))
       );
     }
-    return CP::template interpret_ask<diagnose>(f, env, k.cp, diagnostics);
+    bool r;
+    CALL_WITH_ERROR_CONTEXT(
+      "No component of this interval can interpret this formula.",
+        (r = LB::template interpret_ask<diagnose>(f, env, k.lb(), diagnostics),
+         r |= UB::template interpret_ask<diagnose>(f, env, k.ub(), diagnostics),
+         r));
   }
 
   template<IKind kind, bool diagnose = false, class F, class Env, class U2>
@@ -188,53 +184,59 @@ public:
   }
 
   /** You must use the lattice interface (join/meet methods) to modify the lower and upper bounds, if you use assignment you violate the PCCP model. */
-  CUDA constexpr LB& lb() { return cp.template project<0>(); }
-  CUDA constexpr UB& ub() { return cp.template project<1>(); }
+  CUDA INLINE constexpr LB& lb() { return l; }
+  CUDA INLINE constexpr UB& ub() { return u; }
 
-  CUDA constexpr const LB& lb() const { return cp.template project<0>(); }
-  CUDA constexpr const UB& ub() const { return cp.template project<1>(); }
+  CUDA INLINE constexpr const LB& lb() const { return l; }
+  CUDA INLINE constexpr const UB& ub() const { return u; }
 
   CUDA constexpr void join_top() {
-    cp.join_top();
+    l.join_top();
+    u.join_top();
   }
 
   template<class A>
   CUDA constexpr bool join_lb(const A& lb) {
-    return cp.template join<0>(lb);
+    return l.join(lb);
   }
 
   template<class A>
   CUDA constexpr bool join_ub(const A& ub) {
-    return cp.template join<1>(ub);
+    return u.join(ub);
   }
 
   template<class A>
   CUDA constexpr bool join(const Interval<A>& other) {
-    return cp.join(other.cp);
+    bool r = l.join(other.l);
+    r |= u.join(other.u);
+    return r;
   }
 
   CUDA constexpr void meet_bot() {
-    cp.meet_bot();
+    l.meet_bot();
+    u.meet_bot();
   }
 
   template<class A>
   CUDA constexpr bool meet_lb(const A& lb) {
-    return cp.template meet<0>(lb);
+    return l.meet(lb);
   }
 
   template<class A>
   CUDA constexpr bool meet_ub(const A& ub) {
-    return cp.template meet<1>(ub);
+    return u.meet(ub);
   }
 
   template<class A>
   CUDA constexpr bool meet(const Interval<A>& other) {
-    return cp.meet(other.cp);
+    bool r = l.meet(other.l);
+    r |= u.meet(other.u);
+    return r;
   }
 
   template <class A>
   CUDA constexpr bool extract(Interval<A>& ua) const {
-    return cp.extract(ua.cp);
+    return l.extract(ua.l) && u.extract(ua.u);
   }
 
   template<class Env, class Allocator = typename Env::allocator_type>
@@ -243,8 +245,14 @@ public:
     if(is_bot()) {
       return F::make_false();
     }
-    if(lb().is_top() || ub().is_top() || lb().is_bot() || ub().is_bot()) {
-      return cp.deinterpret(x, env);
+    if(lb().is_top() && ub().is_top()) {
+      return F::make_true();
+    }
+    if(lb().is_top()) {
+      return ub().template deinterpret<F>();
+    }
+    else if(ub().is_top()) {
+      return lb().template deinterpret<F>();
     }
     F logical_lb = lb().template deinterpret<F>();
     F logical_ub = ub().template deinterpret<F>();
@@ -447,7 +455,8 @@ public:
 
   CUDA constexpr void project(Sig fun, const local_type& x, const local_type& y) {
     if(LB2::is_order_preserving_fun(fun) && UB2::is_order_preserving_fun(fun)) {
-      cp.project(fun, x.as_product(), y.as_product());
+      l.project(fun, x.lb(), y.lb());
+      u.project(fun, x.ub(), y.ub());
     }
     else if constexpr(LB::is_arithmetic) {
       if (fun == SUB) { sub(x, y); }
@@ -481,29 +490,29 @@ public:
 // Lattice operations
 
 template<class L, class K>
-CUDA constexpr auto fjoin(const Interval<L>& a, const Interval<K>& b)
+CUDA constexpr Interval<typename L::local_type> fjoin(const Interval<L>& a, const Interval<K>& b)
 {
   if(a.is_bot()) { return b; }
   if(b.is_bot()) { return a; }
-  return impl::make_itv(fjoin(a.as_product(), b.as_product()));
+  return Interval<typename L::local_type>(fjoin(a.lb(), b.lb()), fjoin(a.ub(), b.ub()));
 }
 
 template<class L, class K>
-CUDA constexpr auto fmeet(const Interval<L>& a, const Interval<K>& b)
+CUDA constexpr Interval<typename L::local_type> fmeet(const Interval<L>& a, const Interval<K>& b)
 {
-  return impl::make_itv(fmeet(a.as_product(), b.as_product()));
+  return Interval<typename L::local_type>(fmeet(a.lb(), b.lb()), fmeet(a.ub(), b.ub()));
 }
 
 template<class L, class K>
 CUDA constexpr bool operator<=(const Interval<L>& a, const Interval<K>& b)
 {
-  return a.is_bot() || a.as_product() <= b.as_product();
+  return a.is_bot() || (a.lb() <= b.lb() && a.ub() <= b.ub());
 }
 
 template<class L, class K>
 CUDA constexpr bool operator<(const Interval<L>& a, const Interval<K>& b)
 {
-  return (a.is_bot() && !b.is_bot()) || a.as_product() < b.as_product();
+  return a <= b && a != b;
 }
 
 template<class L, class K>
@@ -521,13 +530,13 @@ CUDA constexpr bool operator>(const Interval<L>& a, const Interval<K>& b)
 template<class L, class K>
 CUDA constexpr bool operator==(const Interval<L>& a, const Interval<K>& b)
 {
-  return a.as_product() == b.as_product() || (a.is_bot() && b.is_bot());
+  return (a.is_bot() && b.is_bot()) || (a.lb() == b.lb() && a.ub() == b.ub());
 }
 
 template<class L, class K>
 CUDA constexpr bool operator!=(const Interval<L>& a, const Interval<K>& b)
 {
-  return a.as_product() != b.as_product() && !(a.is_bot() && b.is_bot());
+  return !(a == b);
 }
 
 template<class L>

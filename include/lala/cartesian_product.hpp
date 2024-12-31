@@ -94,6 +94,9 @@ public:
   CUDA constexpr CartesianProduct(As&&... as): val(battery::make_tuple(std::forward<As>(as)...)) {}
   CUDA constexpr CartesianProduct(typename As::value_type... vs): val(battery::make_tuple(As(vs)...)) {}
 
+  constexpr CartesianProduct(const CartesianProduct<As...>&) = default;
+  constexpr CartesianProduct(CartesianProduct<As...>&&) = default;
+
   template<class... Bs>
   CUDA constexpr CartesianProduct(const CartesianProduct<Bs...>& other): val(other.val) {}
 
@@ -108,10 +111,8 @@ public:
     return *this;
   }
 
-  CUDA constexpr this_type& operator=(const this_type& other) {
-    val = other.val;
-    return *this;
-  }
+  constexpr this_type& operator=(const this_type&) = default;
+  constexpr this_type& operator=(this_type&&) = default;
 
   /** Cartesian product initialized to \f$ (\bot_1, \ldots, \bot_n) \f$. */
   CUDA static constexpr local_type bot() {
