@@ -187,7 +187,7 @@ public:
   CUDA constexpr ArithBound(): val(U::top()) {}
   /** Similar to \f$[\![x \leq_A i]\!]\f$ for any name `x` where \f$ \leq_A \f$ is the lattice order. */
   CUDA constexpr ArithBound(value_type x): val(x) {}
-  CUDA constexpr ArithBound(const this_type& other): ArithBound(other.value()) {}
+  constexpr ArithBound(const this_type& other) = default;
   constexpr ArithBound(this_type&& other) = default;
 
   template <class M>
@@ -201,10 +201,7 @@ public:
     return *this;
   }
 
-  CUDA constexpr this_type& operator=(const this_type& other) {
-    memory_type::store(val, other.value());
-    return *this;
-  }
+  constexpr this_type& operator=(const this_type& other) = default;
 
   CUDA constexpr value_type value() const { return memory_type::load(val); }
 
