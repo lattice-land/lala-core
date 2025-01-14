@@ -212,6 +212,29 @@ public:
     return i - 1;
   }
 
+  template <class F, class Iter, class StopFun>
+  CUDA size_t fixpoint(size_t n, const F& f, const Iter& h, const StopFun& must_stop) {
+    reset();
+    barrier();
+    size_t i;
+    for(i = 1; changed[(i-1)%3] && !stop[(i-1)%3]; ++i) {
+      changed[i%3].join(iterate(n, f));
+      if(is_thread0()) {
+        changed[(i+1)%3].meet(false); // reinitialize changed for the next iteration.
+        stop[i%3].join(must_stop());
+      }
+      barrier();
+      h();
+      barrier();
+    }
+    return i - 1;
+  }
+
+  template <class Alloc, class F, class Iter, class StopFun>
+  CUDA INLINE size_t fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const Iter& h, const StopFun& must_stop) {
+    return fixpoint(indexes.size(), [&](size_t i) { return f(indexes[i]); }, h, must_stop);
+  }
+
   /** Same as `fixpoint` above without `has_changed`. */
   template <class F, class StopFun>
   CUDA INLINE size_t fixpoint(size_t n, const F& f, const StopFun& must_stop) {
@@ -353,7 +376,7 @@ public:
   #endif
   }
 
-  /** The function `f` is called `n` times in parallel: \f$ f(0) \| f(1) \| \ldots \| f(n) \f$.
+  /** The function `f` is called `n` times in parallel: \f$ f(0) \| f(1) \| \ldots \| f(n-1) \f$.
    * If `n` is greater than the number of threads in the block, we perform a stride loop, without synchronization between two iterations.
    * \param `n` the number of calls to `f`.
    * \param `bool f(size_t i)` returns `true` if something has changed for `i`.
@@ -366,8 +389,9 @@ public:
     return false;
   #else
     bool has_changed = false;
-    for (size_t i = threadIdx.x; i < n; i += blockDim.x) {
-      has_changed |= f(i);
+    size_t n2 = max(n,n+(32-(n%32)));
+    for (size_t i = threadIdx.x; i < n2; i += blockDim.x) {
+      has_changed |= f(i >= n ? n-1 : i);
     }
     return has_changed;
   #endif
@@ -468,6 +492,11 @@ public:
     return fp_engine.fixpoint(indexes, f, g);
   }
 
+  template <class F, class Iter, class StopFun>
+  CUDA INLINE size_t fixpoint(const F& f, const Iter& h, const StopFun& g) {
+    return fp_engine.fixpoint(indexes, f, h, g);
+  }
+
   template <class F, class StopFun, class M>
   CUDA INLINE size_t fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
     return fp_engine.fixpoint(indexes, f, g);
@@ -539,6 +568,173 @@ public:
     }
   }
 };
+
+// template <class FixpointEngine, class Allocator, size_t TPB>
+// class FixpointLocalSubsetGPU {
+// public:
+//   using allocator_type = Allocator;
+
+// private:
+//   FixpointEngine fp_engine;
+
+//   /**  */
+//   battery::vector<int, allocator_type> row
+
+//   /** The indexes of functions that are active. */
+//   battery::vector<int, allocator_type> indexes;
+
+//   /** A mask to know which functions are still active.
+//    * We have `mask[i] <=> g(indexes[i])`.
+//   */
+//   battery::vector<bool, allocator_type> mask;
+
+//   /** A temporary array to compute the prefix sum of `mask`, in order to copy indexes into `indexes2`. */
+//   battery::vector<int, allocator_type> sum;
+
+//   /** A temporary array when copying the new active functions. */
+//   battery::vector<int, allocator_type> indexes2;
+
+//   /** The CUB prefix sum temporary storage. */
+//   using BlockScan = cub::BlockScan<int, TPB>;
+//   typename BlockScan::TempStorage cub_prefixsum_tmp;
+
+//   // We round n to the next multiple of TPB (the maximum dimension of the block, for now).
+//   __device__ INLINE size_t round_multiple_TPB(size_t n) {
+//     return n + ((blockDim.x - n % blockDim.x) % blockDim.x);
+//   }
+
+// public:
+//   FixpointLocalSubsetGPU() = default;
+
+//   __device__ void reset(size_t n) {
+//     if(threadIdx.x == 0) {
+//       indexes.resize(n);
+//       indexes2.resize(n);
+//     }
+//     __syncthreads();
+//     for(int i = threadIdx.x; i < indexes.size(); i += blockDim.x) {
+//       indexes[i] = i;
+//     }
+//   }
+
+//   __device__ void init(size_t n, const allocator_type& allocator = allocator_type()) {
+//     if(threadIdx.x == 0) {
+//       indexes = battery::vector<int, allocator_type>(n, allocator);
+//       indexes2 = battery::vector<int, allocator_type>(n, allocator);
+//       mask = battery::vector<bool, allocator_type>(round_multiple_TPB(n), false, allocator);
+//       sum = battery::vector<int, allocator_type>(round_multiple_TPB(n), 0, allocator);
+//     }
+//     __syncthreads();
+//     for(int i = threadIdx.x; i < indexes.size(); i += blockDim.x) {
+//       indexes[i] = i;
+//     }
+//   }
+
+//   __device__ void destroy() {
+//     if(threadIdx.x == 0) {
+//       indexes = battery::vector<int, allocator_type>();
+//       indexes2 = battery::vector<int, allocator_type>();
+//       mask = battery::vector<bool, allocator_type>();
+//       sum = battery::vector<int, allocator_type>();
+//     }
+//     __syncthreads();
+//   }
+
+//   CUDA INLINE bool is_thread0() const {
+//     return fp_engine.is_thread0();
+//   }
+
+//   CUDA INLINE void barrier() {
+//     fp_engine.barrier();
+//   }
+
+//   template <class F>
+//   CUDA INLINE bool iterate(const F& f) {
+//     return fp_engine.iterate(indexes, f);
+//   }
+
+//   template <class F>
+//   CUDA INLINE size_t fixpoint(const F& f) {
+//     return fp_engine.fixpoint(indexes, f);
+//   }
+
+//   template <class F, class StopFun>
+//   CUDA INLINE size_t fixpoint(const F& f, const StopFun& g) {
+//     return fp_engine.fixpoint(indexes, f, g);
+//   }
+
+//   template <class F, class StopFun, class M>
+//   CUDA INLINE size_t fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
+//     return fp_engine.fixpoint(indexes, f, g);
+//   }
+
+//   /** \return the number of active functions. */
+//   CUDA size_t num_active() const {
+//     return indexes.size();
+//   }
+
+//   /** Compute the subset of the functions that are still active.
+//    * The subsequent call to `fixpoint` will only consider the function `f_i` for which `g(i)` is `true`. */
+//   template <class G>
+//   __device__ void select(const G& g) {
+//     assert(TPB == blockDim.x);
+//     // indexes:   0 1 2 3   (indexes of the propagators)
+//     // mask:      1 0 0 1   (filtering entailed functions)
+//     // sum:       1 1 1 2   (inclusive prefix sum)
+//     // indexes2:      0 3   (new indexes of the propagators)
+//     if(indexes.size() == 0) {
+//       return;
+//     }
+
+//     /** I. We perform a parallel map to detect the active functions. */
+//     for(int i = threadIdx.x; i < indexes.size(); i += blockDim.x) {
+//       mask[i] = g(indexes[i]);
+//     }
+
+//     /** II. We then compute the prefix sum of the mask in order to compute the new indexes of the active functions. */
+//     size_t n = round_multiple_TPB(indexes.size());
+//     for(int i = threadIdx.x; i < n; i += blockDim.x) {
+//       BlockScan(cub_prefixsum_tmp).InclusiveSum(mask[i], sum[i]);
+//       __syncthreads(); // required by BlockScan to reuse the temporary storage.
+//     }
+//     for(int i = blockDim.x + threadIdx.x; i < n; i += blockDim.x) {
+//       sum[i] += sum[i - threadIdx.x - 1];
+//       __syncthreads();
+//     }
+
+//     /** III. We compute the new indexes of the active functions. */
+//     if(threadIdx.x == 0) {
+//       battery::swap(indexes, indexes2);
+//       indexes.resize(sum[indexes2.size()-1]);
+//     }
+//     __syncthreads();
+//     for(int i = threadIdx.x; i < indexes2.size(); i += blockDim.x) {
+//       if(mask[i]) {
+//         indexes[sum[i]-1] = indexes2[i];
+//       }
+//     }
+//   }
+
+//   template <class Alloc = allocator_type>
+//   using snapshot_type = battery::vector<int, Alloc>;
+
+//   template <class Alloc = allocator_type>
+//   CUDA snapshot_type<Alloc> snapshot(const Alloc& alloc = Alloc()) const {
+//     return snapshot_type<Alloc>(indexes, alloc);
+//   }
+
+//   template <class Alloc>
+//   __device__ void restore_par(const snapshot_type<Alloc>& snap) {
+//     for(int i = threadIdx.x; i < snap.size(); i += blockDim.x) {
+//       indexes[i] = snap[i];
+//     }
+//     if(threadIdx.x == 0) {
+//       assert(snap.size() < indexes.capacity());
+//       indexes.resize(snap.size());
+//     }
+//   }
+// };
+
 
 #endif
 
