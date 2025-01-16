@@ -95,7 +95,7 @@ public:
    : atype(atype), data(alloc), is_at_bot(false)
   {}
 
-  CUDA VStore(AType atype, size_t size, const allocator_type& alloc = allocator_type())
+  CUDA VStore(AType atype, int size, const allocator_type& alloc = allocator_type())
    : atype(atype), data(size, alloc), is_at_bot(false)
   {}
 
@@ -127,7 +127,7 @@ public:
   }
 
   /** Returns the number of variables currently represented by this abstract element. */
-  CUDA size_t vars() const {
+  CUDA int vars() const {
     return data.size();
   }
 
@@ -317,7 +317,7 @@ public:
     if(is_at_bot) {
       return;
     }
-    for (size_t i = group.thread_rank(); i < store.vars(); i += group.num_threads()) {
+    for (int i = group.thread_rank(); i < store.vars(); i += group.num_threads()) {
       store.data[i] = data[i];
     }
   }
@@ -457,8 +457,8 @@ public:
     return true;
   }
 
-  CUDA size_t num_deductions() const { return 0; }
-  CUDA local::B deduce(size_t) const { assert(false); return false; }
+  CUDA int num_deductions() const { return 0; }
+  CUDA local::B deduce(int) const { assert(false); return false; }
 
   /**  An abstract element is extractable when it is not equal to bot.
    * If the strategy is `atoms`, we check the domains are singleton.

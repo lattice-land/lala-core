@@ -24,13 +24,13 @@ public:
 
   /** We iterate the function `f` `n` times: \f$ f(0); f(1); \ldots ; f(n); \f$
    * \param `n` the number of call to `f`.
-   * \param `bool f(size_t i)` returns `true` if something has changed for `i`.
+   * \param `bool f(int i)` returns `true` if something has changed for `i`.
    * \return `true` if for some `i`, `f(i)` returned `true`, `false` otherwise.
   */
   template <class F>
-  CUDA local::B iterate(size_t n, const F& f) const {
+  CUDA local::B iterate(int n, const F& f) const {
     bool has_changed = false;
-    for(size_t i = 0; i < n; ++i) {
+    for(int i = 0; i < n; ++i) {
       has_changed |= f(i);
     }
     return has_changed;
@@ -38,14 +38,14 @@ public:
 
   /** We execute `iterate(n, f)` until we reach a fixpoint or `must_stop()` returns `true`.
    * \param `n` the number of call to `f`.
-   * \param `bool f(size_t i)` returns `true` if something has changed for `i`.
+   * \param `bool f(int i)` returns `true` if something has changed for `i`.
    * \param `bool must_stop()` returns `true` if we must stop early the fixpoint computation.
    * \param `has_changed` is set to `true` if we were not yet in a fixpoint.
    * \return The number of iterations required to reach a fixpoint or until `must_stop()` returns `true`.
   */
   template <class F, class StopFun, class M>
-  CUDA size_t fixpoint(size_t n, const F& f, const StopFun& must_stop, B<M>& has_changed) {
-    size_t iterations = 0;
+  CUDA int fixpoint(int n, const F& f, const StopFun& must_stop, B<M>& has_changed) {
+    int iterations = 0;
     local::B changed(true);
     while(changed && !must_stop()) {
       changed = iterate(n, f);
@@ -57,20 +57,20 @@ public:
 
   /** Same as `fixpoint` above without `has_changed`. */
   template <class F, class StopFun>
-  CUDA size_t fixpoint(size_t n, const F& f, const StopFun& must_stop) {
+  CUDA int fixpoint(int n, const F& f, const StopFun& must_stop) {
     local::B has_changed(false);
     return fixpoint(n, f, must_stop, has_changed);
   }
 
   /** Same as `fixpoint` above with `must_stop` always returning `false`. */
   template <class F, class M>
-  CUDA size_t fixpoint(size_t n, const F& f, B<M>& has_changed) {
+  CUDA int fixpoint(int n, const F& f, B<M>& has_changed) {
     return fixpoint(n, f, [](){ return false; }, has_changed);
   }
 
   /** Same as `fixpoint` above without `has_changed` and with `must_stop` always returning `false`. */
   template <class F>
-  CUDA size_t fixpoint(size_t n, const F& f) {
+  CUDA int fixpoint(int n, const F& f) {
     local::B has_changed(false);
     return fixpoint(n, f, has_changed);
   }
@@ -89,10 +89,10 @@ private:
   battery::vector<int> indexes;
 
   /** The active subset of the functions is from 0..n-1. */
-  size_t n;
+  int n;
 
 public:
-  FixpointSubsetCPU(size_t n) : n(n), indexes(n) {
+  FixpointSubsetCPU(int n) : n(n), indexes(n) {
     for(int i = 0; i < n; ++i) {
       indexes[i] = i;
     }
@@ -100,26 +100,26 @@ public:
 
   template <class F>
   bool iterate(const F& f) {
-    return fp_engine.iterate(n, [&](size_t i) { return f(indexes[i]); });
+    return fp_engine.iterate(n, [&](int i) { return f(indexes[i]); });
   }
 
   template <class F>
-  size_t fixpoint(const F& f) {
-    return fp_engine.fixpoint(n, [&](size_t i) { return f(indexes[i]); });
+  int fixpoint(const F& f) {
+    return fp_engine.fixpoint(n, [&](int i) { return f(indexes[i]); });
   }
 
   template <class F, class StopFun>
-  size_t fixpoint(const F& f, const StopFun& g) {
-    return fp_engine.fixpoint(n, [&](size_t i) { return f(indexes[i]); }, g);
+  int fixpoint(const F& f, const StopFun& g) {
+    return fp_engine.fixpoint(n, [&](int i) { return f(indexes[i]); }, g);
   }
 
   template <class F, class StopFun, class M>
-  size_t fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
-    return fp_engine.fixpoint(n, [&](size_t i) { return f(indexes[i]); }, g);
+  int fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
+    return fp_engine.fixpoint(n, [&](int i) { return f(indexes[i]); }, g);
   }
 
   /** \return the number of active functions. */
-  size_t num_active() const {
+  int num_active() const {
     return n;
   }
 
@@ -139,7 +139,7 @@ public:
     }
   }
 
-  using snapshot_type = size_t;
+  using snapshot_type = int;
 
   snapshot_type snapshot() const {
     return snapshot_type(n);
@@ -181,22 +181,22 @@ public:
   }
 
   template <class F>
-  CUDA INLINE local::B iterate(size_t n, const F& f) const {
+  CUDA INLINE local::B iterate(int n, const F& f) const {
     return static_cast<const IteratorEngine*>(this)->iterate(n, f);
   }
 
   /** We execute `I::iterate(n, f)` until we reach a fixpoint or `must_stop()` returns `true`.
    * \param `n` the number of call to `f`.
-   * \param `bool f(size_t i)` returns `true` if something has changed for `i`.
+   * \param `bool f(int i)` returns `true` if something has changed for `i`.
    * \param `bool must_stop()` returns `true` if we must stop early the fixpoint computation. This function is called by the first thread only.
    * \param `has_changed` is set to `true` if we were not yet in a fixpoint.
    * \return The number of iterations required to reach a fixpoint or until `must_stop()` returns `true`.
   */
   template <class F, class StopFun, class M>
-  CUDA size_t fixpoint(size_t n, const F& f, const StopFun& must_stop, B<M>& has_changed) {
+  CUDA int fixpoint(int n, const F& f, const StopFun& must_stop, B<M>& has_changed) {
     reset();
     barrier();
-    size_t i;
+    int i;
     for(i = 1; changed[(i-1)%3] && !stop[(i-1)%3]; ++i) {
       changed[i%3].join(iterate(n, f));
       if(is_thread0()) {
@@ -213,10 +213,10 @@ public:
   }
 
   template <class F, class Iter, class StopFun>
-  CUDA size_t fixpoint(size_t n, const F& f, const Iter& h, const StopFun& must_stop) {
+  CUDA int fixpoint(int n, const F& f, const Iter& h, const StopFun& must_stop) {
     reset();
     barrier();
-    size_t i;
+    int i;
     for(i = 1; changed[(i-1)%3] && !stop[(i-1)%3]; ++i) {
       changed[i%3].join(iterate(n, f));
       if(is_thread0()) {
@@ -231,52 +231,52 @@ public:
   }
 
   template <class Alloc, class F, class Iter, class StopFun>
-  CUDA INLINE size_t fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const Iter& h, const StopFun& must_stop) {
-    return fixpoint(indexes.size(), [&](size_t i) { return f(indexes[i]); }, h, must_stop);
+  CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const Iter& h, const StopFun& must_stop) {
+    return fixpoint(indexes.size(), [&](int i) { return f(indexes[i]); }, h, must_stop);
   }
 
   /** Same as `fixpoint` above without `has_changed`. */
   template <class F, class StopFun>
-  CUDA INLINE size_t fixpoint(size_t n, const F& f, const StopFun& must_stop) {
+  CUDA INLINE int fixpoint(int n, const F& f, const StopFun& must_stop) {
     local::B has_changed(false);
     return fixpoint(n, f, must_stop, has_changed);
   }
 
   /** Same as `fixpoint` above with `must_stop` always returning `false`. */
   template <class F, class M>
-  CUDA INLINE size_t fixpoint(size_t n, const F& f, B<M>& has_changed) {
+  CUDA INLINE int fixpoint(int n, const F& f, B<M>& has_changed) {
     return fixpoint(n, f, [](){ return false; }, has_changed);
   }
 
   /** Same as `fixpoint` above without `has_changed` and with `must_stop` always returning `false`. */
   template <class F>
-  CUDA INLINE size_t fixpoint(size_t n, const F& f) {
+  CUDA INLINE int fixpoint(int n, const F& f) {
     local::B has_changed(false);
     return fixpoint(n, f, has_changed);
   }
 
   /** Same as `fixpoint` with a new function defined by `g(i) = f(indexes[i])` and `n = indexes.size()`. */
   template <class Alloc, class F, class StopFun, class M>
-  CUDA INLINE size_t fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const StopFun& must_stop, B<M>& has_changed) {
-    return fixpoint(indexes.size(), [&](size_t i) { return f(indexes[i]); }, must_stop, has_changed);
+  CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const StopFun& must_stop, B<M>& has_changed) {
+    return fixpoint(indexes.size(), [&](int i) { return f(indexes[i]); }, must_stop, has_changed);
   }
 
   /** Same as `fixpoint` with `g(i) = f(indexes[i])` and `n = indexes.size()`, without `has_changed`. */
   template <class Alloc, class F, class StopFun>
-  CUDA INLINE size_t fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const StopFun& must_stop) {
+  CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const StopFun& must_stop) {
     local::B has_changed(false);
     return fixpoint(indexes, f, must_stop, has_changed);
   }
 
   /** Same as `fixpoint` above with `must_stop` always returning `false`. */
   template <class Alloc, class F, class M>
-  CUDA INLINE size_t fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, B<M>& has_changed) {
+  CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, B<M>& has_changed) {
     return fixpoint(indexes, f, [](){ return false; }, has_changed);
   }
 
   /** Same as `fixpoint` above without `has_changed` and with `must_stop` always returning `false`. */
   template <class Alloc, class F>
-  CUDA INLINE size_t fixpoint(const battery::vector<int, Alloc>& indexes, const F& f) {
+  CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f) {
     local::B has_changed(false);
     return fixpoint(indexes, f, has_changed);
   }
@@ -326,17 +326,17 @@ public:
 
   /** The function `f` is called `n` times in parallel: \f$ f(0) \| f(1) \| \ldots \| f(n) \f$.
    * \param `n` the number of call to `f`.
-   * \param `bool f(size_t i)` returns `true` if something has changed for `i`.
+   * \param `bool f(int i)` returns `true` if something has changed for `i`.
    * \return `true` if for some `i`, `f(i)` returned `true`, `false` otherwise.
   */
   template <class F>
-  CUDA INLINE bool iterate(size_t n, const F& f) const {
+  CUDA INLINE bool iterate(int n, const F& f) const {
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
     return false;
   #else
     bool has_changed = false;
-    for (size_t i = group.thread_rank(); i < n; i += group.num_threads()) {
+    for (int i = group.thread_rank(); i < n; i += group.num_threads()) {
       has_changed |= f(i);
     }
     return has_changed;
@@ -348,8 +348,10 @@ using GridAsynchronousFixpointGPU = AsynchronousIterationGPU<cooperative_groups:
 
 /** An optimized version of `AsynchronousIterationGPU` when the fixpoint is computed on a single block.
  * We avoid the use of cooperative groups which take extra memory space.
+ * `syncwarp` is a boolean to tell if `f` in `iterate` is syncing the warp or not, if it does and syncwarp is `true`, `iterate` will always iterate to a multiple of 32 threads by repeating the last index if necessary.
  */
-class BlockAsynchronousFixpointGPU : public AsynchronousFixpoint<BlockAsynchronousFixpointGPU> {
+template <bool syncwarp = false>
+class BlockAsynchronousFixpointGPU : public AsynchronousFixpoint<BlockAsynchronousFixpointGPU<syncwarp>> {
 private:
   CUDA void assert_cuda_arch() const {
     printf("BlockAsynchronousFixpointGPU must be used on the GPU device only.\n");
@@ -379,18 +381,18 @@ public:
   /** The function `f` is called `n` times in parallel: \f$ f(0) \| f(1) \| \ldots \| f(n-1) \f$.
    * If `n` is greater than the number of threads in the block, we perform a stride loop, without synchronization between two iterations.
    * \param `n` the number of calls to `f`.
-   * \param `bool f(size_t i)` returns `true` if something has changed for `i`.
+   * \param `bool f(int i)` returns `true` if something has changed for `i`.
    * \return `true` if for some `i`, `f(i)` returned `true`, `false` otherwise.
   */
   template <class F>
-  CUDA INLINE bool iterate(size_t n, const F& f) const {
+  CUDA INLINE bool iterate(int n, const F& f) const {
   #ifndef __CUDA_ARCH__
     assert_cuda_arch();
     return false;
   #else
     bool has_changed = false;
-    size_t n2 = max(n,n+(32-(n%32)));
-    for (size_t i = threadIdx.x; i < n2; i += blockDim.x) {
+    int n2 = max(n,n+(32-(n%32)));
+    for (int i = threadIdx.x; i < n2; i += blockDim.x) {
       has_changed |= f(i >= n ? n-1 : i);
     }
     return has_changed;
@@ -398,10 +400,41 @@ public:
   }
 };
 
+#ifdef __CUDACC__
+
+/** This function can be passed to `iterate` of a fixpoint engine in order to perform a local fixpoint per warp.
+ * It expects the deduction operation to be split into a `load_deduce` and a `deduce`.
+ * TPB: the number of threads per block.
+*/
+template <int TPB, class A>
+__device__ local::B warp_fixpoint(A& a, int i) {
+  bytecode_type bytecode = a.load_deduce(i);
+  local::B has_changed = false;
+  __shared__ bool warp_changed[TPB/32];
+  int warp_id = threadIdx.x / 32;
+  warp_changed[warp_id] = true;
+  while(warp_changed[warp_id]) {
+    __syncwarp();
+    warp_changed[warp_id] = false;
+    __syncwarp();
+    if(a.deduce(bytecode)) {
+      has_changed = true;
+      /** If something changed, we only iterate once more if we did not reach bot. */
+      if(!a.is_bot()) {
+        warp_changed[warp_id] = true;
+      }
+    }
+    __syncwarp();
+  }
+  return has_changed;
+}
+
+#endif
+
 /** Add the ability to deactive functions in a fixpoint computation.
  * Given a function `g`, we select only the functions \f$ f_{i_1} \| \ldots \| f_{i_k} \f$ for which \f$ g(i_k) \f$ is `true`, and compute subsequent fixpoint without them.
  */
-template <class FixpointEngine, class Allocator, size_t TPB>
+template <class FixpointEngine, class Allocator, int TPB>
 class FixpointSubsetGPU {
 public:
   using allocator_type = Allocator;
@@ -428,14 +461,14 @@ private:
   typename BlockScan::TempStorage cub_prefixsum_tmp;
 
   // We round n to the next multiple of TPB (the maximum dimension of the block, for now).
-  __device__ INLINE size_t round_multiple_TPB(size_t n) {
+  __device__ INLINE int round_multiple_TPB(int n) {
     return n + ((blockDim.x - n % blockDim.x) % blockDim.x);
   }
 
 public:
   FixpointSubsetGPU() = default;
 
-  __device__ void reset(size_t n) {
+  __device__ void reset(int n) {
     if(threadIdx.x == 0) {
       indexes.resize(n);
       indexes2.resize(n);
@@ -446,7 +479,7 @@ public:
     }
   }
 
-  __device__ void init(size_t n, const allocator_type& allocator = allocator_type()) {
+  __device__ void init(int n, const allocator_type& allocator = allocator_type()) {
     if(threadIdx.x == 0) {
       indexes = battery::vector<int, allocator_type>(n, allocator);
       indexes2 = battery::vector<int, allocator_type>(n, allocator);
@@ -483,27 +516,27 @@ public:
   }
 
   template <class F>
-  CUDA INLINE size_t fixpoint(const F& f) {
+  CUDA INLINE int fixpoint(const F& f) {
     return fp_engine.fixpoint(indexes, f);
   }
 
   template <class F, class StopFun>
-  CUDA INLINE size_t fixpoint(const F& f, const StopFun& g) {
+  CUDA INLINE int fixpoint(const F& f, const StopFun& g) {
     return fp_engine.fixpoint(indexes, f, g);
   }
 
   template <class F, class Iter, class StopFun>
-  CUDA INLINE size_t fixpoint(const F& f, const Iter& h, const StopFun& g) {
+  CUDA INLINE int fixpoint(const F& f, const Iter& h, const StopFun& g) {
     return fp_engine.fixpoint(indexes, f, h, g);
   }
 
   template <class F, class StopFun, class M>
-  CUDA INLINE size_t fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
+  CUDA INLINE int fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
     return fp_engine.fixpoint(indexes, f, g);
   }
 
   /** \return the number of active functions. */
-  CUDA size_t num_active() const {
+  CUDA int num_active() const {
     return indexes.size();
   }
 
@@ -526,7 +559,7 @@ public:
     }
 
     /** II. We then compute the prefix sum of the mask in order to compute the new indexes of the active functions. */
-    size_t n = round_multiple_TPB(indexes.size());
+    int n = round_multiple_TPB(indexes.size());
     for(int i = threadIdx.x; i < n; i += blockDim.x) {
       BlockScan(cub_prefixsum_tmp).InclusiveSum(mask[i], sum[i]);
       __syncthreads(); // required by BlockScan to reuse the temporary storage.
@@ -569,7 +602,7 @@ public:
   }
 };
 
-// template <class FixpointEngine, class Allocator, size_t TPB>
+// template <class FixpointEngine, class Allocator, int TPB>
 // class FixpointLocalSubsetGPU {
 // public:
 //   using allocator_type = Allocator;
@@ -599,14 +632,14 @@ public:
 //   typename BlockScan::TempStorage cub_prefixsum_tmp;
 
 //   // We round n to the next multiple of TPB (the maximum dimension of the block, for now).
-//   __device__ INLINE size_t round_multiple_TPB(size_t n) {
+//   __device__ INLINE int round_multiple_TPB(int n) {
 //     return n + ((blockDim.x - n % blockDim.x) % blockDim.x);
 //   }
 
 // public:
 //   FixpointLocalSubsetGPU() = default;
 
-//   __device__ void reset(size_t n) {
+//   __device__ void reset(int n) {
 //     if(threadIdx.x == 0) {
 //       indexes.resize(n);
 //       indexes2.resize(n);
@@ -617,7 +650,7 @@ public:
 //     }
 //   }
 
-//   __device__ void init(size_t n, const allocator_type& allocator = allocator_type()) {
+//   __device__ void init(int n, const allocator_type& allocator = allocator_type()) {
 //     if(threadIdx.x == 0) {
 //       indexes = battery::vector<int, allocator_type>(n, allocator);
 //       indexes2 = battery::vector<int, allocator_type>(n, allocator);
@@ -654,22 +687,22 @@ public:
 //   }
 
 //   template <class F>
-//   CUDA INLINE size_t fixpoint(const F& f) {
+//   CUDA INLINE int fixpoint(const F& f) {
 //     return fp_engine.fixpoint(indexes, f);
 //   }
 
 //   template <class F, class StopFun>
-//   CUDA INLINE size_t fixpoint(const F& f, const StopFun& g) {
+//   CUDA INLINE int fixpoint(const F& f, const StopFun& g) {
 //     return fp_engine.fixpoint(indexes, f, g);
 //   }
 
 //   template <class F, class StopFun, class M>
-//   CUDA INLINE size_t fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
+//   CUDA INLINE int fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
 //     return fp_engine.fixpoint(indexes, f, g);
 //   }
 
 //   /** \return the number of active functions. */
-//   CUDA size_t num_active() const {
+//   CUDA int num_active() const {
 //     return indexes.size();
 //   }
 
@@ -692,7 +725,7 @@ public:
 //     }
 
 //     /** II. We then compute the prefix sum of the mask in order to compute the new indexes of the active functions. */
-//     size_t n = round_multiple_TPB(indexes.size());
+//     int n = round_multiple_TPB(indexes.size());
 //     for(int i = threadIdx.x; i < n; i += blockDim.x) {
 //       BlockScan(cub_prefixsum_tmp).InclusiveSum(mask[i], sum[i]);
 //       __syncthreads(); // required by BlockScan to reuse the temporary storage.
