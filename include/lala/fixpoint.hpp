@@ -391,9 +391,9 @@ public:
     return false;
   #else
     bool has_changed = false;
-    int n2 = max(n,n+(32-(n%32)));
+    int n2 = syncwarp ? max(n,n+(32-(n%32))) : n;
     for (int i = threadIdx.x; i < n2; i += blockDim.x) {
-      has_changed |= f(i >= n ? n-1 : i);
+      has_changed |= f(syncwarp ? (i >= n ? n-1 : i) : i);
     }
     return has_changed;
   #endif
@@ -408,7 +408,7 @@ public:
 */
 template <int TPB, class A>
 __device__ local::B warp_fixpoint(A& a, int i) {
-  bytecode_type bytecode = a.load_deduce(i);
+  auto ded = a.load_deduce(i);
   local::B has_changed = false;
   __shared__ bool warp_changed[TPB/32];
   int warp_id = threadIdx.x / 32;
@@ -417,7 +417,7 @@ __device__ local::B warp_fixpoint(A& a, int i) {
     __syncwarp();
     warp_changed[warp_id] = false;
     __syncwarp();
-    if(a.deduce(bytecode)) {
+    if(a.deduce(ded)) {
       has_changed = true;
       /** If something changed, we continue to iterate only if we did not reach bot. */
       if(!a.is_bot()) {

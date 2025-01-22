@@ -68,10 +68,10 @@ void test_ternarize(
 
   printf("Time difference = %ld\n", std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count());
 
-  printf("NB variables original formula : %d\n", num_quantified_vars(f1));
-  printf("NB constraints original formula : %d\n", f1.seq().size() - num_quantified_vars(f1));
-  printf("NB variables ternarized formula : %d\n", num_quantified_vars(ternarized));
-  printf("NB constraints ternarized formula : %d\n", ternarized.seq().size() - num_quantified_vars(ternarized));
+  printf("NB variables original formula : %zu\n", num_quantified_vars(f1));
+  printf("NB constraints original formula : %zu\n", f1.seq().size() - num_quantified_vars(f1));
+  printf("NB variables ternarized formula : %zu\n", num_quantified_vars(ternarized));
+  printf("NB constraints ternarized formula : %zu\n", ternarized.seq().size() - num_quantified_vars(ternarized));
 
   if (std::get<1>(formulas).has_value())
   {

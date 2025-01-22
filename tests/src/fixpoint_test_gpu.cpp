@@ -32,7 +32,7 @@ public:
 };
 
 __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {
-  using FP_engine = BlockAsynchronousFixpointGPU;
+  using FP_engine = BlockAsynchronousFixpointGPU<>;
   using Min = Minimum<atomic_memory_block>;
   unique_ptr<FP_engine, global_allocator> fp_engine;
   unique_ptr<Min, global_allocator> minimum;
