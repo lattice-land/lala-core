@@ -391,7 +391,7 @@ public:
     return false;
   #else
     bool has_changed = false;
-    int n2 = syncwarp ? max(n,n+(32-(n%32))) : n;
+    int n2 = syncwarp && n != 0 ? max(n,n+(32-(n%32))) : n;
     for (int i = threadIdx.x; i < n2; i += blockDim.x) {
       has_changed |= f(syncwarp ? (i >= n ? n-1 : i) : i);
     }
