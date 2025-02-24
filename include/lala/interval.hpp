@@ -245,14 +245,14 @@ public:
     if(is_bot()) {
       return F::make_false();
     }
-    if(lb().is_top() && ub().is_top()) {
+    if(is_top()) {
       return F::make_true();
     }
     if(lb().is_top()) {
-      return ub().template deinterpret<F>();
+      return ub().deinterpret(x, env, allocator);
     }
     else if(ub().is_top()) {
-      return lb().template deinterpret<F>();
+      return lb().deinterpret(x, env, allocator);
     }
     F logical_lb = lb().template deinterpret<F>();
     F logical_ub = ub().template deinterpret<F>();
@@ -483,7 +483,8 @@ public:
     if(lb().is_top() || ub().is_top()) { return local_type::top(); }
     auto l = lb().value();
     auto u = ub().value();
-    return local_type(l + battery::fdiv((u - l), 2), l + battery::cdiv((u - l), 2));
+    typename LB::value_type two{2};
+    return local_type(l + battery::fdiv((u - l), two), l + battery::cdiv((u - l), two));
   }
 };
 

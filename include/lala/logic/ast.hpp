@@ -189,6 +189,40 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
     }
   }
 
+  CUDA NI inline const char* string_of_sig_txt(Sig sig) {
+    switch(sig) {
+      case NEG: return "neg";
+      case ADD: return "add";
+      case SUB: return "sub";
+      case MUL: return "mul";
+      case DIV: return "div";
+      case MOD: return "mod";
+      case POW: return "pow";
+      case UNION: return "union";
+      case INTERSECTION: return "intersection";
+      case DIFFERENCE: return "difference";
+      case SYMMETRIC_DIFFERENCE: return "symmetric_difference";
+      case IN: return "in";
+      case SUBSET: return "subset";
+      case SUBSETEQ: return "subseteq";
+      case SUPSET: return "supset";
+      case SUPSETEQ: return "supseteq";
+      case EQ: return "eq";
+      case NEQ: return "neq";
+      case LEQ: return "leq";
+      case GEQ: return "geq";
+      case LT: return "lt";
+      case GT: return "gt";
+      case AND: return "and";
+      case OR: return "or";
+      case IMPLY: return "imply";
+      case EQUIV: return "equiv";
+      case NOT: return "not";
+      case XOR: return "xor";
+      default: return string_of_sig(sig);
+    }
+  }
+
   CUDA NI inline constexpr bool is_prefix(Sig sig) {
     return sig == ABS || sig == SQRT || sig == EXP || sig == LN || sig == NROOT || sig == LOG || sig == SIN || sig == COS || sig == TAN || sig == ASIN || sig == ACOS || sig == ATAN || sig == SINH || sig == COSH || sig == TANH || sig == ASINH || sig == ACOSH || sig == ATANH || sig == MIN || sig == MAX || sig == COMPLEMENT || sig == CARD || sig == HULL || sig == CONVEX || sig == ITE || sig == MAXIMIZE || sig == MINIMIZE;
   }
@@ -204,6 +238,11 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
   CUDA NI inline constexpr bool is_associative(Sig sig) {
     return sig == ADD || sig == MUL || sig == AND || sig == OR || sig == EQUIV || sig == XOR
       || sig == UNION || sig == INTERSECTION || sig == MAX || sig == MIN;
+  }
+
+  CUDA NI inline constexpr bool is_commutative(Sig sig) {
+    // All operators defined in `is_associative` are also commutative for now.
+    return is_associative(sig) || sig == EQ;
   }
 
   CUDA NI inline constexpr bool is_arithmetic_comparison(Sig sig) {
@@ -803,7 +842,7 @@ private:
   }
 
 public:
-  CUDA void print(bool print_atype = true) const {
+  CUDA void print(bool print_atype = false) const {
     print_impl(print_atype, true);
   }
 };

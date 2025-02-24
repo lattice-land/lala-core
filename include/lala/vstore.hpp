@@ -206,6 +206,7 @@ private:
     var_dom<Alloc2> k;
     if(local_universe::template interpret_tell<diagnose>(f, env, k.dom, diagnostics)) {
       if(env.interpret(f.map_atype(atype), k.avar, diagnostics)) {
+        assert(k.avar.aty() == aty());
         tell.push_back(k);
         return true;
       }
@@ -238,7 +239,12 @@ private:
       // When it is not necessary, we try to avoid using the environment.
       // This is for instance useful when deduction operators add new constraints but do not have access to the environment (e.g., split()), and to avoid passing the environment around everywhere.
       if(varf.is(F::V)) {
-        tell.push_back(var_dom<Alloc2>(varf.v(), u));
+        if(varf.v().aty() == aty() || varf.v().aty() == UNTYPED) {
+          tell.push_back(var_dom<Alloc2>(varf.v(), u));
+        }
+        else {
+          RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
+        }
       }
       else {
         auto var = var_in(f, env);
@@ -249,6 +255,7 @@ private:
         if(!avar.has_value()) {
           RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
         }
+        assert(avar->aty() == aty());
         tell.push_back(var_dom<Alloc2>(*avar, u));
       }
       return true;
@@ -386,11 +393,11 @@ public:
     if(t.size() == 0) {
       return false;
     }
-    if(t[0].avar == AVar{}) {
-      return is_at_bot.join(local::B(true));
-    }
     int largest_vid = 0;
     for(int i = 0; i < t.size(); ++i) {
+      if(t[i].avar == AVar{}) {
+        return is_at_bot.join(local::B(true));
+      }
       largest_vid = battery::max(largest_vid, t[i].avar.vid());
     }
     if(largest_vid >= data.size()) {

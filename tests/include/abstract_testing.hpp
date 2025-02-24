@@ -121,6 +121,7 @@ L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_alloca
     f->print(); printf("\n");
   }
   *f = normalize(*f);
+  printf("normalized:\n"); f->print(); printf("\n");
   typing(*f);
   IDiagnostics diagnostics;
   auto value = create_and_interpret_and_tell<L, true>(*f, env, diagnostics);

@@ -193,7 +193,28 @@ CUDA size_t num_constraints(const F& f)
   }
 }
 
-template<class F>
+/** We ignore all constraints not in TNF. */
+template <class F>
+CUDA size_t num_tnf_constraints(const F& f)
+{
+  if(is_tnf(f)) {
+    return 1;
+  }
+  switch(f.index()) {
+    case F::Seq: {
+      if(f.sig() == AND) {
+        int total = 0;
+        for(int i = 0; i < f.seq().size(); ++i) {
+          total += num_tnf_constraints(f.seq(i));
+        }
+        return total;
+      }
+    }
+    default: return 0;
+  }
+}
+
+template <class F>
 CUDA NI AType type_of_conjunction(const typename F::Sequence& seq) {
   AType ty = UNTYPED;
   for(int i = 0; i < seq.size(); ++i) {
@@ -820,15 +841,17 @@ CUDA NI F eval(const F& f) {
 
 /** We do simple transformation on the formula to obtain a sort of normal form such that:
  * 1. For all c <op> t, where `c` is a constant and `t` a term, we transform it into t <converse-op> c, whenever <op> has a converse.
- * 2. For all t <op> v, where `v` is a constant and `t` a term (not a variable or constant), we transform it into v <converse-op> t, whenever <op> has a converse.
+ * 2. For all t <op> v, where `v` is a variable and `t` a term (not a variable or constant), we transform it into v <converse-op> t, whenever <op> has a converse.
  * 3. Try to push NOT inside the formula (see `negate`).
  * 4. Transform `not x` into `x = 0`.
  * 5. Transform `x in {v}` into `x = v`.
  *
  * This avoids to repeat the same transformation in different abstract domains.
+ *
+ * To avoid traversing several times the formula, `normalize` also collect "extra logical" formulas (extended sequence and MINIMIZE/MAXIMIZE predicates).
 */
-template <class F>
-CUDA NI F normalize(const F& f) {
+template <class F, class Alloc = battery::standard_allocator>
+CUDA NI F normalize(const F& f, battery::vector<F, Alloc>& extra) {
   switch(f.index()) {
     case F::Z:
     case F::R:
@@ -836,9 +859,17 @@ CUDA NI F normalize(const F& f) {
     case F::B:
     case F::V:
     case F::E:
-    case F::LV:
-    case F::ESeq: return f;
+    case F::LV: {
+      return f;
+    }
+    case F::ESeq: {
+      extra.push_back(f);
+      return f;
+    }
     case F::Seq: {
+      if(f.sig() == MINIMIZE || f.sig() == MAXIMIZE) {
+        extra.push_back(f);
+      }
       if(f.sig() == NOT) {
         assert(f.seq().size() == 1);
         if(f.seq(0).is_variable()) {
@@ -870,13 +901,19 @@ CUDA NI F normalize(const F& f) {
       else {
         typename F::Sequence normalized_seq(f.seq().get_allocator());
         for(int i = 0; i < f.seq().size(); ++i) {
-          normalized_seq.push_back(normalize(f.seq(i)));
+          normalized_seq.push_back(f.sig() == AND ? normalize(f.seq(i), extra) : normalize(f.seq(i)));
         }
         return F::make_nary(f.sig(), std::move(normalized_seq), f.type(), true);
       }
     }
     default: assert(false); return f;
   }
+}
+
+template <class F>
+CUDA NI F normalize(const F& f) {
+  battery::vector<F, battery::standard_allocator> extra;
+  return normalize(f, extra);
 }
 
 namespace impl {

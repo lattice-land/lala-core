@@ -5,6 +5,33 @@
 #include "env.hpp"
 
 namespace lala {
+
+template <class F>
+bool is_constant_var(const F& x) {
+  if(x.is(F::LV)) {
+    std::string varname(x.lv().data());
+    return varname.starts_with("__CONSTANT_");
+  }
+  return false;
+}
+
+template <class F>
+int value_of_constant(const F& x) {
+  assert(is_constant_var(x));
+  std::string varname(x.lv().data());
+  varname = varname.substr(11);
+  varname[0] = varname[0] == 'm' ? '-' : varname[0];
+  return std::stoi(varname);
+}
+
+template <class F>
+CUDA bool is_tnf(const F& f) {
+  return f.is_binary() && f.seq(0).is_variable() &&
+    (f.sig() == EQ || f.sig() == EQUIV) &&
+    f.seq(1).is_binary() && f.seq(1).seq(0).is_variable() &&
+    f.seq(1).seq(1).is_variable();
+}
+
 namespace impl {
 
 template <class F, class Env>
@@ -13,10 +40,10 @@ class Ternarizer
 public:
   using allocator_type = battery::standard_allocator;
 
-  /** A constraint in ternary form is either unary or of the form `x = (y <op> z)`. */
-  static bool is_ternary_form(const F& f, bool ternarize_all = false) {
+  /** A constraint is in extended ternary form if it is either unary (without NEQ, IN) or of the form `x = (y <op> z)`. */
+  static bool is_extended_ternary_form(const F& f) {
     int vars = num_vars(f);
-    return (!ternarize_all && vars == 1) ||
+    return (vars == 1 && (f.is(F::E) || (f.is_binary() && f.sig() != NEQ && f.sig() != IN && (f.seq(0).is_variable() || f.seq(1).is_variable()) && (f.seq(0).is_constant() || f.seq(1).is_constant())))) ||
       (vars == 3 && f.is_binary() && f.sig() == EQ &&
          ((f.seq(0).is_variable() && f.seq(1).is_binary() && is_ternary_op(f.seq(1).sig()) && f.seq(1).seq(0).is_variable() && f.seq(1).seq(1).is_variable())
        || (f.seq(1).is_variable() && f.seq(0).is_binary() && is_ternary_op(f.seq(0).sig()) && f.seq(0).seq(0).is_variable() && f.seq(0).seq(1).is_variable())));
@@ -38,12 +65,11 @@ private:
 
 public:
   /** The environment is helpful to recover the sort of the free variables. */
-  Ternarizer(const Env& env, bool ternarize_all):
+  Ternarizer(const Env& env):
     introduced_int_vars(0),
     introduced_bool_vars(0),
     introduced_constants(0),
-    env(env),
-    ternarize_all(ternarize_all)
+    env(env)
   {
     /** We skip all the temporary variables already created in the environment. */
     for(int i = 0; i < env.num_vars(); ++i) {
@@ -53,7 +79,6 @@ public:
 
 private:
   const Env& env;
-  bool ternarize_all;
   battery::vector<F, allocator_type> conjunction;
   battery::vector<F, allocator_type> existentials;
   std::unordered_map<std::string, int> name2exists;
@@ -96,67 +121,33 @@ private:
     return var;
   }
 
-  bool is_constant_var(const F& x) const {
-    if(x.is(F::LV)) {
-      std::string varname(x.lv().data());
-      return varname.starts_with("__CONSTANT_");
-    }
-    return false;
-  }
-
-  int value_of_constant(const F& x) const {
-    assert(is_constant_var(x));
-    std::string varname(x.lv().data());
-    varname = varname.substr(11);
-    varname[0] = varname[0] == 'm' ? '-' : varname[0];
-    return std::stoi(varname);
-  }
-
-  /** We try to simplify the ternary constraint into a unary constraint in case of constant values. */
-  bool try_simplify_push_ternary(const F& x, const F& y, Sig sig, const F& z) {
-    /** We don't simplify if we need to ternarize everything. */
-    if(ternarize_all) {
-      return false;
-    }
-    /** We first seek to simply the ternary constraint in case of two constants. */
-    int xc = is_constant_var(x);
-    int yc = is_constant_var(y);
-    int zc = is_constant_var(z);
-    if(yc + zc == 2) {
-      F y_sig_z = F::make_binary(F::make_z(value_of_constant(y)), sig, F::make_z(value_of_constant(z)));
-      F simplified = F::make_binary(x, EQ, eval(y_sig_z));
-      if(is_ternary_form(simplified)) {
-        compute(simplified);
-        return true;
+  /** Create a unary formula if the ternary formula can be simplified. */
+  bool simplify_to_unary(F x, F y, Sig sig, F z) {
+    /** Unary constraint of the form `1 <=> x <= 5`, `0 <=> x <= 5` or `1 <=> x == 5`   */
+    if(is_constant_var(x) && (is_constant_var(y) || is_constant_var(z)) &&
+      (sig == LEQ || (sig == EQ && value_of_constant(x) == 1)))
+    {
+      auto yv = is_constant_var(y) ? F::make_z(value_of_constant(y)) : y;
+      auto zv = is_constant_var(z) ? F::make_z(value_of_constant(z)) : z;
+      if(value_of_constant(x) == 0) {
+        conjunction.push_back(F::make_binary(yv, GT, zv));
       }
-    }
-    else if(xc + yc + zc == 2) {
-      assert(xc == 1);
-      F y_sig_z =
-        (yc == 1)
-        ? F::make_binary(F::make_z(value_of_constant(y)), sig, z)
-        : F::make_binary(y, sig, F::make_z(value_of_constant(z)));
-      int x_value = value_of_constant(x);
-      if(x_value == 0) {
-        auto r = negate(y_sig_z);
-        F not_y_sig_z = r.has_value() ? *r : F::make_unary(NOT, y_sig_z);
-        not_y_sig_z = eval(not_y_sig_z);
-        if(is_ternary_form(not_y_sig_z)) {
-          compute(not_y_sig_z);
-          return true;
-        }
+      else {
+        conjunction.push_back(F::make_binary(yv, sig, zv));
       }
-      else if(is_ternary_form(y_sig_z)) {
-        compute(y_sig_z);
-        return true;
-      }
+      return true;
     }
     return false;
   }
 
   /** Create the ternary formula `x = y <sig> z`. */
-  F push_ternary(const F& x, const F& y, Sig sig, const F& z) {
-    if(try_simplify_push_ternary(x, y, sig, z)) {
+  F push_ternary(F x, F y, Sig sig, F z) {
+    if(simplify_to_unary(x,y,sig,z)) {
+      return x;
+    }
+    if(sig == SUB) {
+      /** We simplify x = y - z into y = x + z. */
+      conjunction.push_back(F::make_binary(y, EQ, F::make_binary(x, ADD, z)));
       return x;
     }
     /** If the simplification was not possible, we add the ternary constraint. */
@@ -175,14 +166,12 @@ private:
         }
         return t;
       }
-      /** |x| ~~> t1 = 0 - x /\ t2 <= max(x, t1) /\ t2 >= 0 /\ t2 >= x /\ t2 >= t1 */
+      /** |x| ~~> t1 = 0 - x /\ t2 = max(x, t1) /\ t2 >= 0 */
       case ABS: {
         F t1 = ternarize(F::make_unary(NEG, x));
         F t2 = introduce_int_var();
+        compute(F::make_binary(t2, EQ, F::make_binary(x, MAX, t1)));
         compute(F::make_binary(t2, GEQ, F::make_z(0)));
-        compute(F::make_binary(t2, GEQ, t1));
-        compute(F::make_binary(t2, GEQ, x));
-        compute(F::make_binary(t2, LEQ, F::make_binary(x, MAX, t1)));
         if(toplevel) {
           return ternarize(F::make_binary(t2, NEQ, F::make_z(0)), true);
         }
@@ -231,6 +220,21 @@ private:
   }
 
   F ternarize_binary(F f, bool toplevel) {
+    if(f.sig() == IN && f.is_binary() && f.seq(0).is_variable() && f.seq(1).is(F::S)) {
+      if(toplevel) {
+        compute(decompose_in_constraint(f));
+        /** The decomposition of x in S does not capture the approximation x >= min(S) /\ x <= max(S).
+         * Therefore, we still give this unary constraint to the interval store in order to over-approximate it.
+         * We avoid adding the over-approximation if the decomposition is also a unary constraint. */
+        if(f.seq(1).s().size() > 1) {
+          conjunction.push_back(f);
+        }
+        return F::make_true(); /* unused anyways. */
+      }
+      else {
+        return ternarize(decompose_in_constraint(f), toplevel);
+      }
+    }
     /** We introduce a new temporary variable `t0`.
      * The type of `t0` is decided by the return type of the operator and whether we are at toplevel or not.
      */
@@ -247,6 +251,10 @@ private:
     {
       int left = f.seq(0).is_binary();
       int right = f.seq(1).is_binary();
+      /** If a IN constraint appears on the right side, we decompose it here and immediately call ternarize again. */
+      if(f.seq(right).sig() == IN) {
+        return ternarize(F::make_binary(f.seq(left), EQ, decompose_in_constraint(f.seq(right))), toplevel);
+      }
       t0 = ternarize(f.seq(left));
       f = f.seq(right);
       toplevel = false;
@@ -374,7 +382,7 @@ private:
 public:
   void compute(const F& f) {
     if (f.is(F::Seq) && f.sig() == AND) {
-      auto seq = f.seq();
+      const auto& seq = f.seq();
       for (int i = 0; i < seq.size(); ++i) {
         compute(f.seq(i));
       }
@@ -385,15 +393,15 @@ public:
       name2exists[varname] = existentials.size() - 1;
       /** If ternarize has been called before, some temporary variables __VAR_Z_* and __VAR_B_* might already have been created.
        * In that case, we need to update the counters to avoid conflicts.
-       * This is not perfect, because it requires existential quantifier are in the beginning of the formula (before we introduce any variable).
+       * This is not perfect, because it requires existential quantifier to be in the beginning of the formula (before we introduce any variable).
        * For more robustness, we should rename the variables in the formula, if introduced_int_vars >= X in __VAR_Z_X.
        */
       introduce_existing_var(varname);
     }
-    else if(!f.is(F::ESeq) && !is_ternary_form(f, ternarize_all)) {
+    else if(!f.is(F::ESeq) && !is_extended_ternary_form(f)) {
       ternarize(f, true);
     }
-    // Either it is unary, or already in ternary form.
+    // Either it is unary, an extended formula or already in ternary form.
     else {
       conjunction.push_back(f);
     }
@@ -420,8 +428,8 @@ public:
  * This ternary form is used by the lala-pc/PIR solver.
  */
 template <class F, class Env = VarEnv<battery::standard_allocator>>
-F ternarize(const F& f, const Env& env = Env(), bool ternarize_all = false) {
-  impl::Ternarizer<F, Env> ternarizer(env, ternarize_all);
+F ternarize(const F& f, const Env& env = Env()) {
+  impl::Ternarizer<F, Env> ternarizer(env);
   ternarizer.compute(f);
   return std::move(ternarizer).create();
 }

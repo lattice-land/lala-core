@@ -40,7 +40,7 @@ bool contains(const F &f, const F &must_contain)
 
 bool is_PIR_symbol(Sig &sig)
 {
-  return sig == ADD || sig == SUB || sig == MUL || is_division(sig) || is_modulo(sig) || sig == EQ || sig == LT || sig == LEQ || sig == MAX || sig == MIN;
+  return sig == ADD || sig == MUL || is_division(sig) || is_modulo(sig) || sig == EQ || sig == LEQ || sig == MAX || sig == MIN;
 }
 
 void test_ternarize(
@@ -102,7 +102,7 @@ void test_ternarize(
   for (int i = 0; i < ternarized.seq().size(); ++i) {
     auto f = ternarized.seq(i);
     // test the form of the formula
-    if (!::lala::impl::Ternarizer<F, VarEnv<standard_allocator>>::is_ternary_form(f)) {
+    if (!::lala::impl::Ternarizer<F, VarEnv<standard_allocator>>::is_extended_ternary_form(f)) {
       if(!(f.is(F::ESeq)
         || (f.is(F::Seq) && (f.sig() == MINIMIZE || f.sig() == MAXIMIZE || f.sig() == IN))))
       {

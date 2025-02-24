@@ -428,6 +428,27 @@ public:
     }
   }
 
+  CUDA void print() const {
+    printf("Environment (%lu variables): \n", num_vars());
+    printf("index\t name               sort\tavars\n");
+    for(int i = 0; i < num_vars(); ++i) {
+      printf("%d\t", i);
+      const auto& var = lvars[i];
+      printf("%s", var.name.data());
+      for(int i = var.name.size(); i < 20; ++i) {
+        printf(" ");
+      }
+      var.sort.print(); printf("\t\t");
+      for(int j = 0; j < var.avars.size(); ++j) {
+        printf("(%d,%d)", var.avars[j].aty(), var.avars[j].vid());
+        if(j != var.avars.size() - 1) {
+          printf(",");
+        }
+      }
+      printf("\n");
+    }
+  }
+
   /** A variable environment can interpret formulas of two forms:
    *    - Existential formula with a valid abstract type (`f.type() != UNTYPED`).
    *    - Variable occurrence.

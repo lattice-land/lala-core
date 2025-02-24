@@ -29,6 +29,7 @@ void test_simplification(
   using simplifier_type = Simplifier<IStore, standard_allocator>;
   simplifier_type simplifier{
     env.extends_abstract_dom(),
+    istore->aty(),
     istore
   };
 
@@ -42,10 +43,10 @@ void test_simplification(
 
   printf("fixed point reached\n");
 
-  auto f3 = *parse_flatzinc_str<standard_allocator>(expected_simplified_formula);
-  f3.print();
+  auto f3 = expected_simplified_formula == "true" ? decltype(f2)::make_true() : *parse_flatzinc_str<standard_allocator>(expected_simplified_formula);
+  f3.print(true); printf("\n");
   auto f4 = simplifier.deinterpret();
-  f4.print();
+  f4.print(true); printf("\n");
   EXPECT_EQ(f3, f4);
 }
 
@@ -59,7 +60,7 @@ TEST(Simplifier, SimplificationGlobalTest) {
   test_simplification(
     "var 0..8: x; var 2..10: y; var 5..5: z; var 0..10: w;",
     "var 0..8: x; var 2..10: y; var 5..5: z; var 0..10: w; constraint int_eq(x, y); constraint int_eq(y, w); constraint int_eq(w, z);",
-    "var 5..5: x;"
+    "constraint true;"
   );
 
   test_simplification(
