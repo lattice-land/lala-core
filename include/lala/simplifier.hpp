@@ -147,11 +147,16 @@ public:
 
   CUDA void initialize(int num_vars, int num_cons) {
     eliminated_variables.resize(num_vars);
+    eliminated_variables.reset();
     eliminated_formulas.resize(num_cons);
+    eliminated_formulas.reset();
     constants.resize(num_vars);
+    for(int i = 0; i < constants.size(); ++i) {
+      constants[i].join_top();
+    }
     equivalence_classes.resize(num_vars);
     for(int i = 0; i < equivalence_classes.size(); ++i) {
-      equivalence_classes[i].meet(local::ZUB(i));
+      equivalence_classes[i] = i;
     }
   }
 
@@ -333,7 +338,7 @@ private:
    * \return The number of formulas eliminated.
    */
   template <class Seq>
-  CUDA int i_cse(const Seq& tnf, size_t& eliminated_constraints) {
+  CUDA int i_cse(const Seq& tnf, size_t& eliminated_constraints, size_t& fixpoint_iterations) {
     auto hash = [](const std::tuple<int,Sig,int> &right_tnf){
       return static_cast<size_t>(std::get<0>(right_tnf))
            * static_cast<size_t>(std::get<1>(right_tnf))
@@ -350,6 +355,7 @@ private:
     std::unordered_map<std::tuple<int,Sig,int>, int, decltype(hash), decltype(equal)> cs(tnf.size(), hash, equal);
     bool has_changed = true;
     while(has_changed) {
+      ++fixpoint_iterations;
       has_changed = false;
       cs.clear();
       for(int i = 0; i < tnf.size(); ++i) {
@@ -380,7 +386,7 @@ public:
    * precondition: `init_env` must have been called.
   */
   template <class F>
-  CUDA F simplify_tnf(const F& tnf_f, size_t& eliminated_equality_constraints, size_t& eliminated_constraints_by_icse) {
+  CUDA F simplify_tnf(const F& tnf_f, size_t& eliminated_equality_constraints, size_t& eliminated_constraints_by_icse, size_t& icse_fixpoint_iterations) {
     assert(tnf_f.is(F::Seq) && tnf_f.sig() == AND);
     const auto& tnf = tnf_f.seq();
     initialize(sub->vars(), tnf.size());
@@ -401,7 +407,7 @@ public:
       }
     }
     normalize_equivalence_classes();
-    i_cse(tnf, eliminated_constraints_by_icse);
+    i_cse(tnf, eliminated_constraints_by_icse, icse_fixpoint_iterations);
     /** Keep only the variables that are representative and occur in at least one TNF constraint. */
     eliminated_variables.set();
     for(int i = 0; i < tnf.size(); ++i) {

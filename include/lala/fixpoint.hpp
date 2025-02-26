@@ -404,6 +404,7 @@ public:
 
 /** This function can be passed to `iterate` of a fixpoint engine in order to perform a local fixpoint per warp.
  * It expects the deduction operation to be split into a `load_deduce` and a `deduce`.
+ * Note that `load_deduce` can simply be the identity if it is not useful.
  * TPB: the number of threads per block.
 */
 template <int TPB, class A>
