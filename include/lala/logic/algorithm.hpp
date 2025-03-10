@@ -4,6 +4,7 @@
 #define LALA_CORE_ALGORITHM_HPP
 
 #include "ast.hpp"
+#include <map>
 
 namespace lala {
 
@@ -969,6 +970,16 @@ CUDA F decompose_arith_neq_constraint(const F& f, const typename F::allocator_ty
       f.type(), alloc);
   }
   return f;
+}
+
+/** Rewrite a formula `f` into a new formula without set variables and set constraints.
+ * If some set variables are unbounded, we return an empty optional.
+ * Otherwise the new formula does not contain any set variable and constraint, and the mapping between set variables and Boolean variables is stored in `set2int_vars`.
+ * For instance a set variable `S in {[{}, {1,2}]}` is turned into two Boolean variables `__S_contains_1` and `__S_contains_2`.
+ */
+template <class F>
+std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std::vector<std::string>>& set2bool_vars) {
+  return {};
 }
 
 }
