@@ -390,6 +390,9 @@ public:
     assert(tnf_f.is(F::Seq) && tnf_f.sig() == AND);
     const auto& tnf = tnf_f.seq();
     initialize(sub->vars(), tnf.size());
+    for(int i = 0; i < equivalence_classes.size(); ++i) {
+      constants[equivalence_classes[i]].meet(sub->project(AVar{store_aty, i}));
+    }
     /** Compute equivalence classes by detecting equality constraints. */
     /** We also eliminate all the existential quantifier and unary constraints,
      * those will be re-generated from the underlying store later. */
@@ -398,12 +401,15 @@ public:
         eliminate(eliminated_formulas, i);
       }
       /** 1 <=> x = y */
-      else if(is_constant_var(tnf[i].seq(0)) && value_of_constant(tnf[i].seq(0)) == 1
-        && (tnf[i].seq(1).sig() == EQ || tnf[i].seq(1).sig() == EQUIV))
-      {
-        add_equivalence(var_of(tnf[i].seq(1).seq(0)), var_of(tnf[i].seq(1).seq(1)));
-        eliminate(eliminated_formulas, i);
-        eliminated_equality_constraints++;
+      else if(tnf[i].seq(1).sig() == EQ || tnf[i].seq(1).sig() == EQUIV) {
+        AVar x = var_of(tnf[i].seq(0));
+        auto val = constants[equivalence_classes[x.vid()]];
+        if(val.lb() == val.ub() && val.lb() == 1)
+        {
+          add_equivalence(var_of(tnf[i].seq(1).seq(0)), var_of(tnf[i].seq(1).seq(1)));
+          eliminate(eliminated_formulas, i);
+          eliminated_equality_constraints++;
+        }
       }
     }
     normalize_equivalence_classes();

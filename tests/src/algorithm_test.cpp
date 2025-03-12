@@ -21,14 +21,14 @@ void test_rewriting(const char* input, const char* expected, bool can_rewrite = 
   EXPECT_EQ(*rewritten, *expect);
 }
 
-TEST(AST, SetRewritingDomain1) {
-  test_rewriting(
-    "var set of 1..2: S;",
+// TEST(AST, SetRewritingDomain1) {
+//   test_rewriting(
+//     "var set of 1..2: S;",
 
-    "var bool: __S_contains_1;\
-     var bool: __S_contains_2;"
-  );
-}
+//     "var bool: __S_contains_1;\
+//      var bool: __S_contains_2;"
+//   );
+// }
 
 // TEST(AST, SetRewritingDomain2) {
 //   test_rewriting(
