@@ -1014,7 +1014,7 @@ std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std
       return F::make_nary(AND, std::move(conjunction), f.type());
     }
   }
-  //TODO for test3 now I can only be able to generate sth like this:
+  // TODO: for test3 now I can only be able to generate sth like this:
   // `x = 1 => __S_contains_1 = true`.
     // F::make_binary(
     //   F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>("x")), EQ, F::make_z(1, f.type()),f.type()),

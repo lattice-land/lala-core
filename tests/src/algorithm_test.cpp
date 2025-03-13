@@ -17,9 +17,6 @@ void test_rewriting(const char* input, const char* expected, bool can_rewrite = 
   auto rewritten = decompose_set_constraints(*f, set2bool_vars);
   EXPECT_EQ(rewritten.has_value(), can_rewrite);
   auto expect = parse_flatzinc_str<standard_allocator>(expected);
-  expect->print();
-  printf("\n");
-  rewritten->print();
   EXPECT_TRUE(expect);
   EXPECT_EQ(*rewritten, *expect);
 }
