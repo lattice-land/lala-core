@@ -30,30 +30,30 @@ void test_rewriting(const char* input, const char* expected, bool can_rewrite = 
 //   );
 // }
 
-// TEST(AST, SetRewritingDomain2) {
-//   test_rewriting(
-//     "var set of {-1, 1, 3}: S;",
+TEST(AST, SetRewritingDomain2) {
+  test_rewriting(
+      "var set of {-1, 1, 3}: S;",
 
-//     "var bool: __S_contains_m1;\
-//      var bool: __S_contains_1;\
-//      var bool: __S_contains_3;"
-//   );
-// }
+      "var bool: __S_contains_m1;\
+      var bool: __S_contains_1;\
+      var bool: __S_contains_3;"
+   );
+ }
 
-// TEST(AST, SetRewritingMembership) {
-//   test_rewriting(
-//     "var int: x;\
-//      var set of {1, 2}: S;\
-//      constraint set_in(x, S);",
+TEST(AST, SetRewritingMembership) {
+  test_rewriting(
+    "var int: x;\
+     var set of {1, 2}: S;\
+     constraint set_in(x, S);",
 
-//     "var int: x;\
-//      var bool: __S_contains_1;\
-//      var bool: __S_contains_2;\
-//      constraint bool_imply(int_eq(x, 1), bool_eq(__S_contains_1, true));\
-//      constraint bool_imply(int_eq(x, 2), bool_eq(__S_contains_2, true));"
-//   );
-//   /** NOTE: `bool_imply(int_eq(x, 1), bool_eq(__S_contains_1, true))` represents the implication constraint:
-//    * `x = 1 => __S_contains_1 = true`.
-//    */
-// }
+    "var int: x;\
+     var bool: __S_contains_1;\
+     var bool: __S_contains_2;\
+     constraint bool_imply(int_eq(x, 1), bool_eq(__S_contains_1, true));\
+     constraint bool_imply(int_eq(x, 2), bool_eq(__S_contains_2, true));"
+  );
+  /** NOTE: `bool_imply(int_eq(x, 1), bool_eq(__S_contains_1, true))` represents the implication constraint:
+   * `x = 1 => __S_contains_1 = true`.
+   */
+}
 
