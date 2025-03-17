@@ -404,7 +404,7 @@ public:
       else if(tnf[i].seq(1).sig() == EQ || tnf[i].seq(1).sig() == EQUIV) {
         AVar x = var_of(tnf[i].seq(0));
         auto val = constants[equivalence_classes[x.vid()]];
-        if(val.lb() == val.ub() && val.lb() == 1)
+        if((val.lb() == val.ub() && val.lb() == 1) || (is_constant_var(tnf[i].seq(0)) && value_of_constant(tnf[i].seq(0)) == 1))
         {
           add_equivalence(var_of(tnf[i].seq(1).seq(0)), var_of(tnf[i].seq(1).seq(1)));
           eliminate(eliminated_formulas, i);
