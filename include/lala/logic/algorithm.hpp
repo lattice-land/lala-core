@@ -1062,11 +1062,6 @@ std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std
     }
     return F::make_nary(AND, std::move(conjunction), f.type());
   }
-    // F::make_binary(
-    //   F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>("x")), EQ, F::make_z(1, f.type()),f.type()),
-    //   IMPLY,
-    //   F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>("__S_contains_1")), EQ, F::make_bool(true, f.type()),f.type())
-    // );
   return f;
 }
 
