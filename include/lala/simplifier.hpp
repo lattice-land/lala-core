@@ -641,7 +641,7 @@ private:
     }
     while(equivalence_classes[x] != root) {
       int parent = equivalence_classes[x];
-      sub->embed(parent, (*sub)[x]);
+      sub->embed(AVar{store_aty, parent}, (*sub)[x]);
       equivalence_classes[x] = root;
       x = parent;
     }
@@ -656,7 +656,7 @@ private:
       // Easier to debug and more robust for testing: use the root with the smallest index.
       if(rx < ry) battery::swap(rx, ry);
       equivalence_classes[rx] = ry;
-      sub->embed(ry, (*sub)[rx]);
+      sub->embed(AVar{store_aty, ry}, (*sub)[rx]);
     }
   }
 
@@ -664,11 +664,11 @@ public:
   CUDA void meet_equivalence_classes() {
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       int root = find(i);
-      sub->embed(root, (*sub)[i]);
+      sub->embed(AVar{store_aty, root}, (*sub)[i]);
     }
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       int root = find(i);
-      sub->embed(i, (*sub)[root]);
+      sub->embed(AVar{store_aty, i}, (*sub)[root]);
     }
   }
 
