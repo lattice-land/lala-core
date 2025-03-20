@@ -10,6 +10,40 @@
 
 namespace lala {
 
+struct SimplifierStats {
+  size_t eliminated_constraints_by_icse = 0;
+  size_t eliminated_equality_constraints = 0;
+  size_t eliminated_constraints_by_as = 0;
+  size_t eliminated_entailed_constraints = 0;
+  size_t icse_fixpoint_iterations = 0;
+
+  template <class StatPrinter>
+  CUDA void print(StatPrinter& stats, size_t fp_iter) {
+    stats.print_stat_fp_iter("eliminated_entailed_constraints", fp_iter, eliminated_entailed_constraints);
+    stats.print_stat_fp_iter("eliminated_equality_constraints", fp_iter, eliminated_equality_constraints);
+    stats.print_stat_fp_iter("eliminated_constraints_by_icse", fp_iter, eliminated_constraints_by_icse);
+    stats.print_stat_fp_iter("eliminated_constraints_by_as", fp_iter, eliminated_constraints_by_as);
+    stats.print_stat_fp_iter("icse_fixpoint_iterations", fp_iter, icse_fixpoint_iterations);
+  }
+
+  template <class StatPrinter>
+  CUDA void print(StatPrinter& stats) {
+    stats.print_stat("eliminated_entailed_constraints", eliminated_entailed_constraints);
+    stats.print_stat("eliminated_equality_constraints", eliminated_equality_constraints);
+    stats.print_stat("eliminated_constraints_by_icse", eliminated_constraints_by_icse);
+    stats.print_stat("eliminated_constraints_by_as", eliminated_constraints_by_as);
+    stats.print_stat("icse_fixpoint_iterations", icse_fixpoint_iterations);
+  }
+
+  CUDA void merge(SimplifierStats& other) {
+    eliminated_constraints_by_icse += other.eliminated_constraints_by_icse;
+    eliminated_equality_constraints += other.eliminated_equality_constraints;
+    eliminated_constraints_by_as += other.eliminated_constraints_by_as;
+    eliminated_entailed_constraints += other.eliminated_entailed_constraints;
+    icse_fixpoint_iterations += other.icse_fixpoint_iterations;
+  }
+};
+
 /** This abstract domain works at the level of logical formulas.
  * It deduces the formula by performing a number of simplifications w.r.t. an underlying abstract domain including:
  *  1. Removing assigned variables.
@@ -160,6 +194,22 @@ public:
     }
   }
 
+  /** We initialize the equivalence classes and var/cons elimination masks.
+   * Further, we eliminate all constraints in `tnf` that are not in TNF.
+   * (It is the existential quantifiers and unary constraints that are re-generated from the underlying store later.)
+   */
+  template <class Seq>
+  CUDA void initialize_tnf(int num_vars, const Seq& tnf) {
+    initialize(num_vars, tnf.size());
+    int z = 0;
+    for(int i = 0; i < tnf.size(); ++i) {
+      if(!is_tnf(tnf[i])) {
+        ++z;
+        eliminate(eliminated_formulas, i);
+      }
+    }
+  }
+
 public:
   /** @sequential */
   template <class Alloc2>
@@ -218,27 +268,22 @@ private:
     return false;
   }
 
+  CUDA local::B eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i, size_t& eliminated_constraints) {
+    if(eliminate(mask, i)) {
+      ++eliminated_constraints;
+      return true;
+    }
+    return false;
+  }
+
   // We eliminate the representative of the variable `i` if it is a singleton.
   CUDA local::B vdeduce(int i) {
     const auto& u = sub->project(AVar{store_aty, i});
-    size_t j = equivalence_classes[i];
+    size_t j = find(i);
     local::B has_changed = constants[j].meet(u);
     if(!constants[j].is_bot() && constants[j].lb().value() == constants[j].ub().value()) {
       has_changed |= eliminate(eliminated_variables, j);
     }
-    return has_changed;
-  }
-
-private:
-  CUDA local::B add_equivalence(AVar x, AVar y) {
-    local::ZUB min_vid(equivalence_classes[x.vid()]);
-    min_vid.meet(equivalence_classes[y.vid()]);
-    // We must update representative element of x and y, to avoid disconnecting previous representative elements.
-    local::B has_changed = false;
-    has_changed |= equivalence_classes[equivalence_classes[x.vid()]].meet(min_vid);
-    has_changed |= equivalence_classes[equivalence_classes[y.vid()]].meet(min_vid);
-    has_changed |= equivalence_classes[x.vid()].meet(min_vid);
-    has_changed |= equivalence_classes[y.vid()].meet(min_vid);
     return has_changed;
   }
 
@@ -248,9 +293,8 @@ public:
     local::B has_changed = false;
     // Eliminate constraint of the form x = y, and add x,y in the same equivalence class.
     if(is_var_equality(formulas[i])) {
-      add_equivalence(var_of(formulas[i].seq(0)), var_of(formulas[i].seq(1)));
-      has_changed |= eliminate(eliminated_formulas, i);
-      return has_changed;
+      size_t s = 0;
+      return replace_by_equivalence(var_of(formulas[i].seq(0)), var_of(formulas[i].seq(1)), i, s);
     }
     else {
       // Eliminate entailed formulas.
@@ -319,15 +363,16 @@ public:
   }
 
 private:
-  CUDA void normalize_equivalence_classes() {
-    /** Normalize equivalence classes */
-    for(int i = 0; i < equivalence_classes.size(); ++i) {
-      /** The representative element is always the one with the lowest index, and we know that equivalence_classes[i] <= i. Therefore `equivalence_classes[equivalence_classes[rep]]` must be the representative element. */
-      constants[equivalence_classes[equivalence_classes[i]]].meet(constants[equivalence_classes[i]]);
-      equivalence_classes[i] = equivalence_classes[equivalence_classes[i]];
-    }
+  CUDA local::B replace_by_equivalence(AVar x, AVar y, int i, size_t& eliminated_constraints) {
+    return replace_by_equivalence(x.vid(), y.vid(), i, eliminated_constraints);
   }
 
+  CUDA local::B replace_by_equivalence(int x, int y, int i, size_t& eliminated_constraints) {
+    merge(x, y);
+    return eliminate(eliminated_formulas, i, eliminated_constraints);
+  }
+
+public:
   /** I-CSE algorithm.
    * For each pair of TNF constraints `x <=> y op z` and `x' <=> y' op' z'`, whenever `[y'] = [y]`, `op = op'` and `[z] = [z']`, we add the equivalence `x = x'` and eliminate the second constraint.
    * Note that [x] represents the equivalence class of `x`.
@@ -338,105 +383,327 @@ private:
    * \return The number of formulas eliminated.
    */
   template <class Seq>
-  CUDA int i_cse(const Seq& tnf, size_t& eliminated_constraints, size_t& fixpoint_iterations) {
-    auto hash = [](const std::tuple<int,Sig,int> &right_tnf){
+  CUDA bool i_cse(const Seq& tnf, SimplifierStats& stats) {
+    auto hash = [](const std::tuple<int,Sig,int> &right_tnf) {
       return static_cast<size_t>(std::get<0>(right_tnf))
            * static_cast<size_t>(std::get<1>(right_tnf))
            * static_cast<size_t>(std::get<2>(right_tnf));
     };
     // This equality function also checks for commutative operators (in which case the hash will also be the same).
     auto equal = [](const std::tuple<int,Sig,int> &l, const std::tuple<int,Sig,int> &r){
-      if(std::get<1>(l) == std::get<1>(r)) {
-        return (std::get<0>(l) == std::get<0>(r) && std::get<2>(l) == std::get<2>(r))
-         || (is_commutative(std::get<1>(l)) && std::get<0>(l) == std::get<2>(r) && std::get<2>(l) == std::get<0>(r));
-      }
-      return false;
+      return std::get<1>(l) == std::get<1>(r)
+        && ((std::get<0>(l) == std::get<0>(r) && std::get<2>(l) == std::get<2>(r)));
+        // || (is_commutative(std::get<1>(l)) && std::get<0>(l) == std::get<2>(r) && std::get<2>(l) == std::get<0>(r)));
     };
     std::unordered_map<std::tuple<int,Sig,int>, int, decltype(hash), decltype(equal)> cs(tnf.size(), hash, equal);
-    bool has_changed = true;
-    while(has_changed) {
-      ++fixpoint_iterations;
-      has_changed = false;
+    bool has_changed = false;
+    bool local_has_changed = true;
+    while(local_has_changed) {
+      ++stats.icse_fixpoint_iterations;
+      local_has_changed = false;
       cs.clear();
       for(int i = 0; i < tnf.size(); ++i) {
         if(!eliminated_formulas.test(i)) {
-          int x = equivalence_classes[var_of(tnf[i].seq(0)).vid()];
-          int y = equivalence_classes[var_of(tnf[i].seq(1).seq(0)).vid()];
-          int z = equivalence_classes[var_of(tnf[i].seq(1).seq(1)).vid()];
+          int x = find(var_of(tnf[i].seq(0)).vid());
+          int y = find(var_of(tnf[i].seq(1).seq(0)).vid());
+          int z = find(var_of(tnf[i].seq(1).seq(1)).vid());
           Sig op = tnf[i].seq(1).sig();
           auto p = cs.insert(std::make_pair(std::make_tuple(y, op, z), x));
           if(!p.second) { // `p.second` is false if we detect a collision.
-            AVar x2 = AVar{store_aty, p.first->second};
-            add_equivalence(AVar{store_aty, x}, x2);
-            eliminate(eliminated_formulas, i);
-            eliminated_constraints++;
-            has_changed = true;
+            local_has_changed |= replace_by_equivalence(x, p.first->second, i, stats.eliminated_constraints_by_icse);
+            if(local_has_changed) {
+              has_changed = true;
+            }
           }
         }
       }
-      normalize_equivalence_classes();
     }
-    return eliminated_constraints;
+    return has_changed;
   }
 
-public:
-  /** We simplify the TNF formula by computing equivalence classes and removing useless variables.
-   * `tnf` is a conjunction of formulas in TNF, existential quantifiers and unary constraints.
-   *
-   * precondition: `init_env` must have been called.
-  */
-  template <class F>
-  CUDA F simplify_tnf(const F& tnf_f, size_t& eliminated_equality_constraints, size_t& eliminated_constraints_by_icse, size_t& icse_fixpoint_iterations) {
-    assert(tnf_f.is(F::Seq) && tnf_f.sig() == AND);
-    const auto& tnf = tnf_f.seq();
-    initialize(sub->vars(), tnf.size());
-    for(int i = 0; i < equivalence_classes.size(); ++i) {
-      constants[equivalence_classes[i]].meet(sub->project(AVar{store_aty, i}));
-    }
-    /** Compute equivalence classes by detecting equality constraints. */
-    /** We also eliminate all the existential quantifier and unary constraints,
-     * those will be re-generated from the underlying store later. */
+  /** Perform algebraic simplification on the TNF.
+   * The non-eliminated constraints are assumed to be in TNF.
+   */
+  template <class Seq>
+  CUDA bool algebraic_simplify(Seq& tnf, SimplifierStats& stats) {
+    using F = typename Seq::value_type;
+    constexpr universe_type ZERO(0,0);
+    constexpr universe_type ONE(1,1);
+    auto& vstore = *sub;
+    size_t elim_cons = stats.eliminated_constraints_by_as;
+    bool has_changed = false;
     for(int i = 0; i < tnf.size(); ++i) {
-      if(!is_tnf(tnf[i])) {
-        eliminate(eliminated_formulas, i);
-      }
-      /** 1 <=> x = y */
-      else if(tnf[i].seq(1).sig() == EQ || tnf[i].seq(1).sig() == EQUIV) {
-        AVar x = var_of(tnf[i].seq(0));
-        auto val = constants[equivalence_classes[x.vid()]];
-        if((val.lb() == val.ub() && val.lb() == 1) || (is_constant_var(tnf[i].seq(0)) && value_of_constant(tnf[i].seq(0)) == 1))
-        {
-          add_equivalence(var_of(tnf[i].seq(1).seq(0)), var_of(tnf[i].seq(1).seq(1)));
-          eliminate(eliminated_formulas, i);
-          eliminated_equality_constraints++;
+      if(!eliminated_formulas.test(i)) {
+        int x = find(var_of(tnf[i].seq(0)).vid());
+        int y = find(var_of(tnf[i].seq(1).seq(0)).vid());
+        int z = find(var_of(tnf[i].seq(1).seq(1)).vid());
+        Sig sig = tnf[i].seq(1).sig();
+        bool x_is_c = vstore[x].lb() == vstore[x].ub();
+        bool y_is_c = vstore[y].lb() == vstore[y].ub();
+        bool z_is_c = vstore[z].lb() == vstore[z].ub();
+        /** Put constants on the right side of the operator. */
+        if(is_commutative(sig) && y_is_c) {
+          std::swap(y, z);
+        }
+        switch(sig) {
+          case ADD: {
+            /** x = x + z -> z = 0 and  x = y + x -> y = 0 */
+            if(x == y || x == z) {
+              int y2 = x == y ? z : y;
+              vstore[y2].meet(ZERO);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            /** x = y + 0 -> x = y */
+            else if(vstore[z] == ZERO) {
+              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
+            }
+            break;
+          }
+          case MUL: {
+            /** x = x * k -> x = 0 (if k != 1), true otherwise. */
+            if(x == y && z_is_c) {
+              if(vstore[z] != ONE) {
+                has_changed |= vstore[x].meet(ZERO);
+              }
+              else { /* true */ }
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            /** k = y * y -> y \in [-n,n] (if n * n = k), false (otherwise).
+             * This is an over-approximation, thus we cannot eliminate the constraint. */
+            else if(x_is_c && y == z) {
+              auto n = battery::iroots_up(vstore[x].lb().value(), 2);
+              if(n * n == vstore[x].lb()) {
+                has_changed |= vstore[y].meet(universe_type(-n, n));
+              }
+              else {
+                vstore[y].meet_bot(); // false because k is not a perfect square.
+              }
+            }
+            /** x = y * 1 */
+            else if(vstore[z] == ONE) {
+              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
+            }
+            /** x = y * 2 -> x = y + y */
+            else if(vstore[z] == universe_type(2,2)) {
+              tnf[i].seq(1) = F::make_binary(
+                F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y})),
+                ADD,
+                F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y})));
+            }
+            /** x = x * x */
+            else if(x == y && y == z) {
+              vstore[x].meet(universe_type(0,1));
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            break;
+          }
+          case EDIV: {
+            /** x = 1/x -> x \in {-1,1} (over-approximated so the constraint cannot not eliminated) */
+            if(vstore[y] == ONE && x == z) {
+              has_changed |= vstore[x].meet(universe_type(-1,1));
+            }
+            else if(vstore[y] == ZERO && x == z) {
+              vstore[x].meet_bot();
+            }
+            else if(x_is_c && y == z) {
+              if(vstore[x] != ONE) {
+                vstore[y].meet_bot();
+              }
+              else { /* x != 0, not supported. */ }
+            }
+            else if(vstore[z] == ONE) {
+              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
+            }
+            else if(x == y && y == z) {
+              vstore[x].meet(ONE);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            break;
+          }
+          case EMOD: {
+            /** x = x mod x -> x = 0 */
+            if(x == y && y == z) {
+              vstore[x].meet(ZERO);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            /** x = x mod k -> x in [0, abs(k) - 1] */
+            else if(x == y && z_is_c) {
+              vstore[x].meet(universe_type(0, std::abs(vstore[z].lb()) - 1));
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            /** x = k mod x is always false. */
+            else if(x == z && y_is_c) {
+              vstore[x].meet_bot();
+            }
+            /** 0 = x mod x is always true. */
+            else if(y == z && vstore[x] == ZERO) {
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            break;
+          }
+          case MIN:
+          case MAX: {
+            /** x = min/max(y, y) -> x = y */
+            if(y == z) {
+              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
+            }
+            /** x = min(x, y) -> 1 = (x <= y)  */
+            /** x = max(x, y) -> 1 = (y <= x)  */
+            else if(x == y || x == z) {
+              int y2 = x == y ? z : y;
+              int x2 = x;
+              if(sig == MAX) {
+                std::swap(x2, y2);
+              }
+              tnf[i].seq(0) = F::make_lvar(UNTYPED, LVar<allocator_type>("__CONSTANT_1"));
+              tnf[i].seq(1) = F::make_binary(
+                F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, x2})),
+                LEQ,
+                F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y2})));
+            }
+            break;
+          }
+          case EQUIV:
+          case EQ: {
+            if(vstore[x] == ONE) {
+              replace_by_equivalence(y, z, i, stats.eliminated_equality_constraints);
+            }
+            /** x = (x = k) -> false (k = 0), x = 1 (k = 1) or x = 0 */
+            else if(x == y && z_is_c) {
+              if(vstore[z] == ZERO) {
+                vstore[x].meet_bot();
+              }
+              else if(vstore[z] == ONE) {
+                vstore[x].meet(ONE);
+              }
+              else {
+                vstore[x].meet(ZERO);
+              }
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            else if(y == z) {
+              vstore[x].meet(ONE);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            break;
+          }
+          case LEQ: {
+            /** x = (x <= k) -> x = 0 (k < 0), x = 1 (k > 0), false (k = 0) */
+            if(x == y && z_is_c) {
+              int k = vstore[z].lb();
+              if(k < 0) {
+                vstore[x].meet(ZERO);
+              }
+              else if(k > 0) {
+                vstore[x].meet(ONE);
+              }
+              else { /** no solution with k == 0 */
+                vstore[x].meet_bot();
+              }
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            /** x = (k <= x) -> x = 0 (k > 1), x = 1 (k <= 1), true (k = 1). */
+            else if(x == z && y_is_c) {
+              int k = vstore[y].lb();
+              if(k > 1) {
+                vstore[x].meet(ZERO);
+              }
+              else if(k < 1) {
+                vstore[x].meet(ONE);
+              }
+              else { /** true whenever k = 1 */ }
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            else if(x == y && y == z) {
+              vstore[x].meet(ONE);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+            }
+            break;
+          }
+          default:
+            printf("Unsupported operator %s in TNF algebraic simplification.\n", string_of_sig(sig));
         }
       }
     }
-    normalize_equivalence_classes();
-    i_cse(tnf, eliminated_constraints_by_icse, icse_fixpoint_iterations);
+    return has_changed || elim_cons != stats.eliminated_constraints_by_as;
+  }
+
+private:
+  /** Find operation in union-find algorithm.
+   * An additional invariant is that:
+   *   forall x. store[x] >= store[find(x)]
+   * That is, the root node contains the meet of all domains in the equivalence class.
+  */
+  CUDA int find(int x) {
+    int root = x;
+    while(equivalence_classes[root] != root) {
+      root = equivalence_classes[root];
+    }
+    while(equivalence_classes[x] != root) {
+      int parent = equivalence_classes[x];
+      (*sub)[parent].meet((*sub)[x]);
+      equivalence_classes[x] = root;
+      x = parent;
+    }
+    return root;
+  }
+
+  /** A simple merge operation in union-find algorithm. */
+  CUDA void merge(int x, int y) {
+    int rx = find(x);
+    int ry = find(y);
+    if(rx != ry) {
+      equivalence_classes[rx] = ry;
+      (*sub)[ry].meet((*sub)[rx]);
+    }
+  }
+
+public:
+  CUDA void meet_equivalence_classes() {
+    for(int i = 0; i < equivalence_classes.size(); ++i) {
+      int root = find(i);
+      (*sub)[root].meet((*sub)[i]);
+    }
+    for(int i = 0; i < equivalence_classes.size(); ++i) {
+      int root = find(i);
+      (*sub)[i].meet((*sub)[root]);
+    }
+  }
+
+  template <class B, class Seq>
+  CUDA void eliminate_entailed_constraints(const B& b, const Seq& tnf, SimplifierStats& stats) {
+    for(int i = 0; i < tnf.size(); ++i) {
+      if(!is_tnf(tnf[i]) || eliminated_formulas.test(i)) {
+        continue;
+      }
+      IDiagnostics diagnostics;
+      typename sub_type::template ask_type<allocator_type> ask_value;
+      bool ask_success = b.interpret_ask(tnf[i], env, ask_value, diagnostics);
+      assert(ask_success);
+      if(b.ask(ask_value)) {
+        eliminate(eliminated_formulas, i, stats.eliminated_entailed_constraints);
+      }
+    }
+  }
+
+  template <class Seq>
+  CUDA void eliminate_useless_variables(const Seq& tnf, size_t& num_eliminated_variables) {
     /** Keep only the variables that are representative and occur in at least one TNF constraint. */
     eliminated_variables.set();
     for(int i = 0; i < tnf.size(); ++i) {
       if(!eliminated_formulas.test(i)) {
-        AVar x = var_of(tnf[i].seq(0));
-        AVar y = var_of(tnf[i].seq(1).seq(0));
-        AVar z = var_of(tnf[i].seq(1).seq(1));
-        eliminated_variables.set(equivalence_classes[x.vid()], false);
-        eliminated_variables.set(equivalence_classes[y.vid()], false);
-        eliminated_variables.set(equivalence_classes[z.vid()], false);
+        eliminated_variables.set(find(var_of(tnf[i].seq(0)).vid()), false);
+        eliminated_variables.set(find(var_of(tnf[i].seq(1).seq(0)).vid()), false);
+        eliminated_variables.set(find(var_of(tnf[i].seq(1).seq(1)).vid()), false);
       }
     }
-    /** Update the constant values of eliminated variables.
-     * This is useful later when printing the solutions.
-     */
-    for(int i = 0; i < equivalence_classes.size(); ++i) {
-      constants[equivalence_classes[i]].meet(sub->project(AVar{store_aty, i}));
+    num_eliminated_variables = eliminated_variables.count();
+    /** Eliminated variables might still occur in the variables we need to print.
+     * Therefore, we save them in `constants`. */
+    for(int i = 0; i < sub->vars(); ++i) {
+      int root = find(i);
+      constants[i] = sub->project(AVar{store_aty, root});
     }
-    /** Simplify the formulas. */
-    typename F::Sequence seq(tnf.get_allocator());
-    deinterpret_vars(seq);
-    deinterpret_constraints(seq, tnf, true);
-    return seq.size() == 0 ? F::make_true() : F::make_nary(AND, std::move(seq));
   }
 
 private:
@@ -444,12 +711,15 @@ private:
   void substitute_var(F& f) const {
     if(f.is_variable()) {
       AVar x = var_of(f);
-      if(equivalence_classes[x.vid()] != x.vid()) {
-        x = AVar{store_aty, equivalence_classes[x.vid()]};
+      // Note: `find` is non-const, and anyways, `eliminate_useless_variables` is called before, hence find(x) = equivalence_classes[x].
+      int root = equivalence_classes[x.vid()];
+      if(x.vid() != root) {
+        x = AVar{store_aty, root};
         f = F::make_lvar(store_aty, env.name_of(x));
       }
+      /** If the variable is eliminated, but still appear in a constraint at this stage, it means it's an "extra" constraint not in TNF, and therefore substitute the variable by its constant. */
       if(eliminated_variables.test(x.vid())) {
-        auto k = constants[x.vid()].template deinterpret<F>();
+        auto k = (*sub)[x.vid()].template deinterpret<F>();
         if(env[x].sort.is_bool() && k.is(F::Z)) {
           f = k.z() == 0 ? F::make_false() : F::make_true();
         }
@@ -475,10 +745,6 @@ public:
       }
     }
     return keep;
-  }
-
-  CUDA size_t num_eliminated_variables() const {
-    return equivalence_classes.size() - num_vars_after_elimination();
   }
 
 private:
@@ -511,22 +777,20 @@ private:
   }
 
 public:
-  // A representative variable is eliminated if all variables in its equivalence class must be eliminated.
-  CUDA void eliminate_variables() {
-    for(int i = 0; i < equivalence_classes.size(); ++i) {
-      eliminated_variables.set(equivalence_classes[i], eliminated_variables.test(equivalence_classes[i]) && eliminated_variables.test(i));
-    }
-  }
-
-  CUDA NI TFormula<allocator_type> deinterpret() {
+  template <class Seq>
+  CUDA NI TFormula<allocator_type> deinterpret(const Seq& source, bool substitute) {
     using F = TFormula<allocator_type>;
     typename F::Sequence seq(get_allocator());
     if(is_bot()) {
       return F::make_false();
     }
     deinterpret_vars(seq);
-    deinterpret_constraints(seq, simplified_formulas);
+    deinterpret_constraints(seq, source, substitute);
     return seq.size() == 0 ? F::make_true() : F::make_nary(AND, std::move(seq));
+  }
+
+  CUDA NI TFormula<allocator_type> deinterpret() {
+    return deinterpret(simplified_formulas, false);
   }
 };
 
