@@ -641,7 +641,7 @@ private:
     }
     while(equivalence_classes[x] != root) {
       int parent = equivalence_classes[x];
-      (*sub)[parent].meet((*sub)[x]);
+      sub->embed(parent, (*sub)[x]);
       equivalence_classes[x] = root;
       x = parent;
     }
@@ -653,8 +653,10 @@ private:
     int rx = find(x);
     int ry = find(y);
     if(rx != ry) {
+      // Easier to debug and more robust for testing: use the root with the smallest index.
+      if(rx < ry) battery::swap(rx, ry);
       equivalence_classes[rx] = ry;
-      (*sub)[ry].meet((*sub)[rx]);
+      sub->embed(ry, (*sub)[rx]);
     }
   }
 
@@ -662,11 +664,11 @@ public:
   CUDA void meet_equivalence_classes() {
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       int root = find(i);
-      (*sub)[root].meet((*sub)[i]);
+      sub->embed(root, (*sub)[i]);
     }
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       int root = find(i);
-      (*sub)[i].meet((*sub)[root]);
+      sub->embed(i, (*sub)[root]);
     }
   }
 
