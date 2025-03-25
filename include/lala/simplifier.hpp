@@ -431,6 +431,7 @@ public:
     constexpr universe_type ONE(1,1);
     auto& vstore = *sub;
     size_t elim_cons = stats.eliminated_constraints_by_as;
+    size_t elim_eq = stats.eliminated_equality_constraints;
     bool has_changed = false;
     for(int i = 0; i < tnf.size(); ++i) {
       if(!eliminated_formulas.test(i)) {
@@ -456,6 +457,13 @@ public:
             /** x = y + 0 -> x = y */
             else if(vstore[z] == ZERO) {
               replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
+            }
+            /** x = y + y -> x = y * 2 */
+            else if(y == z) {
+              tnf[i].seq(1) = F::make_binary(
+                F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y})),
+                MUL,
+                F::make_lvar(UNTYPED, LVar<allocator_type>("__CONSTANT_2")));
             }
             break;
           }
@@ -483,13 +491,6 @@ public:
             else if(vstore[z] == ONE) {
               replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
             }
-            /** x = y * 2 -> x = y + y */
-            else if(vstore[z] == universe_type(2,2)) {
-              tnf[i].seq(1) = F::make_binary(
-                F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y})),
-                ADD,
-                F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y})));
-            }
             /** x = x * x */
             else if(x == y && y == z) {
               vstore[x].meet(universe_type(0,1));
@@ -509,7 +510,7 @@ public:
               if(vstore[x] != ONE) {
                 vstore[y].meet_bot();
               }
-              else { /* x != 0, not supported. */ }
+              // Cannot eliminate the constraint as we must take into account that y != 0.
             }
             else if(vstore[z] == ONE) {
               replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
@@ -614,7 +615,7 @@ public:
               else { /** true whenever k = 1 */ }
               eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
             }
-            else if(x == y && y == z) {
+            else if(y == z) {
               vstore[x].meet(ONE);
               eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
             }
@@ -625,7 +626,7 @@ public:
         }
       }
     }
-    return has_changed || elim_cons != stats.eliminated_constraints_by_as;
+    return has_changed || elim_cons != stats.eliminated_constraints_by_as || elim_eq != stats.eliminated_equality_constraints;
   }
 
 private:

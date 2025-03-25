@@ -108,6 +108,7 @@ private:
     return introduce_var(name, Sort<allocator_type>(Sort<allocator_type>::Bool), false);
   }
 
+public:
   F ternarize_constant(const F& f) {
     assert(f.is(F::Z) || f.is(F::B));
     auto index = f.to_z();
@@ -121,6 +122,7 @@ private:
     return var;
   }
 
+private:
   /** Create a unary formula if the ternary formula can be simplified. */
   bool simplify_to_unary(F x, F y, Sig sig, F z) {
     /** Unary constraint of the form `1 <=> x <= 5`, `0 <=> x <= 5` or `1 <=> x == 5`   */
@@ -428,8 +430,11 @@ public:
  * This ternary form is used by the lala-pc/PIR solver.
  */
 template <class F, class Env = VarEnv<battery::standard_allocator>>
-F ternarize(const F& f, const Env& env = Env()) {
+F ternarize(const F& f, const Env& env = Env(), const std::vector<int>& constants = {}) {
   impl::Ternarizer<F, Env> ternarizer(env);
+  for(int c : constants) {
+    ternarizer.ternarize_constant(F::make_z(c));
+  }
   ternarizer.compute(f);
   return std::move(ternarizer).create();
 }
