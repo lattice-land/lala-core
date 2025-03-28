@@ -787,6 +787,9 @@ public:
     if(is_bot()) {
       return F::make_false();
     }
+    if(eliminated_variables.all() || eliminated_formulas.all()) {
+      return F::make_true();
+    }
     deinterpret_vars(seq);
     deinterpret_constraints(seq, source, substitute);
     return seq.size() == 0 ? F::make_true() : F::make_nary(AND, std::move(seq));
