@@ -1065,7 +1065,7 @@ std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std
 
   //TODO check using implications S \subeq T where S and T are both sets S = {1, 2} and T = {1, 2, 3}. Both S and T have already been decomposed to set variables
   // __S_contains__1 = true => __T_contains_1 = true AND __S_contains_2 = true => __T_contains_2 = true
-  if(f.is_binary() && f.sig() == SUBSETEQ && f.seq(0).is(F::S) && f.seq(1).is(F::S)) {
+  if(f.is_binary() && f.sig() == SUBSETEQ) {
     auto left = f.seq(0).lv().data();
     auto right = f.seq(1).lv().data();
 
@@ -1074,19 +1074,19 @@ std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std
       typename F::Sequence conjunction(alloc);
       auto booleanVars = set2bool_vars[left];
       for (auto& boolVar : booleanVars) {
+        auto rightBoolVar = boolVar;
         size_t pos = boolVar.find_last_of('_'); 
         long long int z = std::stoi(boolVar.substr(pos + 1));
         conjunction.push_back(
           F::make_binary(
             F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>(boolVar)), EQ, F::make_bool(true, f.type()),f.type()),
             IMPLY,
-            F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>(boolVar.replace(boolVar.find(left), std::string(left).size(), right))), EQ, F::make_bool(true, f.type()),f.type())
+            F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>(rightBoolVar.replace(rightBoolVar.find(left), std::string(left).size(), right))), EQ, F::make_bool(true, f.type()),f.type())
           )
         );
       }
       return F::make_nary(AND, std::move(conjunction), f.type());
     }
-
   }
   return f;
 }
