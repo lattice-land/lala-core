@@ -1062,9 +1062,8 @@ std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std
     }
     return F::make_nary(AND, std::move(conjunction), f.type());
   }
-
-  //TODO check using implications S \subeq T where S and T are both sets S = {1, 2} and T = {1, 2, 3}. Both S and T have already been decomposed to set variables
-  // __S_contains__1 = true => __T_contains_1 = true AND __S_contains_2 = true => __T_contains_2 = true
+  
+  // decompose subeq
   if(f.is_binary() && f.sig() == SUBSETEQ) {
     auto left = f.seq(0).lv().data();
     auto right = f.seq(1).lv().data();
