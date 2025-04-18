@@ -1062,6 +1062,31 @@ std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std
     }
     return F::make_nary(AND, std::move(conjunction), f.type());
   }
+  
+  // decompose subeq
+  if(f.is_binary() && f.sig() == SUBSETEQ) {
+    auto left = f.seq(0).lv().data();
+    auto right = f.seq(1).lv().data();
+
+    if (!set2bool_vars[left].empty()) {
+      typename F::allocator_type alloc;
+      typename F::Sequence conjunction(alloc);
+      auto booleanVars = set2bool_vars[left];
+      for (auto& boolVar : booleanVars) {
+        auto rightBoolVar = boolVar;
+        size_t pos = boolVar.find_last_of('_'); 
+        long long int z = std::stoi(boolVar.substr(pos + 1));
+        conjunction.push_back(
+          F::make_binary(
+            F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>(boolVar)), EQ, F::make_bool(true, f.type()),f.type()),
+            IMPLY,
+            F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>(rightBoolVar.replace(rightBoolVar.find(left), std::string(left).size(), right))), EQ, F::make_bool(true, f.type()),f.type())
+          )
+        );
+      }
+      return F::make_nary(AND, std::move(conjunction), f.type());
+    }
+  }
   return f;
 }
 

@@ -54,6 +54,22 @@ TEST(AST, SetRewritingDomain3) {
   );
 }
 
+TEST(AST, SetRewritingSubseteq) {
+  test_rewriting(
+    "var set of {1, 2}: S;\
+     var set of {1, 2, 3}: T;\
+     constraint set_subset(S, T);",
+
+    "var bool: __S_contains_1;\
+     var bool: __S_contains_2;\
+     var bool: __T_contains_1;\
+     var bool: __T_contains_2;\
+     var bool: __T_contains_3;\
+     constraint bool_imply(bool_eq(__S_contains_1, true), bool_eq(__T_contains_1, true));\
+     constraint bool_imply(bool_eq(__S_contains_2, true), bool_eq(__T_contains_2, true));"
+  );
+}
+
 TEST(AST, SetRewritingMembership1) {
   test_rewriting(
     "var int: x;\
