@@ -409,10 +409,16 @@ public:
     if(a.is_bot() || b.is_bot() || (b.lb().value() == zero && b.ub().value() == zero)) { meet_bot(); return; }
     // Interval division, [rl..ru] = [al..au] / [bl..bu]
     if constexpr(preserve_concrete_covers) {
-      // Remove 0 from the bounds of b if any is equal to it.
-      piecewise_monotone_fun(divfun, a,
-        local_type((b.lb().value() == zero) ? LB2(1) : b.lb(),
-                    (b.ub().value() == zero) ? UB2(-1) : b.ub()));
+      if(b.lb().value() < 0 && b.ub().value() > 0) {
+        meet_lb(LB(::min(a.lb().value(), -a.ub().value())));
+        meet_ub(UB(::max(-a.lb().value(), a.ub().value())));
+      }
+      else {
+        // Remove 0 from the bounds of b if any is equal to it.
+        piecewise_monotone_fun(divfun, a,
+          local_type((b.lb().value() == zero) ? LB2(1) : b.lb(),
+                      (b.ub().value() == zero) ? UB2(-1) : b.ub()));
+      }
     }
     else {
       flat_type al(a.lb());
