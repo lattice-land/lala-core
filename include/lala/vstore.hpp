@@ -329,6 +329,19 @@ public:
     }
   }
 
+  template <class Store>
+  CUDA void copy_to(Store& store) const {
+    assert(vars() == store.vars());
+    store.is_at_bot = is_at_bot;
+    if(is_at_bot) {
+      return;
+    }
+    for (int i = 0; i < store.vars(); ++i) {
+      store.data[i] = data[i];
+    }
+  }
+
+
 #ifdef __CUDACC__
   void prefetch(int dstDevice) const {
     if(!is_at_bot) {

@@ -1090,6 +1090,42 @@ std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std
   return f;
 }
 
+template <class F>
+std::optional<LVar<typename F::allocator_type>> find_maximize_var(const F& f) {
+  if(f.is(F::Seq)) {
+    if(f.sig() == Sig::MAXIMIZE && f.seq(0).is(F::LV)) {
+      return {f.seq(0).lv()};
+    }
+    else if(f.sig() == Sig::AND) {
+      for(int i = 0; i < f.seq().size(); ++i) {
+        auto res = find_maximize_var(f.seq(i));
+        if(res.has_value()) {
+          return res;
+        }
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+template <class F>
+std::optional<typename F::Existential> find_existential_of(const F& f, const LVar<typename F::allocator_type>& var) {
+  if(f.is(F::E)) {
+    if(battery::get<0>(f.exists()) == var) {
+      return {f.exists()};
+    }
+  }
+  else if(f.is(F::Seq) && f.sig() == Sig::AND) {
+    for(int i = 0; i < f.seq().size(); ++i) {
+      auto res = find_existential_of(f.seq(i), var);
+      if(res.has_value()) {
+        return res;
+      }
+    }
+  }
+  return std::nullopt;
+}
+
 }
 
 #endif

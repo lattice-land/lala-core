@@ -408,7 +408,7 @@ public:
  * TPB: the number of threads per block.
 */
 template <int TPB, class A>
-__device__ local::B warp_fixpoint(A& a, int i) {
+__device__ local::B warp_fixpoint(A& a, int i, int* warp_iterations) {
   auto ded = a.load_deduce(i);
   local::B has_changed = false;
   __shared__ bool warp_changed[TPB/32];
@@ -424,6 +424,9 @@ __device__ local::B warp_fixpoint(A& a, int i) {
       if(!a.is_bot()) {
         warp_changed[warp_id] = true;
       }
+    }
+    if(threadIdx.x % 32 == 0) {
+      warp_iterations[warp_id]++;
     }
     __syncwarp();
   }
