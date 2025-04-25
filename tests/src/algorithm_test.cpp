@@ -5,7 +5,6 @@
 #include "lala/logic/logic.hpp"
 #include <gtest/gtest.h>
 
-
 #include <optional>
 
 using namespace lala;
@@ -74,8 +73,12 @@ TEST(AST, SetRewritingMembership1) {
      var bool: __S_contains_2;\
      constraint bool_imply(int_eq(x, 1), bool_eq(__S_contains_1, true));\
      constraint bool_imply(int_eq(x, 2), bool_eq(__S_contains_2, true));");
-  /** NOTE: `bool_imply(int_eq(x, 1), bool_eq(__S_contains_1, true))` represents
-   * the implication constraint: `x = 1 => __S_contains_1 = true`.
+  /** NOTE: `bool_imply(int_eq(x, 1), bool_eq(__S_contains_1, true))`
+   *
+   * represents
+   * the implication constraint: `x = 1 => __S_contains_1 =
+   *
+   * true`.
    */
 }
 
@@ -103,7 +106,21 @@ TEST(AST, SetRewritingMembership2) {
      constraint bool_imply(int_eq(x, 11), bool_eq(__S_contains_11, true));\
      constraint bool_imply(int_eq(x, 12), bool_eq(__S_contains_12, true));\
      constraint bool_imply(int_eq(x, 13), bool_eq(__S_contains_13, true));");
-  /** NOTE: `bool_imply(int_eq(x, 1), bool_eq(__S_contains_1, true))` represents
-   * the implication constraint: `x = 1 => __S_contains_1 = true`.
+  /** NOTE: `bool_imply(int_eq(x, 1), bool_eq(__S_contains_1, true))`
+   *
+   * represents
+   * the implication constraint: `x = 1 => __S_contains_1 =
+   *
+   * true`.
    */
+}
+
+TEST(AST, SetRewritingCardinality1) {
+  test_rewriting("var set of 1..2: S;\
+    constraint set_card(S, 1);",
+
+                 "var bool: __S_contains_1;\
+     var bool: __S_contains_2;\
+     constraint bool_imply(true, int_plus(__S_contains_1, __S_contains_2, 1));");
+
 }
