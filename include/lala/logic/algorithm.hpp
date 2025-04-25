@@ -1020,6 +1020,49 @@ std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std
     }
     return F::make_nary(AND, std::move(conjunction), f.type());
   }
+  // decompose cardinality
+  /** TODO:
+    * make sure this boundry check is complete, i.e. with `S=1` we can ensure it is cardinality
+    */
+  if (f.is_binary() && f.sig() == EQ && f.seq(0).is(F::Seq) && f.seq(1).is(F::Z)) {
+    typename F::allocator_type alloc;
+    typename F::Sequence conjunction(alloc);
+    auto var = f.seq(0).seq(0).lv().data();
+    auto booleanVars = set2bool_vars[var];
+    if (booleanVars.size() == 0) return {};
+    if (booleanVars.size() == 1) {
+      return F::make_binary(
+        F::make_bool(true, f.type()),
+        IMPLY,
+        F::make_binary(
+          F::make_lvar(f.type(), LVar<typename F::allocator_type>(booleanVars[0])),
+          EQ,
+          f.seq(1)
+        )
+      );
+    }
+    F formula = F::make_binary(
+      F::make_lvar(f.type(), LVar<typename F::allocator_type>(booleanVars[0])),
+      ADD,
+      F::make_lvar(f.type(), LVar<typename F::allocator_type>(booleanVars[1]))
+    );
+    for (size_t i = 2; i < booleanVars.size(); i++) {
+        formula = F::make_binary(
+          F::make_lvar(f.type(),LVar<typename F::allocator_type>(booleanVars[i])),
+          ADD,
+          formula
+        );
+    }
+    return F::make_binary(
+      F::make_bool(true, f.type()),
+      IMPLY,
+      F::make_binary(
+        formula,
+        EQ,
+        f.seq(1)
+      )
+    );
+  }
   // handle set variable
   if (f.is_binary() && f.sig() == IN && f.seq(1).is(F::LV)) {
     // get variable name
