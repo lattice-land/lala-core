@@ -979,7 +979,158 @@ CUDA F decompose_arith_neq_constraint(const F& f, const typename F::allocator_ty
  */
 template <class F>
 std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std::vector<std::string>>& set2bool_vars) {
-  return {};
+  // ground truth, if formula is an existential
+  if (f.is(F::E)) {
+    const auto& [lv, sort] = f.exists();
+    if (sort.is_set()) {
+      return {};
+    } 
+    return f;
+  }
+  // decompose var in set constraint
+  if (f.is_binary() && f.sig() == IN && f.seq(1).is(F::S)) {
+    typename F::allocator_type alloc;
+    typename F::Sequence conjunction(alloc);
+    auto var = f.seq(0).lv().data();
+    auto varNameBase = std::string("__")
+              + var
+              + "_contains_";
+
+    const auto& set = f.seq(1).s();
+    // lb seems always "{}", so omit it.
+    const auto& [__, ub] = set[0];
+
+    for (size_t i = 0; i < ub.s().size(); ++i) {
+      const auto& [llb, uub] = ub.s()[i];
+      // only manage "set of integers"
+      if (llb.is(F::Z) && uub.is(F::Z)) {
+        // use [llb, uub) to replace [llb, uub] to handle with edge cases llb == uub.
+        for (long long int j = llb.z(); j < (uub.z() + 1); ++j) {
+          auto varName = varNameBase + (j < 0 ? "m" + std::to_string(-j) : std::to_string(j));
+          conjunction.push_back(
+              F::make_exists(f.type(), LVar<typename F::allocator_type>(varName), Sort<typename F::allocator_type>::Bool)
+          );
+          // write boolean to set map
+          set2bool_vars[var].push_back(varName);
+        }
+      }
+    }
+    if (conjunction.size() == 0) {
+      return {};
+    }
+    return F::make_nary(AND, std::move(conjunction), f.type());
+  }
+  // decompose cardinality
+  /** TODO:
+    * make sure this boundry check is complete, i.e. with `S=1` we can ensure it is cardinality
+    */
+  if (f.is_binary() && f.sig() == EQ && f.seq(0).is(F::Seq) && f.seq(1).is(F::Z)) {
+    typename F::allocator_type alloc;
+    typename F::Sequence conjunction(alloc);
+    auto var = f.seq(0).seq(0).lv().data();
+    auto booleanVars = set2bool_vars[var];
+    if (booleanVars.size() == 0) return {};
+    if (booleanVars.size() == 1) {
+      return F::make_binary(
+        F::make_bool(true, f.type()),
+        IMPLY,
+        F::make_binary(
+          F::make_lvar(f.type(), LVar<typename F::allocator_type>(booleanVars[0])),
+          EQ,
+          f.seq(1)
+        )
+      );
+    }
+    F formula = F::make_binary(
+      F::make_lvar(f.type(), LVar<typename F::allocator_type>(booleanVars[0])),
+      ADD,
+      F::make_lvar(f.type(), LVar<typename F::allocator_type>(booleanVars[1]))
+    );
+    for (size_t i = 2; i < booleanVars.size(); i++) {
+        formula = F::make_binary(
+          F::make_lvar(f.type(),LVar<typename F::allocator_type>(booleanVars[i])),
+          ADD,
+          formula
+        );
+    }
+    return F::make_binary(
+      F::make_bool(true, f.type()),
+      IMPLY,
+      F::make_binary(
+        formula,
+        EQ,
+        f.seq(1)
+      )
+    );
+  }
+  // handle set variable
+  if (f.is_binary() && f.sig() == IN && f.seq(1).is(F::LV)) {
+    // get variable name
+    auto var = f.seq(1).lv().data();
+    
+    if (!set2bool_vars[var].empty()) {
+      typename F::allocator_type alloc;
+      typename F::Sequence conjunction(alloc);
+      auto booleanVars = set2bool_vars[var];
+      for (auto& boolVar : booleanVars) {
+        size_t pos = boolVar.find_last_of('_'); 
+        long long int z = std::stoi(boolVar.substr(pos + 1));
+        conjunction.push_back(
+          F::make_binary(
+            F::make_binary(f.seq(0), EQ, F::make_z(z, f.type()),f.type()),
+            IMPLY,
+            F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>(boolVar)), EQ, F::make_bool(true, f.type()),f.type())
+          )
+        );
+      }
+      return F::make_nary(AND, std::move(conjunction), f.type());
+    }
+    return {};
+  }
+  // decompose AND sequences
+  if (f.is(F::Seq) && f.sig() == AND) {
+    typename F::allocator_type alloc;
+    typename F::Sequence conjunction(alloc);
+    conjunction.reserve(f.seq().size());
+    for (size_t i = 0; i < f.seq().size(); ++i) {
+      auto subf = decompose_set_constraints(f.seq(i), set2bool_vars);
+      if (subf.has_value()) {
+        conjunction.push_back(
+          subf.value()
+        );
+      }
+    }
+    if (conjunction.size() == 0) {
+      return {};
+    }
+    return F::make_nary(AND, std::move(conjunction), f.type());
+  }
+  
+  // decompose subeq
+  if(f.is_binary() && f.sig() == SUBSETEQ) {
+    auto left = f.seq(0).lv().data();
+    auto right = f.seq(1).lv().data();
+
+    if (!set2bool_vars[left].empty()) {
+      typename F::allocator_type alloc;
+      typename F::Sequence conjunction(alloc);
+      auto booleanVars = set2bool_vars[left];
+      for (auto& boolVar : booleanVars) {
+        auto rightBoolVar = boolVar;
+        size_t pos = boolVar.find_last_of('_'); 
+        long long int z = std::stoi(boolVar.substr(pos + 1));
+        conjunction.push_back(
+          F::make_binary(
+            F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>(boolVar)), EQ, F::make_bool(true, f.type()),f.type()),
+            IMPLY,
+            F::make_binary(F::make_lvar(f.type(), LVar<typename F::allocator_type>(rightBoolVar.replace(rightBoolVar.find(left), std::string(left).size(), right))), EQ, F::make_bool(true, f.type()),f.type())
+          )
+        );
+      }
+      return F::make_nary(AND, std::move(conjunction), f.type());
+    }
+  }
+  return f;
 }
 
 template <class F>
