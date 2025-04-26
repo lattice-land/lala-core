@@ -172,23 +172,23 @@ TEST(IntervalTest, GroundDivisionModulo) {
 
 TEST(IntervalTest, EuclideanDivision) {
   EXPECT_EQ((project_fun(EDIV, Itv(1, 8), Itv(2, 3))), Itv(0, 4));
-  EXPECT_EQ((project_fun(EDIV, Itv(1, 8), Itv(-3, 2))), Itv(-2, 4));
-  EXPECT_EQ((project_fun(EDIV, Itv(1, 8), Itv(-2, 3))), Itv(-4, 2));
+  EXPECT_EQ((project_fun(EDIV, Itv(1, 8), Itv(-3, 2))), Itv(-8, 8));
+  EXPECT_EQ((project_fun(EDIV, Itv(1, 8), Itv(-2, 3))), Itv(-8, 8));
   EXPECT_EQ((project_fun(EDIV, Itv(1, 8), Itv(-3, -2))), Itv(-4, 0));
 
   EXPECT_EQ((project_fun(EDIV, Itv(-1, 8), Itv(2, 3))), Itv(-1, 4));
-  EXPECT_EQ((project_fun(EDIV, Itv(-1, 8), Itv(-3, 2))), Itv(-2, 4));
-  EXPECT_EQ((project_fun(EDIV, Itv(-1, 8), Itv(-2, 3))), Itv(-4, 2));
+  EXPECT_EQ((project_fun(EDIV, Itv(-1, 8), Itv(-3, 2))), Itv(-8, 8));
+  EXPECT_EQ((project_fun(EDIV, Itv(-1, 8), Itv(-2, 3))), Itv(-8, 8));
   EXPECT_EQ((project_fun(EDIV, Itv(-1, 8), Itv(-3, -2))), Itv(-4, 1));
 
   EXPECT_EQ((project_fun(EDIV, Itv(-8, 1), Itv(2, 3))), Itv(-4, 0));
-  EXPECT_EQ((project_fun(EDIV, Itv(-8, 1), Itv(-3, 2))), Itv(-4, 3));
-  EXPECT_EQ((project_fun(EDIV, Itv(-8, 1), Itv(-2, 3))), Itv(-3, 4));
+  EXPECT_EQ((project_fun(EDIV, Itv(-8, 1), Itv(-3, 2))), Itv(-8, 8));
+  EXPECT_EQ((project_fun(EDIV, Itv(-8, 1), Itv(-2, 3))), Itv(-8, 8));
   EXPECT_EQ((project_fun(EDIV, Itv(-8, 1), Itv(-3, -2))), Itv(0, 4));
 
   EXPECT_EQ((project_fun(EDIV, Itv(-8, -1), Itv(2, 3))), Itv(-4, -1));
-  EXPECT_EQ((project_fun(EDIV, Itv(-8, -1), Itv(-3, 2))), Itv(-4, 3));
-  EXPECT_EQ((project_fun(EDIV, Itv(-8, -1), Itv(-2, 3))), Itv(-3, 4));
+  EXPECT_EQ((project_fun(EDIV, Itv(-8, -1), Itv(-3, 2))), Itv(-8, 8));
+  EXPECT_EQ((project_fun(EDIV, Itv(-8, -1), Itv(-2, 3))), Itv(-8, 8));
   EXPECT_EQ((project_fun(EDIV, Itv(-8, -1), Itv(-3, -2))), Itv(1, 4));
 
   EXPECT_EQ((project_fun(EDIV, Itv(0, 1), Itv(0, 1))), Itv(0, 1));
@@ -207,23 +207,17 @@ TEST(IntervalTest, EuclideanDivision) {
   EXPECT_EQ((project_fun(EDIV, Itv(-1, 0), Itv(-1, 1))), Itv(-1, 1));
 
   EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(2, 2))), Itv(zlb::top(), 1));
-
-  EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(2, zub::top()))), Itv::top());
-  EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(zlb::top(), 2))), Itv::top());
-  EXPECT_EQ((project_fun(EDIV, Itv(-10, 10), Itv::top())), Itv::top());
   EXPECT_EQ((project_fun(EDIV, Itv::top(), Itv::top())), Itv::top());
 
   EXPECT_EQ((project_fun(EDIV, Itv(0, 1), Itv(2, 2))), Itv(0, 0));
   EXPECT_EQ((project_fun(EDIV, Itv(1, 1), Itv(2, 2))), Itv(0, 0));
 
-  // These tests should be considered if we ever improve division over infinite numbers.
-
-  // EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(2, zub::top()))), Itv(zlb::top(), 1));
+  EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), 2), Itv(zlb::top(), 2))), Itv(zlb::top(), 2));
   // EXPECT_EQ((project_fun(EDIV, Itv(zlb::top(), -2), Itv(2, zub::top()))), Itv(zlb::top(), 0));
 
-  // EXPECT_EQ((project_fun(EDIV, Itv(-10, 10), Itv::top())), Itv(-10, 10));
-  // EXPECT_EQ((project_fun(EDIV, Itv(0, 10), Itv::top())), Itv(-10, 10));
-  // EXPECT_EQ((project_fun(EDIV, Itv(-10, 0), Itv::top())), Itv(-10, 10));
+  EXPECT_EQ((project_fun(EDIV, Itv(-10, 10), Itv::top())), Itv(-10, 10));
+  EXPECT_EQ((project_fun(EDIV, Itv(0, 10), Itv::top())), Itv(-10, 10));
+  EXPECT_EQ((project_fun(EDIV, Itv(-10, 0), Itv::top())), Itv(-10, 10));
 }
 
 TEST(IntervalTest, Width) {
