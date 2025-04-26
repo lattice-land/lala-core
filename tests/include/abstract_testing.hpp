@@ -159,10 +159,16 @@ void expect_both_interpret_equal_to(const char* fzn, const L& expect, const VarE
   expect_interpret_equal_to<IKind::ASK>(fzn, expect, env, has_warning);
 }
 
-template <class L>
+template <class L, bool ternarize_formula = false>
 bool interpret_and_ask(const char* fzn, L& value, VarEnv<standard_allocator>& env, bool has_warning = false) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
+  if(ternarize_formula) {
+    *f = ternarize(*f, env);
+    f->print(); printf("\n");
+  }
+  *f = normalize(*f);
+  printf("normalized:\n"); f->print(); printf("\n");
   IDiagnostics diagnostics;
   typename L::template ask_type<standard_allocator> ask;
   if(!ginterpret_in<IKind::ASK, true>(value, *f, env, ask, diagnostics)) {

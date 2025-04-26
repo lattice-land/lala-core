@@ -410,8 +410,8 @@ public:
     // Interval division, [rl..ru] = [al..au] / [bl..bu]
     if constexpr(preserve_concrete_covers) {
       if(b.lb().value() < 0 && b.ub().value() > 0) {
-        meet_lb(LB(::min(a.lb().value(), -a.ub().value())));
-        meet_ub(UB(::max(-a.lb().value(), a.ub().value())));
+        meet_lb(LB(battery::min(a.lb().value(), -a.ub().value())));
+        meet_ub(UB(battery::max(-a.lb().value(), a.ub().value())));
       }
       else {
         // Remove 0 from the bounds of b if any is equal to it.
@@ -538,6 +538,12 @@ template<class L, class K>
 CUDA constexpr bool operator==(const Interval<L>& a, const Interval<K>& b)
 {
   return (a.is_bot() && b.is_bot()) || (a.lb() == b.lb() && a.ub() == b.ub());
+}
+
+template<class L>
+CUDA constexpr bool operator==(const Interval<L>& a, typename L::value_type k)
+{
+  return a.lb().value() == k && a.ub().value() == k;
 }
 
 template<class L, class K>

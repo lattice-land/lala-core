@@ -227,8 +227,12 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
     return sig == ABS || sig == SQRT || sig == EXP || sig == LN || sig == NROOT || sig == LOG || sig == SIN || sig == COS || sig == TAN || sig == ASIN || sig == ACOS || sig == ATAN || sig == SINH || sig == COSH || sig == TANH || sig == ASINH || sig == ACOSH || sig == ATANH || sig == MIN || sig == MAX || sig == COMPLEMENT || sig == CARD || sig == HULL || sig == CONVEX || sig == ITE || sig == MAXIMIZE || sig == MINIMIZE;
   }
 
+  CUDA NI inline constexpr bool is_z_division(Sig sig) {
+    return sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
+  }
+
   CUDA NI inline constexpr bool is_division(Sig sig) {
-    return sig == DIV || sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
+    return sig == DIV || is_z_division(sig);
   }
 
   CUDA NI inline constexpr bool is_modulo(Sig sig) {
