@@ -191,7 +191,7 @@ public:
     while(snap.size() < data.size()) {
       data.pop_back();
     }
-    is_at_bot.meet_bot();
+    is_at_bot = false;
     for(int i = 0; i < snap.size(); ++i) {
       data[i].join(snap[i]);
       is_at_bot.join(data[i].is_bot());
@@ -340,7 +340,6 @@ public:
       store.data[i] = data[i];
     }
   }
-
 
 #ifdef __CUDACC__
   void prefetch(int dstDevice) const {

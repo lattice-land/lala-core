@@ -31,6 +31,7 @@ private:
   bool fatal;
 
   CUDA void print_indent(int indent) const {
+    printf("%% ");
     for(int i = 0; i < indent; ++i) {
       printf(" ");
     }
@@ -106,7 +107,7 @@ public:
       else {
         print_line("[warning] ", indent);
       }
-      printf("Uninterpretable formula.\n");
+      print_line("Uninterpretable formula.", indent);
       print_indent(indent);
       printf("  Abstract domain: %s\n", ad_name.data());
       print_line("  Abstract type: ", indent);

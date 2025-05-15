@@ -187,10 +187,9 @@ private:
         return x;
       }
       default: {
-        printf("Unary operator %s not supported\n", string_of_sig(f.sig()));
-        printf("In formula: "); f.print(); printf("\n");
-        // assert(false);
-        return f;
+        printf("%% Detected during ternarization (during preprocessing): Unary operator %s not supported\n", string_of_sig(f.sig()));
+        printf("%% In formula: "); f.print(); printf("\n");
+        exit(EXIT_FAILURE);
       }
     }
   }
@@ -376,9 +375,10 @@ private:
     else if (f.is(F::Seq) && f.seq().size() > 2) {
       return ternarize_nary(f, toplevel);
     }
-    printf("Unsupported formula: "); f.print(false); printf("\n");
-    assert(false);
-    return F::make_false();
+    printf("%% Detected during ternarization (during preprocessing): unsupported formula.");
+    f.print();
+    printf("\n");
+    exit(EXIT_FAILURE);
   }
 
 public:

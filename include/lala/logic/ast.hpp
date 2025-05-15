@@ -741,13 +741,9 @@ private:
     }
     if constexpr(n == Seq) {
       if(children.size() == 1) {
-        if(op == ABS) printf("|");
-        else if(op == CARD) printf("#(");
-        else printf("%s(", string_of_sig(op));
+        printf("%s(", string_of_sig(op));
         children[0].print_impl(print_atype);
-        if(op == ABS) printf("|");
-        else if(op == CARD) printf(")");
-        else printf(")");
+        printf(")");
         return;
       }
     }
@@ -772,8 +768,9 @@ private:
         }
       }
       if constexpr(n == Seq) {
-        if(op == AND && top_level) {
+        if(op == AND && top_level && i != children.size() - 1) {
           printf("\n");
+          printf("%% ");
         }
       }
     }
@@ -781,6 +778,9 @@ private:
   }
 
   CUDA NI void print_impl(bool print_atype = true, bool top_level = false) const {
+    if(top_level) {
+      printf("%% ");
+    }
     switch(formula.index()) {
       case B:
         printf("%s", b() ? "true" : "false");
@@ -838,7 +838,7 @@ private:
       }
       case Seq: print_sequence<Seq>(print_atype, top_level); break;
       case ESeq: print_sequence<ESeq>(print_atype, top_level); break;
-      default: printf("print: formula not handled.\n"); assert(false); break;
+      default: printf("%% print: formula not handled.\n"); assert(false); break;
     }
     if(print_atype) {
       printf(":%d", type_);
