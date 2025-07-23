@@ -392,8 +392,8 @@ public:
     // This equality function also checks for commutative operators (in which case the hash will also be the same).
     auto equal = [](const std::tuple<int,Sig,int> &l, const std::tuple<int,Sig,int> &r){
       return std::get<1>(l) == std::get<1>(r)
-        && ((std::get<0>(l) == std::get<0>(r) && std::get<2>(l) == std::get<2>(r)));
-        // || (is_commutative(std::get<1>(l)) && std::get<0>(l) == std::get<2>(r) && std::get<2>(l) == std::get<0>(r)));
+        && ((std::get<0>(l) == std::get<0>(r) && std::get<2>(l) == std::get<2>(r))
+         || (is_commutative(std::get<1>(l)) && std::get<0>(l) == std::get<2>(r) && std::get<2>(l) == std::get<0>(r)));
     };
     std::unordered_map<std::tuple<int,Sig,int>, int, decltype(hash), decltype(equal)> cs(tnf.size(), hash, equal);
     bool has_changed = false;

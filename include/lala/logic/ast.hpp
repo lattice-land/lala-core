@@ -50,11 +50,11 @@ public:
     return value != other.value;
   }
 
-  CUDA constexpr AVar(AType atype, int var_id): value((var_id << 8) | atype) {
+  CUDA constexpr AVar(AType atype, int var_id): value((var_id << 5) | atype) {
     assert(atype >= 0);
     assert(var_id >= 0);
-    assert(atype < (1 << 8));
-    assert(var_id < (1 << 23));
+    assert(atype < (1 << 5));
+    assert(var_id < (1 << 26));
   }
   CUDA constexpr AVar(AType atype, size_t var_id): AVar(atype, static_cast<int>(var_id)) {}
 
@@ -63,15 +63,15 @@ public:
   }
 
   CUDA constexpr int aty() const {
-    return is_untyped() ? -1 : (value & ((1 << 8) - 1));
+    return is_untyped() ? -1 : (value & ((1 << 5) - 1));
   }
 
   CUDA constexpr int vid() const {
-    return is_untyped() ? -1 : value >> 8;
+    return is_untyped() ? -1 : value >> 5;
   }
 
   CUDA constexpr void type_as(AType aty) {
-    value = (vid() << 8) | aty;
+    value = (vid() << 5) | aty;
   }
 };
 
