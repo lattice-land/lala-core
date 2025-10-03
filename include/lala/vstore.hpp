@@ -343,9 +343,7 @@ public:
 
 #ifdef __CUDACC__
   void prefetch(int dstDevice) const {
-    if(!is_at_bot) {
-      cudaMemPrefetchAsync(data.data(), data.size() * sizeof(universe_type), dstDevice);
-    }
+    // for compatibility in v1.2.8, useless anyway.
   }
 #endif
 
