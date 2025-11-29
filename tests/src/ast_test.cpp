@@ -12,16 +12,16 @@ using namespace battery;
 
 TEST(VarTest, MakeVar) {
   constexpr int n = 6;
-  int types[n] = {0, 0, 1, 1, 13, (1 << 8) - 1};
-  int var_ids[n] = {0, 1, 0, 1, 124, (1 << 23) - 1};
+  int types[n] = {0, 0, 1, 1, 13, (1 << 5) - 1};
+  int var_ids[n] = {0, 1, 0, 1, 124, (1 << 26) - 1};
   for(int i = 0; i < n; ++i) {
     AVar v = AVar(types[i], var_ids[i]);
     EXPECT_EQ(v.aty(), types[i]);
     EXPECT_EQ(v.vid(), var_ids[i]);
   }
 #ifdef DEBUG
-  ASSERT_DEATH(AVar((1 << 8), 0), "");
-  ASSERT_DEATH(AVar(0, (1 << 23)), "");
+  ASSERT_DEATH(AVar((1 << 5), 0), "");
+  ASSERT_DEATH(AVar(0, (1 << 26)), "");
 #endif
 }
 
