@@ -160,8 +160,8 @@ TEST(IntervalFloatingTest, Multiplication) {
   EXPECT_DOUBLE_EQ((project_fun(MUL, Itv(flb::top(), 2.0101), Itv(2.0101, 2.0101))).lb(), flb::top());
   EXPECT_DOUBLE_EQ((project_fun(MUL, Itv(flb::top(), 2.0101), Itv(2.0101, 2.0101))).ub(), 4.04050201);
 
-  EXPECT_DOUBLE_EQ((project_fun(MUL, Itv(-2.0101, 2.0101), Itv(2.0101, fub::top()))).lb(), flb::top());
-  EXPECT_DOUBLE_EQ((project_fun(MUL, Itv(-2.0101, 2.0101), Itv(2.0101, fub::top()))).ub(), fub::top()); //
+  EXPECT_DOUBLE_EQ((project_fun(MUL, Itv(-2.0101, -2.0101), Itv(2.0101, fub::top()))).lb(), flb::top());
+  EXPECT_DOUBLE_EQ((project_fun(MUL, Itv(-2.0101, -2.0101), Itv(2.0101, fub::top()))).ub(), -4.04050201); //
 }
 
 TEST(IntervalFloatingTest, Width) {
