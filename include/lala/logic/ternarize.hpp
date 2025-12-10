@@ -114,7 +114,6 @@ private:
     return introduce_var(name, Sort<allocator_type>(Sort<allocator_type>::Bool), false);
   }
 
-  // added by Yi-Nung
   F introduce_real_var() {
     std::string name = "__VAR_R_" + std::to_string(introduced_real_vars);
     return introduce_var(name, Sort<allocator_type>(Sort<allocator_type>::Real), false);
@@ -135,7 +134,6 @@ public:
       return var;
     }
     else {
-      // added by Yi-Nung
       auto index = f.r();
       double lb = std::get<0>(index);
       double ub = std::get<1>(index);
@@ -242,7 +240,6 @@ private:
     return false;
   }
 
-  // added by Yi-Nung, i thought it will be used later, but not sure.
   bool is_int(const F& f) {
     assert(f.is(F::LV));
     std::string varname(f.lv().data());
@@ -322,11 +319,10 @@ private:
       {
         t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_bool_var();
       } 
-      // marked by Yi-Nung, just for testing nnv project.
-      // else {
-      //   t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_int_var();
-      // }
-      else { // added by Yi-Nung
+      else if (is_int(t1) && is_int(t2)) {
+        t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_int_var();
+      }
+      else { 
         t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_real_var();
       }
     }
