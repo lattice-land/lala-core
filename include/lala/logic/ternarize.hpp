@@ -137,10 +137,7 @@ public:
       auto index = f.r();
       double lb = std::get<0>(index);
       double ub = std::get<1>(index);
-      std::cout << "lb = " << lb << " ub = " << ub << std::endl;
-      std::cout << "abs(lb) = " << std::abs(lb) << " abs(ub) = " << std::abs(ub) << std::endl;
       std::string name = "__CONSTANT_" + (lb < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(lb)) + "a" + (ub < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(ub));
-      std::cout << "name = " << name << std::endl;
       // if the constant is already a logical variable, we return it.
       if (name2exists.contains(name) || env.contains(name.data())) {
         return F::make_lvar(UNTYPED, LVar<allocator_type>(name.data()));
