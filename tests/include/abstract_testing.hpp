@@ -43,7 +43,7 @@ inline VarEnv<standard_allocator> env_with_x(const char flag = 'I') {
     return env_with("var int: x :: abstract(0);");
   }
   else if (flag == 'F') {
-    return env_with("var float: x :: abstract(1);");
+    return env_with("var float: x :: abstract(0);");
   }
 }
 
