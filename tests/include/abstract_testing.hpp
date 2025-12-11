@@ -38,8 +38,13 @@ inline VarEnv<standard_allocator> env_with(const char* fzn) {
 }
 
 /** Initialize an environment with single integer variable named `x` in the abstract domain typed `0`. */
-inline VarEnv<standard_allocator> env_with_x() {
-  return env_with("var int: x :: abstract(0);");
+inline VarEnv<standard_allocator> env_with_x(const char flag = 'I') {
+  if (flag == 'I') {
+    return env_with("var int: x :: abstract(0);");
+  }
+  else if (flag == 'F') {
+    return env_with("var float: x :: abstract(1);");
+  }
 }
 
 template<IKind kind, class L>
@@ -179,6 +184,22 @@ bool interpret_and_ask(const char* fzn, L& value, VarEnv<standard_allocator>& en
   return value.ask(ask);
 }
 
+template <class L> 
+L create_float_interval(const std::string& a, const std::string& b) {
+  lala::logic_real ltv = lala::impl::string_to_real(a);
+  lala::logic_real utv = lala::impl::string_to_real(b);
+
+  double ltvlb = battery::get<0>(ltv);
+  double utvlb = battery::get<0>(utv);
+  double ltvub = battery::get<1>(ltv);
+  double utvub = battery::get<1>(utv); 
+
+  double lb = ltvlb < utvlb ? ltvlb : utvlb;
+  double ub = ltvub > utvub ? ltvub : utvub;
+
+  return L(lb, ub);
+}
+
 /** We must have `A::bot() < mid < A::top()`. */
 template <class A>
 void bot_top_test(const A& mid) {
@@ -267,10 +288,15 @@ void generic_unary_fun_test(Sig fun) {
 }
 
 template <class A>
-void generic_abs_test() {
+void generic_abs_test(const char flag = 'I') {
   A a;
-  auto env = env_with_x();
-  interpret_must_succeed<IKind::TELL>("constraint int_ge(x, 0);", a, env);
+  auto env = env_with_x(flag);
+  if (flag == 'I') {
+    interpret_must_succeed<IKind::TELL>("constraint int_ge(x, 0);", a, env);
+  }
+  else if (flag == 'F') {
+    interpret_must_succeed<IKind::TELL>("constraint float_ge(x, 0.0);", a, env);
+  }
   A r{};
   r.project(ABS, A::top());
   EXPECT_EQ(r, a);
@@ -297,14 +323,20 @@ void generic_arithmetic_fun_test(const A& a) {
   generic_binary_fun_test<A, R>(ADD, a);
   generic_binary_fun_test<A, R>(SUB, a);
   generic_binary_fun_test<A, R>(MUL, a);
-  generic_binary_fun_test<A, R>(TDIV, a);
-  generic_binary_fun_test<A, R>(FDIV, a);
-  generic_binary_fun_test<A, R>(CDIV, a);
-  generic_binary_fun_test<A, R>(EDIV, a);
-  generic_binary_fun_test<A, R>(TMOD, a);
-  generic_binary_fun_test<A, R>(FMOD, a);
-  generic_binary_fun_test<A, R>(CMOD, a);
-  generic_binary_fun_test<A, R>(EMOD, a);
+  if constexpr (a.preserve_concrete_covers) {
+    generic_binary_fun_test<A, R>(TDIV, a);
+    generic_binary_fun_test<A, R>(FDIV, a);
+    generic_binary_fun_test<A, R>(CDIV, a);
+    generic_binary_fun_test<A, R>(EDIV, a);
+    generic_binary_fun_test<A, R>(TMOD, a);
+    generic_binary_fun_test<A, R>(FMOD, a);
+    generic_binary_fun_test<A, R>(CMOD, a);
+    generic_binary_fun_test<A, R>(EMOD, a);
+    generic_binary_fun_test<A, R>(DIV, a);
+  }
+  else {
+    generic_binary_fun_test<A, R>(DIV, a);
+  }
   generic_binary_fun_test<A, R>(POW, a);
 }
 

@@ -61,7 +61,7 @@ private:
     else if(varname.starts_with("__VAR_B_")) {
       introduced_bool_vars = std::max((unsigned int)std::stoul(varname.substr(8))+1, introduced_bool_vars);
     }
-    else if(varname.starts_with("__VAR_R_")) { // added by Yi-Nung
+    else if(varname.starts_with("__VAR_R_")) { 
       introduced_real_vars = std::max((unsigned int)std::stoul(varname.substr(8))+1, introduced_real_vars);
     }
   }
@@ -71,7 +71,7 @@ public:
   Ternarizer(const Env& env):
     introduced_int_vars(0),
     introduced_bool_vars(0),
-    introduced_real_vars(0), // added by Yi-Nung
+    introduced_real_vars(0), 
     introduced_constants(0),
     env(env)
   {
@@ -88,7 +88,7 @@ private:
   std::unordered_map<std::string, int> name2exists;
   unsigned int introduced_int_vars;
   unsigned int introduced_bool_vars;
-  unsigned int introduced_real_vars; // added by Yi-Nung
+  unsigned int introduced_real_vars; 
   unsigned int introduced_constants;
 
   F introduce_var(const std::string& name, auto sort, bool constant) {
@@ -100,7 +100,7 @@ private:
     if(constant) { introduced_constants++; }
     else if(sort.is_int()) { introduced_int_vars++; }
     else if(sort.is_bool()) { introduced_bool_vars++; }
-    else if(sort.is_real()) { introduced_real_vars++; } // added by Yi-Nung
+    else if(sort.is_real()) { introduced_real_vars++; } 
     return F::make_lvar(UNTYPED, var_name);
   }
 
@@ -122,31 +122,24 @@ private:
 public:
   F ternarize_constant(const F& f) {
     assert(f.is(F::Z) || f.is(F::B) || f.is(F::R));
+    std::string name;
     if (f.is(F::Z) || f.is(F::B)) {
       auto index = f.to_z(); 
-      std::string name = "__CONSTANT_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(index));
-      // if the constant is already a logical variable, we return it.
-      if (name2exists.contains(name) || env.contains(name.data())) {
-        return F::make_lvar(UNTYPED, LVar<allocator_type>(name.data()));
-      }
-      auto var = introduce_var(name, f.sort().value(), true);
-      conjunction.push_back(F::make_binary(var, EQ, f));
-      return var;
+      name = "__CONSTANT_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(index));
     }
     else {
       auto index = f.r();
       double lb = std::get<0>(index);
-      double ub = std::get<1>(index);
-      std::string name = "__CONSTANT_" + (lb < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(lb)) + "a" + (ub < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(ub));
-      // if the constant is already a logical variable, we return it.
-      if (name2exists.contains(name) || env.contains(name.data())) {
-        return F::make_lvar(UNTYPED, LVar<allocator_type>(name.data()));
-      }
-      auto var = introduce_var(name, f.sort().value(), true);
-      conjunction.push_back(F::make_binary(var, EQ, f));
-      return var;
+      name = "__CONSTANT_R" + std::to_string(introduced_constants) + (lb < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(lb));
     }
-    
+
+    // if the constant is already a logical variable, we return it.
+    if (name2exists.contains(name) || env.contains(name.data())) {
+      return F::make_lvar(UNTYPED, LVar<allocator_type>(name.data()));
+    }
+    auto var = introduce_var(name, f.sort().value(), true);
+    conjunction.push_back(F::make_binary(var, EQ, f));
+    return var;
   }
 
 private:
@@ -253,6 +246,26 @@ private:
     return false;
   }
 
+  bool is_real(const F& f) {
+    assert(f.is(F::LV));
+    std::string varname(f.lv().data());
+    if(name2exists.contains(varname)) {
+      return battery::get<1>(existentials[name2exists[varname]].exists()).is_real();
+    }
+    else {
+      auto var_opt = env.variable_of(varname.data());
+      if(var_opt.has_value()) {
+        return var_opt->get().sort.is_real();
+      }
+    }
+    assert(false); // undeclared variable.
+    return false;
+  }
+
+  bool is_sort(const F& f, Sort<allocator_type> s) {
+    return false;
+  }
+
   /** Let `t` be a variable in a logical context, e.g. X OR Y.
    * If `t` is an integer, the semantics is that `t` is true whenever `t != 0`, and not only when `t == 1`.
    */
@@ -316,7 +329,7 @@ private:
       {
         t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_bool_var();
       } 
-      else if (is_int(t1) && is_int(t2)) {
+      else if (!is_real(t1) && !is_real(t2)) {
         t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_int_var();
       }
       else { 
@@ -413,10 +426,9 @@ private:
       return f;
     }
     else if (f.is(F::R)) {
-      // added by Yi-Nung
       if (toplevel){
         auto fitv = f.to_r();
-        return std::get<0>(fitv) != 0 && std::get<1>(fitv) != 0 ? F::make_true() : F::make_false();
+        return std::get<0>(fitv) != 0.0 && std::get<1>(fitv) != 0.0 ? F::make_true() : F::make_false();
       }
       return ternarize_constant(f);
     }

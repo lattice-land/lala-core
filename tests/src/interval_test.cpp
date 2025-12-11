@@ -56,7 +56,7 @@ TEST(IntervalTest, OrderTest) {
 
 TEST(IntervalTest, GenericFunTests) {
   generic_unary_fun_test<Itv>(NEG);
-  generic_abs_test<Itv>();
+  generic_abs_test<Itv>('I');
   generic_binary_fun_test(ADD, Itv(0,10));
   generic_binary_fun_test(SUB, Itv(0,10));
   generic_arithmetic_fun_test(Itv(0, 10));
