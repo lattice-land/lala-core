@@ -184,20 +184,43 @@ bool interpret_and_ask(const char* fzn, L& value, VarEnv<standard_allocator>& en
   return value.ask(ask);
 }
 
-template <class L> 
-L create_float_interval(const std::string& a, const std::string& b) {
-  lala::logic_real ltv = lala::impl::string_to_real(a);
-  lala::logic_real utv = lala::impl::string_to_real(b);
+template <class L, class A> 
+L help_create_float_interval(A a) {
+  if constexpr (std::is_convertible_v<A, std::string>) {
+    std::string sa = static_cast<std::string>(a);
+    lala::logic_real ltv = lala::impl::string_to_real(sa);
 
-  double ltvlb = battery::get<0>(ltv);
-  double utvlb = battery::get<0>(utv);
-  double ltvub = battery::get<1>(ltv);
-  double utvub = battery::get<1>(utv); 
+    double ltvlb = battery::get<0>(ltv);
+    double ltvub = battery::get<1>(ltv);
+    return L(ltvlb, ltvub);
+  }
+  else if constexpr (std::is_convertible_v<A, double>) {
+    double v = static_cast<double>(a);
+    return L(v, v);
+  }
+  else if constexpr (std::is_constructible_v<L, A, A>) {
+    return L(a, a);
+  }
+  else {
+    static_assert(!std::is_same_v<A, A>, "help_create_float_interval: unsupported parameter type; provide string, numeric or matching bound type");
+  }
+}
 
-  double lb = ltvlb < utvlb ? ltvlb : utvlb;
-  double ub = ltvub > utvub ? ltvub : utvub;
+template <class L, class A, class B> 
+L create_float_interval(A a, B b) {
+  L new_a = help_create_float_interval<L>(a);
+  L new_b = help_create_float_interval<L>(b); 
 
-  return L(lb, ub);
+  // L new_c = fjoin(new_a, new_b);
+  // new_a.print();
+  // new_b.print();
+  // std::cout << std::endl;
+  // std::cout << " --------------------- join result " << std::endl;
+  // new_c.print();
+  // std::cout << std::endl;
+
+  // return new_c;
+  return L(new_a.lb(), new_b.ub());
 }
 
 /** We must have `A::bot() < mid < A::top()`. */

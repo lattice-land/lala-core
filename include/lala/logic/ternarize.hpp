@@ -230,39 +230,24 @@ private:
     return false;
   }
 
-  bool is_int(const F& f) {
+  bool is_sort(const F& f, auto sort) {
     assert(f.is(F::LV));
     std::string varname(f.lv().data());
-    if(name2exists.contains(varname)) {
-      return battery::get<1>(existentials[name2exists[varname]].exists()).is_int();
+    if (name2exists.contains(varname)) {
+      if (sort.is_bool()) { return battery::get<1>(existentials[name2exists[varname]].exists()).is_bool(); }
+      else if (sort.is_int()) { return battery::get<1>(existentials[name2exists[varname]].exists()).is_int(); } 
+      else if (sort.is_real()) { return battery::get<1>(existentials[name2exists[varname]].exists()).is_real(); }
     }
     else {
       auto var_opt = env.variable_of(varname.data());
-      if(var_opt.has_value()) {
-        return var_opt->get().sort.is_int();
+      if (var_opt.has_value()) {
+        if (sort.is_bool()) { return var_opt->get().sort.is_bool(); }
+        else if (sort.is_int()) { return var_opt->get().sort.is_int(); } 
+        else if (sort.is_real()) { return var_opt->get().sort.is_real(); } 
       }
     }
-    assert(false); // undeclared variable.
-    return false;
-  }
 
-  bool is_real(const F& f) {
-    assert(f.is(F::LV));
-    std::string varname(f.lv().data());
-    if(name2exists.contains(varname)) {
-      return battery::get<1>(existentials[name2exists[varname]].exists()).is_real();
-    }
-    else {
-      auto var_opt = env.variable_of(varname.data());
-      if(var_opt.has_value()) {
-        return var_opt->get().sort.is_real();
-      }
-    }
     assert(false); // undeclared variable.
-    return false;
-  }
-
-  bool is_sort(const F& f, Sort<allocator_type> s) {
     return false;
   }
 
@@ -270,7 +255,7 @@ private:
    * If `t` is an integer, the semantics is that `t` is true whenever `t != 0`, and not only when `t == 1`.
    */
   F booleanize(const F& t, Sig sig) {
-    if(is_logical(sig) && !is_boolean(t)) {
+    if(is_logical(sig) && !is_sort(t, Sort<allocator_type>(Sort<allocator_type>::Bool))) {
       return ternarize(F::make_binary(t, NEQ, F::make_z(0)));
     }
     return t;
@@ -325,11 +310,12 @@ private:
     /** We don't need to create t0 for these formulas at toplevel. */
       if(toplevel && (f.sig() == NEQ || f.sig() == XOR || f.sig() == IMPLY || f.sig() == GT || f.sig() == LT)) {}
       else if(is_logical(f.sig()) || is_predicate(f.sig())
-        || ((f.sig() == MIN || f.sig() == MAX) && is_boolean(t1) && is_boolean(t2)))
+        || ((f.sig() == MIN || f.sig() == MAX) && is_sort(t1, Sort<allocator_type>(Sort<allocator_type>::Bool))
+        && is_sort(t2, Sort<allocator_type>(Sort<allocator_type>::Bool))))
       {
         t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_bool_var();
       } 
-      else if (!is_real(t1) && !is_real(t2)) {
+      else if (!is_sort(t1, Sort<allocator_type>(Sort<allocator_type>::Real)) && !is_sort(t2, Sort<allocator_type>(Sort<allocator_type>::Real))) {
         t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_int_var();
       }
       else { 

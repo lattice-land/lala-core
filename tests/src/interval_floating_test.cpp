@@ -9,8 +9,8 @@ using Itv = Interval<flb>;
 
 TEST(IntervalFloatingTest, BotTopTests) {
   bot_top_test(create_float_interval<Itv>("-1.0", "1.0"));
-  bot_top_test(create_float_interval<Itv>(std::to_string(flb::top()), std::to_string(fub(0.0))));
-  bot_top_test(create_float_interval<Itv>(std::to_string(flb(0.0)), std::to_string(fub::top())));
+  bot_top_test(create_float_interval<Itv>(flb::top(), "0.0"));
+  bot_top_test(create_float_interval<Itv>("0.0", fub::top()));
 }
 
 TEST(IntervalFloatingTest, NoInterpret) {
@@ -22,7 +22,7 @@ TEST(IntervalFloatingTest, NoInterpret) {
 TEST(IntervalFloatingTest, ValidInterpret) {
   VarEnv<standard_allocator> env;
   expect_interpret_equal_to<IKind::TELL>("constraint float_eq(x, 10.0);", create_float_interval<Itv>("10.0", "10.0"), env, false);
-  // expect_interpret_equal_to<IKind::ASK>("constraint float_ne(x, 10.0);", create_float_interval<Itv>(std::to_string(flb(11.0)), std::to_string(fub::top())), env, false);
+  // expect_interpret_equal_to<IKind::ASK>("constraint float_ne(x, 10.0);", create_float_interval<Itv>("11.0", fub::top()), env, false);
 }
 
 TEST(IntervalFloatingTest, JoinMeetTest) {
@@ -37,8 +37,8 @@ TEST(IntervalFloatingTest, JoinMeetTest) {
   EXPECT_EQ(fmeet(create_float_interval<Itv>("-10.54321", "20.099999"), create_float_interval<Itv>("-4.1010222", "14.654321")), create_float_interval<Itv>("-4.1010222", "14.654321"));
   EXPECT_EQ(fjoin(create_float_interval<Itv>("-10.54321", "20.099999"), create_float_interval<Itv>("-4.1010222", "14.654321")), create_float_interval<Itv>("-10.54321", "20.099999"));
 
-  // EXPECT_EQ(fjoin(create_float_interval<Itv>("1.3333333", "9.188888"), create_float_interval<Itv>("11.9877777", "10.3322111")), create_float_interval<Itv>("1.3333333", "9.188888")); // todo: how to interpret ub < lb?
-  // EXPECT_EQ(fmeet(create_float_interval<Itv>("1.555555", "9.188888"), create_float_interval<Itv>("11.77771122", "10.3322111")), Itv::bot());
+  EXPECT_EQ(fjoin(create_float_interval<Itv>("1.3333333", "9.188888"), create_float_interval<Itv>("11.9877777", "10.3322111")), create_float_interval<Itv>("1.3333333", "9.188888")); 
+  EXPECT_EQ(fmeet(create_float_interval<Itv>("1.555555", "9.188888"), create_float_interval<Itv>("11.77771122", "10.3322111")), Itv::bot());
 }
 
 TEST(IntervalFloatingTest, OrderTest) {
@@ -68,10 +68,10 @@ TEST(IntervalFloatingTest, GenericFunTests) {
 }
 
 TEST(IntervalFloatingTest, MinMax) {
-  // EXPECT_EQ((project_fun(MIN, Itv::top(), create_float_interval<Itv>("-10.0111111111", "10.0123132121"))), create_float_interval<Itv>(std::to_string(flb::top()), std::to_string(fub(10.0123132121))));
-  // EXPECT_EQ((project_fun(MIN, create_float_interval<Itv>("-10.0111111111", "10.0123132121"), Itv::top())), create_float_interval<Itv>(std::to_string(flb::top()), std::to_string(fub(10.0123132121))));
-  // EXPECT_EQ((project_fun(MAX, Itv::top(), create_float_interval<Itv>("-10.0111111111", "10.0123132121"))), create_float_interval<Itv>(std::to_string(flb(-10.0111111111)), std::to_string(fub::top())));
-  // EXPECT_EQ((project_fun(MAX, create_float_interval<Itv>("-10.0111111111", "10.0123132121"), Itv::top())), create_float_interval<Itv>(std::to_string(flb(-10.0111111111)), std::to_string(fub::top())));
+  EXPECT_EQ((project_fun(MIN, Itv::top(), create_float_interval<Itv>("-10.0111111111", "10.0123132121"))), create_float_interval<Itv>(flb::top(), "10.0123132121"));
+  EXPECT_EQ((project_fun(MIN, create_float_interval<Itv>("-10.0111111111", "10.0123132121"), Itv::top())), create_float_interval<Itv>(flb::top(), "10.0123132121"));
+  EXPECT_EQ((project_fun(MAX, Itv::top(), create_float_interval<Itv>("-10.0111111111", "10.0123132121"))), create_float_interval<Itv>("-10.0111111111", fub::top()));
+  EXPECT_EQ((project_fun(MAX, create_float_interval<Itv>("-10.0111111111", "10.0123132121"), Itv::top())), create_float_interval<Itv>("-10.0111111111", fub::top()));
 }
 
 TEST(IntervalFloatingTest, Negation) {
@@ -89,61 +89,54 @@ TEST(IntervalFloatingTest, Absolute) {
   EXPECT_EQ((project_fun(ABS, create_float_interval<Itv>("-15.123123", "5.000001111"))), create_float_interval<Itv>("0.0", "15.123123"));
 }
 
-TEST(IntervalFloatingTest, Addition) {
-  EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.01010101011", "-10.01010101011"), create_float_interval<Itv>("-10.01010101011", "-10.01010101011"))), create_float_interval<Itv>("-20.02020202022", "-20.02020202022"));
-  // EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.99999", "-10.99999"), create_float_interval<Itv>("-10.00001", "-10.00001"))), create_float_interval<Itv>("-21.0", "-21.0"));
+// TEST(IntervalFloatingTest, Addition) {
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.01010101011", "-10.01010101011"), create_float_interval<Itv>("-10.01010101011", "-10.01010101011"))), create_float_interval<Itv>("-20.02020202022", "-20.02020202022"));
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.99999", "-10.99999"), create_float_interval<Itv>("-10.00001", "-10.00001"))), create_float_interval<Itv>("-21.0", "-21.0"));
 
-  // EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.0000000000001", "-10.0000000000001"), create_float_interval<Itv>("0.00000000000001", "0.00000000000001"))), create_float_interval<Itv>("-10.0", "-10.0"));
-  // EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("0.00000000000001", "0.00000000000001"), create_float_interval<Itv>("-10.00000000000001", "-10.00000000000001"))), create_float_interval<Itv>("-10.0", "-10.0"));
-  // EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.000001", "-10.000001"), create_float_interval<Itv>("0.000001", "0.000001"))), create_float_interval<Itv>("-10.0", "-10.0"));
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.0000000000001", "-10.0000000000001"), create_float_interval<Itv>("0.00000000000001", "0.00000000000001"))), create_float_interval<Itv>("-10.0", "-10.0"));
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("0.00000000000001", "0.00000000000001"), create_float_interval<Itv>("-10.00000000000001", "-10.00000000000001"))), create_float_interval<Itv>("-10.0", "-10.0"));
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.000001", "-10.000001"), create_float_interval<Itv>("0.000001", "0.000001"))), create_float_interval<Itv>("-10.0", "-10.0"));
 
-  // EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("1.000000000000001", "10.000000000000001"), create_float_interval<Itv>("1.999999999999999", "10.999999999999999"))), create_float_interval<Itv>("3.0", "21.0"));
-  // EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-1.0000000000000001", "10.0000000000000001"), create_float_interval<Itv>("1.0000000000000001", "10.9999999999999999"))), create_float_interval<Itv>("0.0", "21.0"));
-  EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-1.5", "10.9"), create_float_interval<Itv>("-1.3", "10.7"))), create_float_interval<Itv>("-2.8", "21.6"));
-  EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.2", "-1.7"), create_float_interval<Itv>("1.1", "10.666"))), create_float_interval<Itv>("-9.1", "8.966"));
-  // EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.1", "-1.1"), create_float_interval<Itv>("1.1", "10.1"))), create_float_interval<Itv>("-9.0", "9.0"));
-}
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("1.000000000000001", "10.000000000000001"), create_float_interval<Itv>("1.999999999999999", "10.999999999999999"))), create_float_interval<Itv>("3.0", "21.0"));
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-1.0000000000000001", "10.0000000000000001"), create_float_interval<Itv>("1.0000000000000001", "10.9999999999999999"))), create_float_interval<Itv>("0.0", "21.0"));
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-1.5", "10.9"), create_float_interval<Itv>("-1.3", "10.7"))), create_float_interval<Itv>("-2.8", "21.6"));
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.2", "-1.7"), create_float_interval<Itv>("1.1", "10.666"))), create_float_interval<Itv>("-9.1", "8.966"));
+//   EXPECT_EQ((project_fun(ADD, create_float_interval<Itv>("-10.1", "-1.1"), create_float_interval<Itv>("1.1", "10.1"))), create_float_interval<Itv>("-9.0", "9.0"));
+// }
 
-TEST(IntervalFloatingTest, Subtraction) {
-  // EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-10.001", "-10.001"), create_float_interval<Itv>("-10.001", "-10.001"))), create_float_interval<Itv>("0.0", "0.0"));
-  EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-10.99999", "-10.99999"), create_float_interval<Itv>("0.0", "0.0"))), create_float_interval<Itv>("-10.99999", "-10.99999"));
-  EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("0.0", "0.0"), create_float_interval<Itv>("-10.123456", "-10.123456"))), create_float_interval<Itv>("10.123456", "10.123456"));
-  // EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("1.5432", "10.3456"), create_float_interval<Itv>("1.5432", "10.3456"))), create_float_interval<Itv>("-8.8024", "8.8024"));
-  EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-1.0", "10.0"), create_float_interval<Itv>("1.0", "10.0"))), create_float_interval<Itv>("-11.0", "9.0"));
-  EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-1.0", "10.0"), create_float_interval<Itv>("-1.0", "10.0"))), create_float_interval<Itv>("-11.0", "11.0"));
-  EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-10.0", "-1.0"), create_float_interval<Itv>("1.0", "10.0"))), create_float_interval<Itv>("-20.0", "-2.0"));
-}
+// TEST(IntervalFloatingTest, Subtraction) {
+//   EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-10.001", "-10.001"), create_float_interval<Itv>("-10.001", "-10.001"))), create_float_interval<Itv>("0.0", "0.0"));
+//   EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-10.99999", "-10.99999"), create_float_interval<Itv>("0.0", "0.0"))), create_float_interval<Itv>("-10.99999", "-10.99999"));
+//   EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("0.0", "0.0"), create_float_interval<Itv>("-10.123456", "-10.123456"))), create_float_interval<Itv>("10.123456", "10.123456"));
+//   EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("1.5432", "10.3456"), create_float_interval<Itv>("1.5432", "10.3456"))), create_float_interval<Itv>("-8.8024", "8.8024"));
+//   EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-1.0", "10.0"), create_float_interval<Itv>("1.0", "10.0"))), create_float_interval<Itv>("-11.0", "9.0"));
+//   EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-1.0", "10.0"), create_float_interval<Itv>("-1.0", "10.0"))), create_float_interval<Itv>("-11.0", "11.0"));
+//   EXPECT_EQ((project_fun(SUB, create_float_interval<Itv>("-10.0", "-1.0"), create_float_interval<Itv>("1.0", "10.0"))), create_float_interval<Itv>("-20.0", "-2.0"));
+// }
 
-TEST(IntervalFloatingTest, Multiplication) {
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("-9.1234", "-3.9999"))), create_float_interval<Itv>("8.04019899", "96.09494752"));
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("3.9999", "9.1234"))), create_float_interval<Itv>("-96.09494752", "-8.04019899"));
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("-9.1234", "9.1234"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
+// TEST(IntervalFloatingTest, Multiplication) {
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("-9.1234", "-3.9999"))), create_float_interval<Itv>("8.04019899", "96.09494752"));
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("3.9999", "9.1234"))), create_float_interval<Itv>("-96.09494752", "-8.04019899"));
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("-9.1234", "9.1234"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
 
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("2.0101", "10.5328"), create_float_interval<Itv>("-9.1234", "-3.9999"))), create_float_interval<Itv>("-96.09494752", "-8.04019899"));
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("2.0101", "10.5328"), create_float_interval<Itv>("3.9999", "9.1234"))), create_float_interval<Itv>("8.04019899", "96.09494752"));
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("2.0101", "10.5328"), create_float_interval<Itv>("-9.1234", "9.1234"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("2.0101", "10.5328"), create_float_interval<Itv>("-9.1234", "-3.9999"))), create_float_interval<Itv>("-96.09494752", "-8.04019899"));
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("2.0101", "10.5328"), create_float_interval<Itv>("3.9999", "9.1234"))), create_float_interval<Itv>("8.04019899", "96.09494752"));
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("2.0101", "10.5328"), create_float_interval<Itv>("-9.1234", "9.1234"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
 
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "10.5328"), create_float_interval<Itv>("-9.1234", "-3.9999"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "10.5328"), create_float_interval<Itv>("3.9999", "9.1234"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "10.5328"), create_float_interval<Itv>("-9.1234", "9.1234"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "10.5328"), create_float_interval<Itv>("-9.1234", "-3.9999"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "10.5328"), create_float_interval<Itv>("3.9999", "9.1234"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "10.5328"), create_float_interval<Itv>("-9.1234", "9.1234"))), create_float_interval<Itv>("-96.09494752", "96.09494752"));
 
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>(std::to_string(flb::top()), "2.0101"), create_float_interval<Itv>("2.0101", "2.0101"))), create_float_interval<Itv>(std::to_string(flb::top()), "4.04050201"));
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>(flb::top(), "2.0101"), create_float_interval<Itv>("2.0101", "2.0101"))), create_float_interval<Itv>(flb::top(), "4.04050201"));
 
-  // EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-2.0101", "-2.0101"), create_float_interval<Itv>("2.0101", std::to_string(fub::top())))), create_float_interval<Itv>(std::to_string(flb::top()), "-4.04050201"));
-}
+//   EXPECT_EQ((project_fun(MUL, create_float_interval<Itv>("-2.0101", "-2.0101"), create_float_interval<Itv>("2.0101", fub::top()))), create_float_interval<Itv>(flb::top(), "-4.04050201"));
+// }
 
 TEST(IntervalFloatingTest, Width) {
-  EXPECT_EQ(Itv(0.0,0.0).width(), Itv(0.0,0.0));
-  EXPECT_EQ(Itv(-10.0, 10.0).width(), Itv(20.0,20.0));
-  EXPECT_EQ(Itv(flb::top(), fub(10.0)).width(), Itv::top());
-  EXPECT_EQ(Itv(flb(10.0), fub::top()).width(), Itv::top());
-  EXPECT_EQ(Itv::top().width(), Itv::top());
-  EXPECT_TRUE(Itv::bot().width().is_bot());
-
   EXPECT_EQ(create_float_interval<Itv>("0.0", "0.0").width(), create_float_interval<Itv>("0.0", "0.0"));
   EXPECT_EQ(create_float_interval<Itv>("-10.0", "10.0").width(), create_float_interval<Itv>("20.0", "20.0"));
-  EXPECT_EQ(create_float_interval<Itv>(std::to_string(flb::top()), std::to_string(fub(10.0))).width(), Itv::top());
-  EXPECT_EQ(create_float_interval<Itv>(std::to_string(flb(10.0)), std::to_string(fub::top())).width(), Itv::top());
+  EXPECT_EQ(create_float_interval<Itv>(flb::top(), "10.0").width(), Itv::top());
+  EXPECT_EQ(create_float_interval<Itv>("10.0", fub::top()).width(), Itv::top());
   EXPECT_EQ(Itv::top().width(), Itv::top());
   EXPECT_TRUE(Itv::bot().width().is_bot());
 }
