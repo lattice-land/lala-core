@@ -42,7 +42,8 @@ inline VarEnv<standard_allocator> env_with_x(const char flag = 'I') {
   if (flag == 'I') {
     return env_with("var int: x :: abstract(0);");
   }
-  else if (flag == 'F') {
+  else {
+    assert(flag == 'F');
     return env_with("var float: x :: abstract(0);");
   }
 }
@@ -184,43 +185,53 @@ bool interpret_and_ask(const char* fzn, L& value, VarEnv<standard_allocator>& en
   return value.ask(ask);
 }
 
-template <class L, class A> 
-L help_create_float_interval(A a) {
+template <class A> 
+void helper_create_finterval(const A a, double& lb, double& ub, double& value, bool& isNew){
   if constexpr (std::is_convertible_v<A, std::string>) {
     std::string sa = static_cast<std::string>(a);
-    lala::logic_real ltv = lala::impl::string_to_real(sa);
+    lala::logic_real itv = lala::impl::string_to_real(sa);
 
-    double ltvlb = battery::get<0>(ltv);
-    double ltvub = battery::get<1>(ltv);
-    return L(ltvlb, ltvub);
+    lb = battery::get<0>(itv);
+    ub = battery::get<1>(itv);
+    isNew = true;
   }
   else if constexpr (std::is_convertible_v<A, double>) {
-    double v = static_cast<double>(a);
-    return L(v, v);
-  }
-  else if constexpr (std::is_constructible_v<L, A, A>) {
-    return L(a, a);
+    value = static_cast<double>(a);
   }
   else {
     static_assert(!std::is_same_v<A, A>, "help_create_float_interval: unsupported parameter type; provide string, numeric or matching bound type");
   }
+  return;
 }
 
 template <class L, class A, class B> 
 L create_float_interval(A a, B b) {
-  L new_a = help_create_float_interval<L>(a);
-  L new_b = help_create_float_interval<L>(b); 
+  L new_a;
+  L new_b;
 
-  // L new_c = fjoin(new_a, new_b);
-  // new_a.print();
-  // new_b.print();
-  // std::cout << std::endl;
-  // std::cout << " --------------------- join result " << std::endl;
-  // new_c.print();
-  // std::cout << std::endl;
+  double ltvlb;
+  double ltvub;
+  double utvlb;
+  double utvub;
 
-  // return new_c;
-  return L(new_a.lb(), new_b.ub());
+  double lb;
+  double ub;
+
+  bool isNewA = false;
+  bool isNewB = false;
+
+  helper_create_finterval(a, ltvlb, ltvub, lb, isNewA);
+  helper_create_finterval(b, utvlb, utvub, ub, isNewB);
+  
+  new_a = L(ltvlb, ltvub);
+  new_b = L(utvlb, utvub);
+
+  if (isNewA && isNewB && new_a == new_b) return new_a;
+  if (isNewA && isNewB) return ltvub <= utvlb ? fjoin(new_a, new_b) : L::bot();
+  if (isNewA) return L(ltvlb, ub);
+  if (isNewB) return L(lb, utvub);
+
+  return L(lb, ub);
 }
 
 /** We must have `A::bot() < mid < A::top()`. */
