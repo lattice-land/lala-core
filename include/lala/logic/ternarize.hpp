@@ -214,22 +214,6 @@ private:
     }
   }
 
-  bool is_boolean(const F& f) {
-    assert(f.is(F::LV));
-    std::string varname(f.lv().data());
-    if(name2exists.contains(varname)) {
-      return battery::get<1>(existentials[name2exists[varname]].exists()).is_bool();
-    }
-    else {
-      auto var_opt = env.variable_of(varname.data());
-      if(var_opt.has_value()) {
-        return var_opt->get().sort.is_bool();
-      }
-    }
-    assert(false); // undeclared variable.
-    return false;
-  }
-
   bool is_sort(const F& f, auto sort) {
     assert(f.is(F::LV));
     std::string varname(f.lv().data());
