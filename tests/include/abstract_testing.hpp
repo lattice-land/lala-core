@@ -37,7 +37,7 @@ inline VarEnv<standard_allocator> env_with(const char* fzn) {
   return std::move(env);
 }
 
-/** Initialize an environment with single integer variable named `x` in the abstract domain typed `0`. */
+/** Initialize an environment with single integer or float variable named `x` in the abstract domain typed `0`. */
 inline VarEnv<standard_allocator> env_with_x(const char flag = 'I') {
   if (flag == 'I') {
     return env_with("var int: x :: abstract(0);");
@@ -357,7 +357,7 @@ void generic_arithmetic_fun_test(const A& a) {
   generic_binary_fun_test<A, R>(ADD, a);
   generic_binary_fun_test<A, R>(SUB, a);
   generic_binary_fun_test<A, R>(MUL, a);
-  if constexpr (a.preserve_concrete_covers) {
+  if constexpr (A::preserve_concrete_covers) {
     generic_binary_fun_test<A, R>(TDIV, a);
     generic_binary_fun_test<A, R>(FDIV, a);
     generic_binary_fun_test<A, R>(CDIV, a);

@@ -132,8 +132,8 @@ TEST(IntervalFloatingTest, Multiplication) {
   EXPECT_DOUBLE_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("3.9999", "9.1234")).lb()), -96.09494752);
   EXPECT_DOUBLE_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("3.9999", "9.1234")).ub()), -8.04019899);
 
-  EXPECT_DOUBLE_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("-9.1234", "9.1234")).lb()), -96.09494752);
-  EXPECT_DOUBLE_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("-9.1234", "9.1234")).ub()), 96.09494752);
+  EXPECT_DOUBLE_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("-9.1234", "9.1234")).lb()), -96.094947520000019);
+  EXPECT_DOUBLE_EQ((project_fun(MUL, create_float_interval<Itv>("-10.5328", "-2.0101"), create_float_interval<Itv>("-9.1234", "9.1234")).ub()), 96.094947520000019);
 
   EXPECT_DOUBLE_EQ((project_fun(MUL, create_float_interval<Itv>("2.0101", "10.5328"), create_float_interval<Itv>("-9.1234", "-3.9999")).lb()), -96.09494752);
   EXPECT_DOUBLE_EQ((project_fun(MUL, create_float_interval<Itv>("2.0101", "10.5328"), create_float_interval<Itv>("-9.1234", "-3.9999")).ub()), -8.04019899);
@@ -168,12 +168,120 @@ TEST(IntervalFloatingTest, Width) {
   EXPECT_TRUE(Itv::bot().width().is_bot());
 }
 
-// TEST(IntervalFloatingTest, Median) {
-//   EXPECT_EQ(Itv(0, 0).median(), Itv(0, 0));
-//   EXPECT_EQ(Itv(-10, 10).median(), Itv(0, 0));
-//   EXPECT_EQ(Itv(-9, 10).median(), Itv(0, 1));
-//   EXPECT_EQ(Itv(flb::top(), fub(10)).median(), Itv::top());
-//   EXPECT_EQ(Itv(flb(10), fub::top()).median(), Itv::top());
-//   EXPECT_EQ(Itv::top().median(), Itv::top());
-//   EXPECT_TRUE(Itv::bot().median().is_bot());
-// }
+TEST(IntervalTest, BotTopTests) {
+  bot_top_test(Itv(-1.0, 1.0));
+  bot_top_test(Itv(flb::top(), fub(0.0)));
+  bot_top_test(Itv(flb(0), fub::top()));
+}
+
+TEST(IntervalTest, JoinMeetTest) {
+  join_meet_generic_test(Itv::bot(), Itv::top());
+  join_meet_generic_test(Itv(0.0,0.0), Itv(0.0,0.0));
+  join_meet_generic_test(Itv(0.0,1.0), Itv(0.0,1.0));
+  join_meet_generic_test(Itv(0.0,5.0), Itv(0.0,10.0));
+  join_meet_generic_test(Itv(5.0,5.0), Itv(0.0,10.0));
+  join_meet_generic_test(Itv(0.0,0.0), Itv(0.0,1.0));
+  join_meet_generic_test(Itv(1.0,1.0), Itv(0.0,1.0));
+
+  EXPECT_EQ(fmeet(Itv(10.0, 20.0), Itv(4.0,14.0)), Itv(10.0,14.0));
+  EXPECT_EQ(fjoin(Itv(10.0, 20.0), Itv(4.0,14.0)), Itv(4.0,20.0));
+
+  EXPECT_EQ(fjoin(Itv(1.0, 9.0), Itv(11.0,10.0)), Itv(1.0, 9.0));
+  EXPECT_EQ(fmeet(Itv(1.0, 9.0), Itv(11.0,10.0)), Itv::bot());
+}
+
+TEST(IntervalTest, OrderTest) {
+  EXPECT_FALSE(Itv(10.0, 20.0) <= Itv(8.0, 12.0));
+  EXPECT_TRUE(Itv(8.0, 12.0) <= Itv(8.0, 12.0));
+  EXPECT_FALSE(Itv(7.0, 13.0) <= Itv(8.0, 12.0));
+  EXPECT_TRUE(Itv(7.0, 13.0) >= Itv(8.0, 12.0));
+  EXPECT_TRUE(Itv(10.0, 12.0) <= Itv(8.0, 12.0));
+
+  EXPECT_FALSE(Itv(8.0, 12.0) <= Itv(10.0, 20.0));
+  EXPECT_TRUE(Itv(8.0, 12.0) <= Itv(8.0, 12.0));
+  EXPECT_TRUE(Itv(8.0, 12.0) <= Itv(7.0, 13.0));
+  EXPECT_FALSE(Itv(8.0, 12.0) <= Itv(10.0, 12.0));
+}
+
+TEST(IntervalTest, GenericFunTests) {
+  generic_unary_fun_test<Itv>(NEG);
+  generic_abs_test<Itv>('F');
+  generic_binary_fun_test(ADD, Itv(0.0,10.0));
+  generic_binary_fun_test(SUB, Itv(0.0,10.0));
+  generic_arithmetic_fun_test(Itv(0.0, 10.0));
+  generic_arithmetic_fun_test(Itv(1.0, 10.0));
+  generic_arithmetic_fun_test(Itv(-10.0, 10.0));
+  generic_arithmetic_fun_test(Itv(-10.0, -1.0));
+  generic_arithmetic_fun_test(Itv(-10.0, 0.0));
+}
+
+TEST(IntervalTest, MinMax) {
+  EXPECT_EQ((project_fun(MIN, Itv::top(), Itv(-10.0, 10.0))), Itv(flb::top(), fub(10.0)));
+  EXPECT_EQ((project_fun(MIN, Itv(-10.0, 10.0), Itv::top())), Itv(flb::top(), fub(10.0)));
+  EXPECT_EQ((project_fun(MAX, Itv::top(), Itv(-10.0, 10.0))), Itv(flb(-10.0), fub::top()));
+  EXPECT_EQ((project_fun(MAX, Itv(-10.0, 10.0), Itv::top())), Itv(flb(-10.0), fub::top()));
+}
+
+TEST(IntervalTest, Negation) {
+  EXPECT_EQ((project_fun(NEG, Itv(5.0, 10.0))), Itv(-10.0, -5.0));
+  EXPECT_EQ((project_fun(NEG, Itv(-10.0, 10.0))), Itv(-10.0, 10.0));
+  EXPECT_EQ((project_fun(NEG, Itv(10.0, -10.0))), Itv(10.0, -10.0));
+  EXPECT_EQ((project_fun(NEG, Itv(-10.0, -5.0))), Itv(5.0, 10.0));
+}
+
+TEST(IntervalTest, Absolute) {
+  EXPECT_EQ((project_fun(ABS, Itv(5.0, 10.0))), Itv(5.0, 10.0));
+  EXPECT_EQ((project_fun(ABS, Itv(-10.0, 10.0))), Itv(0.0, 10.0));
+  EXPECT_EQ((project_fun(ABS, Itv(10.0, -10.0))), Itv(10.0, 0.0));
+  EXPECT_EQ((project_fun(ABS, Itv(-10.0, -5.0))), Itv(5.0, 10.0));
+  EXPECT_EQ((project_fun(ABS, Itv(-15.0, 5.0))), Itv(0.0, 15.0));
+}
+
+TEST(IntervalTest, Addition) {
+  EXPECT_EQ((project_fun(ADD, Itv(-10.0, -10.0), Itv(-10.0, -10.0))), Itv(-20.0, -20.0));
+  EXPECT_EQ((project_fun(ADD, Itv(-10.0, -10), Itv(0.0, 0.0))), Itv(-10.0, -10.0));
+  EXPECT_EQ((project_fun(ADD, Itv(0.0, 0.0), Itv(-10.0, -10.0))), Itv(-10.0, -10.0));
+  EXPECT_EQ((project_fun(ADD, Itv(1.0, 10.0), Itv(1.0, 10.0))), Itv(2.0, 20.0));
+  EXPECT_EQ((project_fun(ADD, Itv(-1.0, 10.0), Itv(1.0, 10.0))), Itv(0.0, 20.0));
+  EXPECT_EQ((project_fun(ADD, Itv(-1.0, 10.0), Itv(-1.0, 10.0))), Itv(-2.0, 20.0));
+  EXPECT_EQ((project_fun(ADD, Itv(-10.0, -1.0), Itv(1.0, 10.0))), Itv(-9.0, 9.0));
+}
+
+TEST(IntervalTest, Subtraction) {
+  EXPECT_EQ((project_fun(SUB, Itv(-10.0, -10.0), Itv(-10.0, -10.0))), Itv(0.0, 0.0));
+  EXPECT_EQ((project_fun(SUB, Itv(-10.0, -10.0), Itv(0.0, 0.0))), Itv(-10.0, -10.0));
+  EXPECT_EQ((project_fun(SUB, Itv(0.0, 0.0), Itv(-10.0, -10.0))), Itv(10.0, 10.0));
+  EXPECT_EQ((project_fun(SUB, Itv(1.0, 10.0), Itv(1.0, 10.0))), Itv(-9.0, 9.0));
+  EXPECT_EQ((project_fun(SUB, Itv(-1.0, 10.0), Itv(1.0, 10.0))), Itv(-11.0, 9.0));
+  EXPECT_EQ((project_fun(SUB, Itv(-1.0, 10.0), Itv(-1.0, 10.0))), Itv(-11.0, 11.0));
+  EXPECT_EQ((project_fun(SUB, Itv(-10.0, -1.0), Itv(1.0, 10.0))), Itv(-20.0, -2.0));
+}
+
+TEST(IntervalTest, Multiplication) {
+  EXPECT_EQ((project_fun(MUL, Itv(-10.0, -2.0), Itv(-9.0, -3.0))), Itv(6.0, 90.0));
+  EXPECT_EQ((project_fun(MUL, Itv(-10.0, -2.0), Itv(3.0, 9.0))), Itv(-90.0, -6.0));
+  EXPECT_EQ((project_fun(MUL, Itv(-10.0, -2.0), Itv(-9.0, 9.0))), Itv(-90.0, 90.0));
+
+  EXPECT_EQ((project_fun(MUL, Itv(2.0, 10.0), Itv(-9.0, -3.0))), Itv(-90.0, -6.0));
+  EXPECT_EQ((project_fun(MUL, Itv(2.0, 10.0), Itv(3.0, 9.0))), Itv(6.0, 90.0));
+  EXPECT_EQ((project_fun(MUL, Itv(2.0, 10.0), Itv(-9.0, 9.0))), Itv(-90.0, 90.0));
+
+  EXPECT_EQ((project_fun(MUL, Itv(-10.0, 10.0), Itv(-9.0, -3.0))), Itv(-90.0, 90.0));
+  EXPECT_EQ((project_fun(MUL, Itv(-10.0, 10.0), Itv(3.0, 9.0))), Itv(-90.0, 90.0));
+  EXPECT_EQ((project_fun(MUL, Itv(-10.0, 10.0), Itv(-9.0, 9.0))), Itv(-90.0, 90.0));
+
+  EXPECT_EQ((project_fun(MUL, Itv(-10.0, 10.0), Itv(9.0, -9.0))), Itv::bot());
+  EXPECT_EQ((project_fun(MUL, Itv(9.0, -9.0), Itv(-10.0, 10.0))), Itv::bot());
+
+  EXPECT_EQ((project_fun(MUL, Itv(flb::top(), 2.0), Itv(2.0, 2.0))), Itv(flb::top(), 4.0));
+  EXPECT_EQ((project_fun(MUL, Itv(-2.0, -2.0), Itv(2.0, fub::top()))), Itv(flb::top(), -4.0));
+}
+
+TEST(IntervalTest, Width) {
+  EXPECT_EQ(Itv(0.0,0.0).width(), Itv(0.0,0.0));
+  EXPECT_EQ(Itv(-10.0, 10.0).width(), Itv(20.0,20.0));
+  EXPECT_EQ(Itv(flb::top(), fub(10.0)).width(), Itv::top());
+  EXPECT_EQ(Itv(flb(10.0), fub::top()).width(), Itv::top());
+  EXPECT_EQ(Itv::top().width(), Itv::top());
+  EXPECT_TRUE(Itv::bot().width().is_bot());
+}
