@@ -560,6 +560,11 @@ public:
     return (is(B) ? (b() ? 1 : 0) : z());
   }
 
+  CUDA logic_real to_r() const {
+    assert(is(R));
+    return r();
+  }
+
   CUDA bool is_constant() const {
     return is(B) || is(Z) || is(R) || is(S);
   }
