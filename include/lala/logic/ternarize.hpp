@@ -313,6 +313,14 @@ private:
         push_ternary(ternarize(F::make_unary(NOT, t0)), t2, LEQ, t1);
         return t0;
       }
+      // x mod y ~~> x - y * (x div y)
+      case TMOD:
+      case EMOD:
+      case FMOD:
+      case CMOD: {
+        Sig div_sig = corresponding_z_division(f.sig());
+        return push_ternary(t1, t0, ADD, ternarize(F::make_binary(t2, MUL, F::make_binary(t1, div_sig, t2)), false));
+      }
       default: {
         return push_ternary(t0, t1, f.sig(), t2);
       }

@@ -231,12 +231,28 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
     return sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
   }
 
+  CUDA NI inline constexpr bool is_z_modulus(Sig sig) {
+    return sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
+  }
+
+  CUDA NI inline constexpr Sig corresponding_z_division(Sig sig) {
+    switch(sig) {
+      case TMOD: return TDIV;
+      case EMOD: return EDIV;
+      case FMOD: return FDIV;
+      case CMOD: return CDIV;
+      default:
+        assert(false);
+        return sig; // To silence compiler warning.
+    }
+  }
+
   CUDA NI inline constexpr bool is_division(Sig sig) {
     return sig == DIV || is_z_division(sig);
   }
 
   CUDA NI inline constexpr bool is_modulo(Sig sig) {
-    return sig == MOD || sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
+    return sig == MOD || is_z_modulus(sig);
   }
 
   CUDA NI inline constexpr bool is_associative(Sig sig) {
@@ -714,12 +730,39 @@ private:
     }
   }
 
+  template <class Fun, class Predicate>
+  CUDA NI void inplace_map_if_(Fun fun, Predicate p) {
+    switch(formula.index()) {
+      case Seq: {
+        for(int i = 0; i < seq().size(); ++i) {
+          seq(i).inplace_map_if_(fun, p);
+        }
+        break;
+      }
+      case ESeq: {
+        for(int i = 0; i < eseq().size(); ++i) {
+          eseq(i).inplace_map_if_(fun, p);
+        }
+        break;
+      }
+    }
+    if(p(*this)) {
+      fun(*this);
+    }
+  }
+
 public:
 
   /** In-place map of each leaf of the formula to a new leaf according to `fun`. */
   template <class Fun>
   CUDA NI void inplace_map(Fun fun) {
     return inplace_map_(fun, *this);
+  }
+
+  /** In-place map for the AST nodes matching predicate `p`. */
+  template <class Fun, class Predicate>
+  CUDA NI void inplace_map_if(Fun fun, Predicate p) {
+    return inplace_map_if_(fun, p);
   }
 
   /** Map of each leaf of the formula to a new leaf according to `fun`. */
