@@ -50,7 +50,7 @@ public:
   }
 
   static bool is_ternary_op(Sig sig) {
-    return sig == MAX || sig == MIN || sig == EQ || sig == LEQ || (!is_logical(sig) && !is_predicate(sig));
+    return sig == MAX || sig == MIN || sig == EQ || sig == LEQ || (!is_logical(sig) && !is_predicate(sig) && !is_z_modulus(sig));
   }
 
 private:
