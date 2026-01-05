@@ -19,7 +19,7 @@ template <class F>
 int value_of_constant(const F& x) {
   assert(is_constant_var(x));
   std::string varname(x.lv().data());
-  varname = varname.substr(11);
+  varname = varname.substr(13);
   varname[0] = varname[0] == 'm' ? '-' : varname[0];
   return std::stoi(varname);
 }
@@ -125,12 +125,12 @@ public:
     std::string name;
     if (f.is(F::Z) || f.is(F::B)) {
       auto index = f.to_z(); 
-      name = "__CONSTANT_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(index));
+      name = "__CONSTANT_Z_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(index));
     }
     else {
-      auto index = f.r();
+      auto index = f.to_r();
       double lb = std::get<0>(index);
-      name = "__CONSTANT_R" + std::to_string(introduced_constants) + (lb < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(lb));
+      name = "__CONSTANT_R_" + std::to_string(introduced_constants) + (lb < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(lb));
     }
 
     // if the constant is already a logical variable, we return it.
