@@ -308,7 +308,8 @@ public:
   using allocator_type = Allocator;
   using this_type = TFormula<Allocator, ExtendedSig>;
   using Sequence = battery::vector<this_type, Allocator>;
-  using Existential = battery::tuple<LVar<Allocator>, Sort<Allocator>>;
+  using LogicalVar = LVar<Allocator>;
+  using Existential = battery::tuple<LogicalVar, Sort<Allocator>>;
   using LogicSet = logic_set<this_type>;
   using Formula = battery::variant<
     logic_bool, ///< Representation of Booleans.
@@ -316,7 +317,7 @@ public:
     logic_real, ///< Approximation of real numbers.
     LogicSet, ///< Set of Booleans, integers, reals or sets.
     AVar,            ///< Abstract variable
-    LVar<Allocator>, ///< Logical variable
+    LogicalVar, ///< Logical variable
     Existential,     ///< Existential quantifier
     battery::tuple<Sig, Sequence>,  ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
     battery::tuple<ExtendedSig, Sequence>  ///< see above
@@ -376,10 +377,10 @@ public:
       case S: formula = Formula::template create<S>(LogicSet(other.s(), allocator));
         break;
       case V: formula = Formula::template create<V>(other.v()); break;
-      case LV: formula = Formula::template create<LV>(LVar<Allocator>(other.lv(), allocator)); break;
+      case LV: formula = Formula::template create<LV>(LogicalVar(other.lv(), allocator)); break;
       case E: formula = Formula::template create<E>(
         battery::make_tuple(
-          LVar<Allocator>(battery::get<0>(other.exists()), allocator),
+          LogicalVar(battery::get<0>(other.exists()), allocator),
           battery::get<1>(other.exists())));
         break;
       case Seq:
@@ -487,11 +488,11 @@ public:
     return make_avar(AVar(ty, vid));
   }
 
-  CUDA static this_type make_lvar(AType ty, LVar<Allocator> lvar) {
+  CUDA static this_type make_lvar(AType ty, LogicalVar lvar) {
     return this_type(ty, Formula::template create<LV>(std::move(lvar)));
   }
 
-  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, Sort<Allocator> ctype) {
+  CUDA static this_type make_exists(AType ty, LogicalVar lvar, Sort<Allocator> ctype) {
     return this_type(ty, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
@@ -596,7 +597,7 @@ public:
     return battery::get<V>(formula);
   }
 
-  CUDA const LVar<Allocator>& lv() const {
+  CUDA const LogicalVar& lv() const {
     return battery::get<LV>(formula);
   }
 
@@ -848,13 +849,13 @@ private:
           const auto& lb = battery::get<0>(s()[i]);
           const auto& ub = battery::get<1>(s()[i]);
           if(lb == ub) {
-            lb.print(print_atype);
+            lb.print_impl(print_atype);
           }
           else {
             printf("[");
-            lb.print(print_atype);
+            lb.print_impl(print_atype);
             printf("..");
-            ub.print(print_atype);
+            ub.print_impl(print_atype);
             printf("]");
           }
           if(i < s().size() - 1) {
