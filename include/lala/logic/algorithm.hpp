@@ -233,9 +233,9 @@ CUDA size_t num_constraints(const F& f)
   }
 }
 
-/** We ignore all constraints not in TNF. */
+/** We ignore all constraints not in ternary form. */
 template <class F>
-CUDA size_t num_tnf_constraints(const F& f)
+CUDA size_t num_tcn_constraints(const F& f)
 {
   if(is_tnf(f)) {
     return 1;
@@ -245,7 +245,7 @@ CUDA size_t num_tnf_constraints(const F& f)
       if(f.sig() == AND) {
         int total = 0;
         for(int i = 0; i < f.seq().size(); ++i) {
-          total += num_tnf_constraints(f.seq(i));
+          total += num_tcn_constraints(f.seq(i));
         }
         return total;
       }
@@ -1057,7 +1057,6 @@ struct PairHash {
 };
 
 // Those statistics ignore top-level conjunctions and top-level unary constraints.
-template <class F>
 struct FormulaStatistics {
   // Count all the function and predicate symbols occuring in the formula.
   std::unordered_map<Sig, size_t> ops;
@@ -1079,7 +1078,7 @@ struct FormulaStatistics {
 };
 
 template <class F>
-size_t analyze_formula(const F& f, FormulaStatistics<F>& stats, bool reified_context) {
+size_t analyze_formula(const F& f, FormulaStatistics& stats, bool reified_context) {
   switch(f.index()) {
     case F::V: {
       printf("%% ERROR: Statistics generation do not work on formula with abstract variables (need LVar).\n");
@@ -1131,8 +1130,8 @@ size_t analyze_formula(const F& f, FormulaStatistics<F>& stats, bool reified_con
 }
 
 template <class F>
-FormulaStatistics<F> analyze_formula(const F& f) {
-  FormulaStatistics<F> stats;
+FormulaStatistics analyze_formula(const F& f) {
+  FormulaStatistics stats;
   stats.num_var_occurrences = analyze_formula(f, stats, false);
   for(const auto& [var, occ] : stats.vars_occurrences) {
     stats.histogram_vars_degree[occ] += 1;

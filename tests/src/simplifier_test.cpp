@@ -21,7 +21,7 @@ void test_simplification(
   // Cannot be interpreted in IStore, but after applying Simplifier, it can be interpreted.
   auto f2 = *parse_flatzinc_str<standard_allocator>(simplifier_formula);
 
-  f2.print();
+  printf("f2 = "); f2.print(); printf("\n");
 
   IDiagnostics diagnostics;
   auto istore = battery::make_shared<IStore, standard_allocator>(create_and_interpret_and_tell<IStore>(f1, env, diagnostics).value());
@@ -44,9 +44,9 @@ void test_simplification(
   printf("fixed point reached\n");
 
   auto f3 = expected_simplified_formula == "true" ? decltype(f2)::make_true() : *parse_flatzinc_str<standard_allocator>(expected_simplified_formula);
-  f3.print(true); printf("\n");
+  printf("f3 = "); f3.print(); printf("\n");
   auto f4 = simplifier.deinterpret();
-  f4.print(true); printf("\n");
+  printf("f4 = "); f4.print(); printf("\n");
   EXPECT_EQ(f3, f4);
 }
 
