@@ -82,14 +82,14 @@ void both_interpret_must_error(const char* fzn, VarEnv<standard_allocator> env =
   interpret_must_error<IKind::ASK, L>(fzn, env);
 }
 
-template <IKind kind, bool ternarize_formula = false, class L>
+template <IKind kind, bool ternarize_formula = false, bool is_using_z = true, class L>
 void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator>& env, bool has_warning = false) {
   static_assert(kind == IKind::TELL || L::is_abstract_universe);
   using F = TFormula<standard_allocator>;
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   if(ternarize_formula) {
-    *f = ternarize(*f, env);
+    *f = ternarize(*f, env, is_using_z);
     f->print(); printf("\n");
   }
   *f = normalize(*f);
@@ -118,12 +118,12 @@ void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator
   EXPECT_EQ(diagnostics.has_warning(), has_warning);
 }
 
-template <class L, bool ternarize_formula = false, class Typing>
+template <class L, bool ternarize_formula = false, bool is_using_z = true, class Typing>
 L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_allocator>& env, Typing&& typing, bool has_warning = false) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   if(ternarize_formula) {
-    *f = ternarize(*f, env);
+    *f = ternarize(*f, env, is_using_z);
     f->print(); printf("\n");
   }
   *f = normalize(*f);
@@ -131,7 +131,7 @@ L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_alloca
   typing(*f);
   IDiagnostics diagnostics;
   auto value = create_and_interpret_and_tell<L, true>(*f, env, diagnostics);
-  if(diagnostics.is_fatal()) {
+  if(diagnostics.is_fatal() || diagnostics.has_warning()) {
     diagnostics.print();
   }
   EXPECT_FALSE(diagnostics.is_fatal());
@@ -140,15 +140,15 @@ L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_alloca
   return std::move(value.value());
 }
 
-template <class L, bool ternarize_formula = false>
+template <class L, bool ternarize_formula = false, bool is_using_z = true>
 L create_and_interpret_and_tell(const char* fzn, VarEnv<standard_allocator>& env, bool has_warning = false) {
-  return create_and_interpret_and_type_and_tell<L, ternarize_formula>(fzn, env, [](const F&){}, has_warning);
+  return create_and_interpret_and_type_and_tell<L, ternarize_formula, is_using_z>(fzn, env, [](const F&){}, has_warning);
 }
 
-template <class L, bool ternarize_formula = false>
+template <class L, bool ternarize_formula = false, bool is_using_z = true>
 L create_and_interpret_and_tell(const char* fzn, bool has_warning = false) {
   VarEnv<standard_allocator> env;
-  return create_and_interpret_and_tell<L, ternarize_formula>(fzn, env, has_warning);
+  return create_and_interpret_and_tell<L, ternarize_formula, is_using_z>(fzn, env, has_warning);
 }
 
 template <IKind kind, class L>
@@ -165,12 +165,12 @@ void expect_both_interpret_equal_to(const char* fzn, const L& expect, const VarE
   expect_interpret_equal_to<IKind::ASK>(fzn, expect, env, has_warning);
 }
 
-template <class L, bool ternarize_formula = false>
+template <class L, bool ternarize_formula = false, bool is_using_z = true>
 bool interpret_and_ask(const char* fzn, L& value, VarEnv<standard_allocator>& env, bool has_warning = false) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   if(ternarize_formula) {
-    *f = ternarize(*f, env);
+    *f = ternarize(*f, env, is_using_z);
     f->print(); printf("\n");
   }
   *f = normalize(*f);

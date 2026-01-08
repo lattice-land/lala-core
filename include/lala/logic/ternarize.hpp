@@ -68,11 +68,12 @@ private:
 
 public:
   /** The environment is helpful to recover the sort of the free variables. */
-  Ternarizer(const Env& env):
+  Ternarizer(const Env& env, const bool is_using_z):
     introduced_int_vars(0),
     introduced_bool_vars(0),
     introduced_real_vars(0), 
     introduced_constants(0),
+    is_using_z(is_using_z),
     env(env)
   {
     /** We skip all the temporary variables already created in the environment. */
@@ -86,18 +87,20 @@ private:
   battery::vector<F, allocator_type> conjunction;
   battery::vector<F, allocator_type> existentials;
   std::unordered_map<std::string, int> name2exists;
+  std::unordered_map<std::string, logic_real> realconstants;
   unsigned int introduced_int_vars;
   unsigned int introduced_bool_vars;
   unsigned int introduced_real_vars; 
   unsigned int introduced_constants;
+  bool is_using_z;
 
-  F introduce_var(const std::string& name, auto sort, bool constant) {
+  F introduce_var(const std::string& name, auto sort, bool is_constant) {
     auto var_name = LVar<allocator_type>(name.data());
     assert(!env.contains(name.data()));
     existentials.push_back(F::make_exists(UNTYPED, var_name, sort));
     assert(!name2exists.contains(name));
     name2exists[name] = existentials.size() - 1;
-    if(constant) { introduced_constants++; }
+    if(is_constant) { introduced_constants++; }
     else if(sort.is_int()) { introduced_int_vars++; }
     else if(sort.is_bool()) { introduced_bool_vars++; }
     else if(sort.is_real()) { introduced_real_vars++; } 
@@ -124,13 +127,14 @@ public:
     assert(f.is(F::Z) || f.is(F::B) || f.is(F::R));
     std::string name;
     if (f.is(F::Z) || f.is(F::B)) {
-      auto index = f.to_z(); 
-      name = "__CONSTANT_Z_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(index));
+      auto value = f.to_z(); 
+      name = "__CONSTANT_Z_" + (value < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(value));
     }
     else {
-      auto index = f.to_r();
-      double lb = std::get<0>(index);
-      name = "__CONSTANT_R_" + std::to_string(introduced_constants) + (lb < 0 ? std::string("m") : std::string("")) + std::to_string(std::abs(lb));
+      auto value = f.to_r();
+      double lb = std::get<0>(value);
+      name = "__CONSTANT_R_" + std::to_string(introduced_constants) + (lb < 0 ? std::string("_m") : std::string("_")) + std::to_string(std::abs(lb));
+      realconstants[name] = value;
     }
 
     // if the constant is already a logical variable, we return it.
@@ -142,22 +146,43 @@ public:
     return var;
   }
 
+  F create_constant(F x) {
+    if(realconstants.contains(x.lv().data()) && !is_using_z) {
+      return F::make_real(realconstants[x.lv().data()]);
+    }
+    else if (is_constant_var(x) && is_using_z) {
+      return F::make_z(value_of_constant(x));
+    }
+    return x;
+  }
+
+  F create_constant(int value) {
+    if (is_using_z) return F::make_z(value);
+    return F::make_real(value, value);
+  }
+
+  int value_of_real_constant(F x) {
+    if (is_using_z) return value_of_constant(x);
+    return std::get<0>(realconstants[x.lv().data()]);
+  }
+
 private:
   /** Create a unary formula if the ternary formula can be simplified. */
   bool simplify_to_unary(F x, F y, Sig sig, F z) {
     /** Unary constraint of the form `1 <=> x <= 5`, `0 <=> x <= 5` or `1 <=> x == 5`   */
-    if(is_constant_var(x) && (is_constant_var(y) || is_constant_var(z)) &&
-      (sig == LEQ || (sig == EQ && value_of_constant(x) == 1)))
-    {
-      auto yv = is_constant_var(y) ? F::make_z(value_of_constant(y)) : y;
-      auto zv = is_constant_var(z) ? F::make_z(value_of_constant(z)) : z;
-      if(value_of_constant(x) == 0) {
-        conjunction.push_back(F::make_binary(yv, GT, zv));
+    if (is_constant_var(x)) {
+      auto yv = create_constant(y);
+      auto zv = create_constant(z);
+      if (is_constant_var(y) || is_constant_var(z)) {
+        if ((sig == EQ || sig == LEQ) && value_of_real_constant(x) == 1.0) {
+          conjunction.push_back(F::make_binary(yv, sig, zv));
+          return true;
+        } 
+        else if (sig == LEQ && value_of_real_constant(x) == 0.0) { 
+          conjunction.push_back(F::make_binary(yv, GT, zv));
+          return true;
+        } 
       }
-      else {
-        conjunction.push_back(F::make_binary(yv, sig, zv));
-      }
-      return true;
     }
     return false;
   }
@@ -182,25 +207,25 @@ private:
     switch(f.sig()) {
       /** -x ~~> t = 0 - x */
       case NEG: {
-        F t = push_ternary(introduce_int_var(), ternarize(F::make_z(0)), SUB, x);
+        F t = push_ternary(is_using_z ? introduce_int_var() : introduce_real_var(), ternarize(create_constant(0)), SUB, x);
         if(toplevel) {
-          return ternarize(F::make_binary(t, NEQ, F::make_z(0)), true);
+          return ternarize(F::make_binary(t, NEQ, create_constant(0)), true);
         }
         return t;
       }
       /** |x| ~~> t1 = 0 - x /\ t2 = max(x, t1) /\ t2 >= 0 */
       case ABS: {
         F t1 = ternarize(F::make_unary(NEG, x));
-        F t2 = introduce_int_var();
+        F t2 = is_using_z ? introduce_int_var() : introduce_real_var();
         compute(F::make_binary(t2, EQ, F::make_binary(x, MAX, t1)));
-        compute(F::make_binary(t2, GEQ, F::make_z(0)));
+        compute(F::make_binary(t2, GEQ, create_constant(0)));
         if(toplevel) {
-          return ternarize(F::make_binary(t2, NEQ, F::make_z(0)), true);
+          return ternarize(F::make_binary(t2, NEQ, create_constant(0)), true);
         }
         return t2;
       }
       /** NOT x ~~> ternarize(x = 0) ~~> t = (x = 0) */
-      case NOT: return ternarize(F::make_binary(x, EQ, F::make_z(0)), toplevel);
+      case NOT: return ternarize(F::make_binary(x, EQ, create_constant(0)), toplevel);
       case MINIMIZE:
       case MAXIMIZE: {
         conjunction.push_back(F::make_unary(f.sig(), x));
@@ -240,7 +265,7 @@ private:
    */
   F booleanize(const F& t, Sig sig) {
     if(is_logical(sig) && !is_sort(t, Sort<allocator_type>(Sort<allocator_type>::Bool))) {
-      return ternarize(F::make_binary(t, NEQ, F::make_z(0)));
+      return ternarize(F::make_binary(t, NEQ, create_constant(0)));
     }
     return t;
   }
@@ -297,13 +322,13 @@ private:
         || ((f.sig() == MIN || f.sig() == MAX) && is_sort(t1, Sort<allocator_type>(Sort<allocator_type>::Bool))
         && is_sort(t2, Sort<allocator_type>(Sort<allocator_type>::Bool))))
       {
-        t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_bool_var();
+        t0 = toplevel ? ternarize_constant(create_constant(1)) : introduce_bool_var();
       } 
       else if (!is_sort(t1, Sort<allocator_type>(Sort<allocator_type>::Real)) && !is_sort(t2, Sort<allocator_type>(Sort<allocator_type>::Real))) {
-        t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_int_var();
+        t0 = toplevel ? ternarize_constant(create_constant(1)) : introduce_int_var();
       }
       else { 
-        t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_real_var();
+        t0 = toplevel ? ternarize_constant(create_constant(1)) : introduce_real_var();
       }
     }
     switch(f.sig()) {
@@ -317,7 +342,7 @@ private:
       case NEQ:
       case XOR: {
         if(toplevel) {
-          return push_ternary(ternarize_constant(F::make_z(0)), t1, EQ, t2);
+          return push_ternary(ternarize_constant(create_constant(0)), t1, EQ, t2);
         }
         push_ternary(ternarize(F::make_unary(NOT, t0)), t1, EQ, t2);
         return t0;
@@ -329,7 +354,7 @@ private:
       // x > y ~~> !(x <= y)
       case GT: {
         if(toplevel) {
-          return push_ternary(ternarize_constant(F::make_z(0)), t1, LEQ, t2);
+          return push_ternary(ternarize_constant(create_constant(0)), t1, LEQ, t2);
         }
         push_ternary(ternarize(F::make_unary(NOT, t0)), t1, LEQ, t2);
         return t0;
@@ -337,7 +362,7 @@ private:
       // x < y ~~> y > x ~~> !(y <= x)
       case LT: {
         if(toplevel) {
-          return push_ternary(ternarize_constant(F::make_z(0)), t2, LEQ, t1);
+          return push_ternary(ternarize_constant(create_constant(0)), t2, LEQ, t1);
         }
         push_ternary(ternarize(F::make_unary(NOT, t0)), t2, LEQ, t1);
         return t0;
@@ -382,7 +407,7 @@ private:
   F ternarize(const F& f, bool toplevel = false) {
     if (f.is_variable()) {
       if(toplevel) {
-        return ternarize(F::make_binary(f, NEQ, F::make_z(0)), true);
+        return ternarize(F::make_binary(f, NEQ, create_constant(0)), true);
       }
       return f;
     }
@@ -466,8 +491,8 @@ public:
  * This ternary form is used by the lala-pc/PIR solver.
  */
 template <class F, class Env = VarEnv<battery::standard_allocator>>
-F ternarize(const F& f, const Env& env = Env(), const std::vector<int>& constants = {}) {
-  impl::Ternarizer<F, Env> ternarizer(env);
+F ternarize(const F& f, const Env& env = Env(), const bool is_using_z = true, const std::vector<int>& constants = {}) {
+  impl::Ternarizer<F, Env> ternarizer(env, is_using_z);
   for(int c : constants) {
     ternarizer.ternarize_constant(F::make_z(c));
   }
