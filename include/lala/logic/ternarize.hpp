@@ -133,7 +133,7 @@ public:
     else {
       auto value = f.to_r();
       double lb = std::get<0>(value);
-      name = "__CONSTANT_R_" + std::to_string(introduced_constants) + (lb < 0 ? std::string("_m") : std::string("_")) + std::to_string(std::abs(lb));
+      name = "__CONSTANT_R" + (std::abs(lb) == 0.0 || std::abs(lb) == 1.0 ? std::string("") : std::string("_") + std::to_string(introduced_constants)) + (lb < 0 ? std::string("_m") : std::string("_")) + std::to_string(std::abs(lb));
       realconstants[name] = value;
     }
 
