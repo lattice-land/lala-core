@@ -92,6 +92,9 @@ struct Sort {
       u.lb().print();
     }
   }
+
+  template <class U> 
+  CUDA NI void print_interval(const U& u) const { u.print(); }
 };
 
 template <class Alloc1, class Alloc2>
