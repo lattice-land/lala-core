@@ -5,6 +5,7 @@
 
 #include "ast.hpp"
 #include <map>
+#include <unordered_map>
 
 namespace lala {
 
@@ -133,10 +134,39 @@ namespace impl {
         else {
           return 1;
         }
-      case F::Seq: return impl::num_qf_vars_in_seq<F::Seq>(f, type_filter, aty);
-      case F::ESeq: return impl::num_qf_vars_in_seq<F::ESeq>(f, type_filter, aty);
+      case F::Seq: return num_qf_vars_in_seq<F::Seq>(f, type_filter, aty);
+      case F::ESeq: return num_qf_vars_in_seq<F::ESeq>(f, type_filter, aty);
       default: return 0;
     }
+  }
+
+  template<size_t n, class F>
+  CUDA NI bool has_n_vars_in_seq(const F& f, int nvars, int& count);
+
+  /** \return `true` if `num_vars(f) == nvars`, `false` otherwise. */
+  template<class F>
+  CUDA NI bool has_n_vars(const F& f, int nvars, int& count) {
+    switch(f.index()) {
+      case F::V:
+      case F::E:
+      case F::LV:
+        return ++count == nvars;
+      case F::Seq: return has_n_vars_in_seq<F::Seq>(f, nvars, count);
+      case F::ESeq: return has_n_vars_in_seq<F::ESeq>(f, nvars, count);
+      default: return count == nvars;
+    }
+  }
+
+  template<size_t n, class F>
+  CUDA NI bool has_n_vars_in_seq(const F& f, int nvars, int& count) {
+    const auto& children = battery::get<1>(battery::get<n>(f.data()));
+    for(int i = 0; i < children.size(); ++i) {
+      has_n_vars(children[i], nvars, count);
+      if(count > nvars) {
+        return false;
+      }
+    }
+    return count == nvars;
   }
 }
 
@@ -176,6 +206,15 @@ CUDA size_t num_quantified_vars(const F& f, AType aty) {
   return impl::num_qf_vars(f, true, aty);
 }
 
+/** \return `true` if `num_vars(f) == 1`, `false` otherwise. */
+template<class F>
+CUDA NI bool has_one_var(const F& f)
+{
+  int count = 0;
+  return impl::has_n_vars(f, 1, count);
+}
+
+
 template<class F>
 CUDA size_t num_constraints(const F& f)
 {
@@ -194,9 +233,9 @@ CUDA size_t num_constraints(const F& f)
   }
 }
 
-/** We ignore all constraints not in TNF. */
+/** We ignore all constraints not in ternary form. */
 template <class F>
-CUDA size_t num_tnf_constraints(const F& f)
+CUDA size_t num_tcn_constraints(const F& f)
 {
   if(is_tnf(f)) {
     return 1;
@@ -206,7 +245,7 @@ CUDA size_t num_tnf_constraints(const F& f)
       if(f.sig() == AND) {
         int total = 0;
         for(int i = 0; i < f.seq().size(); ++i) {
-          total += num_tnf_constraints(f.seq(i));
+          total += num_tcn_constraints(f.seq(i));
         }
         return total;
       }
@@ -972,16 +1011,6 @@ CUDA F decompose_arith_neq_constraint(const F& f, const typename F::allocator_ty
   return f;
 }
 
-/** Rewrite a formula `f` into a new formula without set variables and set constraints.
- * If some set variables are unbounded, we return an empty optional.
- * Otherwise the new formula does not contain any set variable and constraint, and the mapping between set variables and Boolean variables is stored in `set2int_vars`.
- * For instance a set variable `S in {[{}, {1,2}]}` is turned into two Boolean variables `__S_contains_1` and `__S_contains_2`.
- */
-template <class F>
-std::optional<F> decompose_set_constraints(const F& f, std::map<std::string, std::vector<std::string>>& set2bool_vars) {
-  return {};
-}
-
 template <class F>
 std::optional<LVar<typename F::allocator_type>> find_maximize_var(const F& f) {
   if(f.is(F::Seq)) {
@@ -1016,6 +1045,98 @@ std::optional<typename F::Existential> find_existential_of(const F& f, const LVa
     }
   }
   return std::nullopt;
+}
+
+struct PairHash {
+  template <class T1, class T2>
+  std::size_t operator()(const std::pair<T1, T2>& p) const {
+    auto h1 = std::hash<T1>{}(p.first);
+    auto h2 = std::hash<T2>{}(p.second);
+    return h1 ^ (h2 << 1);
+  }
+};
+
+// Those statistics ignore top-level conjunctions and top-level unary constraints.
+struct FormulaStatistics {
+  // Count all the function and predicate symbols occuring in the formula.
+  std::unordered_map<Sig, size_t> ops;
+  // Count all the predicate symbols occuring in the formula in a non-conjective logical context (e.g., below a NOT, OR, IMPLY, EQUIV).
+  std::unordered_map<Sig, size_t> reified_predicates;
+  // The number of occurrences of each logical variable in the formula. It is useful to compute `histogram_vars_degree`.
+  std::unordered_map<std::string, size_t> vars_occurrences;
+  // histogram_vars_degree[var_degree] = number of variables with degree var_degree in the formula.
+  // Repetition of variables in the same constraints are counted.
+  std::unordered_map<size_t, size_t> histogram_vars_degree;
+  // histogram_constraints_degree[(predicate_symbol, constraint_degree)] = number of constraints of symbol predicate_symbol with degree constraint_degree in the formula.
+  std::unordered_map<std::pair<Sig, size_t>, size_t, PairHash> histogram_contraints_degree;
+
+  size_t num_vars = 0;
+  size_t num_cons = 0;
+  size_t num_var_occurrences = 0;
+
+  FormulaStatistics() = default;
+};
+
+template <class F>
+size_t analyze_formula(const F& f, FormulaStatistics& stats, bool reified_context) {
+  switch(f.index()) {
+    case F::V: {
+      printf("%% ERROR: Statistics generation do not work on formula with abstract variables (need LVar).\n");
+      exit(1);
+    }
+    case F::Z:
+    case F::R:
+    case F::S:
+    case F::B:
+    case F::ESeq: return 0;
+    case F::E: {
+      stats.num_vars++;
+      return 0;
+    }
+    case F::LV: {
+      stats.vars_occurrences[std::string(f.lv().data())] += 1;
+      return 1;
+    }
+    case F::Seq: {
+      if(!reified_context) {
+        if(f.sig() == AND) {
+          size_t occ_vars = 0;
+          for(size_t i = 0; i < f.seq().size(); ++i) {
+            occ_vars += analyze_formula(f.seq(i), stats, reified_context);
+          }
+          return occ_vars;
+        }
+        // We ignore top-level unary constraints.
+        else if(has_one_var(f)) {
+          return 0;
+        }
+      }
+      if(!reified_context) {
+        stats.num_cons++;
+      }
+      size_t occ_vars = 0;
+      for(size_t i = 0; i < f.seq().size(); ++i) {
+        occ_vars += analyze_formula(f.seq(i), stats, true);
+      }
+      stats.ops[f.sig()] += (f.sig() != ITE && f.seq().size() > 2) ? f.seq().size() - 1 : 1;
+      if(reified_context && is_predicate(f.sig())) {
+        stats.reified_predicates[f.sig()] += 1;
+      }
+      stats.histogram_contraints_degree[{f.sig(), occ_vars}] += 1;
+      return occ_vars;
+    }
+    default: return 0;
+  }
+}
+
+template <class F>
+FormulaStatistics analyze_formula(const F& f) {
+  FormulaStatistics stats;
+  stats.num_var_occurrences = analyze_formula(f, stats, false);
+  for(const auto& [var, occ] : stats.vars_occurrences) {
+    stats.histogram_vars_degree[occ] += 1;
+  }
+  return stats;
 }
 
 }

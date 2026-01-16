@@ -11,37 +11,31 @@
 namespace lala {
 
 struct SimplifierStats {
-  size_t eliminated_constraints_by_icse = 0;
-  size_t eliminated_equality_constraints = 0;
-  size_t eliminated_constraints_by_as = 0;
-  size_t eliminated_entailed_constraints = 0;
-  size_t icse_fixpoint_iterations = 0;
+  int current_iteration;
+  std::vector<size_t> eliminated_equality_constraints_;
+  std::vector<size_t> eliminated_constraints_by_as_;
+  std::vector<size_t> eliminated_entailed_constraints_;
+  std::vector<std::vector<size_t>> eliminated_constraints_by_icse_;
+  std::vector<size_t> eliminated_useless_variables_;
 
-  template <class StatPrinter>
-  CUDA void print(StatPrinter& stats, size_t fp_iter) {
-    stats.print_stat_fp_iter("eliminated_entailed_constraints", fp_iter, eliminated_entailed_constraints);
-    stats.print_stat_fp_iter("eliminated_equality_constraints", fp_iter, eliminated_equality_constraints);
-    stats.print_stat_fp_iter("eliminated_constraints_by_icse", fp_iter, eliminated_constraints_by_icse);
-    stats.print_stat_fp_iter("eliminated_constraints_by_as", fp_iter, eliminated_constraints_by_as);
-    stats.print_stat_fp_iter("icse_fixpoint_iterations", fp_iter, icse_fixpoint_iterations);
+  SimplifierStats()
+    : current_iteration(-1)
+  {}
+
+  void prepare_next_iteration() {
+    current_iteration++;
+    eliminated_equality_constraints_.push_back(0);
+    eliminated_constraints_by_as_.push_back(0);
+    eliminated_entailed_constraints_.push_back(0);
+    eliminated_constraints_by_icse_.emplace_back();
+    eliminated_useless_variables_.push_back(0);
   }
 
-  template <class StatPrinter>
-  CUDA void print(StatPrinter& stats) {
-    stats.print_stat("eliminated_entailed_constraints", eliminated_entailed_constraints);
-    stats.print_stat("eliminated_equality_constraints", eliminated_equality_constraints);
-    stats.print_stat("eliminated_constraints_by_icse", eliminated_constraints_by_icse);
-    stats.print_stat("eliminated_constraints_by_as", eliminated_constraints_by_as);
-    stats.print_stat("icse_fixpoint_iterations", icse_fixpoint_iterations);
-  }
-
-  CUDA void merge(SimplifierStats& other) {
-    eliminated_constraints_by_icse += other.eliminated_constraints_by_icse;
-    eliminated_equality_constraints += other.eliminated_equality_constraints;
-    eliminated_constraints_by_as += other.eliminated_constraints_by_as;
-    eliminated_entailed_constraints += other.eliminated_entailed_constraints;
-    icse_fixpoint_iterations += other.icse_fixpoint_iterations;
-  }
+  auto& eliminated_equality_constraints() { return eliminated_equality_constraints_[current_iteration]; }
+  auto& eliminated_constraints_by_as() { return eliminated_constraints_by_as_[current_iteration]; }
+  auto& eliminated_entailed_constraints() { return eliminated_entailed_constraints_[current_iteration]; }
+  auto& eliminated_constraints_by_icse() { return eliminated_constraints_by_icse_[current_iteration]; }
+  auto& eliminated_useless_variables() { return eliminated_useless_variables_[current_iteration]; }
 };
 
 /** This abstract domain works at the level of logical formulas.
@@ -92,7 +86,7 @@ private:
   formula_sequence formulas;
   // Write-only (accessed in only 1 thread because this is not a parallel lattice entity) conjunctive formula, the main operation is a map between formulas and simplified_formulas.
   formula_sequence simplified_formulas;
-  // eliminated_variables[i] is `true` when the variable `i` can be removed because it is assigned to a constant.
+  // eliminated_variables[i] is `true` when the variable `i` can be removed because it does not occur in any constraint.
   battery::dynamic_bitset<memory_type, allocator_type> eliminated_variables;
   // eliminated_formulas[i] is `true` when the formula `i` is entailed.
   battery::dynamic_bitset<memory_type, allocator_type> eliminated_formulas;
@@ -292,13 +286,15 @@ private:
     return false;
   }
 
-  // We eliminate the representative of the variable `i` if it is a singleton.
+  // We merge the domains of the variables in the same equivalence class.
   CUDA local::B vdeduce(int i) {
     const auto& u = sub->project(AVar{store_aty, i});
     size_t j = find(i);
     local::B has_changed = constants[j].meet(u);
+    // Note that this code is only useful for simplifying formula not in TCN (such as tests in simplifier_test.cpp).
+    // On TCN, the method `eliminate_useless_variables` does the job.
     if(!constants[j].is_bot() && constants[j].lb().value() == constants[j].ub().value()) {
-      has_changed |= eliminate(eliminated_variables, j);
+      eliminate(eliminated_variables, j);
     }
     return has_changed;
   }
@@ -332,8 +328,9 @@ public:
       auto f = formulas[i].map([&](const F& f, const F& parent) {
         if(f.is_variable()) {
           AVar x = var_of(f);
-          if(eliminated_variables.test(x.vid())) {
-            auto k = constants[x.vid()].template deinterpret<F>();
+          size_t j = find(x.vid());
+          if(!constants[j].is_bot() && constants[j].lb().value() == constants[j].ub().value()) {
+            auto k = constants[j].template deinterpret<F>();
             if(env[x].sort.is_bool() && k.is(F::Z) && parent.is_logical()) {
               return k.z() == 0 ? F::make_false() : F::make_true();
             }
@@ -390,13 +387,13 @@ private:
 
 public:
   /** I-CSE algorithm.
-   * For each pair of TNF constraints `x <=> y op z` and `x' <=> y' op' z'`, whenever `[y'] = [y]`, `op = op'` and `[z] = [z']`, we add the equivalence `x = x'` and eliminate the second constraint.
+   * For each pair of TNF constraints `x = y op z` and `x' = y' op' z'`, whenever `[y'] = [y]`, `op = op'` and `[z] = [z']`, we add the equivalence `x = x'` and eliminate the second constraint.
    * Note that [x] represents the equivalence class of `x`.
    * To avoid an algorithm running in O(n^2), we use a hash map to detect syntactical equivalence between `y op z` and `y' op z'`.
    * Further, for commutative operators, we redefine the equality function.
    *
    * This algorithm is applied until a fixpoint is reached.
-   * \return The number of formulas eliminated.
+   * \return If any change has been made.
    */
   template <class Seq>
   CUDA bool i_cse(const Seq& tnf, SimplifierStats& stats) {
@@ -415,7 +412,7 @@ public:
     bool has_changed = false;
     bool local_has_changed = true;
     while(local_has_changed) {
-      ++stats.icse_fixpoint_iterations;
+      size_t eliminated_constraints_by_icse = 0;
       local_has_changed = false;
       cs.clear();
       for(int i = 0; i < tnf.size(); ++i) {
@@ -426,13 +423,14 @@ public:
           Sig op = tnf[i].seq(1).sig();
           auto p = cs.insert(std::make_pair(std::make_tuple(y, op, z), x));
           if(!p.second) { // `p.second` is false if we detect a collision.
-            local_has_changed |= replace_by_equivalence(x, p.first->second, i, stats.eliminated_constraints_by_icse);
+            local_has_changed |= replace_by_equivalence(x, p.first->second, i, eliminated_constraints_by_icse);
             if(local_has_changed) {
               has_changed = true;
             }
           }
         }
       }
+      stats.eliminated_constraints_by_icse().push_back(eliminated_constraints_by_icse);
     }
     return has_changed;
   }
@@ -446,8 +444,8 @@ public:
     constexpr universe_type ZERO(0,0);
     constexpr universe_type ONE(1,1);
     auto& vstore = *sub;
-    size_t elim_cons = stats.eliminated_constraints_by_as;
-    size_t elim_eq = stats.eliminated_equality_constraints;
+    size_t elim_cons = stats.eliminated_constraints_by_as();
+    size_t elim_eq = stats.eliminated_equality_constraints();
     bool has_changed = false;
     for(int i = 0; i < tnf.size(); ++i) {
       if(!eliminated_formulas.test(i)) {
@@ -468,11 +466,11 @@ public:
             if(x == y || x == z) {
               int y2 = x == y ? z : y;
               vstore[y2].meet(ZERO);
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             /** x = y + 0 -> x = y */
             else if(vstore[z] == ZERO) {
-              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
+              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as());
             }
             /** x = y + y -> x = y * 2 */
             else if(y == z) {
@@ -490,7 +488,7 @@ public:
                 has_changed |= vstore[x].meet(ZERO);
               }
               else { /* true */ }
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             /** k = y * y -> y \in [-n,n] (if n * n = k), false (otherwise).
              * This is an over-approximation, thus we cannot eliminate the constraint. */
@@ -505,12 +503,12 @@ public:
             }
             /** x = y * 1 */
             else if(vstore[z] == ONE) {
-              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
+              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as());
             }
             /** x = x * x */
             else if(x == y && y == z) {
               vstore[x].meet(universe_type(0,1));
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             break;
           }
@@ -529,11 +527,11 @@ public:
               // Cannot eliminate the constraint as we must take into account that y != 0.
             }
             else if(vstore[z] == ONE) {
-              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
+              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as());
             }
             else if(x == y && y == z) {
               vstore[x].meet(ONE);
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             break;
           }
@@ -541,12 +539,12 @@ public:
             /** x = x mod x -> x = 0 */
             if(x == y && y == z) {
               vstore[x].meet(ZERO);
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             /** x = x mod k -> x in [0, abs(k) - 1] */
             else if(x == y && z_is_c) {
               vstore[x].meet(universe_type(0, std::abs(vstore[z].lb()) - 1));
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             /** x = k mod x is always false. */
             else if(x == z && y_is_c) {
@@ -554,7 +552,7 @@ public:
             }
             /** 0 = x mod x is always true. */
             else if(y == z && vstore[x] == ZERO) {
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             break;
           }
@@ -562,7 +560,7 @@ public:
           case MAX: {
             /** x = min/max(y, y) -> x = y */
             if(y == z) {
-              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as);
+              replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as());
             }
             /** x = min(x, y) -> 1 = (x <= y)  */
             /** x = max(x, y) -> 1 = (y <= x)  */
@@ -583,7 +581,7 @@ public:
           case EQUIV:
           case EQ: {
             if(vstore[x] == ONE) {
-              replace_by_equivalence(y, z, i, stats.eliminated_equality_constraints);
+              replace_by_equivalence(y, z, i, stats.eliminated_equality_constraints());
             }
             /** x = (x = k) -> false (k = 0), x = 1 (k = 1) or x = 0 */
             else if(x == y && z_is_c) {
@@ -596,11 +594,11 @@ public:
               else {
                 vstore[x].meet(ZERO);
               }
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             else if(y == z) {
               vstore[x].meet(ONE);
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             break;
           }
@@ -617,7 +615,7 @@ public:
               else { /** no solution with k == 0 */
                 vstore[x].meet_bot();
               }
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             /** x = (k <= x) -> x = 0 (k > 1), x = 1 (k <= 1), true (k = 1). */
             else if(x == z && y_is_c) {
@@ -629,11 +627,11 @@ public:
                 vstore[x].meet(ONE);
               }
               else { /** true whenever k = 1 */ }
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             else if(y == z) {
               vstore[x].meet(ONE);
-              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as);
+              eliminate(eliminated_formulas, i, stats.eliminated_constraints_by_as());
             }
             break;
           }
@@ -642,7 +640,7 @@ public:
         }
       }
     }
-    return has_changed || elim_cons != stats.eliminated_constraints_by_as || elim_eq != stats.eliminated_equality_constraints;
+    return has_changed || elim_cons != stats.eliminated_constraints_by_as() || elim_eq != stats.eliminated_equality_constraints();
   }
 
 private:
@@ -700,13 +698,13 @@ public:
       bool ask_success = b.interpret_ask(tnf[i], env, ask_value, diagnostics);
       assert(ask_success);
       if(b.ask(ask_value)) {
-        eliminate(eliminated_formulas, i, stats.eliminated_entailed_constraints);
+        eliminate(eliminated_formulas, i, stats.eliminated_entailed_constraints());
       }
     }
   }
 
   template <class Seq>
-  CUDA void eliminate_useless_variables(const Seq& tnf, size_t& num_eliminated_variables) {
+  CUDA void eliminate_useless_variables(const Seq& tnf, SimplifierStats& stats) {
     /** Keep only the variables that are representative and occur in at least one TNF constraint. */
     eliminated_variables.set();
     for(int i = 0; i < tnf.size(); ++i) {
@@ -716,7 +714,11 @@ public:
         eliminated_variables.set(find(var_of(tnf[i].seq(1).seq(1)).vid()), false);
       }
     }
-    num_eliminated_variables = eliminated_variables.count();
+    stats.eliminated_useless_variables() = eliminated_variables.count();
+    // To follow the other statistics, we only count the newly eliminated variables.
+    for(int i = 0; i < stats.eliminated_useless_variables_.size() - 1; ++i) {
+      stats.eliminated_useless_variables() -= stats.eliminated_useless_variables_[i];
+    }
     /** Eliminated variables might still occur in the variables we need to print.
      * Therefore, we save them in `constants`. */
     for(int i = 0; i < sub->vars(); ++i) {
@@ -754,16 +756,6 @@ public:
   template <class F>
   CUDA void substitute(F& f) const {
     f.inplace_map([this](F& leaf, const F&) { substitute_var(leaf); });
-  }
-
-  CUDA size_t num_vars_after_elimination() const {
-    size_t keep = 0;
-    for(int i = 0; i < equivalence_classes.size(); ++i) {
-      if(equivalence_classes[i] == i && !eliminated_variables.test(i)) {
-        ++keep;
-      }
-    }
-    return keep;
   }
 
 private:

@@ -231,12 +231,28 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
     return sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
   }
 
+  CUDA NI inline constexpr bool is_z_modulus(Sig sig) {
+    return sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
+  }
+
+  CUDA NI inline constexpr Sig corresponding_z_division(Sig sig) {
+    switch(sig) {
+      case TMOD: return TDIV;
+      case EMOD: return EDIV;
+      case FMOD: return FDIV;
+      case CMOD: return CDIV;
+      default:
+        assert(false);
+        return sig; // To silence compiler warning.
+    }
+  }
+
   CUDA NI inline constexpr bool is_division(Sig sig) {
     return sig == DIV || is_z_division(sig);
   }
 
   CUDA NI inline constexpr bool is_modulo(Sig sig) {
-    return sig == MOD || sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
+    return sig == MOD || is_z_modulus(sig);
   }
 
   CUDA NI inline constexpr bool is_associative(Sig sig) {
@@ -292,7 +308,8 @@ public:
   using allocator_type = Allocator;
   using this_type = TFormula<Allocator, ExtendedSig>;
   using Sequence = battery::vector<this_type, Allocator>;
-  using Existential = battery::tuple<LVar<Allocator>, Sort<Allocator>>;
+  using LogicalVar = LVar<Allocator>;
+  using Existential = battery::tuple<LogicalVar, Sort<Allocator>>;
   using LogicSet = logic_set<this_type>;
   using Formula = battery::variant<
     logic_bool, ///< Representation of Booleans.
@@ -300,7 +317,7 @@ public:
     logic_real, ///< Approximation of real numbers.
     LogicSet, ///< Set of Booleans, integers, reals or sets.
     AVar,            ///< Abstract variable
-    LVar<Allocator>, ///< Logical variable
+    LogicalVar, ///< Logical variable
     Existential,     ///< Existential quantifier
     battery::tuple<Sig, Sequence>,  ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
     battery::tuple<ExtendedSig, Sequence>  ///< see above
@@ -360,10 +377,10 @@ public:
       case S: formula = Formula::template create<S>(LogicSet(other.s(), allocator));
         break;
       case V: formula = Formula::template create<V>(other.v()); break;
-      case LV: formula = Formula::template create<LV>(LVar<Allocator>(other.lv(), allocator)); break;
+      case LV: formula = Formula::template create<LV>(LogicalVar(other.lv(), allocator)); break;
       case E: formula = Formula::template create<E>(
         battery::make_tuple(
-          LVar<Allocator>(battery::get<0>(other.exists()), allocator),
+          LogicalVar(battery::get<0>(other.exists()), allocator),
           battery::get<1>(other.exists())));
         break;
       case Seq:
@@ -471,11 +488,11 @@ public:
     return make_avar(AVar(ty, vid));
   }
 
-  CUDA static this_type make_lvar(AType ty, LVar<Allocator> lvar) {
+  CUDA static this_type make_lvar(AType ty, LogicalVar lvar) {
     return this_type(ty, Formula::template create<LV>(std::move(lvar)));
   }
 
-  CUDA static this_type make_exists(AType ty, LVar<Allocator> lvar, Sort<Allocator> ctype) {
+  CUDA static this_type make_exists(AType ty, LogicalVar lvar, Sort<Allocator> ctype) {
     return this_type(ty, Formula::template create<E>(battery::make_tuple(std::move(lvar), std::move(ctype))));
   }
 
@@ -585,7 +602,7 @@ public:
     return battery::get<V>(formula);
   }
 
-  CUDA const LVar<Allocator>& lv() const {
+  CUDA const LogicalVar& lv() const {
     return battery::get<LV>(formula);
   }
 
@@ -719,12 +736,39 @@ private:
     }
   }
 
+  template <class Fun, class Predicate>
+  CUDA NI void inplace_map_if_(Fun fun, Predicate p) {
+    switch(formula.index()) {
+      case Seq: {
+        for(int i = 0; i < seq().size(); ++i) {
+          seq(i).inplace_map_if_(fun, p);
+        }
+        break;
+      }
+      case ESeq: {
+        for(int i = 0; i < eseq().size(); ++i) {
+          eseq(i).inplace_map_if_(fun, p);
+        }
+        break;
+      }
+    }
+    if(p(*this)) {
+      fun(*this);
+    }
+  }
+
 public:
 
   /** In-place map of each leaf of the formula to a new leaf according to `fun`. */
   template <class Fun>
   CUDA NI void inplace_map(Fun fun) {
     return inplace_map_(fun, *this);
+  }
+
+  /** In-place map for the AST nodes matching predicate `p`. */
+  template <class Fun, class Predicate>
+  CUDA NI void inplace_map_if(Fun fun, Predicate p) {
+    return inplace_map_if_(fun, p);
   }
 
   /** Map of each leaf of the formula to a new leaf according to `fun`. */
@@ -810,13 +854,13 @@ private:
           const auto& lb = battery::get<0>(s()[i]);
           const auto& ub = battery::get<1>(s()[i]);
           if(lb == ub) {
-            lb.print(print_atype);
+            lb.print_impl(print_atype);
           }
           else {
             printf("[");
-            lb.print(print_atype);
+            lb.print_impl(print_atype);
             printf("..");
-            ub.print(print_atype);
+            ub.print_impl(print_atype);
             printf("]");
           }
           if(i < s().size() - 1) {
