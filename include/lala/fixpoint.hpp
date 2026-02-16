@@ -433,6 +433,32 @@ __device__ local::B warp_fixpoint(A& a, int i, int* warp_iterations) {
   return has_changed;
 }
 
+template <int TPB, class A> 
+__device__ local::B fwarp_fixpoint(A& a, int i, int* warp_iterations) {
+  auto ded = a.load_deduce(i);
+  local::B has_changed = false;
+  __shared__ bool warp_changed[TPB/32];
+  int warp_id = threadIdx.x / 32;
+  warp_changed[warp_id] = true;
+  while(warp_changed[warp_id]) {
+    __syncwarp();
+    warp_changed[warp_id] = false;
+    __syncwarp();
+    if(a.fdeduce(ded)) {
+      has_changed = true;
+      /** If something changed, we continue to iterate only if we did not reach bot. */
+      if(!a.is_bot()) {
+        warp_changed[warp_id] = true;
+      }
+    }
+    if(threadIdx.x % 32 == 0) {
+      warp_iterations[warp_id]++;
+    }
+    __syncwarp();
+  }
+  return has_changed;
+}
+
 #endif
 
 /** Add the ability to deactive functions in a fixpoint computation.

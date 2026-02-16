@@ -495,6 +495,21 @@ public:
     return true;
   }
 
+  template<class ExtractionStrategy = NonAtomicExtraction>
+  CUDA bool is_fextractable(const ExtractionStrategy& strategy = ExtractionStrategy(), const double epsilon = 1e-6) const {
+    if(is_bot()) {
+      return false;
+    }
+    // if constexpr(ExtractionStrategy::atoms) {
+    //   for(int i = 0; i < data.size(); ++i) {
+    //     if(data[i].ub().value() - data[i].lb().value() > epsilon) {
+    //       return false;
+    //     }
+    //   }
+    // }
+    return true;
+  }
+
 #ifdef __CUDACC__
   template<class ExtractionStrategy = NonAtomicExtraction>
   __device__ bool is_extractable(auto& group, const ExtractionStrategy& strategy = ExtractionStrategy()) const {
@@ -519,6 +534,30 @@ public:
       return true;
     }
   }
+
+  template<class ExtractionStrategy = NonAtomicExtraction>
+  __device__ bool is_fextractable(auto& group, const ExtractionStrategy& strategy = ExtractionStrategy(), const double epsilon = 1e-6) const {
+    if(is_bot()) {
+      return false;
+    }
+    if constexpr(ExtractionStrategy::atoms) {
+      __shared__ bool res;
+      if(group.thread_rank() == 0) {
+        res = true;
+      }
+      group.sync();
+      for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
+        if(data[i].ub().value() - data[i].lb().value() > epsilon) {
+          res = false;
+        }
+      }
+      group.sync();
+      return res;
+    }
+    else {
+      return true;
+    }
+  }
 #endif
 
   /** Whenever `this` is different from `bot`, we extract its data into `ua`.
@@ -528,6 +567,16 @@ public:
   CUDA void extract(VStore<U2, Alloc2>& ua) const {
     if((void*)&ua != (void*)this) {
       ua.data = data;
+      ua.is_at_bot.meet_bot();
+    }
+  }
+
+  template<class U2, class Alloc2>
+  CUDA void fextract(VStore<U2, Alloc2>& ua) const {
+    if((void*)&ua != (void*)this) {
+      for(int i = 0; i < data.size(); ++i) {
+        ua.data[i] = battery::add_down(static_cast<double>(data[i].lb().value()), battery::div_down(battery::sub_down(static_cast<double>(data[i].ub().value()), static_cast<double>(data[i].lb().value())), 2.0));
+      }
       ua.is_at_bot.meet_bot();
     }
   }

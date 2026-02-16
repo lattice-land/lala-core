@@ -132,9 +132,19 @@ public:
     }
     else {
       auto value = f.to_r();
-      double lb = std::get<0>(value);
-      name = "__CONSTANT_R" + (std::abs(lb) == 0.0 || std::abs(lb) == 1.0 ? std::string("") : std::string("_") + std::to_string(introduced_constants)) + (lb < 0 ? std::string("_m") : std::string("_")) + std::to_string(std::abs(lb));
-      realconstants[name] = value;
+      double lb = battery::get<0>(value);
+      bool is_existing = false;
+      for (const auto& it : realconstants) {
+        if (it.second == value) {
+          name = it.first;
+          is_existing = true;
+          break;
+        }
+      }
+      if (!is_existing) {
+        name = "__CONSTANT_R_" + std::to_string(introduced_constants) + (lb < 0 ? std::string("_m") : std::string("_")) + std::to_string(std::abs(lb));
+        realconstants[name] = value;
+      }
     }
 
     // if the constant is already a logical variable, we return it.
@@ -163,7 +173,7 @@ public:
 
   int value_of_real_constant(F x) {
     if (is_using_z) return value_of_constant(x);
-    return std::get<0>(realconstants[x.lv().data()]);
+    return battery::get<0>(realconstants[x.lv().data()]);
   }
 
 private:
@@ -431,7 +441,7 @@ private:
     else if (f.is(F::R)) {
       if (toplevel){
         auto fitv = f.to_r();
-        return std::get<0>(fitv) != 0.0 && std::get<1>(fitv) != 0.0 ? F::make_true() : F::make_false();
+        return battery::get<0>(fitv) != 0.0 && battery::get<1>(fitv) != 0.0 ? create_constant(1) : create_constant(0);
       }
       return ternarize_constant(f);
     }
