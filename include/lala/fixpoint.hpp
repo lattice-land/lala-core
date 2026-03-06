@@ -434,7 +434,7 @@ __device__ local::B warp_fixpoint(A& a, int i, int* warp_iterations) {
 }
 
 template <int TPB, class A> 
-__device__ local::B fwarp_fixpoint(A& a, int i, int* warp_iterations) {
+__device__ local::B fwarp_fixpoint(A& a, int i, int* warp_iterations, const double epsilon) {
   auto ded = a.load_deduce(i);
   local::B has_changed = false;
   __shared__ bool warp_changed[TPB/32];
@@ -444,7 +444,7 @@ __device__ local::B fwarp_fixpoint(A& a, int i, int* warp_iterations) {
     __syncwarp();
     warp_changed[warp_id] = false;
     __syncwarp();
-    if(a.fdeduce(ded)) {
+    if(a.fdeduce(ded, epsilon)) {
       has_changed = true;
       /** If something changed, we continue to iterate only if we did not reach bot. */
       if(!a.is_bot()) {

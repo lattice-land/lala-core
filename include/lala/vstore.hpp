@@ -383,6 +383,7 @@ public:
   CUDA bool embed(int x, const universe_type& dom) {
     assert(x < data.size());
     bool has_changed = data[x].meet(dom);
+    // if(has_changed) printf("%d\n", x);
     if(has_changed && data[x].is_bot()) {
       is_at_bot.join_top();
     }
@@ -500,13 +501,13 @@ public:
     if(is_bot()) {
       return false;
     }
-    // if constexpr(ExtractionStrategy::atoms) {
-    //   for(int i = 0; i < data.size(); ++i) {
-    //     if(data[i].ub().value() - data[i].lb().value() > epsilon) {
-    //       return false;
-    //     }
-    //   }
-    // }
+    if constexpr(strategy.atoms) {
+      for(int i = 0; i < data.size(); ++i) {
+        if(data[i].width().lb().value() > epsilon) {
+          return false;
+        }
+      }
+    }
     return true;
   }
 
@@ -547,7 +548,7 @@ public:
       }
       group.sync();
       for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
-        if(data[i].ub().value() - data[i].lb().value() > epsilon) {
+        if(data[i].width().lb().value() > epsilon) {
           res = false;
         }
       }
@@ -575,7 +576,7 @@ public:
   CUDA void fextract(VStore<U2, Alloc2>& ua) const {
     if((void*)&ua != (void*)this) {
       for(int i = 0; i < data.size(); ++i) {
-        ua.data[i] = battery::add_down(static_cast<double>(data[i].lb().value()), battery::div_down(battery::sub_down(static_cast<double>(data[i].ub().value()), static_cast<double>(data[i].lb().value())), 2.0));
+        ua.data[i] = battery::add_down(data[i].lb().value(), battery::div_down(battery::sub_down(data[i].ub().value(), data[i].lb().value()), 2.0));
       }
       ua.is_at_bot.meet_bot();
     }

@@ -441,8 +441,8 @@ public:
   template <class Seq>
   CUDA bool algebraic_simplify(Seq& tnf, SimplifierStats& stats) {
     using F = typename Seq::value_type;
-    constexpr universe_type ZERO(0,0);
-    constexpr universe_type ONE(1,1);
+    universe_type ZERO(universe_type::LB::pre_universe::zero(),universe_type::LB::pre_universe::zero());
+    universe_type ONE(universe_type::LB::pre_universe::one(),universe_type::LB::pre_universe::one());
     auto& vstore = *sub;
     size_t elim_cons = stats.eliminated_constraints_by_as();
     size_t elim_eq = stats.eliminated_equality_constraints();
