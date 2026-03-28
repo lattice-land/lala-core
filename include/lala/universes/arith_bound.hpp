@@ -184,11 +184,22 @@ public:
   /** Similar to \f$[\![\mathit{true}]\!]\f$ if `preserve_top` is true. */
   CUDA static constexpr local_type top() { return local_type(U::top()); }
   /** Initialize an upset universe to top. */
-  CUDA constexpr ArithBound(): val(U::top()) {}
+  // CUDA constexpr ArithBound(): val(U::top()) {}
+  CUDA constexpr ArithBound(): val() { memory_type::store(val, U::top()); }
   /** Similar to \f$[\![x \leq_A i]\!]\f$ for any name `x` where \f$ \leq_A \f$ is the lattice order. */
-  CUDA constexpr ArithBound(value_type x): val(x) {}
-  constexpr ArithBound(const this_type& other) = default;
-  constexpr ArithBound(this_type&& other) = default;
+  // CUDA constexpr ArithBound(value_type x): val(x) {}
+  CUDA constexpr ArithBound(value_type x): val() { 
+    memory_type::store(val, x); 
+  }
+  // constexpr ArithBound(const this_type& other) = default;
+  // constexpr ArithBound(this_type&& other) = default;
+  constexpr ArithBound(const this_type& other) {
+    memory_type::store(val, other.value());
+  }
+
+  constexpr ArithBound(this_type&& other) {
+    memory_type::store(val, other.value());
+  }
 
   template <class M>
   CUDA constexpr ArithBound(const this_type2<M>& other): ArithBound(other.value()) {}
@@ -201,7 +212,12 @@ public:
     return *this;
   }
 
-  constexpr this_type& operator=(const this_type& other) = default;
+  /** Same-type assignment: use memory_type::store so device atomics (e.g. float) update correctly. */
+  // CUDA constexpr this_type& operator=(const this_type& other) = default;
+  CUDA constexpr this_type& operator=(const this_type& other) {
+    memory_type::store(val, other.value());
+    return *this;
+  }
 
   CUDA constexpr value_type value() const { return memory_type::load(val); }
 

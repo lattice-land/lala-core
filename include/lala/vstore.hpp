@@ -575,8 +575,12 @@ public:
   template<class U2, class Alloc2>
   CUDA void fextract(VStore<U2, Alloc2>& ua) const {
     if((void*)&ua != (void*)this) {
+      using value_type = decltype(data[0].ub().value());
       for(int i = 0; i < data.size(); ++i) {
-        ua.data[i] = battery::add_down(data[i].lb().value(), battery::div_down(battery::sub_down(data[i].ub().value(), data[i].lb().value()), 2.0));
+        value_type width = battery::sub_down(data[i].ub().value(), data[i].lb().value());
+        value_type half = battery::div_down(width, value_type(2.0));
+        value_type mid = battery::add_down(data[i].lb().value(), half);
+        ua.data[i] = mid;
       }
       ua.is_at_bot.meet_bot();
     }

@@ -318,7 +318,7 @@ public:
       if(sub->template interpret_ask(formulas[i], env, ask, diagnostics))
 #endif
       {
-        if(sub->fask(ask)) {
+        if(sub->ask(ask)) {
           return eliminate(eliminated_formulas, i);
         }
       }
@@ -704,7 +704,7 @@ public:
   }
 
   template <class B, class Seq>
-  CUDA void feliminate_entailed_constraints(const B& b, const Seq& tnf, SimplifierStats& stats) {
+  CUDA void feliminate_entailed_constraints(const B& b, const Seq& tnf, SimplifierStats& stats, const double epsilon) {
     for(int i = 0; i < tnf.size(); ++i) {
       if(!is_tnf(tnf[i]) || eliminated_formulas.test(i)) {
         continue;
@@ -713,7 +713,7 @@ public:
       typename sub_type::template ask_type<allocator_type> ask_value;
       bool ask_success = b.interpret_ask(tnf[i], env, ask_value, diagnostics);
       assert(ask_success);
-      if(b.fask(ask_value)) {
+      if(b.is_fsolution(ask_value, epsilon)) {
         eliminate(eliminated_formulas, i, stats.eliminated_entailed_constraints());
       }
     }
