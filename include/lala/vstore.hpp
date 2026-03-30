@@ -7,6 +7,7 @@
 #include "universes/arith_bound.hpp"
 #include "abstract_deps.hpp"
 #include <optional>
+#include <type_traits>
 
 namespace lala {
 
@@ -567,22 +568,20 @@ public:
   template<class U2, class Alloc2>
   CUDA void extract(VStore<U2, Alloc2>& ua) const {
     if((void*)&ua != (void*)this) {
-      ua.data = data;
-      ua.is_at_bot.meet_bot();
-    }
-  }
-
-  template<class U2, class Alloc2>
-  CUDA void fextract(VStore<U2, Alloc2>& ua) const {
-    if((void*)&ua != (void*)this) {
       using value_type = decltype(data[0].ub().value());
-      for(int i = 0; i < data.size(); ++i) {
-        value_type width = battery::sub_down(data[i].ub().value(), data[i].lb().value());
-        value_type half = battery::div_down(width, value_type(2.0));
-        value_type mid = battery::add_down(data[i].lb().value(), half);
-        ua.data[i] = mid;
+      if constexpr(std::is_floating_point_v<value_type>) {
+        for(int i = 0; i < data.size(); ++i) {
+          value_type width = battery::sub_down(data[i].ub().value(), data[i].lb().value());
+          value_type half = battery::div_down(width, value_type(2.0));
+          value_type mid = battery::add_down(data[i].lb().value(), half);
+          ua.data[i] = mid;
+        }
+        ua.is_at_bot.meet_bot();
       }
-      ua.is_at_bot.meet_bot();
+      else {
+        ua.data = data;
+        ua.is_at_bot.meet_bot();
+      }
     }
   }
 
