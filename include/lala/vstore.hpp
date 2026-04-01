@@ -483,29 +483,26 @@ public:
    * If the strategy is `atoms`, we check the domains are singleton.
    */
   template<class ExtractionStrategy = NonAtomicExtraction>
-  CUDA bool is_extractable(const ExtractionStrategy& strategy = ExtractionStrategy()) const {
+  CUDA bool is_extractable(const ExtractionStrategy& strategy = ExtractionStrategy(), const double epsilon = 1e-6) const {
     if(is_bot()) {
       return false;
     }
-    if constexpr(ExtractionStrategy::atoms) {
-      for(int i = 0; i < data.size(); ++i) {
-        if(data[i].lb().value() != data[i].ub().value()) {
-          return false;
+    using value_type = decltype(data[0].ub().value());
+    if constexpr(std::is_floating_point_v<value_type>) {
+      if constexpr(strategy.atoms) {
+        for(int i = 0; i < data.size(); ++i) {
+          if(data[i].width().lb().value() > epsilon) {
+            return false;
+          }
         }
       }
     }
-    return true;
-  }
-
-  template<class ExtractionStrategy = NonAtomicExtraction>
-  CUDA bool is_fextractable(const ExtractionStrategy& strategy = ExtractionStrategy(), const double epsilon = 1e-6) const {
-    if(is_bot()) {
-      return false;
-    }
-    if constexpr(strategy.atoms) {
-      for(int i = 0; i < data.size(); ++i) {
-        if(data[i].width().lb().value() > epsilon) {
-          return false;
+    else {
+      if constexpr(ExtractionStrategy::atoms) {
+        for(int i = 0; i < data.size(); ++i) {
+          if(data[i].lb().value() != data[i].ub().value()) {
+            return false;
+          }
         }
       }
     }
@@ -514,7 +511,7 @@ public:
 
 #ifdef __CUDACC__
   template<class ExtractionStrategy = NonAtomicExtraction>
-  __device__ bool is_extractable(auto& group, const ExtractionStrategy& strategy = ExtractionStrategy()) const {
+  __device__ bool is_extractable(auto& group, const ExtractionStrategy& strategy = ExtractionStrategy(), const double epsilon = 1e-6) const {
     if(is_bot()) {
       return false;
     }
@@ -524,33 +521,19 @@ public:
         res = true;
       }
       group.sync();
-      for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
-        if(data[i].lb().value() != data[i].ub().value()) {
-          res = false;
+      using value_type = decltype(data[0].ub().value());
+      if constexpr(std::is_floating_point_v<value_type>) {
+        for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
+          if(data[i].width().lb().value() > epsilon) {
+            res = false;
+          }
         }
       }
-      group.sync();
-      return res;
-    }
-    else {
-      return true;
-    }
-  }
-
-  template<class ExtractionStrategy = NonAtomicExtraction>
-  __device__ bool is_fextractable(auto& group, const ExtractionStrategy& strategy = ExtractionStrategy(), const double epsilon = 1e-6) const {
-    if(is_bot()) {
-      return false;
-    }
-    if constexpr(ExtractionStrategy::atoms) {
-      __shared__ bool res;
-      if(group.thread_rank() == 0) {
-        res = true;
-      }
-      group.sync();
-      for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
-        if(data[i].width().lb().value() > epsilon) {
-          res = false;
+      else {
+        for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
+          if(data[i].lb().value() != data[i].ub().value()) {
+            res = false;
+          }
         }
       }
       group.sync();
