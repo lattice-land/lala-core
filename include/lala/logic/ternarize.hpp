@@ -328,13 +328,13 @@ private:
     if(!almost_ternary) {
     /** We don't need to create t0 for these formulas at toplevel. */
       if(toplevel && (f.sig() == NEQ || f.sig() == XOR || f.sig() == IMPLY || f.sig() == GT || f.sig() == LT)) {}
-      else if(is_logical(f.sig()) || is_predicate(f.sig())
+      else if(is_using_z && (is_logical(f.sig()) || is_predicate(f.sig()))
         || ((f.sig() == MIN || f.sig() == MAX) && is_sort(t1, Sort<allocator_type>(Sort<allocator_type>::Bool))
         && is_sort(t2, Sort<allocator_type>(Sort<allocator_type>::Bool))))
       {
         t0 = toplevel ? ternarize_constant(create_constant(1)) : introduce_bool_var();
       } 
-      else if (!is_sort(t1, Sort<allocator_type>(Sort<allocator_type>::Real)) && !is_sort(t2, Sort<allocator_type>(Sort<allocator_type>::Real))) {
+      else if (is_using_z && !is_sort(t1, Sort<allocator_type>(Sort<allocator_type>::Real)) && !is_sort(t2, Sort<allocator_type>(Sort<allocator_type>::Real))) {
         t0 = toplevel ? ternarize_constant(create_constant(1)) : introduce_int_var();
       }
       else { 
