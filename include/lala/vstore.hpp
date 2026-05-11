@@ -491,7 +491,7 @@ public:
     if constexpr(std::is_floating_point_v<value_type>) {
       if constexpr(strategy.atoms) {
         for(int i = 0; i < data.size(); ++i) {
-          if(battery::sub_down(data[i].ub().value(), data[i].lb().value()) > epsilon) {
+          if(battery::sub_up(data[i].ub().value(), data[i].lb().value()) > epsilon) {
             return false;
           }
         }
