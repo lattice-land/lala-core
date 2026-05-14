@@ -483,7 +483,7 @@ public:
    * If the strategy is `atoms`, we check the domains are singleton.
    */
   template<class ExtractionStrategy = NonAtomicExtraction>
-  CUDA bool is_extractable(const ExtractionStrategy& strategy = ExtractionStrategy(), const double epsilon = 1e-6) const {
+  CUDA bool is_extractable(const ExtractionStrategy& strategy = ExtractionStrategy(), const float epsilon = 1e-6) const {
     if(is_bot()) {
       return false;
     }
@@ -511,7 +511,7 @@ public:
 
 #ifdef __CUDACC__
   template<class ExtractionStrategy = NonAtomicExtraction>
-  __device__ bool is_extractable(auto& group, const ExtractionStrategy& strategy = ExtractionStrategy(), const double epsilon = 1e-6) const {
+  __device__ bool is_extractable(auto& group, const ExtractionStrategy& strategy = ExtractionStrategy(), const float epsilon = 1e-6) const {
     if(is_bot()) {
       return false;
     }
