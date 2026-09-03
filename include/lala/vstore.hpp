@@ -7,6 +7,7 @@
 #include "universes/arith_bound.hpp"
 #include "abstract_deps.hpp"
 #include <optional>
+#include <type_traits>
 
 namespace lala {
 
@@ -383,6 +384,7 @@ public:
   CUDA bool embed(int x, const universe_type& dom) {
     assert(x < data.size());
     bool has_changed = data[x].meet(dom);
+    // if(has_changed) printf("%d\n", x);
     if(has_changed && data[x].is_bot()) {
       is_at_bot.join_top();
     }
@@ -527,8 +529,17 @@ public:
   template<class U2, class Alloc2>
   CUDA void extract(VStore<U2, Alloc2>& ua) const {
     if((void*)&ua != (void*)this) {
-      ua.data = data;
-      ua.is_at_bot.meet_bot();
+      using value_type = decltype(data[0].ub().value());
+      if constexpr(std::is_floating_point_v<value_type>) {
+        for(int i = 0; i < data.size(); ++i) {
+          ua.data[i] = battery::midpoint(data[i].lb().value(), data[i].ub().value());
+        }
+        ua.is_at_bot.meet_bot();
+      }
+      else {
+        ua.data = data;
+        ua.is_at_bot.meet_bot();
+      }
     }
   }
 

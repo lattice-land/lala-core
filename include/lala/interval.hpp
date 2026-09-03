@@ -85,6 +85,9 @@ public:
   CUDA constexpr static local_type top() { return Interval(LB::top(), UB::top()); }
   CUDA constexpr local::B is_bot() const {
     // The conversion to UB2 is possible because we have verified that lb() is different from bot and top.
+    // if (UB2(lb().value()) > ub()) {
+    //   printf("lb().value() = %.20lf, ub() = %.20lf\n", lb().value(), ub());
+    // }
     return l.is_bot() || u.is_bot() || (!is_top() && UB2(lb().value()) > ub());
   }
   CUDA constexpr local::B is_top() const { return l.is_top() && u.is_top(); }
