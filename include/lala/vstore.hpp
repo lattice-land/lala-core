@@ -531,12 +531,8 @@ public:
     if((void*)&ua != (void*)this) {
       using value_type = decltype(data[0].ub().value());
       if constexpr(std::is_floating_point_v<value_type>) {
-        printf("extract floating point\n");
         for(int i = 0; i < data.size(); ++i) {
-          value_type width = battery::sub_down(data[i].ub().value(), data[i].lb().value());
-          value_type half = battery::div_down(width, value_type{2.0});
-          value_type mid = battery::add_down(data[i].lb().value(), half);
-          ua.data[i] = mid;
+          ua.data[i] = battery::midpoint(data[i].lb().value(), data[i].ub().value());
         }
         ua.is_at_bot.meet_bot();
       }

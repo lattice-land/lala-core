@@ -236,6 +236,25 @@ private:
       }
       /** NOT x ~~> ternarize(x = 0) ~~> t = (x = 0) */
       case NOT: return ternarize(F::make_binary(x, EQ, create_constant(0)), toplevel);
+      /** +(x) ~~> x, *(x) ~~> x, /\\(x) ~~> x, \\/(x) ~~> x: a "sum"/
+       * "product"/conjunction/disjunction of exactly one term is just that
+       * term (e.g. a Gemm/affine layer with a single weighted term and no
+       * bias, or a VNNLIB `(and ...)`/`(or ...)` clause with a single
+       * argument). `x` above is already the ternarized form of the sole
+       * operand; if `f` itself is a top-level fact, we still need to
+       * explicitly ASSERT `x` (mirroring `NEG`/`ABS` above) rather than just
+       * returning it, since for `AND`/`OR` `x` is a boolean-reified value
+       * that would otherwise never actually get pushed as a constraint --
+       * silently dropping the atom instead of asserting it. */
+      case ADD:
+      case MUL:
+      case AND:
+      case OR: {
+        if(toplevel) {
+          return ternarize(F::make_binary(x, NEQ, create_constant(0)), true);
+        }
+        return x;
+      }
       case MINIMIZE:
       case MAXIMIZE: {
         conjunction.push_back(F::make_unary(f.sig(), x));
@@ -274,8 +293,11 @@ private:
    * If `t` is an integer, the semantics is that `t` is true whenever `t != 0`, and not only when `t == 1`.
    */
   F booleanize(const F& t, Sig sig) {
-    if(is_logical(sig) && !is_sort(t, Sort<allocator_type>(Sort<allocator_type>::Bool))) {
-      return ternarize(F::make_binary(t, NEQ, create_constant(0)));
+    // if(is_logical(sig) && !is_sort(t, Sort<allocator_type>(Sort<allocator_type>::Bool))) {
+    //   return ternarize(F::make_binary(t, NEQ, create_constant(0)));
+    // }
+    if(is_logical(sig) && !is_sort(t, Sort<allocator_type>(Sort<allocator_type>::Bool))){
+      return ternarize(F::make_binary(t, EQ, create_constant(1)));
     }
     return t;
   }
@@ -320,6 +342,47 @@ private:
       f = f.seq(right);
       toplevel = false;
       almost_ternary = true;
+    }
+    /** Same idea as just above, but for the case where the non-variable side
+     * is a genuinely N-ARY (3+ operand) sum or product, e.g. the dot-product
+     * `w1*x1 + w2*x2 + ... + bias` produced by an affine neural network
+     * layer -- which `f.seq(...).is_binary()` above does NOT match (it
+     * requires EXACTLY 2 operands). Without this case, such an equation
+     * falls through to the generic branch below, which ternarizes the sum
+     * independently into a completely FRESH variable and then links it back
+     * to the LHS via a separate `EQ` bytecode (e.g. `X_1_2 = __VAR_R_7`
+     * where `__VAR_R_7` is otherwise unused). That alias is not wrong, but
+     * it is unnecessary, and PIR's propagators are bidirectional
+     * (Gauss-Seidel): chaining several such aliases together (one per
+     * layer) turns what should be an immediate forward derivation into an
+     * extra round-trip per alias, which can make the whole network's
+     * fixpoint converge only 1-2 ULP per pass instead of immediately --
+     * confirmed to blow up to well over a million fixpoint iterations on a
+     * tiny 2-layer network. Using the LHS variable directly as the target of
+     * the sum's OUTERMOST combination step (mirroring exactly what the
+     * `is_binary()` case above already does for a 2-operand RHS) avoids
+     * introducing that alias. Only the outermost step benefits: the n-ary
+     * decomposition's own intermediate partial sums still need their own
+     * fresh variables (see `binarize_middle`) -- that part of ternarization
+     * is unavoidable and unrelated to this alias. Restricted to ADD/MUL
+     * (not e.g. AND/OR/EQUIV, which `push_ternary` cannot take directly --
+     * see the `case AND: case MIN: ...` mapping in the switch below) since
+     * those are the operators actually produced by affine NN layers. */
+    else if((((f.seq(0).is_variable() || f.seq(0).is_constant())
+                && f.seq(1).is(F::Seq) && f.seq(1).seq().size() > 2
+                && (f.seq(1).sig() == ADD || f.seq(1).sig() == MUL))
+           || ((f.seq(1).is_variable() || f.seq(1).is_constant())
+                && f.seq(0).is(F::Seq) && f.seq(0).seq().size() > 2
+                && (f.seq(0).sig() == ADD || f.seq(0).sig() == MUL)))
+       && (f.sig() == EQUIV || f.sig() == EQ))
+    {
+      int left = f.seq(0).is(F::Seq) && f.seq(0).seq().size() > 2
+        && (f.seq(0).sig() == ADD || f.seq(0).sig() == MUL);
+      int right = 1 - left;
+      F target = ternarize(f.seq(left));
+      const F& sum = f.seq(right);
+      auto middle = binarize_middle(sum);
+      return push_ternary(target, middle.first, sum.sig(), middle.second);
     }
     t1 = ternarize(f.seq(0));
     t1 = booleanize(t1, f.sig());
