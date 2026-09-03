@@ -435,7 +435,7 @@ __device__ local::B warp_fixpoint(A& a, int i, int* warp_iterations) {
 
 #endif
 
-/** Add the ability to deactive functions in a fixpoint computation.
+/** Add the ability to deactivate functions in a fixpoint computation.
  * Given a function `g`, we select only the functions \f$ f_{i_1} \| \ldots \| f_{i_k} \f$ for which \f$ g(i_k) \f$ is `true`, and compute subsequent fixpoint without them.
  */
 template <class FixpointEngine, class Allocator, int TPB>

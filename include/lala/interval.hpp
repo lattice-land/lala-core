@@ -12,7 +12,7 @@ template <class U>
 class Interval;
 
 /** An interval is a Cartesian product of a lower and upper bounds, themselves represented as lattices.
-    One difference, is that the \f$ \top \f$ can be represented by multiple interval elements, whenever \f$ l > u \f$, therefore some operations are different than on the Cartesian product, e.g., \f$ [3..2] \equiv [4..1] \f$ in the interval lattice. */
+    One difference, is that the \f$ \bot \f$ can be represented by multiple interval elements, whenever \f$ l > u \f$, therefore some operations are different than on the Cartesian product, e.g., \f$ [3..2] \equiv [4..1] \f$ in the interval lattice. */
 template <class U>
 class Interval {
 public:
@@ -273,9 +273,6 @@ public:
     if(logical_lb.is(F::R)) {
       F logical_ub = ub().template deinterpret<F>();
       battery::get<1>(logical_lb.r()) = battery::get<0>(logical_ub.r());
-    }
-    else {
-      assert(lb().value() == ub().value());
     }
     return logical_lb;
   }

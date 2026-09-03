@@ -698,7 +698,8 @@ public:
         eliminated_variables.set(find(var_of(tnf[i].seq(1).seq(1)).vid()), false);
       }
     }
-    stats.eliminated_useless_variables() = eliminated_variables.count();
+    // The bitset can contain more 1s than the number of variables, hence we adjust the value using `vars()`.
+    stats.eliminated_useless_variables() = eliminated_variables.count() - (eliminated_variables.size() - vars());
     // To follow the other statistics, we only count the newly eliminated variables.
     for(int i = 0; i < stats.eliminated_useless_variables_.size() - 1; ++i) {
       stats.eliminated_useless_variables() -= stats.eliminated_useless_variables_[i];
