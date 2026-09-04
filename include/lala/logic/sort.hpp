@@ -81,7 +81,7 @@ struct Sort {
   template <class U>
   CUDA NI void print_value(const U& u) const {
     if(is_bool()) {
-      if(u <= U::eq_zero()) {
+      if(u.is_singleton(typename U::value_type{0})) {
         printf("false");
       }
       else {

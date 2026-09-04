@@ -6,10 +6,24 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include "lala/logic/logic.hpp"
-#include "lala/universes/arith_bound.hpp"
 
 using namespace lala;
 using namespace battery;
+
+/** Apply the abstract projection `fun` and return the result, instead of meeting it in place. */
+template <class A, class R = A>
+R project_fun(Sig fun, const A& a, const A& b) {
+  R r{};
+  r.project(fun, a, b);
+  return r;
+}
+
+template <class A, class R = A>
+R project_fun(Sig fun, const A& a) {
+  R r{};
+  r.project(fun, a);
+  return r;
+}
 
 using F = TFormula<standard_allocator>;
 
@@ -42,7 +56,7 @@ void bot_top_test(const A& mid) {
 
 template <class A>
 void join_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  EXPECT_EQ(fjoin(a, b), expect)  << "join(" << a << ", " << b << ")";;
+  EXPECT_EQ(join(a, b), expect)  << "join(" << a << ", " << b << ")";;
   if(test_tell) {
     A c(a);
     EXPECT_EQ(c.join(b), has_changed_expect) << a << ".join(" << b << ") == " << expect;
@@ -52,7 +66,7 @@ void join_one_test(const A& a, const A& b, const A& expect, bool has_changed_exp
 
 template <class A>
 void meet_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  EXPECT_EQ(fmeet(a, b), expect) << "meet(" << a << ", " << b << ")";
+  EXPECT_EQ(meet(a, b), expect) << "meet(" << a << ", " << b << ")";
   if(test_tell) {
     A c(a);
     EXPECT_EQ(c.meet(b), has_changed_expect) << c << ".meet(" << b << ")";

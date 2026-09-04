@@ -3,7 +3,10 @@
 #ifndef LALA_CORE_NBITSET_HPP
 #define LALA_CORE_NBITSET_HPP
 
-#include "arith_bound.hpp"
+#include "../logic/logic.hpp"
+#include "../b.hpp"
+#include "lala/lb.hpp"
+#include "lala/ub.hpp"
 #include "battery/bitset.hpp"
 
 namespace lala {
@@ -24,8 +27,8 @@ public:
   template <class M> using this_type2 = NBitset<N, M, T>;
   using local_type = this_type2<battery::local_memory>;
 
-  using LB = local::ZLB;
-  using UB = local::ZUB;
+  using LB = ::lala::LB<int>;
+  using UB = ::lala::UB<int>;
   using value_type = typename LB::value_type;
 
   template <size_t N2, class Mem2, class T2>
@@ -122,17 +125,16 @@ public:
    * out-of-range flags). Values in `[0, capacity()-3]` are represented exactly. */
   CUDA constexpr static int capacity() { return N; }
 
-public:
   CUDA constexpr LB lb() const {
     value_type l = bits.countr_zero();
     return l == 0 ? LB::top() :
-      (l == bits.size() ? LB::bot() : LB::geq_k(l-1));
+      (l == bits.size() ? LB::bot() : LB(l-1));
   }
 
   CUDA constexpr UB ub() const {
     value_type r = bits.countl_zero();
     return r == 0 ? UB::top() :
-      (r == bits.size() ? UB::bot() : UB::leq_k(bits.size() - r - 2));
+      (r == bits.size() ? UB::bot() : UB(bits.size() - r - 2));
   }
 
   CUDA constexpr local_type complement() const {
@@ -292,13 +294,13 @@ public:
 // Lattice operations
 
 template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> fjoin(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
+CUDA constexpr NBitset<N, battery::local_memory, T> join(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
   return NBitset<N, battery::local_memory, T>(a.value() | b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> fmeet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
+CUDA constexpr NBitset<N, battery::local_memory, T> meet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
   return NBitset<N, battery::local_memory, T>(a.value() & b.value());
 }

@@ -23,28 +23,34 @@ option(LOCAL_DEPS "LOCAL_DEPS" OFF)
 option(LALA_CORE_BUILD_TESTS "LALA_CORE_BUILD_TESTS" OFF)
 option(LALA_CORE_BUILD_DOC "LALA_CORE_BUILD_DOC" OFF)
 
-# Cuda-battery dependency
+# Dependencies
 
 include(FetchContent)
 
 if(LOCAL_DEPS)
   FetchContent_Declare(cuda_battery SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cuda-battery/")
+  FetchContent_Declare(lala_interval SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-interval/")
 else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
     GIT_TAG        v1.5.8
   )
+  FetchContent_Declare(
+    lala_interval
+    GIT_REPOSITORY "https://github.com/lattice-land/lala-interval.git"
+    GIT_TAG        rocq-fdiv-proofs
+  )
 endif()
 
-FetchContent_MakeAvailable(cuda_battery)
+FetchContent_MakeAvailable(cuda_battery lala_interval)
 
 # Preparing the library
 
 if(NOT LALA_CORE_BUILD_TESTS) # For tests, lala_core will be built through lala_parsing (which depends on lala_core).
   add_library(lala_core INTERFACE)
   target_include_directories(lala_core INTERFACE include)
-  target_link_libraries(lala_core INTERFACE cuda_battery)
+  target_link_libraries(lala_core INTERFACE cuda_battery lala_interval)
   target_compile_options(lala_core INTERFACE
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-diag-suppress 20011,20014>" # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
     "$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/utf-8>"

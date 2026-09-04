@@ -6,7 +6,7 @@
 #include "battery/memory.hpp"
 #include "battery/allocator.hpp"
 #include "lala/fixpoint.hpp"
-#include "lala/universes/arith_bound.hpp"
+#include "lala/ub.hpp"
 
 using namespace battery;
 using namespace lala;
@@ -17,13 +17,13 @@ using cpu_gpu_vec_ptr = shared_ptr<cpu_gpu_vec, managed_allocator>;
 template <class AtomicMem>
 class Minimum {
   cpu_gpu_vec* data;
-  ZUB<int, AtomicMem> result;
+  UB<int, AtomicMem> result;
 
 public:
   CUDA Minimum(cpu_gpu_vec* data) : data(data), result() {}
   CUDA int num_deductions() { return data->size(); }
   CUDA bool deduce(size_t i) {
-    return result.meet(local::ZUB((*data)[i]));
+    return result.meet(UB<int>((*data)[i]));
   }
   CUDA int extract() {
     return result;
