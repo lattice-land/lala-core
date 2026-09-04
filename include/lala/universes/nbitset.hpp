@@ -111,8 +111,7 @@ public:
   CUDA constexpr const bitset_type& value() const { return bits; }
 
   /** The two extremal bits of the bitset stand for "some value below the representable range" and
-   * "some value above it". Joining them is the only write an interpretation needs to perform on
-   * the raw bits, so we expose it as an operation rather than exposing the bitset itself. */
+   * "some value above it". */
   CUDA constexpr this_type& join_out_of_range() {
     bits.set(0, true);
     bits.set(bits.size() - 1, true);
@@ -123,15 +122,7 @@ public:
    * out-of-range flags). Values in `[0, capacity()-3]` are represented exactly. */
   CUDA constexpr static int capacity() { return N; }
 
-private:
-
-
-
-
 public:
-
-
-
   CUDA constexpr LB lb() const {
     value_type l = bits.countr_zero();
     return l == 0 ? LB::top() :
@@ -201,8 +192,6 @@ public:
     ua.bits = bits;
     return true;
   }
-
-
 
   CUDA NI void print() const {
     printf("{");

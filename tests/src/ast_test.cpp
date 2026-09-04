@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 #include "battery/allocator.hpp"
 #include "lala/logic/logic.hpp"
-#include "lala/flatzinc_parser.hpp"
 
 #include <optional>
 

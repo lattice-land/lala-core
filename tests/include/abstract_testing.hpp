@@ -8,11 +8,6 @@
 #include "lala/logic/logic.hpp"
 #include "lala/universes/arith_bound.hpp"
 
-/** Purely lattice-theoretic test helpers: order, join, meet and the arithmetic projections.
- * They do not mention logical formulas, since an abstract universe or domain does not interpret
- * them anymore. The interpretation helpers live in Turbo (`turbo/tests/include/abstract_testing.hpp`),
- * next to the interpretation itself. */
-
 using namespace lala;
 using namespace battery;
 

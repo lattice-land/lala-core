@@ -33,3 +33,5 @@
 
 build
 tests/build
+# Editor configuration
+.vscode/

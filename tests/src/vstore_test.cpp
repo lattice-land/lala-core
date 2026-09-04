@@ -10,9 +10,7 @@ using Itv = Interval<zlb>;
 using ZStore = VStore<zlb, standard_allocator>;
 using IStore = VStore<Itv, standard_allocator>;
 
-/** Build a store of `doms.size()` variables directly, without going through the interpretation of
- * a logical formula: these tests are about the lattice structure of `VStore`, not about how a
- * formula is interpreted in it (that is tested in Turbo). */
+/** Build a store of `doms.size()` variables. */
 template <class Store, class U>
 Store make_store(std::initializer_list<U> doms) {
   Store store(0, static_cast<int>(doms.size()), standard_allocator{});
