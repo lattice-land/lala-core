@@ -3,7 +3,6 @@
 #ifndef LALA_CORE_INTERVAL_HPP
 #define LALA_CORE_INTERVAL_HPP
 
-#include "cartesian_product.hpp"
 #include "universes/flat_universe.hpp"
 
 namespace lala {
@@ -108,80 +107,8 @@ private:
   }
 
 public:
-  /** Support the same language than the Cartesian product, and more:
-   *    * `var x:B` when the underlying universe is arithmetic and preserve concrete covers.
-   * Therefore, the element `k` is always in \f$ \gamma(lb) \cap \gamma(ub) \f$. */
-  template<bool diagnose = false, class F, class Env, class U2>
-  CUDA NI static bool interpret_tell(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
-    if constexpr(LB::preserve_concrete_covers && LB::is_arithmetic) {
-      if(f.is(F::E)) {
-        auto sort = f.sort();
-        if(sort.has_value() && sort->is_bool()) {
-          k.meet(local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one())));
-          return true;
-        }
-      }
-    }
-    bool r;
-    CALL_WITH_ERROR_CONTEXT(
-      "No component of this interval can interpret this formula.",
-        (r = LB::template interpret_tell<diagnose>(f, env, k.lb(), diagnostics),
-         r |= UB::template interpret_tell<diagnose>(f, env, k.ub(), diagnostics),
-         r));
-  }
 
-  /** Support the same language than the Cartesian product, and more:
-   *    * `x != k` is under-approximated by interpreting `x != k` in the lower bound.
-   *    * `x == k` is interpreted by over-approximating `x == k` in both bounds and then verifying both bounds are the same.
-   *    * `x in {[l..u]} is interpreted by under-approximating `x >= l` and `x <= u`. */
-  template<bool diagnose = false, class F, class Env, class U2>
-  CUDA NI static bool interpret_ask(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
-    local_type itv = local_type::top();
-    if(f.is_binary() && f.sig() == NEQ) {
-      return LB::template interpret_ask<diagnose>(f, env, k.lb(), diagnostics);
-    }
-    else if(f.is_binary() && f.sig() == EQ) {
-      CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
-        "When interpreting equality, the underlying bounds LB and UB failed to agree on the same value.",
-        (LB::template interpret_tell<diagnose>(f, env, itv.lb(), diagnostics) &&
-         UB::template interpret_tell<diagnose>(f, env, itv.ub(), diagnostics) &&
-         itv.lb() == itv.ub()),
-        (k.meet(itv)));
-    }
-    else if(f.is_binary() && f.sig() == IN && f.seq(0).is_variable()
-     && f.seq(1).is(F::S) && f.seq(1).s().size() == 1)
-    {
-      const auto& lb = battery::get<0>(f.seq(1).s()[0]);
-      const auto& ub = battery::get<1>(f.seq(1).s()[0]);
-      if(lb == ub) {
-        CALL_WITH_ERROR_CONTEXT(
-          "Failed to interpret the decomposition of set membership `x in {[v..v]}` into equality `x == v`.",
-          (interpret_ask<diagnose>(F::make_binary(f.seq(0), EQ, lb), env, k, diagnostics)));
-      }
-      CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
-        "Failed to interpret the decomposition of set membership `x in {[l..u]}` into `x >= l /\\ x <= u`.",
-        (LB::template interpret_ask<diagnose>(F::make_binary(f.seq(0), geq_of_constant(lb), lb), env, itv.lb(), diagnostics) &&
-         UB::template interpret_ask<diagnose>(F::make_binary(f.seq(0), leq_of_constant(ub), ub), env, itv.ub(), diagnostics)),
-        (k.meet(itv))
-      );
-    }
-    bool r;
-    CALL_WITH_ERROR_CONTEXT(
-      "No component of this interval can interpret this formula.",
-        (r = LB::template interpret_ask<diagnose>(f, env, k.lb(), diagnostics),
-         r |= UB::template interpret_ask<diagnose>(f, env, k.ub(), diagnostics),
-         r));
-  }
 
-  template<IKind kind, bool diagnose = false, class F, class Env, class U2>
-  CUDA NI static bool interpret(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
-    if constexpr(kind == IKind::ASK) {
-      return interpret_ask<diagnose>(f, env, k, diagnostics);
-    }
-    else {
-      return interpret_tell<diagnose>(f, env, k, diagnostics);
-    }
-  }
 
   /** You must use the lattice interface (join/meet methods) to modify the lower and upper bounds, if you use assignment you violate the PCCP model. */
   CUDA INLINE constexpr LB& lb() { return l; }
@@ -239,43 +166,7 @@ public:
     return l.extract(ua.l) && u.extract(ua.u);
   }
 
-  template<class Env, class Allocator = typename Env::allocator_type>
-  CUDA TFormula<Allocator> deinterpret(AVar x, const Env& env, const Allocator& allocator = Allocator()) const {
-    using F = TFormula<Allocator>;
-    if(is_bot()) {
-      return F::make_false();
-    }
-    if(is_top()) {
-      return F::make_true();
-    }
-    if(lb().is_top()) {
-      return ub().deinterpret(x, env, allocator);
-    }
-    else if(ub().is_top()) {
-      return lb().deinterpret(x, env, allocator);
-    }
-    F logical_lb = lb().template deinterpret<F>();
-    F logical_ub = ub().template deinterpret<F>();
-    logic_set<F> logical_set(1, allocator);
-    logical_set[0] = battery::make_tuple(std::move(logical_lb), std::move(logical_ub));
-    F set = F::make_set(std::move(logical_set));
-    F var = F::make_avar(x);
-    return F::make_binary(var, IN, std::move(set), UNTYPED, allocator);
-  }
 
-  /** Deinterpret the current value to a logical constant.
-   * The lower bound is deinterpreted, and it is up to the user to check that interval is a singleton.
-   * A special case is made for real numbers where the both bounds are used, since the logical interpretation uses interval.
-  */
-  template<class F>
-  CUDA NI F deinterpret() const {
-    F logical_lb = lb().template deinterpret<F>();
-    if(logical_lb.is(F::R)) {
-      F logical_ub = ub().template deinterpret<F>();
-      battery::get<1>(logical_lb.r()) = battery::get<0>(logical_ub.r());
-    }
-    return logical_lb;
-  }
 
   CUDA NI void print() const {
     printf("[");

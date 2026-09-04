@@ -38,25 +38,9 @@ struct PreFLB {
   CUDA constexpr static value_type zero() { return 0.0; }
   CUDA constexpr static value_type one() { return 1.0; }
 
-  template <bool diagnose, class F>
-  CUDA static bool interpret_tell(const F &f, value_type& tell, IDiagnostics& diagnostics) {
-    return dual_type::template interpret_ask<diagnose>(f, tell, diagnostics);
-  }
 
-  template <bool diagnose, class F>
-  CUDA static bool interpret_ask(const F &f, value_type& ask, IDiagnostics& diagnostics) {
-    return dual_type::template interpret_tell<diagnose>(f, ask, diagnostics);
-  }
 
-  template<bool diagnose, class F>
-  CUDA static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    return dual_type::template interpret_type<diagnose, F, true>(f, k, diagnostics);
-  }
 
-  template<class F>
-  CUDA static F deinterpret(const value_type& v) {
-    return dual_type::template deinterpret<F>(v);
-  }
 
   CUDA static constexpr Sig sig_order() { return GEQ; }
   CUDA static constexpr Sig sig_strict_order() { return GT; }

@@ -1,3 +1,0 @@
-var int: x;
-constraint int_ge(x,0);
-constraint int_le(x,10);

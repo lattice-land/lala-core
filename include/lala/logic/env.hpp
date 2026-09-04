@@ -1,5 +1,10 @@
 // Copyright 2021 Pierre Talbot
 
+/** The environment mapping logical variable names to abstract variables (`AVar`).
+ * It holds no logical formula: interpreting a formula into an environment is done by the
+ * interpretation layer (`turbo/include/interpretation.hpp`), which is why this class has no
+ * `interpret` member and no dependency on `IDiagnostics`. */
+
 #ifndef LALA_CORE_ENV_HPP
 #define LALA_CORE_ENV_HPP
 
@@ -9,7 +14,7 @@
 #include "battery/tuple.hpp"
 #include "battery/variant.hpp"
 #include "ast.hpp"
-#include "diagnostics.hpp"
+#include "algorithm.hpp"
 
 #include <string>
 #include <unordered_map>
@@ -289,7 +294,6 @@ public:
     return static_cast<AType>(avar2lvar.size()) - 1;
   }
 
-private:
   CUDA NI void extends_abstract_doms(AType aty) {
     assert(aty != UNTYPED);
     while(aty >= avar2lvar.size()) {
@@ -318,55 +322,6 @@ private:
     }
     avar2lvar[aty].push_back(*lvar_idx);
     return avar;
-  }
-
-  // Variable redeclaration does not lead to an error, instead the abstract type of the variable is added to the abstract variables list (`avars`) of the variable.
-  template <bool diagnose = false, class F>
-  CUDA NI bool interpret_existential(const F& f, AVar& avar, IDiagnostics& diagnostics) {
-    const auto& vname = battery::get<0>(f.exists());
-    if(f.type() == UNTYPED) {
-      RETURN_INTERPRETATION_ERROR("Untyped abstract type: variable `" + vname + "` has no abstract type.");
-    }
-    auto var = variable_of(vname);
-    if(var.has_value()) {
-      if(var->get().sort != battery::get<1>(f.exists())) {
-        RETURN_INTERPRETATION_ERROR("Invalid redeclaration with different sort: variable `" + vname + "` has already been declared and the sort does not coincide.");
-      }
-    }
-    avar = extends_vars(f.type(), vname, battery::get<1>(f.exists()));
-    return true;
-  }
-
-  template <bool diagnose = false, class F>
-  CUDA NI bool interpret_lv(const F& f, AVar& avar, IDiagnostics& diagnostics) {
-    const auto& vname = f.lv();
-    auto var = variable_of(vname);
-    if(var.has_value()) {
-      if(f.type() != UNTYPED) {
-        auto avarf = var->get().avar_of(f.type());
-        if(avarf.has_value()) {
-          avar = AVar(*avarf);
-          return true;
-        }
-        else {
-          RETURN_INTERPRETATION_ERROR("Variable `" + vname + "` has not been declared in the abstract domain `" + fstring<F>::from_int(f.type()) + "`.");
-        }
-      }
-      else {
-        // We take the first abstract variable as a representative. Need more thought on this, but currently we need it for the simplifier, because each variable is typed in both PC and Simplifier, and this interpretation fails.
-
-        // if(var->get().avars.size() == 1) {
-          avar = AVar(var->get().avars[0]);
-          return true;
-        // }
-        // else {
-        //   RETURN_INTERPRETATION_ERROR("Variable occurrence `" + vname + "` is untyped, but exists in multiple abstract domains.");
-        // }
-      }
-    }
-    else {
-      RETURN_INTERPRETATION_ERROR("Undeclared variable `" + vname + "`.");
-    }
   }
 
 public:
@@ -446,32 +401,6 @@ public:
         }
       }
       printf("\n");
-    }
-  }
-
-  /** A variable environment can interpret formulas of two forms:
-   *    - Existential formula with a valid abstract type (`f.type() != UNTYPED`).
-   *    - Variable occurrence.
-   * It returns an abstract variable (`AVar`) corresponding to the variable created (existential) or already presents (occurrence). */
-  template <bool diagnose = false, class F>
-  CUDA NI bool interpret(const F& f, AVar& avar, IDiagnostics& diagnostics) {
-    if(f.is(F::E)) {
-      return interpret_existential<diagnose>(f, avar, diagnostics);
-    }
-    else if(f.is(F::LV)) {
-      return interpret_lv<diagnose>(f, avar, diagnostics);
-    }
-    else if(f.is(F::V)) {
-      if(contains(f.v())) {
-        avar = f.v();
-        return true;
-      }
-      else {
-        RETURN_INTERPRETATION_ERROR("Undeclared abstract variable `" + fstring<F>::from_int(f.v().aty()) + ", " + fstring<F>::from_int(f.v().vid()) + "`.");
-      }
-    }
-    else {
-      RETURN_INTERPRETATION_ERROR("Unsupported formula: `VarEnv` can only interpret quantifiers and occurrences of variables.");
     }
   }
 

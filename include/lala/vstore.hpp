@@ -199,122 +199,7 @@ public:
     return *this;
   }
 
-private:
-  template <bool diagnose, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_existential(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
-    assert(f.is(F::E));
-    var_dom<Alloc2> k;
-    if(local_universe::template interpret_tell<diagnose>(f, env, k.dom, diagnostics)) {
-      if(env.interpret(f.map_atype(atype), k.avar, diagnostics)) {
-        assert(k.avar.aty() == aty());
-        tell.push_back(k);
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /** Interpret a predicate without variables. */
-  template <bool diagnose, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_zero_predicate(const F& f, const Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
-    if(f.is_true()) {
-      return true;
-    }
-    else if(f.is_false()) {
-      tell.push_back(var_dom<Alloc2>(AVar{}, U::bot()));
-      return true;
-    }
-    else {
-      RETURN_INTERPRETATION_ERROR("Only `true` and `false` can be interpreted in the store without being named.");
-    }
-  }
-
-  /** Interpret a predicate with a single variable occurrence. */
-  template <IKind kind, bool diagnose, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_unary_predicate(const F& f, const Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
-    local_universe u;
-    bool res = local_universe::template interpret<kind, diagnose>(f, env, u, diagnostics);
-    if(res) {
-      const auto& varf = var_in(f);
-      // When it is not necessary, we try to avoid using the environment.
-      // This is for instance useful when deduction operators add new constraints but do not have access to the environment (e.g., split()), and to avoid passing the environment around everywhere.
-      if(varf.is(F::V)) {
-        if(varf.v().aty() == aty() || varf.v().aty() == UNTYPED) {
-          tell.push_back(var_dom<Alloc2>(varf.v(), u));
-        }
-        else {
-          RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
-        }
-      }
-      else {
-        auto var = var_in(f, env);
-        if(!var.has_value()) {
-          RETURN_INTERPRETATION_ERROR("Undeclared variable.");
-        }
-        auto avar = var->get().avar_of(atype);
-        if(!avar.has_value()) {
-          RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
-        }
-        assert(avar->aty() == aty());
-        tell.push_back(var_dom<Alloc2>(*avar, u));
-      }
-      return true;
-    }
-    else {
-      RETURN_INTERPRETATION_ERROR("Could not interpret a unary predicate in the underlying abstract universe.");
-    }
-  }
-
-  template <IKind kind, bool diagnose, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_predicate(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
-    if(f.type() != UNTYPED && f.type() != aty()) {
-      RETURN_INTERPRETATION_ERROR("The abstract type of this predicate does not match the one of the current abstract element.");
-    }
-    if constexpr(kind == IKind::TELL) {
-      if(f.is(F::E)) {
-        return interpret_existential<diagnose>(f, env, tell, diagnostics);
-      }
-    }
-    switch(num_vars(f)) {
-      case 0: return interpret_zero_predicate<diagnose>(f, env, tell, diagnostics);
-      case 1: return interpret_unary_predicate<kind, diagnose>(f, env, tell, diagnostics);
-      default: RETURN_INTERPRETATION_ERROR("Interpretation of n-ary predicate is not supported in VStore.");
-    }
-  }
-
 public:
-  template <IKind kind, bool diagnose = false, class F, class Env, class I>
-  CUDA NI bool interpret(const F& f, Env& env, I& intermediate, IDiagnostics& diagnostics) const {
-    if(f.is_untyped() || f.type() == aty()) {
-      return interpret_predicate<kind, diagnose>(f, env, intermediate, diagnostics);
-    }
-    else {
-      RETURN_INTERPRETATION_ERROR("This abstract element cannot interpret a formula with a different type.");
-    }
-  }
-
-  /** The store of variables lattice expects a formula with a single variable (including existential quantifiers) that can be handled by the abstract universe `U`.
-   *
-   * Variables must be existentially quantified before a formula containing variables can be interpreted.
-   * Variables are immediately assigned to an index of `VStore` and initialized to \f$ \top_U \f$.
-   * Shadowing/redeclaration of variables with existential quantifier is not supported.
-   * The variable mapping is added to the environment only if the interpretation succeeds.
-
-   * There is a small quirk: different stores might be produced if quantifiers do not appear in the same order.
-   * This is because we attribute the first available index to variables when interpreting the quantifier.
-   * In that case, the store will only be equivalent modulo the `env` structure.
-  */
-  template <bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_tell(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
-    return interpret<IKind::TELL, diagnose>(f, env, tell, diagnostics);
-  }
-
-  /** Similar to `interpret_tell` but do not support existential quantifier and therefore leaves `env` unchanged. */
-  template <bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_ask(const F& f, const Env& env, ask_type<Alloc2>& ask, IDiagnostics& diagnostics) const {
-    return const_cast<this_type*>(this)->interpret<IKind::ASK, diagnose>(f, const_cast<Env&>(env), ask, diagnostics);
-  }
-
   template <class Group, class Store>
   CUDA void copy_to(Group& group, Store& store) const {
     assert(vars() == store.vars());
@@ -533,47 +418,9 @@ public:
   }
 
 private:
-  template<class U2, class Env, class Allocator2>
-  CUDA TFormula<typename Env::allocator_type> deinterpret(AVar avar, const U2& dom, const Env& env, const Allocator2& allocator) const {
-    auto f = dom.deinterpret(avar, env, allocator);
-    f.type_as(aty());
-    map_avar_to_lvar(f, env);
-    return std::move(f);
-  }
 
 public:
-  template<class Env, class Allocator2 = typename Env::allocator_type>
-  CUDA NI TFormula<Allocator2> deinterpret(const Env& env, const Allocator2& allocator = Allocator2()) const {
-    using F = TFormula<Allocator2>;
-    if(data.size() == 0) {
-      return is_bot() ? F::make_false() : F::make_true();
-    }
-    typename F::Sequence seq{allocator};
-    for(int i = 0; i < data.size(); ++i) {
-      AVar v(aty(), i);
-      seq.push_back(F::make_exists(aty(), env.name_of(v), env.sort_of(v)));
-      seq.push_back(deinterpret(AVar(aty(), i), data[i], env, allocator));
-    }
-    return F::make_nary(AND, std::move(seq), aty());
-  }
 
-  template<class I, class Env, class Allocator2 = typename Env::allocator_type>
-  CUDA NI TFormula<Allocator2> deinterpret(const I& intermediate, const Env& env, const Allocator2& allocator = Allocator2()) const {
-    using F = TFormula<Allocator2>;
-    if(intermediate.size() == 0) {
-      return F::make_true();
-    }
-    else if(intermediate.size() == 1) {
-      return deinterpret(intermediate[0].avar, intermediate[0].dom, env, allocator);
-    }
-    else {
-      typename F::Sequence seq{allocator};
-      for(int i = 0; i < intermediate.size(); ++i) {
-        seq.push_back(deinterpret(intermediate[i].avar, intermediate[i].dom, env, allocator));
-      }
-      return F::make_nary(AND, std::move(seq), aty());
-    }
-  }
 
   CUDA void print() const {
     if(is_bot()) {
