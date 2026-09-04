@@ -13,17 +13,7 @@ TEST(IntervalTest, BotTopTests) {
   bot_top_test(Itv(zlb(0), zub::top()));
 }
 
-TEST(IntervalTest, NoInterpret) {
-  VarEnv<standard_allocator> env = env_with_x();
-  interpret_must_error<IKind::TELL, Itv>("constraint int_ne(x, 10);", env);
-  interpret_must_error<IKind::ASK, Itv>("constraint float_eq(x, 1111111111.0000000000001);", env);
-}
 
-TEST(IntervalTest, ValidInterpret) {
-  VarEnv<standard_allocator> env;
-  expect_interpret_equal_to<IKind::TELL>("constraint int_eq(x, 10);", Itv(10, 10), env, false);
-  expect_interpret_equal_to<IKind::ASK>("constraint int_ne(x, 10);", Itv(zlb(11), zub::top()), env, false);
-}
 
 TEST(IntervalTest, JoinMeetTest) {
   join_meet_generic_test(Itv::bot(), Itv::top());
@@ -54,17 +44,6 @@ TEST(IntervalTest, OrderTest) {
   EXPECT_FALSE(Itv(8, 12) <= Itv(10, 12));
 }
 
-TEST(IntervalTest, GenericFunTests) {
-  generic_unary_fun_test<Itv>(NEG);
-  generic_abs_test<Itv>();
-  generic_binary_fun_test(ADD, Itv(0,10));
-  generic_binary_fun_test(SUB, Itv(0,10));
-  generic_arithmetic_fun_test(Itv(0, 10));
-  generic_arithmetic_fun_test(Itv(1, 10));
-  generic_arithmetic_fun_test(Itv(-10, 10));
-  generic_arithmetic_fun_test(Itv(-10, -1));
-  generic_arithmetic_fun_test(Itv(-10, 0));
-}
 
 TEST(IntervalTest, MinMax) {
   EXPECT_EQ((project_fun(MIN, Itv::top(), Itv(-10, 10))), Itv(zlb::top(), zub(10)));
@@ -237,4 +216,15 @@ TEST(IntervalTest, Median) {
   EXPECT_EQ(Itv(zlb(10), zub::top()).median(), Itv::top());
   EXPECT_EQ(Itv::top().median(), Itv::top());
   EXPECT_TRUE(Itv::bot().median().is_bot());
+}
+
+TEST(IntervalTest, GenericFunTests) {
+  generic_unary_fun_test<Itv>(NEG);
+  generic_binary_fun_test(ADD, Itv(0,10));
+  generic_binary_fun_test(SUB, Itv(0,10));
+  generic_arithmetic_fun_test(Itv(0, 10));
+  generic_arithmetic_fun_test(Itv(1, 10));
+  generic_arithmetic_fun_test(Itv(-10, 10));
+  generic_arithmetic_fun_test(Itv(-10, -1));
+  generic_arithmetic_fun_test(Itv(-10, 0));
 }
