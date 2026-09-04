@@ -38,79 +38,15 @@ struct PreFUB {
   CUDA constexpr static value_type one() { return 1.0; }
 
 private:
-  template<bool diagnose, bool is_tell, class F>
-  CUDA NI static bool interpret(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    if(f.is(F::Z)) {
-      auto z = f.z();
-      // We do not consider the min and max values of integers to be infinities when they are part of the logical formula.
-      if constexpr(is_tell) {
-        k = battery::ru_cast<value_type, decltype(z), false>(z);
-      }
-      else {
-        k = battery::rd_cast<value_type, decltype(z), false>(z);
-      }
-      return true;
-    }
-    else if(f.is(F::R)) {
-      if constexpr(is_tell) {
-        k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
-      }
-      else {
-        k = battery::rd_cast<value_type>(battery::get<0>(f.r()));
-      }
-      return true;
-    }
-    RETURN_INTERPRETATION_ERROR("Only a constant of sort `Int` or `Real` can be interpreted by a floating-point abstract universe.")
-  }
 
 public:
   /** Interpret a constant in the lattice of increasing floating-point numbers `FInc` according to the downset semantics.
       Interpretations:
-        * Formulas of kind `F::Z` might be over-approximated (if the integer cannot be represented in a floating-point number because it is too large).
-        * Formulas of kind `F::R` might be over-approximated to the upper bound of the interval (if the real number is represented by an interval [lb..ub] where lb != ub).
-        * Other kind of formulas are not supported. */
-  template<bool diagnose, class F>
-  CUDA static bool interpret_tell(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    return interpret<diagnose, true>(f, k, diagnostics);
-  }
 
-  /** Same as `interpret_tell` but the constant is under-approximated instead. */
-  template<bool diagnose, class F>
-  CUDA static bool interpret_ask(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    return interpret<diagnose, false>(f, k, diagnostics);
-  }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
       Interpretations:
-        * Variables of type `Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\top) \f$).
-        * Variables of type `Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\top) \f$). */
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    assert(f.is(F::E));
-    const auto& vname = battery::get<0>(f.exists());
-    const auto& cty = battery::get<1>(f.exists());
-    if(cty.is_int()) {
-      k = dualize ? bot() : top();
-      RETURN_INTERPRETATION_WARNING("Variable `" + vname + "` of sort `Int` is over-approximated in a floating-point abstract universe.");
-    }
-    else if(cty.is_real()) {
-      k = dualize ? bot() : top();
-      return true;
-    }
-    else {
-      RETURN_INTERPRETATION_ERROR("Variable `" + vname + "` can only be of sort `Real`, or be over-approximated if the sort is `Bool` or `Int`.");
-    }
-  }
 
-  /** Given a floating-point value, create a logical constant representing that value.
-   * The constant is represented by a singleton interval of `double` [v..v].
-   * Note that the lattice order has no influence here.
-   * \pre `v != bot()` and `v != top()`.
-  */
-  template<class F>
-  CUDA static F deinterpret(const value_type& v) {
-    return F::make_real(v, v);
-  }
 
   /** The logical predicate symbol corresponding to the order of this pre-universe.
       We have \f$ a \leq_\mathit{FInc} b \Leftrightarrow a \leq b \f$.

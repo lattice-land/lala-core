@@ -257,28 +257,7 @@ public:
   /** \return \f$ x <op> i \f$ where `x` is a variable's name, `i` the current value and `<op>` depends on the underlying universe.
   If `U` preserves top, `true` is returned whenever \f$ a = \top \f$, if it preserves bottom `false` is returned whenever \f$ a = \bot \f$.
   We always return an exact approximation, hence for any formula \f$ \llbracket \varphi \rrbracket = a \f$, we must have \f$ a =  \llbracket \rrbracket a \llbracket \rrbracket \f$ where \f$ \rrbracket a \llbracket \f$ is the deinterpretation function.
-  */
-  template<class Env, class Allocator = typename Env::allocator_type>
-  CUDA NI TFormula<Allocator> deinterpret(AVar avar, const Env& env, const Allocator& allocator = Allocator()) const {
-    using F = TFormula<Allocator>;
-    if(preserve_top && is_top()) {
-      return F::make_true();
-    }
-    else if(preserve_bot && is_bot()) {
-      return F::make_false();
-    }
-    return F::make_binary(
-      F::make_avar(avar),
-      U::sig_order(),
-      deinterpret<F>(),
-      UNTYPED, allocator);
-  }
 
-  /** Deinterpret the current value to a logical constant. */
-  template<class F>
-  CUDA NI F deinterpret() const {
-    return pre_universe::template deinterpret<F>(value());
-  }
 
   /** Under-approximates the current element \f$ a \f$ w.r.t. \f$ \rrbracket a \llbracket \f$ into `ua`.
    * For this abstract universe, it always returns `true` since the current element \f$ a \f$ is an exact representation of \f$ \rrbracket a \llbracket \f$. */
@@ -301,130 +280,12 @@ public:
   }
 
 private:
-  /** Interpret a formula of the form `x <sig> k`. */
-  template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_tell_x_op_k(const F& f, this_type2<M2>& tell, IDiagnostics& diagnostics) {
-    value_type value = pre_universe::top();
-    bool res = pre_universe::template interpret_tell<diagnose>(f.seq(1), value, diagnostics);
-    if(res) {
-      if(f.sig() == EQ || f.sig() == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
-        tell.meet(local_type(value));
-      }
-      else if(f.sig() == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
-        if constexpr(preserve_concrete_covers) {
-          tell.meet(local_type(pre_universe::prev(value)));
-        }
-        else {
-          tell.meet(local_type(value));
-        }
-      }
-      else {
-        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(f.sig())) + "` is not supported in the tell language of this universe.");
-      }
-    }
-    return res;
-  }
 
-  /** Interpret a formula of the form `x <sig> k`. */
-  template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_ask_x_op_k(const F& f, this_type2<M2>& tell, IDiagnostics& diagnostics) {
-    value_type value = pre_universe::top();
-    bool res = pre_universe::template interpret_ask<diagnose>(f.seq(1), value, diagnostics);
-    if(res) {
-      if(f.sig() == U::sig_order()) {
-        tell.meet(local_type(value));
-      }
-      else if(f.sig() == NEQ || f.sig() == U::sig_strict_order()) {
-        // We could actually do a little bit better in the case of FLB/FUB.
-        // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
-        tell.meet(local_type(pre_universe::prev(value)));
-      }
-      else {
-        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(f.sig())) + "` is not supported in the ask language of this universe.");
-      }
-    }
-    return res;
-  }
 
-  template<bool diagnose = false, class F, class M2>
-  CUDA NI static bool interpret_tell_set(const F& f, this_type2<M2>& tell, IDiagnostics& diagnostics) {
-    if(!f.seq(1).is(F::S)) {
-      RETURN_INTERPRETATION_ERROR("The constant `S` in a constraint `x in S` must be a set.");
-    }
-    const auto& set = f.seq(1).s();
-    if(set.size() == 0) {
-      tell.meet_bot();
-      return true;
-    }
-    value_type join_s = pre_universe::bot();
-    constexpr int bound_index = is_lower_bound ? 0 : 1;
-    // We interpret each component of the set and take the meet of all the results.
-    for(int i = 0; i < set.size(); ++i) {
-      auto bound = battery::get<bound_index>(set[i]);
-      value_type set_element = pre_universe::top();
-      bool res = pre_universe::template interpret_tell<diagnose>(bound, set_element, diagnostics);
-      if(!res) {
-        return false;
-      }
-      join_s = pre_universe::join(join_s, set_element);
-    }
-    tell.meet(local_type(join_s));
-    return true;
-  }
 
 public:
-  /** Expects a predicate of the form `x <op> k` where `x` is any variable's name, and `k` a constant.
-   * The symbol `<op>` is expected to be `U::sig_order()`, `U::sig_strict_order()`,  `=` or `in`.
-   * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to top) depending on the underlying pre-universe.
-   */
-  template<bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret_tell(const F& f, const Env&, this_type2<M2>& tell, IDiagnostics& diagnostics) {
-    if(f.is(F::E)) {
-      typename U::value_type val;
-      bool res = pre_universe::template interpret_type<diagnose>(f, val, diagnostics);
-      if(res) {
-        tell.meet(local_type(val));
-      }
-      return res;
-    }
-    else {
-      if(f.is_binary() && f.seq(0).is_variable() && f.seq(1).is_constant()) {
-        // `x in k` is equivalent to `x >= meet k` where `>=` is the lattice order `U::sig_order()`.
-        if(f.sig() == IN) {
-          return interpret_tell_set<diagnose>(f, tell, diagnostics);
-        }
-        else {
-          return interpret_tell_x_op_k<diagnose>(f, tell, diagnostics);
-        }
-      }
-      else {
-        RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `x <sig> k` where if x is a variable and k is a constant are supported.");
-      }
-    }
-  }
 
-  /** Expects a predicate of the form `x <op> k` where `x` is any variable's name, and `k` a constant.
-   * The symbol `<op>` is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`.
-   */
-  template<bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret_ask(const F& f, const Env&, this_type2<M2>& ask, IDiagnostics& diagnostics) {
-    if(f.is_binary() && f.seq(0).is_variable() && f.seq(1).is_constant()) {
-      return interpret_ask_x_op_k<diagnose>(f, ask, diagnostics);
-    }
-    else {
-      RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `x <sig> k` where if x is a variable and k is a constant are supported.");
-    }
-  }
 
-  template<IKind kind, bool diagnose = false, class F, class Env, class M2>
-  CUDA NI static bool interpret(const F& f, const Env& env, this_type2<M2>& value, IDiagnostics& diagnostics) {
-    if constexpr(kind == IKind::TELL) {
-      return interpret_tell<diagnose>(f, env, value, diagnostics);
-    }
-    else {
-      return interpret_ask<diagnose>(f, env, value, diagnostics);
-    }
-  }
 
 public:
   CUDA static constexpr local_type next(const this_type2<Mem>& a) {

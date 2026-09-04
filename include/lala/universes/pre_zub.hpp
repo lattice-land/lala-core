@@ -57,41 +57,6 @@ struct PreZUB {
   CUDA constexpr static value_type one() { return 1; }
 
 private:
-  template<bool diagnose, bool is_tell, bool dualize, class F>
-  CUDA NI static bool interpret(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    if(f.is(F::Z)) {
-      auto z = f.z();
-      if(z == bot() || z == top()) {
-        RETURN_INTERPRETATION_ERROR("Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.");
-      }
-      k = z;
-      return true;
-    }
-    else if(f.is(F::R)) {
-      if constexpr(dualize) {
-        if constexpr(is_tell) {
-          k = battery::ru_cast<value_type>(battery::get<0>(f.r()));
-        }
-        else {
-          k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
-        }
-      }
-      else {
-        if constexpr(is_tell) {
-          k = battery::rd_cast<value_type>(battery::get<1>(f.r()));
-        }
-        else {
-          k = battery::rd_cast<value_type>(battery::get<0>(f.r()));
-        }
-      }
-      return true;
-    }
-    else if(f.is(F::B)) {
-      k = f.b() ? one() : zero();
-      return true;
-    }
-    RETURN_INTERPRETATION_ERROR("Only constants of sorts `Int`, `Bool` and `Real` can be interpreted by an integer abstract universe.");
-  }
 
 public:
   /** Interpret a constant in the lattice of increasing integers according to the downset semantics.
@@ -100,48 +65,14 @@ public:
         * Formulas of kind `F::Z` are interpreted exactly: \f$ [\![ x:\mathbb{Z} \leq k:\mathbb{Z} ]\!] = k \f$.
         * Formulas of kind `F::R` are over-approximated: \f$ [\![ x:\mathbb{Z} \leq [l..u]:\mathbb{R} ]\!] = \lfloor u \rfloor \f$.
       Examples:
-        * \f$ [\![x <= [3.5..3.5]:R ]\!] = 3 \f$: there is no integer greater than 3 satisfying this constraint.
-        * \f$ [\![x <= [2.9..3.1]:R ]\!] = 3 \f$.
-  */
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_tell(const F& f, value_type& tell, IDiagnostics& diagnostics) {
-    return interpret<diagnose, true, dualize>(f, tell, diagnostics);
-  }
 
   /** Similar to `interpret_tell` but the formula is under-approximated, in particular: \f$ [\![ x:\mathbb{Z} \leq [l..u]:\mathbb{R} ]\!] = \lfloor u \rfloor \f$.
       Examples:
-        * \f$ [\![x <= [3.5..3.5]:R ]\!] = 3 \f$.
-        * \f$ [\![x <= [2.9..3.1]:R ]\!] = 2 \f$: the constraint is entailed only when x is less or equal to 2.9. */
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_ask(const F& f, value_type& ask, IDiagnostics& diagnostics) {
-    return interpret<diagnose, false, dualize>(f, ask, diagnostics);
-  }
 
   /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with the current abstract universe.
       Variables of type `Int` are interpreted exactly (\f$ \mathbb{Z} = \gamma(\top) \f$).
       Note that we assume there is no overflow, that might be taken into account the future. */
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    assert(f.is(F::E));
-    const auto& sort = battery::get<1>(f.exists());
-    if(sort.is_int()) {
-      k = dualize ? bot() : top();
-      return true;
-    }
-    else {
-      const auto& vname = battery::get<0>(f.exists());
-      RETURN_INTERPRETATION_ERROR("The type of `" + vname + "` can only be `Int`.")
-    }
-  }
 
-  /** Given an Integer value, create a logical constant representing that value.
-   * Note that the lattice order has no influence here.
-   * \pre `v != bot()` and `v != top()`.
-  */
-  template<class F>
-  CUDA static F deinterpret(const value_type& v) {
-    return F::make_z(v);
-  }
 
   /** The logical predicate symbol corresponding to the order of this pre-universe.
       We have \f$ a \leq_\mathit{ZUB} b \Leftrightarrow a \leq b \f$.
