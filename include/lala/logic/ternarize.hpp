@@ -2,7 +2,7 @@
 #define LALA_CORE_TERNARIZE_HPP
 
 #include "ast.hpp"
-#include "algorithm.hpp"
+#include "env.hpp"
 
 namespace lala {
 
@@ -437,11 +437,8 @@ public:
  * 2. `x = (y <op> z)` where `<op>` is a binary operator, either arithmetic or a comparison (`=`, `<=`).
  * This ternary form is used by the lala-pc/PIR solver.
  */
-/** `Env` only needs to answer `num_vars()`, `contains(name)` and `variable_of(name)`.
- * It is a template parameter (rather than a concrete `VarEnv`) because the environment lives in
- * the interpretation layer, not in the formula layer. */
-template <class F, class Env>
-F ternarize(const F& f, const Env& env, const std::vector<int>& constants = {}) {
+template <class F, class Env = VarEnv<battery::standard_allocator>>
+F ternarize(const F& f, const Env& env = Env(), const std::vector<int>& constants = {}) {
   impl::Ternarizer<F, Env> ternarizer(env);
   for(int c : constants) {
     ternarizer.ternarize_constant(F::make_z(c));

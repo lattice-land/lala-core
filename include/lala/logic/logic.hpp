@@ -5,6 +5,7 @@
 
 #include "sort.hpp"
 #include "ast.hpp"
+#include "env.hpp"
 #include "algorithm.hpp"
 
 #endif
