@@ -3,7 +3,9 @@
 #ifndef LALA_CORE_NBITSET_HPP
 #define LALA_CORE_NBITSET_HPP
 
-#include "arith_bound.hpp"
+#include "battery/vector.hpp"
+#include "lala/lb.hpp"
+#include "lala/ub.hpp"
 #include "battery/bitset.hpp"
 
 namespace lala {
@@ -22,11 +24,11 @@ public:
   using bitset_type = battery::bitset<N, Mem, T>;
   using this_type = NBitset<N, Mem, T>;
   template <class M> using this_type2 = NBitset<N, M, T>;
-  using local_type = this_type2<battery::local_memory>;
+  using basic_type = this_type2<battery::local_memory>;
 
-  using LB = local::ZLB;
-  using UB = local::ZUB;
-  using value_type = typename LB::value_type;
+  using ZLB = LB<int>;
+  using ZUB = UB<int>;
+  using value_type = typename ZLB::value_type;
 
   template <size_t N2, class Mem2, class T2>
   friend class NBitset;
@@ -100,14 +102,14 @@ public:
   }
 
   /** Pre-interpreted formula `x == 0`. */
-  CUDA constexpr static local_type eq_zero() { return local_type(0); }
+  CUDA constexpr static basic_type eq_zero() { return basic_type(0); }
   /** Pre-interpreted formula `x == 1`. */
-  CUDA constexpr static local_type eq_one() { return local_type(1); }
+  CUDA constexpr static basic_type eq_one() { return basic_type(1); }
 
-  CUDA constexpr static local_type bot() { return NBitset(bot_constructor_tag{}); }
-  CUDA constexpr static local_type top() { return NBitset(); }
-  CUDA constexpr local::B is_top() const { return bits.all(); }
-  CUDA constexpr local::B is_bot() const { return bits.none(); }
+  CUDA constexpr static basic_type bot() { return NBitset(bot_constructor_tag{}); }
+  CUDA constexpr static basic_type top() { return NBitset(); }
+  CUDA constexpr UB<bool> is_top() const { return bits.all(); }
+  CUDA constexpr UB<bool> is_bot() const { return bits.none(); }
   CUDA constexpr const bitset_type& value() const { return bits; }
 
   /** The two extremal bits of the bitset stand for "some value below the representable range" and
@@ -122,21 +124,20 @@ public:
    * out-of-range flags). Values in `[0, capacity()-3]` are represented exactly. */
   CUDA constexpr static int capacity() { return N; }
 
-public:
-  CUDA constexpr LB lb() const {
+  CUDA constexpr ZLB lb() const {
     value_type l = bits.countr_zero();
-    return l == 0 ? LB::top() :
-      (l == bits.size() ? LB::bot() : LB::geq_k(l-1));
+    return l == 0 ? ZLB::top() :
+      (l == bits.size() ? ZLB::bot() : ZLB(l-1));
   }
 
-  CUDA constexpr UB ub() const {
+  CUDA constexpr ZUB ub() const {
     value_type r = bits.countl_zero();
-    return r == 0 ? UB::top() :
-      (r == bits.size() ? UB::bot() : UB::leq_k(bits.size() - r - 2));
+    return r == 0 ? ZUB::top() :
+      (r == bits.size() ? ZUB::bot() : ZUB(bits.size() - r - 2));
   }
 
-  CUDA constexpr local_type complement() const {
-    local_type c(bits);
+  CUDA constexpr basic_type complement() const {
+    basic_type c(bits);
     c.bits.flip();
     return c;
   }
@@ -147,12 +148,12 @@ public:
 
   template<class A>
   CUDA constexpr bool join_lb(const A& lb) {
-    return join(local_type(lb.value(), bits.size()));
+    return join(basic_type(lb.value(), bits.size()));
   }
 
   template<class A>
   CUDA constexpr bool join_ub(const A& ub) {
-    return join(local_type(-1, ub.value()));
+    return join(basic_type(-1, ub.value()));
   }
 
   template<class M>
@@ -170,12 +171,12 @@ public:
 
   template<class A>
   CUDA constexpr bool meet_lb(const A& lb) {
-    return meet(local_type(lb.value(), bits.size()));
+    return meet(basic_type(lb.value(), bits.size()));
   }
 
   template<class A>
   CUDA constexpr bool meet_ub(const A& ub) {
-    return meet(local_type(-1, ub.value()));
+    return meet(basic_type(-1, ub.value()));
   }
 
   template<class M>
@@ -214,16 +215,8 @@ public:
     printf("}");
   }
 
-  CUDA NI constexpr static bool is_trivial_fun(Sig sig) {
-    switch(sig) {
-      case ABS:
-      case NEG: return false;
-      default: return true;
-    }
-  }
-
 public:
-  CUDA constexpr void neg(const local_type& x) {
+  CUDA constexpr void neg(const basic_type& x) {
     // if `x` represents all negative numbers, then the negation is all positive numbers.
     if(x.bits.test(0)) {
       if(x.bits.count() == 1) {
@@ -234,11 +227,11 @@ public:
       meet_bot();
     }
     else {
-      meet(local_type(-1));
+      meet(basic_type(-1));
     }
   }
 
-  CUDA constexpr void abs(const local_type& x) {
+  CUDA constexpr void abs(const basic_type& x) {
     // If the first bit is set, it means all negative numbers are represented, so it only constrains the current value to be positive. Otherwise, we just take the meet with `x`.
     if(x.bits.test(0)) {
       bits.set(0, false);
@@ -248,57 +241,38 @@ public:
     }
   }
 
-  CUDA constexpr void project(Sig fun, const local_type& x)  {
-    switch(fun) {
-      case NEG: neg(x); break;
-      case ABS: abs(x); break;
-    }
-  }
-
-  CUDA constexpr void additive_inverse(const local_type& x) {
-    printf("%% additive_inverse is unsupported\n");
-    int* ptr = nullptr;
-    ptr[1] = 193;
-  }
-
-  CUDA constexpr void project(Sig fun, const local_type& x, const local_type& y) {
-    printf("%% binary functions %s are unsupported\n", string_of_sig(fun));
-    int* ptr = nullptr;
-    ptr[1] = 193;
-  }
-
-  CUDA constexpr local_type width() const {
+  CUDA constexpr basic_type width() const {
     if(bits.test(0) || bits.test(bits.size() - 1)) { return top(); }
-    else { return local_type(bits.count()); }
+    else { return basic_type(bits.count()); }
   }
 
   /** \return The median value of the bitset. */
-  CUDA constexpr local_type median() const {
-    if(is_bot()) { return local_type::bot(); }
+  CUDA constexpr basic_type median() const {
+    if(is_bot()) { return basic_type::bot(); }
     int total = bits.count();
     int current = 0;
     for(int i = 0; i < bits.size(); ++i) {
       if(bits.test(i)) {
         ++current;
         if(current == total/2 || total == 1) {
-          return local_type(i-1);
+          return basic_type(i-1);
         }
       }
     }
-    return local_type::bot();
+    return basic_type::bot();
   }
 };
 
 // Lattice operations
 
 template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> fjoin(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
+CUDA constexpr NBitset<N, battery::local_memory, T> join(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
   return NBitset<N, battery::local_memory, T>(a.value() | b.value());
 }
 
 template<size_t N, class M1, class M2, class T>
-CUDA constexpr NBitset<N, battery::local_memory, T> fmeet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
+CUDA constexpr NBitset<N, battery::local_memory, T> meet(const NBitset<N, M1, T>& a, const NBitset<N, M2, T>& b)
 {
   return NBitset<N, battery::local_memory, T>(a.value() & b.value());
 }

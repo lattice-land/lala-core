@@ -4,7 +4,7 @@
 #define LALA_CORE_VSTORE_HPP
 
 #include "logic/logic.hpp"
-#include "universes/arith_bound.hpp"
+#include "lala/ub.hpp"
 #include "abstract_deps.hpp"
 #include <optional>
 
@@ -38,18 +38,18 @@ template<class U, class Allocator>
 class VStore {
 public:
   using universe_type = U;
-  using local_universe = typename universe_type::local_type;
+  using basic_univ_type = typename universe_type::basic_type;
   using allocator_type = Allocator;
   using this_type = VStore<universe_type, allocator_type>;
 
   template <class Alloc>
   struct var_dom {
     AVar avar;
-    local_universe dom;
+    basic_univ_type dom;
     var_dom() = default;
     var_dom(const var_dom<Alloc>&) = default;
     CUDA explicit var_dom(const Alloc&) {}
-    CUDA var_dom(AVar avar, const local_universe& dom): avar(avar), dom(dom) {}
+    CUDA var_dom(AVar avar, const basic_univ_type& dom): avar(avar), dom(dom) {}
     template <class VarDom>
     CUDA var_dom(const VarDom& other): avar(other.avar), dom(other.dom) {}
   };
@@ -61,17 +61,8 @@ public:
   using ask_type = tell_type<Alloc>;
 
   template <class Alloc = allocator_type>
-  using snapshot_type = battery::vector<local_universe, Alloc>;
+  using snapshot_type = battery::vector<basic_univ_type, Alloc>;
 
-  constexpr static const bool is_abstract_universe = false;
-  constexpr static const bool sequential = universe_type::sequential;
-  constexpr static const bool is_totally_ordered = false;
-  constexpr static const bool preserve_bot = true;
-  constexpr static const bool preserve_top = true;
-  constexpr static const bool preserve_join = universe_type::preserve_join;
-  constexpr static const bool preserve_meet = universe_type::preserve_meet;
-  constexpr static const bool injective_concretization = universe_type::injective_concretization;
-  constexpr static const bool preserve_concrete_covers = universe_type::preserve_concrete_covers;
   constexpr static const char* name = "VStore";
 
   template<class U2, class Alloc2>
@@ -83,7 +74,7 @@ private:
 
   AType atype;
   store_type data;
-  B<memory_type> is_at_bot;
+  UB<bool, memory_type> is_at_bot;
 
 public:
   CUDA VStore(const this_type& other)
@@ -163,14 +154,14 @@ public:
   /** \return `true` if at least one element is equal to bot in the store, `false` otherwise.
    * @parallel @order-preserving @increasing
   */
-  CUDA local::B is_bot() const {
+  CUDA UB<bool> is_bot() const {
     return is_at_bot;
   }
 
   /** The bottom element of a store of `n` variables is when all variables are at bottom, or the store is empty.
    * We do not expect to use this operation a lot, so its complexity is linear in the number of variables.
    * @parallel @order-preserving @decreasing */
-  CUDA local::B is_top() const {
+  CUDA UB<bool> is_top() const {
     if(is_at_bot) { return false; }
     for(int i = 0; i < vars(); ++i) {
       if(!data[i].is_top()) {
@@ -199,7 +190,6 @@ public:
     return *this;
   }
 
-public:
   template <class Group, class Store>
   CUDA void copy_to(Group& group, Store& store) const {
     assert(vars() == store.vars());
@@ -291,7 +281,7 @@ public:
     int largest_vid = 0;
     for(int i = 0; i < t.size(); ++i) {
       if(t[i].avar == AVar{}) {
-        return is_at_bot.join(local::B(true));
+        return is_at_bot.join(UB<bool>(true));
       }
       largest_vid = battery::max(largest_vid, t[i].avar.vid());
     }
@@ -350,9 +340,9 @@ public:
    * For instance, if we have in the store `x = [0..10]`, we can deduce `x = [-1..11]` but we cannot deduce `x = [5..8]`.
    * @parallel @order-preserving @decreasing */
   template <class Alloc2>
-  CUDA local::B ask(const ask_type<Alloc2>& t) const {
+  CUDA UB<bool> ask(const ask_type<Alloc2>& t) const {
     for(int i = 0; i < t.size(); ++i) {
-      if(!(data[t[i].avar.vid()] <= t[i].dom)) {
+      if(!data[t[i].avar.vid()].leq(t[i].dom)) {
         return false;
       }
     }
@@ -360,7 +350,7 @@ public:
   }
 
   CUDA int num_deductions() const { return 0; }
-  CUDA local::B deduce(int) const { assert(false); return false; }
+  CUDA UB<bool> deduce(int) const { assert(false); return false; }
 
   /**  An abstract element is extractable when it is not equal to bot.
    * If the strategy is `atoms`, we check the domains are singleton.
@@ -372,7 +362,7 @@ public:
     }
     if constexpr(ExtractionStrategy::atoms) {
       for(int i = 0; i < data.size(); ++i) {
-        if(data[i].lb().value() != data[i].ub().value()) {
+        if(data[i].lb().load() != data[i].ub().load()) {
           return false;
         }
       }
@@ -393,7 +383,7 @@ public:
       }
       group.sync();
       for(int i = group.thread_rank(); i < data.size(); i += group.num_threads()) {
-        if(data[i].lb().value() != data[i].ub().value()) {
+        if(data[i].lb().load() != data[i].ub().load()) {
           res = false;
         }
       }
@@ -417,11 +407,6 @@ public:
     }
   }
 
-private:
-
-public:
-
-
   CUDA void print() const {
     if(is_bot()) {
       printf("\u22A5 | ");
@@ -440,9 +425,9 @@ public:
 // These operations are only considering the indices of the elements.
 
 template<class L, class K, class Alloc>
-CUDA auto fmeet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+CUDA auto meet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 {
-  using U = decltype(fmeet(a[0], b[0]));
+  using U = decltype(meet(a[0], b[0]));
   if(a.is_bot() || b.is_bot()) {
     return VStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
   }
@@ -450,7 +435,7 @@ CUDA auto fmeet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
   int min_size = battery::min(a.vars(), b.vars());
   VStore<U, Alloc> res(UNTYPED, max_size, a.get_allocator());
   for(int i = 0; i < min_size; ++i) {
-    res.embed(i, fmeet(a[i], b[i]));
+    res.embed(i, meet(a[i], b[i]));
   }
   for(int i = min_size; i < a.vars(); ++i) {
     res.embed(i, a[i]);
@@ -462,9 +447,9 @@ CUDA auto fmeet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 }
 
 template<class L, class K, class Alloc>
-CUDA auto fjoin(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
+CUDA auto join(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 {
-  using U = decltype(fjoin(a[0], b[0]));
+  using U = decltype(join(a[0], b[0]));
   if(a.is_bot()) {
     if(b.is_bot()) {
       return VStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
@@ -480,7 +465,7 @@ CUDA auto fjoin(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
     int min_size = battery::min(a.vars(), b.vars());
     VStore<U, Alloc> res(UNTYPED, min_size, a.get_allocator());
     for(int i = 0; i < min_size; ++i) {
-      res.embed(i, fjoin(a[i], b[i]));
+      res.embed(i, join(a[i], b[i]));
     }
     return res;
   }
@@ -495,7 +480,7 @@ CUDA bool operator<=(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
   else {
     int min_size = battery::min(a.vars(), b.vars());
     for(int i = 0; i < min_size; ++i) {
-      if(!(a[i] <= b[i])) {
+      if(!a[i].leq(b[i])) {
         return false;
       }
     }
@@ -519,10 +504,10 @@ CUDA bool operator<(const VStore<L, Alloc1>& a, const VStore<K, Alloc2>& b)
     bool strict = false;
     for(int i = 0; i < a.vars(); ++i) {
       if(i < b.vars()) {
-        if(a[i] < b[i]) {
+        if(a[i].lt(b[i])) {
           strict = true;
         }
-        else if(!(a[i] <= b[i])) {
+        else if(!a[i].leq(b[i])) {
           return false;
         }
       }

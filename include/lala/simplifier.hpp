@@ -4,7 +4,7 @@
 #define LALA_CORE_SIMPLIFIER_HPP
 
 #include "logic/logic.hpp"
-#include "universes/arith_bound.hpp"
+#include "lala/ub.hpp"
 #include "abstract_deps.hpp"
 #include "battery/dynamic_bitset.hpp"
 
@@ -59,16 +59,6 @@ public:
   using memory_type = typename universe_type::memory_type;
   using this_type = Simplifier<sub_type, allocator_type>;
 
-  constexpr static const bool is_abstract_universe = false;
-  constexpr static const bool sequential = universe_type::sequential;
-  constexpr static const bool is_totally_ordered = false;
-  // Note that I did not define the concretization function formally yet... This is not yet an fully fledged abstract domain, we need to work more on it!
-  constexpr static const bool preserve_bot = true;
-  constexpr static const bool preserve_top = true;
-  constexpr static const bool preserve_join = true;
-  constexpr static const bool preserve_meet = true;
-  constexpr static const bool injective_concretization = true;
-  constexpr static const bool preserve_concrete_covers = true;
   constexpr static const char* name = "Simplifier";
 
   template<class A2, class Alloc2>
@@ -87,7 +77,7 @@ private:
   // eliminated_formulas[i] is `true` when the formula `i` is entailed.
   battery::dynamic_bitset<memory_type, allocator_type> eliminated_formulas;
   // `equivalence_classes[i]` contains the index of the representative variable in the equivalence class of the variable `i`.
-  battery::vector<ZUB<int, memory_type>, allocator_type> equivalence_classes;
+  battery::vector<UB<int, memory_type>, allocator_type> equivalence_classes;
   // `constants[i]` contains the universe value of the representative variables `i`, aggregated by meet on the values of all variables in the equivalence class.
   battery::vector<universe_type, allocator_type> constants;
 
@@ -129,7 +119,7 @@ public:
   }
 
   /** @parallel @order-preserving @increasing  */
-  CUDA local::B is_bot() const {
+  CUDA UB<bool> is_bot() const {
     return sub->is_bot();
   }
 
@@ -208,7 +198,7 @@ public:
 
 private:
   /** \return `true` if mask[i] was changed. */
-  CUDA local::B eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
+  CUDA UB<bool> eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
     if(!mask.test(i)) {
       mask.set(i, true);
       return true;
@@ -216,7 +206,7 @@ private:
     return false;
   }
 
-  CUDA local::B eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i, size_t& eliminated_constraints) {
+  CUDA UB<bool> eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i, size_t& eliminated_constraints) {
     if(eliminate(mask, i)) {
       ++eliminated_constraints;
       return true;
@@ -231,11 +221,11 @@ public:
   }
 
 private:
-  CUDA local::B replace_by_equivalence(AVar x, AVar y, int i, size_t& eliminated_constraints) {
+  CUDA UB<bool> replace_by_equivalence(AVar x, AVar y, int i, size_t& eliminated_constraints) {
     return replace_by_equivalence(x.vid(), y.vid(), i, eliminated_constraints);
   }
 
-  CUDA local::B replace_by_equivalence(int x, int y, int i, size_t& eliminated_constraints) {
+  CUDA UB<bool> replace_by_equivalence(int x, int y, int i, size_t& eliminated_constraints) {
     merge(x, y);
     return eliminate(eliminated_formulas, i, eliminated_constraints);
   }
@@ -348,7 +338,7 @@ public:
             /** k = y * y -> y \in [-n,n] (if n * n = k), false (otherwise).
              * This is an over-approximation, thus we cannot eliminate the constraint. */
             else if(x_is_c && y == z) {
-              auto n = battery::iroots_up(vstore[x].lb().value(), 2);
+              auto n = battery::iroots_up(vstore[x].lb().load(), 2);
               if(n * n == vstore[x].lb()) {
                 has_changed |= vstore[y].meet(universe_type(-n, n));
               }
@@ -588,7 +578,7 @@ private:
    * \pre `u` must be a singleton. */
   template <class F, class U>
   CUDA F constant_of(const U& u) const {
-    return F::make_z(u.lb().value());
+    return F::make_z(u.lb().load());
   }
 
   /** The logical constraint describing the domain `u` of the variable `x`. */
@@ -598,13 +588,13 @@ private:
     if(u.is_top()) { return F::make_true(); }
     F var = F::make_avar(x);
     if(u.lb().is_top()) {
-      return F::make_binary(var, LEQ, F::make_z(u.ub().value()), UNTYPED, get_allocator());
+      return F::make_binary(var, LEQ, F::make_z(u.ub().load()), UNTYPED, get_allocator());
     }
     else if(u.ub().is_top()) {
-      return F::make_binary(var, GEQ, F::make_z(u.lb().value()), UNTYPED, get_allocator());
+      return F::make_binary(var, GEQ, F::make_z(u.lb().load()), UNTYPED, get_allocator());
     }
     logic_set<F> dom(1, get_allocator());
-    dom[0] = battery::make_tuple(F::make_z(u.lb().value()), F::make_z(u.ub().value()));
+    dom[0] = battery::make_tuple(F::make_z(u.lb().load()), F::make_z(u.ub().load()));
     return F::make_binary(var, IN, F::make_set(std::move(dom)), UNTYPED, get_allocator());
   }
 
