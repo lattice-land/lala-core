@@ -38,18 +38,18 @@ template<class U, class Allocator>
 class VStore {
 public:
   using universe_type = U;
-  using basic_univ_type = typename universe_type::basic_type;
+  using basic_universe_type = typename universe_type::basic_type;
   using allocator_type = Allocator;
   using this_type = VStore<universe_type, allocator_type>;
 
   template <class Alloc>
   struct var_dom {
     AVar avar;
-    basic_univ_type dom;
+    basic_universe_type dom;
     var_dom() = default;
     var_dom(const var_dom<Alloc>&) = default;
     CUDA explicit var_dom(const Alloc&) {}
-    CUDA var_dom(AVar avar, const basic_univ_type& dom): avar(avar), dom(dom) {}
+    CUDA var_dom(AVar avar, const basic_universe_type& dom): avar(avar), dom(dom) {}
     template <class VarDom>
     CUDA var_dom(const VarDom& other): avar(other.avar), dom(other.dom) {}
   };
@@ -61,7 +61,7 @@ public:
   using ask_type = tell_type<Alloc>;
 
   template <class Alloc = allocator_type>
-  using snapshot_type = battery::vector<basic_univ_type, Alloc>;
+  using snapshot_type = battery::vector<basic_universe_type, Alloc>;
 
   constexpr static const char* name = "VStore";
 
