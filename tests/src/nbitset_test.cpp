@@ -61,20 +61,29 @@ TEST(NBitsetTest, OrderTest) {
 }
 
 
+/** `neg` and `abs` refine the current element in place, so we apply them to a
+ * fresh (top) bitset to observe the image of `x`. */
+static NBit neg_of(const NBit& x) { NBit r; r.neg(x); return r; }
+static NBit abs_of(const NBit& x) { NBit r; r.abs(x); return r; }
+
 TEST(NBitsetTest, Negation) {
-  EXPECT_EQ((project_fun(NEG, NBit(5, 10))), NBit(-1));
-  EXPECT_EQ((project_fun(NEG, NBit(-10, 10))), NBit::top());
-  EXPECT_EQ((project_fun(NEG, NBit(-10, -1))), NBit(0,1000));
-  EXPECT_EQ((project_fun(NEG, NBit(0, 1000))), NBit(-1));
+  EXPECT_EQ(neg_of(NBit(5, 10)), NBit(-1));
+  EXPECT_EQ(neg_of(NBit(-10, 10)), NBit::top());
+  EXPECT_EQ(neg_of(NBit(-10, -1)), NBit(0,1000));
+  EXPECT_EQ(neg_of(NBit(0, 1000)), NBit(-1));
+  // Bot and top are preserved.
+  EXPECT_EQ(neg_of(NBit::top()), NBit::top());
+  EXPECT_EQ(neg_of(NBit::bot()), NBit::bot());
 }
 
 TEST(NBitsetTest, Absolute) {
-  EXPECT_EQ((project_fun(ABS, NBit(5, 10))), NBit(5, 10));
-  EXPECT_EQ((project_fun(ABS, NBit(-10, 10))), NBit(0, 1000));
-  EXPECT_EQ((project_fun(ABS, NBit(0,1000))), NBit(0, 1000));
-  EXPECT_EQ((project_fun(ABS, NBit(-1))), NBit(0, 1000));
-  EXPECT_EQ((project_fun(ABS, NBit(1000))), NBit(1000));
-  EXPECT_EQ((project_fun(ABS, NBit(-10, -5))), NBit(0, 1000));
+  EXPECT_EQ(abs_of(NBit(5, 10)), NBit(5, 10));
+  EXPECT_EQ(abs_of(NBit(-10, 10)), NBit(0, 1000));
+  EXPECT_EQ(abs_of(NBit(0,1000)), NBit(0, 1000));
+  EXPECT_EQ(abs_of(NBit(-1)), NBit(0, 1000));
+  EXPECT_EQ(abs_of(NBit(1000)), NBit(1000));
+  EXPECT_EQ(abs_of(NBit(-10, -5)), NBit(0, 1000));
+  EXPECT_EQ(abs_of(NBit::bot()), NBit::bot());
 }
 
 TEST(NBitsetTest, Width) {
@@ -106,8 +115,4 @@ TEST(NBitsetTest, Projections) {
   EXPECT_EQ(NBit(1000, 1000).ub(), ZUB::top());
   EXPECT_EQ(NBit(-1, -1).lb(), ZLB::top());
   EXPECT_EQ(NBit(-1, -1).ub(), ZUB(-1));
-}
-
-TEST(NBitsetTest, GenericFunTests) {
-  generic_unary_fun_test<NBit>(NEG);
 }

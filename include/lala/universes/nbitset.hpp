@@ -3,7 +3,7 @@
 #ifndef LALA_CORE_NBITSET_HPP
 #define LALA_CORE_NBITSET_HPP
 
-#include "../logic/logic.hpp"
+#include "battery/vector.hpp"
 #include "lala/lb.hpp"
 #include "lala/ub.hpp"
 #include "battery/bitset.hpp"
@@ -215,14 +215,6 @@ public:
     printf("}");
   }
 
-  CUDA NI constexpr static bool is_trivial_fun(Sig sig) {
-    switch(sig) {
-      case ABS:
-      case NEG: return false;
-      default: return true;
-    }
-  }
-
 public:
   CUDA constexpr void neg(const local_type& x) {
     // if `x` represents all negative numbers, then the negation is all positive numbers.
@@ -247,25 +239,6 @@ public:
     else {
       meet(x);
     }
-  }
-
-  CUDA constexpr void project(Sig fun, const local_type& x)  {
-    switch(fun) {
-      case NEG: neg(x); break;
-      case ABS: abs(x); break;
-    }
-  }
-
-  CUDA constexpr void additive_inverse(const local_type& x) {
-    printf("%% additive_inverse is unsupported\n");
-    int* ptr = nullptr;
-    ptr[1] = 193;
-  }
-
-  CUDA constexpr void project(Sig fun, const local_type& x, const local_type& y) {
-    printf("%% binary functions %s are unsupported\n", string_of_sig(fun));
-    int* ptr = nullptr;
-    ptr[1] = 193;
   }
 
   CUDA constexpr local_type width() const {
