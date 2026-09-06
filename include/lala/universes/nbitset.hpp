@@ -4,7 +4,6 @@
 #define LALA_CORE_NBITSET_HPP
 
 #include "../logic/logic.hpp"
-#include "../b.hpp"
 #include "lala/lb.hpp"
 #include "lala/ub.hpp"
 #include "battery/bitset.hpp"
@@ -109,8 +108,8 @@ public:
 
   CUDA constexpr static local_type bot() { return NBitset(bot_constructor_tag{}); }
   CUDA constexpr static local_type top() { return NBitset(); }
-  CUDA constexpr local::B is_top() const { return bits.all(); }
-  CUDA constexpr local::B is_bot() const { return bits.none(); }
+  CUDA constexpr UB<bool> is_top() const { return bits.all(); }
+  CUDA constexpr UB<bool> is_bot() const { return bits.none(); }
   CUDA constexpr const bitset_type& value() const { return bits; }
 
   /** The two extremal bits of the bitset stand for "some value below the representable range" and

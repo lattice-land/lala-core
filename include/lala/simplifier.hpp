@@ -119,7 +119,7 @@ public:
   }
 
   /** @parallel @order-preserving @increasing  */
-  CUDA local::B is_bot() const {
+  CUDA UB<bool> is_bot() const {
     return sub->is_bot();
   }
 
@@ -198,7 +198,7 @@ public:
 
 private:
   /** \return `true` if mask[i] was changed. */
-  CUDA local::B eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
+  CUDA UB<bool> eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
     if(!mask.test(i)) {
       mask.set(i, true);
       return true;
@@ -206,7 +206,7 @@ private:
     return false;
   }
 
-  CUDA local::B eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i, size_t& eliminated_constraints) {
+  CUDA UB<bool> eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i, size_t& eliminated_constraints) {
     if(eliminate(mask, i)) {
       ++eliminated_constraints;
       return true;
@@ -221,11 +221,11 @@ public:
   }
 
 private:
-  CUDA local::B replace_by_equivalence(AVar x, AVar y, int i, size_t& eliminated_constraints) {
+  CUDA UB<bool> replace_by_equivalence(AVar x, AVar y, int i, size_t& eliminated_constraints) {
     return replace_by_equivalence(x.vid(), y.vid(), i, eliminated_constraints);
   }
 
-  CUDA local::B replace_by_equivalence(int x, int y, int i, size_t& eliminated_constraints) {
+  CUDA UB<bool> replace_by_equivalence(int x, int y, int i, size_t& eliminated_constraints) {
     merge(x, y);
     return eliminate(eliminated_formulas, i, eliminated_constraints);
   }

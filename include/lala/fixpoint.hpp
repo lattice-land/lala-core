@@ -4,7 +4,7 @@
 #define LALA_CORE_FIXPOINT_HPP
 
 #include "logic/logic.hpp"
-#include "b.hpp"
+#include "lala/ub.hpp"
 #include "battery/memory.hpp"
 #include "battery/vector.hpp"
 
@@ -28,7 +28,7 @@ public:
    * \return `true` if for some `i`, `f(i)` returned `true`, `false` otherwise.
   */
   template <class F>
-  CUDA local::B iterate(int n, const F& f) const {
+  CUDA UB<bool> iterate(int n, const F& f) const {
     bool has_changed = false;
     for(int i = 0; i < n; ++i) {
       has_changed |= f(i);
@@ -44,9 +44,9 @@ public:
    * \return The number of iterations required to reach a fixpoint or until `must_stop()` returns `true`.
   */
   template <class F, class StopFun, class M>
-  CUDA int fixpoint(int n, const F& f, const StopFun& must_stop, B<M>& has_changed) {
+  CUDA int fixpoint(int n, const F& f, const StopFun& must_stop, UB<bool, M>& has_changed) {
     int iterations = 0;
-    local::B changed(true);
+    UB<bool> changed(true);
     while(changed && !must_stop()) {
       changed = iterate(n, f);
       has_changed.join(changed);
@@ -58,20 +58,20 @@ public:
   /** Same as `fixpoint` above without `has_changed`. */
   template <class F, class StopFun>
   CUDA int fixpoint(int n, const F& f, const StopFun& must_stop) {
-    local::B has_changed(false);
+    UB<bool> has_changed(false);
     return fixpoint(n, f, must_stop, has_changed);
   }
 
   /** Same as `fixpoint` above with `must_stop` always returning `false`. */
   template <class F, class M>
-  CUDA int fixpoint(int n, const F& f, B<M>& has_changed) {
+  CUDA int fixpoint(int n, const F& f, UB<bool, M>& has_changed) {
     return fixpoint(n, f, [](){ return false; }, has_changed);
   }
 
   /** Same as `fixpoint` above without `has_changed` and with `must_stop` always returning `false`. */
   template <class F>
   CUDA int fixpoint(int n, const F& f) {
-    local::B has_changed(false);
+    UB<bool> has_changed(false);
     return fixpoint(n, f, has_changed);
   }
 };
@@ -114,7 +114,7 @@ public:
   }
 
   template <class F, class StopFun, class M>
-  int fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
+  int fixpoint(const F& f, const StopFun& g, UB<bool, M>& has_changed) {
     return fp_engine.fixpoint(n, [&](int i) { return f(indexes[i]); }, g);
   }
 
@@ -157,8 +157,8 @@ public:
 template <class IteratorEngine>
 class AsynchronousFixpoint {
   /** We do not use atomic because tearing is seemingly not possible in CUDA (according to information given by Nvidia engineers during a hackathon). */
-  local::B changed[3];
-  local::B stop[3];
+  UB<bool> changed[3];
+  UB<bool> stop[3];
 
   CUDA void reset() {
     if(is_thread0()) {
@@ -181,7 +181,7 @@ public:
   }
 
   template <class F>
-  CUDA INLINE local::B iterate(int n, const F& f) const {
+  CUDA INLINE UB<bool> iterate(int n, const F& f) const {
     return static_cast<const IteratorEngine*>(this)->iterate(n, f);
   }
 
@@ -193,7 +193,7 @@ public:
    * \return The number of iterations required to reach a fixpoint or until `must_stop()` returns `true`.
   */
   template <class F, class StopFun, class M>
-  CUDA int fixpoint(int n, const F& f, const StopFun& must_stop, B<M>& has_changed) {
+  CUDA int fixpoint(int n, const F& f, const StopFun& must_stop, UB<bool, M>& has_changed) {
     reset();
     barrier();
     int i;
@@ -238,46 +238,46 @@ public:
   /** Same as `fixpoint` above without `has_changed`. */
   template <class F, class StopFun>
   CUDA INLINE int fixpoint(int n, const F& f, const StopFun& must_stop) {
-    local::B has_changed(false);
+    UB<bool> has_changed(false);
     return fixpoint(n, f, must_stop, has_changed);
   }
 
   /** Same as `fixpoint` above with `must_stop` always returning `false`. */
   template <class F, class M>
-  CUDA INLINE int fixpoint(int n, const F& f, B<M>& has_changed) {
+  CUDA INLINE int fixpoint(int n, const F& f, UB<bool, M>& has_changed) {
     return fixpoint(n, f, [](){ return false; }, has_changed);
   }
 
   /** Same as `fixpoint` above without `has_changed` and with `must_stop` always returning `false`. */
   template <class F>
   CUDA INLINE int fixpoint(int n, const F& f) {
-    local::B has_changed(false);
+    UB<bool> has_changed(false);
     return fixpoint(n, f, has_changed);
   }
 
   /** Same as `fixpoint` with a new function defined by `g(i) = f(indexes[i])` and `n = indexes.size()`. */
   template <class Alloc, class F, class StopFun, class M>
-  CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const StopFun& must_stop, B<M>& has_changed) {
+  CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const StopFun& must_stop, UB<bool, M>& has_changed) {
     return fixpoint(indexes.size(), [&](int i) { return f(indexes[i]); }, must_stop, has_changed);
   }
 
   /** Same as `fixpoint` with `g(i) = f(indexes[i])` and `n = indexes.size()`, without `has_changed`. */
   template <class Alloc, class F, class StopFun>
   CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, const StopFun& must_stop) {
-    local::B has_changed(false);
+    UB<bool> has_changed(false);
     return fixpoint(indexes, f, must_stop, has_changed);
   }
 
   /** Same as `fixpoint` above with `must_stop` always returning `false`. */
   template <class Alloc, class F, class M>
-  CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, B<M>& has_changed) {
+  CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f, UB<bool, M>& has_changed) {
     return fixpoint(indexes, f, [](){ return false; }, has_changed);
   }
 
   /** Same as `fixpoint` above without `has_changed` and with `must_stop` always returning `false`. */
   template <class Alloc, class F>
   CUDA INLINE int fixpoint(const battery::vector<int, Alloc>& indexes, const F& f) {
-    local::B has_changed(false);
+    UB<bool> has_changed(false);
     return fixpoint(indexes, f, has_changed);
   }
 };
@@ -408,9 +408,9 @@ public:
  * TPB: the number of threads per block.
 */
 template <int TPB, class A>
-__device__ local::B warp_fixpoint(A& a, int i, int* warp_iterations) {
+__device__ UB<bool> warp_fixpoint(A& a, int i, int* warp_iterations) {
   auto ded = a.load_deduce(i);
-  local::B has_changed = false;
+  UB<bool> has_changed = false;
   __shared__ bool warp_changed[TPB/32];
   int warp_id = threadIdx.x / 32;
   warp_changed[warp_id] = true;
@@ -535,7 +535,7 @@ public:
   }
 
   template <class F, class StopFun, class M>
-  CUDA INLINE int fixpoint(const F& f, const StopFun& g, B<M>& has_changed) {
+  CUDA INLINE int fixpoint(const F& f, const StopFun& g, UB<bool, M>& has_changed) {
     return fp_engine.fixpoint(indexes, f, g);
   }
 

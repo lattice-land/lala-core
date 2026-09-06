@@ -4,7 +4,7 @@
 #define LALA_CORE_VSTORE_HPP
 
 #include "logic/logic.hpp"
-#include "b.hpp"
+#include "lala/ub.hpp"
 #include "abstract_deps.hpp"
 #include <optional>
 
@@ -74,7 +74,7 @@ private:
 
   AType atype;
   store_type data;
-  B<memory_type> is_at_bot;
+  UB<bool, memory_type> is_at_bot;
 
 public:
   CUDA VStore(const this_type& other)
@@ -154,14 +154,14 @@ public:
   /** \return `true` if at least one element is equal to bot in the store, `false` otherwise.
    * @parallel @order-preserving @increasing
   */
-  CUDA local::B is_bot() const {
+  CUDA UB<bool> is_bot() const {
     return is_at_bot;
   }
 
   /** The bottom element of a store of `n` variables is when all variables are at bottom, or the store is empty.
    * We do not expect to use this operation a lot, so its complexity is linear in the number of variables.
    * @parallel @order-preserving @decreasing */
-  CUDA local::B is_top() const {
+  CUDA UB<bool> is_top() const {
     if(is_at_bot) { return false; }
     for(int i = 0; i < vars(); ++i) {
       if(!data[i].is_top()) {
@@ -281,7 +281,7 @@ public:
     int largest_vid = 0;
     for(int i = 0; i < t.size(); ++i) {
       if(t[i].avar == AVar{}) {
-        return is_at_bot.join(local::B(true));
+        return is_at_bot.join(UB<bool>(true));
       }
       largest_vid = battery::max(largest_vid, t[i].avar.vid());
     }
@@ -340,7 +340,7 @@ public:
    * For instance, if we have in the store `x = [0..10]`, we can deduce `x = [-1..11]` but we cannot deduce `x = [5..8]`.
    * @parallel @order-preserving @decreasing */
   template <class Alloc2>
-  CUDA local::B ask(const ask_type<Alloc2>& t) const {
+  CUDA UB<bool> ask(const ask_type<Alloc2>& t) const {
     for(int i = 0; i < t.size(); ++i) {
       if(!data[t[i].avar.vid()].leq(t[i].dom)) {
         return false;
@@ -350,7 +350,7 @@ public:
   }
 
   CUDA int num_deductions() const { return 0; }
-  CUDA local::B deduce(int) const { assert(false); return false; }
+  CUDA UB<bool> deduce(int) const { assert(false); return false; }
 
   /**  An abstract element is extractable when it is not equal to bot.
    * If the strategy is `atoms`, we check the domains are singleton.
