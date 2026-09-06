@@ -34,7 +34,7 @@ else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-    GIT_TAG        v1.5.8
+    GIT_TAG        v1.5.9
   )
   FetchContent_Declare(
     lala_interval
