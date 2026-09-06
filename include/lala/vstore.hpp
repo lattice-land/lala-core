@@ -154,14 +154,14 @@ public:
   /** \return `true` if at least one element is equal to bot in the store, `false` otherwise.
    * @parallel @order-preserving @increasing
   */
-  CUDA UB<bool> is_bot() const {
+  CUDA bool is_bot() const {
     return is_at_bot;
   }
 
   /** The bottom element of a store of `n` variables is when all variables are at bottom, or the store is empty.
    * We do not expect to use this operation a lot, so its complexity is linear in the number of variables.
    * @parallel @order-preserving @decreasing */
-  CUDA UB<bool> is_top() const {
+  CUDA bool is_top() const {
     if(is_at_bot) { return false; }
     for(int i = 0; i < vars(); ++i) {
       if(!data[i].is_top()) {
@@ -340,7 +340,7 @@ public:
    * For instance, if we have in the store `x = [0..10]`, we can deduce `x = [-1..11]` but we cannot deduce `x = [5..8]`.
    * @parallel @order-preserving @decreasing */
   template <class Alloc2>
-  CUDA UB<bool> ask(const ask_type<Alloc2>& t) const {
+  CUDA bool ask(const ask_type<Alloc2>& t) const {
     for(int i = 0; i < t.size(); ++i) {
       if(!data[t[i].avar.vid()].leq(t[i].dom)) {
         return false;
@@ -350,7 +350,7 @@ public:
   }
 
   CUDA int num_deductions() const { return 0; }
-  CUDA UB<bool> deduce(int) const { assert(false); return false; }
+  CUDA bool deduce(int) const { assert(false); return false; }
 
   /**  An abstract element is extractable when it is not equal to bot.
    * If the strategy is `atoms`, we check the domains are singleton.

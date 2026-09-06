@@ -28,7 +28,7 @@ public:
   CUDA int extract() {
     return result;
   }
-  CUDA UB<bool> is_bot() const { return false; }
+  CUDA bool is_bot() const { return false; }
 };
 
 __global__ void minimum_kernel_on_block(cpu_gpu_vec* g, int* result) {

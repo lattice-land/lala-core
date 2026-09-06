@@ -108,8 +108,8 @@ public:
 
   CUDA constexpr static basic_type bot() { return NBitset(bot_constructor_tag{}); }
   CUDA constexpr static basic_type top() { return NBitset(); }
-  CUDA constexpr UB<bool> is_top() const { return bits.all(); }
-  CUDA constexpr UB<bool> is_bot() const { return bits.none(); }
+  CUDA constexpr bool is_top() const { return bits.all(); }
+  CUDA constexpr bool is_bot() const { return bits.none(); }
   CUDA constexpr const bitset_type& value() const { return bits; }
 
   /** The two extremal bits of the bitset stand for "some value below the representable range" and

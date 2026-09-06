@@ -119,7 +119,7 @@ public:
   }
 
   /** @parallel @order-preserving @increasing  */
-  CUDA UB<bool> is_bot() const {
+  CUDA bool is_bot() const {
     return sub->is_bot();
   }
 
