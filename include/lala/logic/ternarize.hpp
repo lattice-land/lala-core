@@ -363,7 +363,7 @@ private:
      * `is_binary()` case above already does for a 2-operand RHS) avoids
      * introducing that alias. Only the outermost step benefits: the n-ary
      * decomposition's own intermediate partial sums still need their own
-     * fresh variables (see `binarize_middle`) -- that part of ternarization
+     * fresh variables (see `binarize_operands`) -- that part of ternarization
      * is unavoidable and unrelated to this alias. Restricted to ADD/MUL
      * (not e.g. AND/OR/EQUIV, which `push_ternary` cannot take directly --
      * see the `case AND: case MIN: ...` mapping in the switch below) since
@@ -381,8 +381,8 @@ private:
       int right = 1 - left;
       F target = ternarize(f.seq(left));
       const F& sum = f.seq(right);
-      auto middle = binarize_middle(sum);
-      return push_ternary(target, middle.first, sum.sig(), middle.second);
+      auto operands = binarize_operands(sum);
+      return push_ternary(target, operands.first, sum.sig(), operands.second);
     }
     t1 = ternarize(f.seq(0));
     t1 = booleanize(t1, f.sig());
@@ -470,9 +470,31 @@ private:
       ternarize(right.size() == 1 ? right.back() : F::make_nary(f.sig(), std::move(right)))};
   }
 
+  /** Decompose the n-ary formula `f` (with `n > 2` operands) from left to right:
+   * `t_1 = f_0 + f_1`, `t_2 = t_1 + f_2`, ..., `t_{n-2} = t_{n-3} + f_{n-2}`.
+   * We return the operands of the last step, `t_{n-2}` and the ternarized `f_{n-1}`, so that the caller can write it into the variable of its choice.
+   * The operands are thus combined in the order they appear, as a sequential accumulation would do. */
+  std::pair<F, F> binarize_sequential(const F& f) {
+    assert(f.is(F::Seq) && f.seq().size() > 2);
+    F acc = ternarize(F::make_binary(f.seq(0), f.sig(), f.seq(1)));
+    for(int i = 2; i < f.seq().size() - 1; ++i) {
+      acc = ternarize(F::make_binary(acc, f.sig(), f.seq(i)));
+    }
+    return {acc, ternarize(f.seq(f.seq().size() - 1))};
+  }
+
+  /** Split the n-ary associative formula `f` into the two operands of its outermost step.
+   * Sums are decomposed sequentially (`binarize_sequential`); the other operators are split in the middle (`binarize_middle`), which yields a balanced tree. */
+  std::pair<F, F> binarize_operands(const F& f) {
+    if(f.sig() == ADD) {
+      return binarize_sequential(f);
+    }
+    return binarize_middle(f);
+  }
+
   F ternarize_nary(const F& f, bool toplevel) {
     if(is_associative(f.sig())) {
-      auto [t1, t2] = binarize_middle(f);
+      auto [t1, t2] = binarize_operands(f);
       return ternarize(F::make_binary(t1, f.sig(), t2), toplevel);
     }
     else {
