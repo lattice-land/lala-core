@@ -13,7 +13,7 @@ using IStore = VStore<Itv, standard_allocator>;
 /** Build a store of `doms.size()` variables. */
 template <class Store, class U>
 Store make_store(std::initializer_list<U> doms) {
-  Store store(0, static_cast<int>(doms.size()), standard_allocator{});
+  Store store(static_cast<int>(doms.size()), standard_allocator{});
   int i = 0;
   for(const U& u : doms) {
     store.embed(i++, u);
@@ -91,8 +91,44 @@ TEST(VStoreTest, Extract) {
 }
 
 TEST(VStoreTest, CopyAndAllocator) {
-  IStore vstore(0, 10, standard_allocator{});
+  IStore vstore(10, standard_allocator{});
   using stat_alloc = statistics_allocator<standard_allocator>;
   using IStore2 = VStore<Itv, stat_alloc>;
   IStore2 copy(vstore, AbstractDeps<stat_alloc>(stat_alloc{}));
+}
+
+/** A store does not need an environment nor an abstract type: it can be used as a plain array of lattice elements.
+ * Here, we compute the minimum of an array of integers as the meet of upper bounds. */
+TEST(VStoreTest, PlainArrayMin) {
+  using UStore = VStore<zub, standard_allocator>;
+  UStore store(5);
+  EXPECT_EQ(store.vars(), 5);
+  EXPECT_TRUE(store.is_top());
+  int values[] = {7, 3, 9, 4, 8};
+  for(int i = 0; i < 5; ++i) {
+    EXPECT_TRUE(store.embed(i, zub(values[i])));
+  }
+  zub min = zub::top();
+  for(int i = 0; i < store.vars(); ++i) {
+    store.project(i, min);
+  }
+  EXPECT_EQ(min, zub(3));
+}
+
+TEST(VStoreTest, DeduceTell) {
+  ZStore store = ZStore::top();
+  EXPECT_EQ(store.vars(), 0);
+  ZStore::tell_type<standard_allocator> tell;
+  tell.push_back(ZStore::var_dom<standard_allocator>(2, zlb(5)));
+  EXPECT_TRUE(store.deduce(tell));
+  // The store grows to hold the element at index 2.
+  EXPECT_EQ(store.vars(), 3);
+  EXPECT_EQ(store[2], zlb(5));
+  EXPECT_TRUE(store[0].is_top());
+  EXPECT_TRUE(store.ask(tell));
+  // The index `-1` represents `false`.
+  ZStore::tell_type<standard_allocator> tell_false;
+  tell_false.push_back(ZStore::var_dom<standard_allocator>());
+  EXPECT_TRUE(store.deduce(tell_false));
+  EXPECT_TRUE(store.is_bot());
 }

@@ -31,6 +31,10 @@ Any finite store \f$ \langle x_1, \ldots, x_n \rangle \f$ should be seen as the 
 This semantics has implication when joining or merging two elements.
 For instance, \f$ \langle 1 \rangle.\mathit{meet}(\langle \bot, 4 \rangle) \f$ will be equal to bottom, in that case represented by \f$ \langle \bot \rangle \f$.
 
+The elements of the store are indexed by integers.
+The store is not aware of logical variables nor of abstract types (`AType`): mapping logical variables to indices of the store is the job of the interpretation layer.
+Therefore, a store can also be used as a plain array of lattice elements.
+
 Template parameters:
   - `U` is the type of the abstract universe.
   - `Allocator` is the allocator of the underlying array of universes. */
@@ -42,16 +46,18 @@ public:
   using allocator_type = Allocator;
   using this_type = VStore<universe_type, allocator_type>;
 
+  /** The element `dom` to be met with the element of the store at index `idx`.
+   * The index `-1` represents `false`: telling it makes the store bottom. */
   template <class Alloc>
   struct var_dom {
-    AVar avar;
+    int idx = -1;
     basic_universe_type dom;
     var_dom() = default;
     var_dom(const var_dom<Alloc>&) = default;
     CUDA explicit var_dom(const Alloc&) {}
-    CUDA var_dom(AVar avar, const basic_universe_type& dom): avar(avar), dom(dom) {}
+    CUDA var_dom(int idx, const basic_universe_type& dom): idx(idx), dom(dom) {}
     template <class VarDom>
-    CUDA var_dom(const VarDom& other): avar(other.avar), dom(other.dom) {}
+    CUDA var_dom(const VarDom& other): idx(other.idx), dom(other.dom) {}
   };
 
   template <class Alloc>
@@ -72,32 +78,32 @@ private:
   using store_type = battery::vector<universe_type, allocator_type>;
   using memory_type = typename universe_type::memory_type;
 
-  AType atype;
   store_type data;
   UB<bool, memory_type> is_at_bot;
 
 public:
   CUDA VStore(const this_type& other)
-    : atype(other.atype), data(other.data), is_at_bot(other.is_at_bot)
+    : data(other.data), is_at_bot(other.is_at_bot)
   {}
 
   /** Initialize an empty store. */
-  CUDA VStore(AType atype, const allocator_type& alloc = allocator_type())
-   : atype(atype), data(alloc), is_at_bot(false)
+  CUDA explicit VStore(const allocator_type& alloc = allocator_type())
+   : data(alloc), is_at_bot(false)
   {}
 
-  CUDA VStore(AType atype, int size, const allocator_type& alloc = allocator_type())
-   : atype(atype), data(size, alloc), is_at_bot(false)
+  /** Initialize a store of `size` elements, all equal to top. */
+  CUDA explicit VStore(int size, const allocator_type& alloc = allocator_type())
+   : data(size, alloc), is_at_bot(false)
   {}
 
   template<class R>
   CUDA VStore(const VStore<R, allocator_type>& other)
-    : atype(other.atype), data(other.data), is_at_bot(other.is_at_bot)
+    : data(other.data), is_at_bot(other.is_at_bot)
   {}
 
   template<class R, class Alloc2>
   CUDA VStore(const VStore<R, Alloc2>& other, const allocator_type& alloc = allocator_type())
-    : atype(other.atype), data(other.data, alloc), is_at_bot(other.is_at_bot)
+    : data(other.data, alloc), is_at_bot(other.is_at_bot)
   {}
 
   /** Copy the vstore `other` in the current element.
@@ -107,14 +113,10 @@ public:
    : VStore(other, deps.template get_allocator<allocator_type>()) {}
 
   CUDA VStore(this_type&& other):
-    atype(other.atype), data(std::move(other.data)), is_at_bot(other.is_at_bot) {}
+    data(std::move(other.data)), is_at_bot(other.is_at_bot) {}
 
   CUDA allocator_type get_allocator() const {
     return data.get_allocator();
-  }
-
-  CUDA AType aty() const {
-    return atype;
   }
 
   /** Returns the number of variables currently represented by this abstract element. */
@@ -122,33 +124,16 @@ public:
     return data.size();
   }
 
-  CUDA static this_type top(AType atype = UNTYPED,
-    const allocator_type& alloc = allocator_type{})
-  {
-    return VStore(atype, alloc);
+  /** The empty store, which represents an infinite number of elements equal to top. */
+  CUDA static this_type top(const allocator_type& alloc = allocator_type{}) {
+    return VStore(alloc);
   }
 
-  /** A special symbolic element representing top. */
-  CUDA static this_type bot(AType atype = UNTYPED,
-    const allocator_type& alloc = allocator_type{})
-  {
-    auto s = VStore{atype, alloc};
+  /** A special symbolic element representing bottom. */
+  CUDA static this_type bot(const allocator_type& alloc = allocator_type{}) {
+    auto s = VStore(alloc);
     s.meet_bot();
     return std::move(s);
-  }
-
-  template <class Env>
-  CUDA static this_type bot(Env& env,
-    const allocator_type& alloc = allocator_type{})
-  {
-    return bot(env.extends_abstract_dom(), alloc);
-  }
-
-  template <class Env>
-  CUDA static this_type top(Env& env,
-    const allocator_type& alloc = allocator_type{})
-  {
-    return top(env.extends_abstract_dom(), alloc);
   }
 
   /** \return `true` if at least one element is equal to bot in the store, `false` otherwise.
@@ -228,14 +213,13 @@ public:
   }
 
   template <class Univ>
-  CUDA void project(AVar x, Univ& u) const {
+  CUDA void project(int x, Univ& u) const {
     u.meet(project(x));
   }
 
-  CUDA const universe_type& project(AVar x) const {
-    assert(x.aty() == aty());
-    assert(x.vid() < data.size());
-    return data[x.vid()];
+  CUDA const universe_type& project(int x) const {
+    assert(x >= 0 && x < data.size());
+    return data[x];
   }
 
   /** This projection must stay const, otherwise the user might tell new information in the universe, but we need to know in case we reach `top`. */
@@ -243,31 +227,21 @@ public:
     return data[x];
   }
 
-  CUDA const universe_type& operator[](AVar x) const {
-    return project(x);
-  }
-
   CUDA void meet_bot() {
     is_at_bot.join_top();
   }
 
-  /** Given an abstract variable `v`, `embed(VID(v), dom)` will update the domain of this variable with the new information `dom`.
-   * This `embed` method follows PCCP's model, but the variable `x` must already be initialized in the store.
+  /** `embed(x, dom)` updates the element at index `x` with the new information `dom`.
+   * This `embed` method follows PCCP's model, but the element `x` must already be initialized in the store.
    * @parallel @order-preserving @increasing
   */
   CUDA bool embed(int x, const universe_type& dom) {
-    assert(x < data.size());
+    assert(x >= 0 && x < data.size());
     bool has_changed = data[x].meet(dom);
     if(has_changed && data[x].is_bot()) {
       is_at_bot.join_top();
     }
     return has_changed;
-  }
-
-  /** This `embed` method follows PCCP's model, but the variable `x` must already be initialized in the store. */
-  CUDA bool embed(AVar x, const universe_type& dom) {
-    assert(x.aty() == aty());
-    return embed(x.vid(), dom);
   }
 
   /** This deduce method can grow the store if required, and therefore do not satisfy the PCCP model.
@@ -278,19 +252,19 @@ public:
     if(t.size() == 0) {
       return false;
     }
-    int largest_vid = 0;
+    int largest_idx = 0;
     for(int i = 0; i < t.size(); ++i) {
-      if(t[i].avar == AVar{}) {
+      if(t[i].idx == -1) {
         return is_at_bot.join(UB<bool>(true));
       }
-      largest_vid = battery::max(largest_vid, t[i].avar.vid());
+      largest_idx = battery::max(largest_idx, t[i].idx);
     }
-    if(largest_vid >= data.size()) {
-      data.resize(largest_vid+1);
+    if(largest_idx >= data.size()) {
+      data.resize(largest_idx+1);
     }
     bool has_changed = false;
     for(int i = 0; i < t.size(); ++i) {
-      has_changed |= embed(t[i].avar, t[i].dom);
+      has_changed |= embed(t[i].idx, t[i].dom);
     }
     return has_changed;
   }
@@ -342,7 +316,7 @@ public:
   template <class Alloc2>
   CUDA bool ask(const ask_type<Alloc2>& t) const {
     for(int i = 0; i < t.size(); ++i) {
-      if(!data[t[i].avar.vid()].leq(t[i].dom)) {
+      if(!data[t[i].idx].leq(t[i].dom)) {
         return false;
       }
     }
@@ -429,11 +403,11 @@ CUDA auto meet(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
 {
   using U = decltype(meet(a[0], b[0]));
   if(a.is_bot() || b.is_bot()) {
-    return VStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
+    return VStore<U, Alloc>::bot(a.get_allocator());
   }
   int max_size = battery::max(a.vars(), b.vars());
   int min_size = battery::min(a.vars(), b.vars());
-  VStore<U, Alloc> res(UNTYPED, max_size, a.get_allocator());
+  VStore<U, Alloc> res(max_size, a.get_allocator());
   for(int i = 0; i < min_size; ++i) {
     res.embed(i, meet(a[i], b[i]));
   }
@@ -452,7 +426,7 @@ CUDA auto join(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
   using U = decltype(join(a[0], b[0]));
   if(a.is_bot()) {
     if(b.is_bot()) {
-      return VStore<U, Alloc>::bot(UNTYPED, a.get_allocator());
+      return VStore<U, Alloc>::bot(a.get_allocator());
     }
     else {
       return VStore<U, Alloc>(b);
@@ -463,7 +437,7 @@ CUDA auto join(const VStore<L, Alloc>& a, const VStore<K, Alloc>& b)
   }
   else {
     int min_size = battery::min(a.vars(), b.vars());
-    VStore<U, Alloc> res(UNTYPED, min_size, a.get_allocator());
+    VStore<U, Alloc> res(min_size, a.get_allocator());
     for(int i = 0; i < min_size; ++i) {
       res.embed(i, join(a[i], b[i]));
     }
