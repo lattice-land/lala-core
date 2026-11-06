@@ -66,7 +66,7 @@ public:
 
 
 private:
-  AType atype;
+  /** The abstract type of the variables of the underlying store, in `env`. */
   AType store_aty;
   abstract_ptr<sub_type> sub;
   // We keep a copy of the variable environment in which the formula has been initially interpreted.
@@ -82,17 +82,16 @@ private:
   battery::vector<universe_type, allocator_type> constants;
 
 public:
-  CUDA Simplifier(AType atype
-    , AType store_aty
+  CUDA Simplifier(AType store_aty
     , abstract_ptr<sub_type> sub
     , const allocator_type& alloc = allocator_type())
-   : atype(atype), store_aty(store_aty), sub(sub), env(alloc)
+   : store_aty(store_aty), sub(sub), env(alloc)
    , eliminated_variables(alloc), eliminated_formulas(alloc)
    , equivalence_classes(alloc), constants(alloc)
   {}
 
   CUDA Simplifier(this_type&& other)
-    : atype(other.atype), store_aty(other.store_aty), sub(std::move(other.sub)), env(other.env)
+    : store_aty(other.store_aty), sub(std::move(other.sub)), env(other.env)
     , eliminated_variables(std::move(other.eliminated_variables)), eliminated_formulas(std::move(other.eliminated_formulas))
     , equivalence_classes(std::move(other.equivalence_classes)), constants(std::move(other.constants))
   {}
@@ -102,8 +101,7 @@ public:
   // This return a light copy of `other`, basically just keeping the equivalence classes and the environment to be able to print solutions and call `representative`.
   template<class A2, class Alloc2>
   CUDA Simplifier(const Simplifier<A2, Alloc2>& other, light_copy_tag tag, abstract_ptr<sub_type> sub, const allocator_type& alloc = allocator_type())
-   : atype(other.atype)
-   , store_aty(other.store_aty)
+   : store_aty(other.store_aty)
    , sub(sub)
    , env(other.env, alloc)
    , equivalence_classes(other.equivalence_classes, alloc)
@@ -112,10 +110,6 @@ public:
 
   CUDA allocator_type get_allocator() const {
     return constants.get_allocator();
-  }
-
-  CUDA AType aty() const {
-    return atype;
   }
 
   /** @parallel @order-preserving @increasing  */
@@ -189,7 +183,8 @@ public:
     const auto& rep_name = env.name_of(AVar{store_aty, rep});
     auto benv_variable = benv.variable_of(rep_name);
     if(benv_variable.has_value()) {
-      benv_variable->get().sort.print_value(b.project(benv_variable->get().avars[0]));
+      assert(benv_variable->get().avar_of(store_aty).has_value());
+      benv_variable->get().sort.print_value(b.project(benv_variable->get().avar_of(store_aty)->vid()));
     }
     else {
       local_var.sort.print_value(constants[rep]);
@@ -501,7 +496,7 @@ private:
     }
     while(equivalence_classes[x] != root) {
       int parent = equivalence_classes[x];
-      sub->embed(AVar{store_aty, parent}, (*sub)[x]);
+      sub->embed(parent, (*sub)[x]);
       equivalence_classes[x] = root;
       x = parent;
     }
@@ -516,7 +511,7 @@ private:
       // Easier to debug and more robust for testing: use the root with the smallest index.
       if(rx < ry) battery::swap(rx, ry);
       equivalence_classes[rx] = ry;
-      sub->embed(AVar{store_aty, ry}, (*sub)[rx]);
+      sub->embed(ry, (*sub)[rx]);
     }
   }
 
@@ -524,11 +519,11 @@ public:
   CUDA void meet_equivalence_classes() {
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       int root = find(i);
-      sub->embed(AVar{store_aty, root}, (*sub)[i]);
+      sub->embed(root, (*sub)[i]);
     }
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       int root = find(i);
-      sub->embed(AVar{store_aty, i}, (*sub)[root]);
+      sub->embed(i, (*sub)[root]);
     }
   }
 
@@ -569,7 +564,7 @@ public:
      * Therefore, we save them in `constants`. */
     for(int i = 0; i < sub->vars(); ++i) {
       int root = find(i);
-      constants[i] = sub->project(AVar{store_aty, root});
+      constants[i] = sub->project(root);
     }
   }
 
