@@ -31,10 +31,6 @@ Any finite store \f$ \langle x_1, \ldots, x_n \rangle \f$ should be seen as the 
 This semantics has implication when joining or merging two elements.
 For instance, \f$ \langle 1 \rangle.\mathit{meet}(\langle \bot, 4 \rangle) \f$ will be equal to bottom, in that case represented by \f$ \langle \bot \rangle \f$.
 
-The elements of the store are indexed by integers.
-The store is not aware of logical variables nor of abstract types (`AType`): mapping logical variables to indices of the store is the job of the interpretation layer.
-Therefore, a store can also be used as a plain array of lattice elements.
-
 Template parameters:
   - `U` is the type of the abstract universe.
   - `Allocator` is the allocator of the underlying array of universes. */
