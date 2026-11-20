@@ -23,35 +23,39 @@ option(LOCAL_DEPS "LOCAL_DEPS" OFF)
 option(LALA_CORE_BUILD_TESTS "LALA_CORE_BUILD_TESTS" OFF)
 option(LALA_CORE_BUILD_DOC "LALA_CORE_BUILD_DOC" OFF)
 
-# Cuda-battery dependency
+# Dependencies
 
 include(FetchContent)
 
 if(LOCAL_DEPS)
   FetchContent_Declare(cuda_battery SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cuda-battery/")
+  FetchContent_Declare(lala_interval SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-interval/")
 else()
   FetchContent_Declare(
     cuda_battery
     GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-    GIT_TAG        v1.5.8
+    GIT_TAG        v1.5.9
+  )
+  FetchContent_Declare(
+    lala_interval
+    GIT_REPOSITORY "https://github.com/lattice-land/lala-interval.git"
+    GIT_TAG        rocq-fdiv-proofs
   )
 endif()
 
-FetchContent_MakeAvailable(cuda_battery)
+FetchContent_MakeAvailable(cuda_battery lala_interval)
 
 # Preparing the library
 
-if(NOT LALA_CORE_BUILD_TESTS) # For tests, lala_core will be built through lala_parsing (which depends on lala_core).
-  add_library(lala_core INTERFACE)
-  target_include_directories(lala_core INTERFACE include)
-  target_link_libraries(lala_core INTERFACE cuda_battery)
-  target_compile_options(lala_core INTERFACE
-    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-diag-suppress 20011,20014>" # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
-    "$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/utf-8>"
-    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:--compiler-options /utf-8>"
-    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:-diag-suppress 2219>" # Suppress warnings from nvcc about using UTF-8 "\uXXXX" strings in ast.hpp and primitive_upset.hpp
-  )
-endif()
+add_library(lala_core INTERFACE)
+target_include_directories(lala_core INTERFACE include)
+target_link_libraries(lala_core INTERFACE cuda_battery lala_interval)
+target_compile_options(lala_core INTERFACE
+  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-diag-suppress 20011,20014>" # useless warnings for us due to many template functions working on both CPU/GPU depending on the allocator (calling __host__ from __host__ __device__ is forbidden).
+  "$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/utf-8>"
+  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:--compiler-options /utf-8>"
+  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:-diag-suppress 2219>" # Suppress warnings from nvcc about using UTF-8 "\uXXXX" strings in ast.hpp and primitive_upset.hpp
+)
 
 if(LALA_CORE_BUILD_TESTS)
 
@@ -70,26 +74,13 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 include(GoogleTest)
 
-set(LALA_CORE_BUILD_TESTS OFF)
-if(LOCAL_DEPS)
-  FetchContent_Declare(lala_parsing SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-parsing/")
-else()
-  FetchContent_Declare(
-    lala_parsing
-    GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-    GIT_TAG        v1.2.8
-  )
-endif()
-FetchContent_MakeAvailable(lala_parsing)
-set(LALA_CORE_BUILD_TESTS ON)
-
 # I. CPU Tests (ending with "_test.cpp")
 file(GLOB cpu_test_files tests/src/*_test.cpp)
 foreach(file ${cpu_test_files})
   cmake_path(GET file STEM test_name)
   add_executable(${test_name} ${file})
   target_include_directories(${test_name} PRIVATE tests/include)
-  target_link_libraries(${test_name} lala_parsing gtest_main)
+  target_link_libraries(${test_name} lala_core gtest_main)
   gtest_discover_tests(${test_name})
 endforeach()
 
@@ -101,7 +92,7 @@ if(GPU)
     set_source_files_properties(${file} PROPERTIES LANGUAGE CUDA)
     add_executable(${test_name} ${file})
     target_include_directories(${test_name} PRIVATE tests/include)
-    target_link_libraries(${test_name} lala_parsing)
+    target_link_libraries(${test_name} lala_core)
     target_link_options(${test_name} PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>)
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
   endforeach()

@@ -21,6 +21,15 @@ using abstract_ptr = battery::shared_ptr<A, typename A::allocator_type>;
  * This class is useful to copy hierarchy of abstract domains.
  * Moreover, the allocators between the original and the copied hierarchy can be different.
  *
+ * A node of the hierarchy is identified by its address: two `abstract_ptr` pointing to the same object are copied once, and the copies share the same object.
+ * Two distinct objects are always copied separately.
+ * The addresses are only compared, never dereferenced, hence the original and the copied hierarchy can live in different memory spaces.
+ *
+ * Preconditions:
+ *   - The hierarchy is acyclic.
+ *   - The original hierarchy stays alive while it is copied.
+ *   - A same object is always copied to the same type `A2` (in `clone<A2>`).
+ *
  * The first allocator of the list is used for the internal allocations of this class.
  */
 template<class... Allocators>
@@ -46,37 +55,50 @@ private:
   };
 
   allocators_type allocators;
-  battery::vector<battery::unique_ptr<dep_erasure, allocator_type>, allocator_type> deps;
+  /** `srcs[i]` is the address of the original element that was copied into `holders[i]`. */
+  battery::vector<const void*, allocator_type> srcs;
+  battery::vector<battery::unique_ptr<dep_erasure, allocator_type>, allocator_type> holders;
 
   /** If the hierarchy to be copied is the root of the search tree, the children can share some elements with the root.
    * For instance, this is the case of propagators in `PC`.
    * This enables to share data among GPU blocks to avoid duplicating similar data, and to ease the contention on L2 cache. */
   bool shared_copy;
 
+  /** \return The index of `src` in `srcs`, or `-1` if `src` has not been copied yet. */
+  CUDA int index_of(const void* src) const {
+    for(int i = 0; i < srcs.size(); ++i) {
+      if(srcs[i] == src) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  template<class A>
+  CUDA abstract_ptr<A> extract(int i) const {
+    assert(i >= 0 && i < holders.size());
+    assert(holders[i]);
+    return static_cast<dep_holder<A>*>(holders[i].get())->a;
+  }
+
 public:
   CUDA AbstractDeps(bool shared_copy, const Allocators&... allocators)
   : shared_copy(shared_copy)
   , allocators(allocators...)
-  , deps(battery::get<0>(this->allocators))
+  , srcs(battery::get<0>(this->allocators))
+  , holders(battery::get<0>(this->allocators))
   {}
 
   CUDA AbstractDeps(const Allocators&... allocators)
   : AbstractDeps(false, allocators...) {}
 
+  /** \return The number of distinct elements copied so far. */
   CUDA size_t size() const {
-    return deps.size();
+    return holders.size();
   }
 
   CUDA bool is_shared_copy() const {
     return shared_copy;
-  }
-
-  template<class A>
-  CUDA abstract_ptr<A> extract(AType aty) {
-    assert(aty != UNTYPED);
-    assert(deps.size() > aty);
-    assert(deps[aty]);
-    return static_cast<dep_holder<A>*>(deps[aty].get())->a;
   }
 
   template<class A2, class A>
@@ -86,20 +108,24 @@ public:
     if(!a) {
       return abstract_ptr<A2>{to_alloc};
     }
-    assert(a->aty() != UNTYPED); // Abstract domain must all have a unique identifier to be copied.
-    // If the dependency is not in the list, we copy it and add it.
-    if(deps.size() <= a->aty() || !static_cast<bool>(deps[a->aty()])) {
-      deps.resize(battery::max((int)deps.size(), a->aty()+1));
-      allocator_type internal_alloc = battery::get<0>(allocators);
-      A2* a2 = static_cast<A2*>(to_alloc.allocate(sizeof(A2)));
-      new(a2) A2(*a, *this);
-      dep_holder<A2>* dep_hold = static_cast<dep_holder<A2>*>(internal_alloc.allocate(sizeof(dep_holder<A2>)));
-      new(dep_hold) dep_holder<A2>(a2);
-      deps[a->aty()] = battery::unique_ptr<dep_erasure, allocator_type>(
-        dep_hold, internal_alloc);
-      // NOTE: Since we are copying a DAG, `A(*a, *this)` or one of its dependency cannot create `deps[a->aty()]`.
+    const void* src = a.get();
+    int i = index_of(src);
+    if(i != -1) {
+      return extract<A2>(i);
     }
-    return extract<A2>(a->aty());
+    // The element has not been copied yet, so we copy it and add it.
+    // NOTE: The constructor `A2(*a, *this)` copies the dependencies of `a` by calling `clone` recursively, which grows `srcs` and `holders`.
+    // Therefore, we must not keep an index or a reference into these vectors across this call, and we only register `a` once it is fully copied.
+    // Since we are copying a DAG, this recursion never reaches `a` again.
+    allocator_type internal_alloc = battery::get<0>(allocators);
+    A2* a2 = static_cast<A2*>(to_alloc.allocate(sizeof(A2)));
+    new(a2) A2(*a, *this);
+    assert(index_of(src) == -1);
+    dep_holder<A2>* dep_hold = static_cast<dep_holder<A2>*>(internal_alloc.allocate(sizeof(dep_holder<A2>)));
+    new(dep_hold) dep_holder<A2>(a2);
+    srcs.push_back(src);
+    holders.push_back(battery::unique_ptr<dep_erasure, allocator_type>(dep_hold, internal_alloc));
+    return dep_hold->a;
   }
 
   template <class Alloc>

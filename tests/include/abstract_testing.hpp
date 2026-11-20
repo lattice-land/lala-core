@@ -6,10 +6,6 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include "lala/logic/logic.hpp"
-#include "lala/logic/ternarize.hpp"
-#include "lala/universes/arith_bound.hpp"
-#include "lala/interpretation.hpp"
-#include "lala/flatzinc_parser.hpp"
 
 using namespace lala;
 using namespace battery;
@@ -19,6 +15,7 @@ using F = TFormula<standard_allocator>;
 static LVar<standard_allocator> var_x = "x";
 static LVar<standard_allocator> var_y = "y";
 
+<<<<<<< HEAD
 inline VarEnv<standard_allocator> env_with(const char* fzn) {
   VarEnv<standard_allocator> env;
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
@@ -234,6 +231,8 @@ L create_float_interval(A a, B b) {
   return L(lb, ub);
 }
 
+=======
+>>>>>>> origin
 /** We must have `A::bot() < mid < A::top()`. */
 template <class A>
 void bot_top_test(const A& mid) {
@@ -256,18 +255,11 @@ void bot_top_test(const A& mid) {
   EXPECT_FALSE(mid.is_top());
   EXPECT_TRUE(bot < mid) << bot << " " << mid;
   EXPECT_TRUE(mid < top);
-
-  expect_interpret_equal_to<IKind::TELL, A>("constraint true;", top);
-  expect_interpret_equal_to<IKind::TELL, A>("constraint false;", bot);
-  if constexpr(A::is_abstract_universe) {
-    expect_interpret_equal_to<IKind::ASK, A>("constraint true;", top);
-    expect_interpret_equal_to<IKind::ASK, A>("constraint false;", bot);
-  }
 }
 
 template <class A>
 void join_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  EXPECT_EQ(fjoin(a, b), expect)  << "join(" << a << ", " << b << ")";;
+  EXPECT_EQ(join(a, b), expect)  << "join(" << a << ", " << b << ")";;
   if(test_tell) {
     A c(a);
     EXPECT_EQ(c.join(b), has_changed_expect) << a << ".join(" << b << ") == " << expect;
@@ -277,7 +269,7 @@ void join_one_test(const A& a, const A& b, const A& expect, bool has_changed_exp
 
 template <class A>
 void meet_one_test(const A& a, const A& b, const A& expect, bool has_changed_expect, bool test_tell = true) {
-  EXPECT_EQ(fmeet(a, b), expect) << "meet(" << a << ", " << b << ")";
+  EXPECT_EQ(meet(a, b), expect) << "meet(" << a << ", " << b << ")";
   if(test_tell) {
     A c(a);
     EXPECT_EQ(c.meet(b), has_changed_expect) << c << ".meet(" << b << ")";
@@ -310,6 +302,7 @@ void join_meet_generic_test(const A& a, const A& b, bool commutative_tell = true
   join_one_test(b, A::bot(), b, false);
 }
 
+<<<<<<< HEAD
 template <class A, class R = A>
 void generic_unary_fun_test(Sig fun) {
   R r{};
@@ -393,4 +386,6 @@ void check_interpret_idempotence(const char* fzn) {
   EXPECT_EQ(f1, f2);
 }
 
+=======
+>>>>>>> origin
 #endif

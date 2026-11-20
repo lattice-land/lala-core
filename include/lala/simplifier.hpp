@@ -4,9 +4,10 @@
 #define LALA_CORE_SIMPLIFIER_HPP
 
 #include "logic/logic.hpp"
-#include "universes/arith_bound.hpp"
+#include "lala/ub.hpp"
 #include "abstract_deps.hpp"
 #include "battery/dynamic_bitset.hpp"
+
 
 namespace lala {
 
@@ -58,57 +59,39 @@ public:
   using memory_type = typename universe_type::memory_type;
   using this_type = Simplifier<sub_type, allocator_type>;
 
-  constexpr static const bool is_abstract_universe = false;
-  constexpr static const bool sequential = universe_type::sequential;
-  constexpr static const bool is_totally_ordered = false;
-  // Note that I did not define the concretization function formally yet... This is not yet an fully fledged abstract domain, we need to work more on it!
-  constexpr static const bool preserve_bot = true;
-  constexpr static const bool preserve_top = true;
-  constexpr static const bool preserve_join = true;
-  constexpr static const bool preserve_meet = true;
-  constexpr static const bool injective_concretization = true;
-  constexpr static const bool preserve_concrete_covers = true;
   constexpr static const char* name = "Simplifier";
 
   template<class A2, class Alloc2>
   friend class Simplifier;
 
-  using formula_sequence = battery::vector<TFormula<allocator_type>, allocator_type>;
 
 private:
-  AType atype;
+  /** The abstract type of the variables of the underlying store, in `env`. */
   AType store_aty;
   abstract_ptr<sub_type> sub;
   // We keep a copy of the variable environment in which the formula has been initially interpreted.
   // This is necessary to project the variables and ask constraints in the subdomain during deduction.
   VarEnv<allocator_type> env;
-  // Read-only conjunctive formula, where each is treated independently.
-  formula_sequence formulas;
-  // Write-only (accessed in only 1 thread because this is not a parallel lattice entity) conjunctive formula, the main operation is a map between formulas and simplified_formulas.
-  formula_sequence simplified_formulas;
   // eliminated_variables[i] is `true` when the variable `i` can be removed because it does not occur in any constraint.
   battery::dynamic_bitset<memory_type, allocator_type> eliminated_variables;
   // eliminated_formulas[i] is `true` when the formula `i` is entailed.
   battery::dynamic_bitset<memory_type, allocator_type> eliminated_formulas;
   // `equivalence_classes[i]` contains the index of the representative variable in the equivalence class of the variable `i`.
-  battery::vector<ZUB<int, memory_type>, allocator_type> equivalence_classes;
+  battery::vector<UB<int, memory_type>, allocator_type> equivalence_classes;
   // `constants[i]` contains the universe value of the representative variables `i`, aggregated by meet on the values of all variables in the equivalence class.
   battery::vector<universe_type, allocator_type> constants;
 
 public:
-  CUDA Simplifier(AType atype
-    , AType store_aty
+  CUDA Simplifier(AType store_aty
     , abstract_ptr<sub_type> sub
     , const allocator_type& alloc = allocator_type())
-   : atype(atype), store_aty(store_aty), sub(sub), env(alloc)
-   , formulas(alloc), simplified_formulas(alloc)
+   : store_aty(store_aty), sub(sub), env(alloc)
    , eliminated_variables(alloc), eliminated_formulas(alloc)
    , equivalence_classes(alloc), constants(alloc)
   {}
 
   CUDA Simplifier(this_type&& other)
-    : atype(other.atype), store_aty(other.store_aty), sub(std::move(other.sub)), env(other.env)
-    , formulas(std::move(other.formulas)), simplified_formulas(std::move(other.simplified_formulas))
+    : store_aty(other.store_aty), sub(std::move(other.sub)), env(other.env)
     , eliminated_variables(std::move(other.eliminated_variables)), eliminated_formulas(std::move(other.eliminated_formulas))
     , equivalence_classes(std::move(other.equivalence_classes)), constants(std::move(other.constants))
   {}
@@ -118,8 +101,7 @@ public:
   // This return a light copy of `other`, basically just keeping the equivalence classes and the environment to be able to print solutions and call `representative`.
   template<class A2, class Alloc2>
   CUDA Simplifier(const Simplifier<A2, Alloc2>& other, light_copy_tag tag, abstract_ptr<sub_type> sub, const allocator_type& alloc = allocator_type())
-   : atype(other.atype)
-   , store_aty(other.store_aty)
+   : store_aty(other.store_aty)
    , sub(sub)
    , env(other.env, alloc)
    , equivalence_classes(other.equivalence_classes, alloc)
@@ -127,15 +109,11 @@ public:
   {}
 
   CUDA allocator_type get_allocator() const {
-    return formulas.get_allocator();
-  }
-
-  CUDA AType aty() const {
-    return atype;
+    return constants.get_allocator();
   }
 
   /** @parallel @order-preserving @increasing  */
-  CUDA local::B is_bot() const {
+  CUDA bool is_bot() const {
     return sub->is_bot();
   }
 
@@ -143,35 +121,7 @@ public:
   CUDA size_t vars() const {
     return equivalence_classes.size();
   }
-
-  template <class Alloc>
-  struct tell_type {
-    int num_vars;
-    formula_sequence formulas;
-    VarEnv<Alloc>* env;
-    tell_type(const Alloc& alloc = Alloc())
-      : num_vars(0), formulas(alloc), env(nullptr)
-    {}
-  };
-
 public:
-  template <bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA NI bool interpret_tell(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
-    if(f.is(F::E)) {
-      tell.num_vars++;
-      tell.env = &env;
-    }
-    else {
-      tell.formulas.push_back(f);
-      tell.env = &env;
-    }
-    return true;
-  }
-
-  template <IKind kind, bool diagnose = false, class F, class Env, class Alloc2>
-  CUDA bool interpret(const F& f, Env& env, tell_type<Alloc2>& tell, IDiagnostics& diagnostics) const {
-    return interpret_tell<diagnose>(f, env, tell, diagnostics);
-  }
 
   CUDA void initialize(int num_vars, int num_cons) {
     eliminated_variables.resize(num_vars);
@@ -205,18 +155,6 @@ public:
   }
 
 public:
-  /** @sequential */
-  template <class Alloc2>
-  CUDA bool deduce(tell_type<Alloc2>&& t) {
-    if(t.env != nullptr) { // could be nullptr if the interpreted formula is true.
-      env = *(t.env);
-      initialize(t.num_vars, t.formulas.size());
-      formulas = std::move(t.formulas);
-      simplified_formulas.resize(formulas.size());
-      return true;
-    }
-    return false;
-  }
 
   // `f` must be a formula from `formulas`.
   CUDA AVar var_of(const TFormula<allocator_type>& f) const {
@@ -245,7 +183,8 @@ public:
     const auto& rep_name = env.name_of(AVar{store_aty, rep});
     auto benv_variable = benv.variable_of(rep_name);
     if(benv_variable.has_value()) {
-      benv_variable->get().sort.print_value(b.project(benv_variable->get().avars[0]));
+      assert(benv_variable->get().avar_of(store_aty).has_value());
+      benv_variable->get().sort.print_value(b.project(benv_variable->get().avar_of(store_aty)->vid()));
     }
     else {
       local_var.sort.print_value(constants[rep]);
@@ -270,7 +209,7 @@ public:
 
 private:
   /** \return `true` if mask[i] was changed. */
-  CUDA local::B eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
+  CUDA UB<bool> eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
     if(!mask.test(i)) {
       mask.set(i, true);
       return true;
@@ -278,7 +217,7 @@ private:
     return false;
   }
 
-  CUDA local::B eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i, size_t& eliminated_constraints) {
+  CUDA UB<bool> eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i, size_t& eliminated_constraints) {
     if(eliminate(mask, i)) {
       ++eliminated_constraints;
       return true;
@@ -286,101 +225,18 @@ private:
     return false;
   }
 
-  // We merge the domains of the variables in the same equivalence class.
-  CUDA local::B vdeduce(int i) {
-    const auto& u = sub->project(AVar{store_aty, i});
-    size_t j = find(i);
-    local::B has_changed = constants[j].meet(u);
-    // Note that this code is only useful for simplifying formula not in TCN (such as tests in simplifier_test.cpp).
-    // On TCN, the method `eliminate_useless_variables` does the job.
-    if(!constants[j].is_bot() && constants[j].lb().value() == constants[j].ub().value()) {
-      eliminate(eliminated_variables, j);
-    }
-    return has_changed;
-  }
-
 public:
-  CUDA local::B cons_deduce(int i) {
-    using F = TFormula<allocator_type>;
-    local::B has_changed = false;
-    // Eliminate constraint of the form x = y, and add x,y in the same equivalence class.
-    if(is_var_equality(formulas[i])) {
-      size_t s = 0;
-      return replace_by_equivalence(var_of(formulas[i].seq(0)), var_of(formulas[i].seq(1)), i, s);
-    }
-    else {
-      // Eliminate entailed formulas.
-      IDiagnostics diagnostics;
-      typename sub_type::template ask_type<allocator_type> ask;
-#ifdef _MSC_VER // Avoid MSVC compiler bug. See https://stackoverflow.com/questions/77144003/use-of-template-keyword-before-dependent-template-name
-      if(sub->interpret_ask(formulas[i], env, ask, diagnostics))
-#else
-      if(sub->template interpret_ask(formulas[i], env, ask, diagnostics))
-#endif
-      {
-        if(sub->ask(ask)) {
-          return eliminate(eliminated_formulas, i);
-        }
-      }
-      // Replace assigned variables by constants.
-      // Note that since everything is in a fixed point loop, both the constant and the equivalence class might be updated later on.
-      // This is one of the reasons we cannot update `formulas` in-place: we would not be able to update the constant a second time (since the variable would be eliminated).
-      auto f = formulas[i].map([&](const F& f, const F& parent) {
-        if(f.is_variable()) {
-          AVar x = var_of(f);
-          size_t j = find(x.vid());
-          if(!constants[j].is_bot() && constants[j].lb().value() == constants[j].ub().value()) {
-            auto k = constants[j].template deinterpret<F>();
-            if(env[x].sort.is_bool() && k.is(F::Z) && parent.is_logical()) {
-              return k.z() == 0 ? F::make_false() : F::make_true();
-            }
-            return std::move(k);
-          }
-          else if(equivalence_classes[x.vid()] != x.vid()) {
-            return F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, equivalence_classes[x.vid()]}));
-          }
-          return f.map_atype(UNTYPED);
-        }
-        return f;
-      });
-      f = eval(f);
-      if(f.is_true()) {
-        return eliminate(eliminated_formulas, i);
-      }
-      if(f != simplified_formulas[i]) {
-        simplified_formulas[i] = f;
-        return true;
-      }
-      return false;
-    }
-  }
-
-  /** We have one deduction operator per variable and one per constraint in the interpreted formula. */
-  CUDA size_t num_deductions() const {
-    return constants.size() + formulas.size();
-  }
-
-  CUDA local::B deduce(size_t i) {
-    assert(i < num_deductions());
-    if(i < constants.size()) {
-      return vdeduce(i);
-    }
-    else {
-      return cons_deduce(i - constants.size());
-    }
-  }
-
   template <class Env>
   CUDA void init_env(const Env& env) {
     this->env = env;
   }
 
 private:
-  CUDA local::B replace_by_equivalence(AVar x, AVar y, int i, size_t& eliminated_constraints) {
+  CUDA UB<bool> replace_by_equivalence(AVar x, AVar y, int i, size_t& eliminated_constraints) {
     return replace_by_equivalence(x.vid(), y.vid(), i, eliminated_constraints);
   }
 
-  CUDA local::B replace_by_equivalence(int x, int y, int i, size_t& eliminated_constraints) {
+  CUDA UB<bool> replace_by_equivalence(int x, int y, int i, size_t& eliminated_constraints) {
     merge(x, y);
     return eliminate(eliminated_formulas, i, eliminated_constraints);
   }
@@ -493,7 +349,7 @@ public:
             /** k = y * y -> y \in [-n,n] (if n * n = k), false (otherwise).
              * This is an over-approximation, thus we cannot eliminate the constraint. */
             else if(x_is_c && y == z) {
-              auto n = battery::iroots_up(vstore[x].lb().value(), 2);
+              auto n = battery::iroots_up(vstore[x].lb().load(), 2);
               if(n * n == vstore[x].lb()) {
                 has_changed |= vstore[y].meet(universe_type(-n, n));
               }
@@ -656,7 +512,7 @@ private:
     }
     while(equivalence_classes[x] != root) {
       int parent = equivalence_classes[x];
-      sub->embed(AVar{store_aty, parent}, (*sub)[x]);
+      sub->embed(parent, (*sub)[x]);
       equivalence_classes[x] = root;
       x = parent;
     }
@@ -671,7 +527,7 @@ private:
       // Easier to debug and more robust for testing: use the root with the smallest index.
       if(rx < ry) battery::swap(rx, ry);
       equivalence_classes[rx] = ry;
-      sub->embed(AVar{store_aty, ry}, (*sub)[rx]);
+      sub->embed(ry, (*sub)[rx]);
     }
   }
 
@@ -679,41 +535,25 @@ public:
   CUDA void meet_equivalence_classes() {
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       int root = find(i);
-      sub->embed(AVar{store_aty, root}, (*sub)[i]);
+      sub->embed(root, (*sub)[i]);
     }
     for(int i = 0; i < equivalence_classes.size(); ++i) {
       int root = find(i);
-      sub->embed(AVar{store_aty, i}, (*sub)[root]);
+      sub->embed(i, (*sub)[root]);
     }
   }
 
-  template <class B, class Seq>
-  CUDA void eliminate_entailed_constraints(const B& b, const Seq& tnf, SimplifierStats& stats) {
+  /** Eliminate the constraints of `tnf` that are already entailed by the sub-domain.
+   * `is_entailed(c)` must tell whether the constraint `c` is entailed; deciding that requires
+   * interpreting `c` in the sub-domain, which is the job of the interpretation layer, not of the
+   * simplifier. */
+  template <class Seq, class IsEntailed>
+  CUDA void eliminate_entailed_constraints(const Seq& tnf, SimplifierStats& stats, IsEntailed&& is_entailed) {
     for(int i = 0; i < tnf.size(); ++i) {
       if(!is_tnf(tnf[i]) || eliminated_formulas.test(i)) {
         continue;
       }
-      IDiagnostics diagnostics;
-      typename sub_type::template ask_type<allocator_type> ask_value;
-      bool ask_success = b.interpret_ask(tnf[i], env, ask_value, diagnostics);
-      assert(ask_success);
-      if(b.ask(ask_value)) {
-        eliminate(eliminated_formulas, i, stats.eliminated_entailed_constraints());
-      }
-    }
-  }
-
-  template <class B, class Seq>
-  CUDA void feliminate_entailed_constraints(const B& b, const Seq& tnf, SimplifierStats& stats, const double epsilon) {
-    for(int i = 0; i < tnf.size(); ++i) {
-      if(!is_tnf(tnf[i]) || eliminated_formulas.test(i)) {
-        continue;
-      }
-      IDiagnostics diagnostics;
-      typename sub_type::template ask_type<allocator_type> ask_value;
-      bool ask_success = b.interpret_ask(tnf[i], env, ask_value, diagnostics);
-      assert(ask_success);
-      if(b.is_fsolution(ask_value, epsilon)) {
+      if(is_entailed(tnf[i])) {
         eliminate(eliminated_formulas, i, stats.eliminated_entailed_constraints());
       }
     }
@@ -730,7 +570,8 @@ public:
         eliminated_variables.set(find(var_of(tnf[i].seq(1).seq(1)).vid()), false);
       }
     }
-    stats.eliminated_useless_variables() = eliminated_variables.count();
+    // The bitset can contain more 1s than the number of variables, hence we adjust the value using `vars()`.
+    stats.eliminated_useless_variables() = eliminated_variables.count() - (eliminated_variables.size() - vars());
     // To follow the other statistics, we only count the newly eliminated variables.
     for(int i = 0; i < stats.eliminated_useless_variables_.size() - 1; ++i) {
       stats.eliminated_useless_variables() -= stats.eliminated_useless_variables_[i];
@@ -739,11 +580,35 @@ public:
      * Therefore, we save them in `constants`. */
     for(int i = 0; i < sub->vars(); ++i) {
       int root = find(i);
-      constants[i] = sub->project(AVar{store_aty, root});
+      constants[i] = sub->project(root);
     }
   }
 
 private:
+  /** The logical constant denoting the value of the fixed universe `u`.
+   * \pre `u` must be a singleton. */
+  template <class F, class U>
+  CUDA F constant_of(const U& u) const {
+    return F::make_z(u.lb().load());
+  }
+
+  /** The logical constraint describing the domain `u` of the variable `x`. */
+  template <class F, class U>
+  CUDA NI F domain_of(AVar x, const U& u) const {
+    if(u.is_bot()) { return F::make_false(); }
+    if(u.is_top()) { return F::make_true(); }
+    F var = F::make_avar(x);
+    if(u.lb().is_top()) {
+      return F::make_binary(var, LEQ, F::make_z(u.ub().load()), UNTYPED, get_allocator());
+    }
+    else if(u.ub().is_top()) {
+      return F::make_binary(var, GEQ, F::make_z(u.lb().load()), UNTYPED, get_allocator());
+    }
+    logic_set<F> dom(1, get_allocator());
+    dom[0] = battery::make_tuple(F::make_z(u.lb().load()), F::make_z(u.ub().load()));
+    return F::make_binary(var, IN, F::make_set(std::move(dom)), UNTYPED, get_allocator());
+  }
+
   template <class F>
   void substitute_var(F& f) const {
     if(f.is_variable()) {
@@ -756,7 +621,7 @@ private:
       }
       /** If the variable is eliminated, but still appear in a constraint at this stage, it means it's an "extra" constraint not in TNF, and therefore substitute the variable by its constant. */
       if(eliminated_variables.test(x.vid())) {
-        auto k = (*sub)[x.vid()].template deinterpret<F>();
+        auto k = constant_of<F>((*sub)[x.vid()]);
         if(env[x].sort.is_bool() && k.is(F::Z)) {
           f = k.z() == 0 ? F::make_false() : F::make_true();
         }
@@ -783,7 +648,7 @@ private:
       if(equivalence_classes[i] == i && !eliminated_variables.test(i)) {
         const auto& x = env[AVar{store_aty, i}];
         seq.push_back(F::make_exists(UNTYPED, x.name, x.sort));
-        auto domain_constraint = constants[i].deinterpret(AVar{store_aty, i}, env, get_allocator());
+        auto domain_constraint = domain_of<F>(AVar{store_aty, i}, constants[i]);
         map_avar_to_lvar(domain_constraint, env, true);
         seq.push_back(domain_constraint);
       }
@@ -819,9 +684,6 @@ public:
     return seq.size() == 0 ? F::make_true() : F::make_nary(AND, std::move(seq));
   }
 
-  CUDA NI TFormula<allocator_type> deinterpret() {
-    return deinterpret(simplified_formulas, false);
-  }
 };
 
 } // namespace lala
