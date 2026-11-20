@@ -191,6 +191,22 @@ public:
     }
   }
 
+  template <class Alloc, class Abs, class Env>
+  CUDA void print_interval(const LVar<Alloc>& vname, const Env& benv, const Abs& b) const {
+    assert(env.variable_of(vname).has_value());
+    const auto& local_var = env.variable_of(vname)->get();
+    assert(local_var.avar_of(store_aty).has_value());
+    int rep = equivalence_classes[local_var.avar_of(store_aty)->vid()];
+    const auto& rep_name = env.name_of(AVar{store_aty, rep});
+    auto benv_variable = benv.variable_of(rep_name);
+    if(benv_variable.has_value()) {
+      benv_variable->get().sort.print_interval(b.project(benv_variable->get().avars[0]));
+    }
+    else {
+      local_var.sort.print_interval(constants[rep]);
+    }
+  }
+
 private:
   /** \return `true` if mask[i] was changed. */
   CUDA UB<bool> eliminate(battery::dynamic_bitset<memory_type, allocator_type>& mask, size_t i) {
@@ -281,8 +297,8 @@ public:
   template <class Seq>
   CUDA bool algebraic_simplify(Seq& tnf, SimplifierStats& stats) {
     using F = typename Seq::value_type;
-    constexpr universe_type ZERO(0,0);
-    constexpr universe_type ONE(1,1);
+    universe_type ZERO(universe_type::LB::pre_universe::zero(),universe_type::LB::pre_universe::zero());
+    universe_type ONE(universe_type::LB::pre_universe::one(),universe_type::LB::pre_universe::one());
     auto& vstore = *sub;
     size_t elim_cons = stats.eliminated_constraints_by_as();
     size_t elim_eq = stats.eliminated_equality_constraints();
