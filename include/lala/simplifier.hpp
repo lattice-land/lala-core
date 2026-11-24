@@ -159,16 +159,10 @@ public:
   // `f` must be a formula from `formulas`.
   CUDA AVar var_of(const TFormula<allocator_type>& f) const {
     using F = TFormula<allocator_type>;
-    if(f.is(F::LV)) {
-      assert(env.variable_of(f.lv()).has_value());
-      assert(env.variable_of(f.lv())->get().avar_of(store_aty).has_value());
-      return env.variable_of(f.lv())->get().avar_of(store_aty).value();
-    }
-    else {
-      assert(f.is(F::V));
-      assert(env[f.v()].avar_of(store_aty).has_value());
-      return env[f.v()].avar_of(store_aty).value();
-    }
+    assert(f.is(F::LV));
+    assert(env.variable_of(f.lv()).has_value());
+    assert(env.variable_of(f.lv())->get().avar_of(store_aty).has_value());
+    return env.variable_of(f.lv())->get().avar_of(store_aty).value();
   }
 
 public:
@@ -581,7 +575,7 @@ private:
   CUDA NI F domain_of(AVar x, const U& u) const {
     if(u.is_bot()) { return F::make_false(); }
     if(u.is_top()) { return F::make_true(); }
-    F var = F::make_avar(x);
+    F var = F::make_lvar(UNTYPED, env.name_of(x));
     if(u.lb().is_top()) {
       return F::make_binary(var, LEQ, F::make_z(u.ub().load()), UNTYPED, get_allocator());
     }
@@ -632,9 +626,7 @@ private:
       if(equivalence_classes[i] == i && !eliminated_variables.test(i)) {
         const auto& x = env[AVar{store_aty, i}];
         seq.push_back(F::make_exists(UNTYPED, x.name, x.sort));
-        auto domain_constraint = domain_of<F>(AVar{store_aty, i}, constants[i]);
-        map_avar_to_lvar(domain_constraint, env, true);
-        seq.push_back(domain_constraint);
+        seq.push_back(domain_of<F>(AVar{store_aty, i}, constants[i]));
       }
     }
   }

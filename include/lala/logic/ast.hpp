@@ -316,7 +316,6 @@ public:
     logic_int, ///< Representation of integers.
     logic_real, ///< Approximation of real numbers.
     LogicSet, ///< Set of Booleans, integers, reals or sets.
-    AVar,            ///< Abstract variable
     LogicalVar, ///< Logical variable
     Existential,     ///< Existential quantifier
     battery::tuple<Sig, Sequence>,  ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
@@ -335,11 +334,8 @@ public:
   /** Index of sets in the variant type `Formula` (called kind below). */
   static constexpr size_t S = R + 1;
 
-  /** Index of abstract variables in the variant type `Formula` (called kind below). */
-  static constexpr size_t V = S + 1;
-
   /** Index of logical variables in the variant type `Formula` (called kind below). */
-  static constexpr size_t LV = V + 1;
+  static constexpr size_t LV = S + 1;
 
   /** Index of existential quantifier in the variant type `Formula` (called kind below). */
   static constexpr size_t E = LV + 1;
@@ -376,7 +372,6 @@ public:
       case R: formula = Formula::template create<R>(other.r()); break;
       case S: formula = Formula::template create<S>(LogicSet(other.s(), allocator));
         break;
-      case V: formula = Formula::template create<V>(other.v()); break;
       case LV: formula = Formula::template create<LV>(LogicalVar(other.lv(), allocator)); break;
       case E: formula = Formula::template create<E>(
         battery::make_tuple(
@@ -419,9 +414,6 @@ public:
   CUDA AType type() const { return type_; }
   CUDA void type_as(AType ty) {
     type_ = ty;
-    if(is(V)) {
-      v().type_as(ty);
-    }
   }
 
   CUDA constexpr bool is_untyped() const {
@@ -477,15 +469,6 @@ public:
 
   CUDA static this_type make_set(LogicSet set, AType atype = UNTYPED) {
     return this_type(atype, Formula::template create<S>(std::move(set)));
-  }
-
-  /** The type of the formula is embedded in `v`. */
-  CUDA static this_type make_avar(AVar v) {
-    return this_type(v.aty(), Formula::template create<V>(v));
-  }
-
-  CUDA static this_type make_avar(AType ty, int vid) {
-    return make_avar(AVar(ty, vid));
   }
 
   CUDA static this_type make_lvar(AType ty, LogicalVar lvar) {
@@ -566,7 +549,7 @@ public:
   }
 
   CUDA bool is_variable() const {
-    return is(LV) || is(V);
+    return is(LV);
   }
 
   CUDA bool is_unary() const {
@@ -591,10 +574,6 @@ public:
 
   CUDA const LogicSet& s() const {
     return battery::get<S>(formula);
-  }
-
-  CUDA AVar v() const {
-    return battery::get<V>(formula);
   }
 
   CUDA const LogicalVar& lv() const {
@@ -665,10 +644,6 @@ public:
 
   CUDA LogicSet& s() {
     return battery::get<S>(formula);
-  }
-
-  CUDA AVar& v() {
-    return battery::get<V>(formula);
   }
 
   CUDA Sig& sig() {
@@ -863,9 +838,6 @@ private:
           }
         }
         printf("}");
-        break;
-      case V:
-        printf("var(%d, %d)", v().vid(), v().aty());
         break;
       case LV:
         lv().print();

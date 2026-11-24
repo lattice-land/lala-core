@@ -15,7 +15,7 @@ CUDA NI bool is_v_op_constant(const TFormula<Allocator, ExtendedSig>& f, Sig sig
   using F = TFormula<Allocator, ExtendedSig>;
   return f.is(F::Seq)
     && f.sig() == sig
-    && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
+    && f.seq(0).is(F::LV)
     && f.seq(1).is_constant();
 }
 
@@ -25,7 +25,7 @@ CUDA NI bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
   using F = TFormula<Allocator, ExtendedSig>;
   return f.is(F::Seq)
     && f.sig() == sig
-    && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
+    && f.seq(0).is(F::LV)
     && f.seq(1).is(F::Z);
 }
 
@@ -35,20 +35,14 @@ CUDA NI bool is_var_equality(const TFormula<Allocator, ExtendedSig>& f) {
   using F = TFormula<Allocator, ExtendedSig>;
   return f.is(F::Seq)
     && (f.sig() == EQ || f.sig() == EQUIV)
-    && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
-    && (f.seq(1).is(F::LV) || f.seq(1).is(F::V));
+    && f.seq(0).is(F::LV)
+    && f.seq(1).is(F::LV);
 }
 
 template<class Allocator>
 CUDA NI TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), aty, allocator);
-}
-
-template<class Allocator>
-CUDA NI TFormula<Allocator> make_v_op_z(AVar v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
-  using F = TFormula<Allocator>;
-  return F::make_binary(F::make_avar(v), sig, F::make_z(z), aty, allocator);
 }
 
 template <class Allocator>
@@ -90,7 +84,6 @@ namespace impl {
       case F::R:
       case F::S:
         return f;
-      case F::V:
       case F::E:
       case F::LV:
         found = true;
@@ -147,7 +140,6 @@ namespace impl {
   template<class F>
   CUDA NI bool has_n_vars(const F& f, int nvars, int& count) {
     switch(f.index()) {
-      case F::V:
       case F::E:
       case F::LV:
         return ++count == nvars;
@@ -178,13 +170,12 @@ CUDA const TFormula<Allocator, ExtendedSig>& var_in(const TFormula<Allocator, Ex
   return impl::var_in_impl(f, found);
 }
 
-/** \return The number of variables occurring in the formula `F` including existential quantifier, logical variables and abstract variables.
+/** \return The number of variables occurring in the formula `F` including existential quantifiers and logical variables.
  * Each occurrence of a variable is added up (duplicates are counted). */
 template<class F>
 CUDA NI int num_vars(const F& f)
 {
   switch(f.index()) {
-    case F::V:
     case F::E:
     case F::LV:
       return 1;
@@ -470,27 +461,6 @@ CUDA NI inline Sig converse_comparison(Sig sig) {
       break;
   }
   return sig;
-}
-
-/** Given a formula `f`, we transform all occurrences of `AVar` into logical variables. */
-template <class F, class Env>
-CUDA NI void map_avar_to_lvar(F& f, const Env& env, bool erase_type = false) {
-  switch(f.index()) {
-    case F::V:
-      f = F::make_lvar(erase_type ? UNTYPED : f.v().aty(), env.name_of(f.v()));
-      break;
-    case F::Seq:
-      for(int i = 0; i < f.seq().size(); ++i) {
-        map_avar_to_lvar(f.seq(i), env, erase_type);
-      }
-      break;
-    case F::ESeq:
-      for(int i = 0; i < f.eseq().size(); ++i) {
-        map_avar_to_lvar(f.eseq(i), env, erase_type);
-      }
-      break;
-    default: break;
-  }
 }
 
 namespace impl {
@@ -856,7 +826,6 @@ CUDA NI F eval(const F& f) {
     case F::R: return f;
     case F::S: return f;
     case F::B: return f;
-    case F::V: return f;
     case F::E: return f;
     case F::LV: return f;
     case F::Seq: {
@@ -897,7 +866,6 @@ CUDA NI F normalize(const F& f, battery::vector<F, Alloc>& extra) {
     case F::R:
     case F::S:
     case F::B:
-    case F::V:
     case F::E:
     case F::LV: {
       return f;
@@ -1080,10 +1048,6 @@ struct FormulaStatistics {
 template <class F>
 size_t analyze_formula(const F& f, FormulaStatistics& stats, bool reified_context) {
   switch(f.index()) {
-    case F::V: {
-      printf("%% ERROR: Statistics generation do not work on formula with abstract variables (need LVar).\n");
-      exit(1);
-    }
     case F::Z:
     case F::R:
     case F::S:
