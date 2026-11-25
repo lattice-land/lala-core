@@ -15,7 +15,7 @@ CUDA NI bool is_v_op_constant(const TFormula<Allocator, ExtendedSig>& f, Sig sig
   using F = TFormula<Allocator, ExtendedSig>;
   return f.is(F::Seq)
     && f.sig() == sig
-    && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
+    && f.seq(0).is(F::LV)
     && f.seq(1).is_constant();
 }
 
@@ -25,18 +25,18 @@ CUDA NI bool is_v_op_z(const TFormula<Allocator, ExtendedSig>& f, Sig sig) {
   using F = TFormula<Allocator, ExtendedSig>;
   return f.is(F::Seq)
     && f.sig() == sig
-    && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
+    && f.seq(0).is(F::LV)
     && f.seq(1).is(F::Z);
 }
 
-/** \return `true` if the formula `f` has the shape `variable = variable` or `variable <=> variable`. */
+/** \return `true` if the formula `f` has the shape `variable = variable` (integer, real or polymorphic equality) or `variable <=> variable`. */
 template<class Allocator, class ExtendedSig>
 CUDA NI bool is_var_equality(const TFormula<Allocator, ExtendedSig>& f) {
   using F = TFormula<Allocator, ExtendedSig>;
   return f.is(F::Seq)
-    && (f.sig() == EQ || f.sig() == EQUIV)
-    && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
-    && (f.seq(1).is(F::LV) || f.seq(1).is(F::V));
+    && (f.sig() == ZEQ || f.sig() == REQ || f.sig() == EQ || f.sig() == EQUIV)
+    && f.seq(0).is(F::LV)
+    && f.seq(1).is(F::LV);
 }
 
 template<class Allocator>
@@ -45,24 +45,63 @@ CUDA NI TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z,
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), aty, allocator);
 }
 
-template<class Allocator>
-CUDA NI TFormula<Allocator> make_v_op_z(AVar v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
-  using F = TFormula<Allocator>;
-  return F::make_binary(F::make_avar(v), sig, F::make_z(z), aty, allocator);
+/** Instantiates the polymorphic comparison `op` (`EQ`, `NEQ`, `LEQ`, `GEQ`, `LT` or `GT`) at the sort of `f`, as given by `f.sort()`:
+ * - Real numbers: the `R*` comparison (e.g., `RLEQ`).
+ * - Sets: `op` itself, since the polymorphic comparisons are the lexicographic order on sets, which has no monomorphic symbol. The inclusion order is `SUBSETEQ`, `SUPSETEQ`, etc.
+ * - Otherwise: the `Z*` comparison (e.g., `ZLEQ`). This covers integers, Booleans, and the formulas whose sort cannot be recovered without an environment (e.g., variables).
+ */
+template <class Allocator>
+CUDA Sig instantiate_op(Sig op, const TFormula<Allocator>& f) {
+  assert(is_polymorphic_comparison(op));
+  auto sort = f.sort();
+  if(sort.has_value() && sort->is_set()) {
+    return op;
+  }
+  bool real = sort.has_value() && sort->is_real();
+  switch(op) {
+    case EQ: return real ? REQ : ZEQ;
+    case NEQ: return real ? RNEQ : ZNEQ;
+    case LEQ: return real ? RLEQ : ZLEQ;
+    case GEQ: return real ? RGEQ : ZGEQ;
+    case LT: return real ? RLT : ZLT;
+    default: return real ? RGT : ZGT;
+  }
 }
 
+/** The equality predicate suited to a sort: `EQUIV` for Booleans, `ZEQ` for integers, `REQ` for real numbers and the polymorphic `EQ` otherwise (sets). */
 template <class Allocator>
-CUDA Sig geq_of_constant(const TFormula<Allocator>& f) {
-  using F = TFormula<Allocator>;
-  assert(f.is(F::S) || f.is(F::Z) || f.is(F::R));
-  return f.is(F::S) ? SUPSETEQ : GEQ;
+CUDA NI Sig eq_of_sort(const Sort<Allocator>& sort) {
+  if(sort.is_bool()) { return EQUIV; }
+  else if(sort.is_int()) { return ZEQ; }
+  else if(sort.is_real()) { return REQ; }
+  else { return EQ; }
 }
 
-template <class Allocator>
-CUDA Sig leq_of_constant(const TFormula<Allocator>& f) {
-  using F = TFormula<Allocator>;
-  assert(f.is(F::S) || f.is(F::Z) || f.is(F::R));
-  return f.is(F::S) ? SUBSETEQ : LEQ;
+/** The equality predicate suited to the result of the function symbol `sig` (the polymorphic `EQ` when the result sort depends on the arguments). */
+template <class Allocator = battery::standard_allocator>
+CUDA NI Sig eq_of_result(Sig sig) {
+  auto sort = result_sort_of<Allocator>(sig);
+  return sort.has_value() ? eq_of_sort(*sort) : EQ;
+}
+
+/** The equality predicate suited to the constant `c`. */
+template <class Allocator, class ExtendedSig>
+CUDA NI Sig eq_of_value(const TFormula<Allocator, ExtendedSig>& c) {
+  auto sort = c.sort();
+  return sort.has_value() ? eq_of_sort(*sort) : EQ;
+}
+
+/** The equality predicate suited to the variable declared in `decl` (an existential, possibly in a conjunction). */
+template <class Allocator, class ExtendedSig>
+CUDA NI Sig eq_of_decl(const TFormula<Allocator, ExtendedSig>& decl) {
+  using F = TFormula<Allocator, ExtendedSig>;
+  if(decl.is(F::E)) {
+    return eq_of_sort(battery::get<1>(decl.exists()));
+  }
+  else if(decl.is(F::Seq) && decl.sig() == AND && decl.seq().size() > 0) {
+    return eq_of_decl(decl.seq(0));
+  }
+  return EQ;
 }
 
 namespace impl {
@@ -90,7 +129,6 @@ namespace impl {
       case F::R:
       case F::S:
         return f;
-      case F::V:
       case F::E:
       case F::LV:
         found = true;
@@ -147,7 +185,6 @@ namespace impl {
   template<class F>
   CUDA NI bool has_n_vars(const F& f, int nvars, int& count) {
     switch(f.index()) {
-      case F::V:
       case F::E:
       case F::LV:
         return ++count == nvars;
@@ -178,13 +215,12 @@ CUDA const TFormula<Allocator, ExtendedSig>& var_in(const TFormula<Allocator, Ex
   return impl::var_in_impl(f, found);
 }
 
-/** \return The number of variables occurring in the formula `F` including existential quantifier, logical variables and abstract variables.
+/** \return The number of variables occurring in the formula `F` including existential quantifiers and logical variables.
  * Each occurrence of a variable is added up (duplicates are counted). */
 template<class F>
 CUDA NI int num_vars(const F& f)
 {
   switch(f.index()) {
-    case F::V:
     case F::E:
     case F::LV:
       return 1;
@@ -325,20 +361,45 @@ CUDA NI std::optional<F> de_morgan_law(Sig sig_neg, const F& f) {
   return F::make_nary(sig_neg, neg_seq, f.type());
 }
 
+/** Negation of a total order comparison over integers, real numbers or of a polymorphic comparison, e.g., `ZLEQ` is negated into `ZGT`. */
+CUDA inline Sig negate_arithmetic_comparison(Sig sig) {
+  switch(sig) {
+    case ZEQ: return ZNEQ;
+    case ZNEQ: return ZEQ;
+    case ZLEQ: return ZGT;
+    case ZGEQ: return ZLT;
+    case ZLT: return ZGEQ;
+    case ZGT: return ZLEQ;
+    case REQ: return RNEQ;
+    case RNEQ: return REQ;
+    case RLEQ: return RGT;
+    case RGEQ: return RLT;
+    case RLT: return RGEQ;
+    case RGT: return RLEQ;
+    case EQ: return NEQ;
+    case NEQ: return EQ;
+    case LEQ: return GT;
+    case GEQ: return LT;
+    case LT: return GEQ;
+    case GT: return LEQ;
+    default: assert(0); return sig;
+  }
+}
+
 template <class F>
 CUDA NI std::optional<F> negate_eq(const F& f) {
-  assert(f.is_binary() && f.sig() == EQ);
+  assert(f.is_binary() && (f.sig() == ZEQ || f.sig() == REQ || f.sig() == EQ));
   if(f.seq(0).is(F::B)) {
     auto b = f.seq(0);
     b.b() = !b.b();
-    return F::make_binary(b, EQ, f.seq(1), f.type(), f.seq().get_allocator());
+    return F::make_binary(b, f.sig(), f.seq(1), f.type(), f.seq().get_allocator());
   }
   else if(f.seq(1).is(F::B)) {
     auto b = f.seq(1);
     b.b() = !b.b();
-    return F::make_binary(f.seq(0), EQ, b, f.type(), f.seq().get_allocator());
+    return F::make_binary(f.seq(0), f.sig(), b, f.type(), f.seq().get_allocator());
   }
-  return F::make_nary(NEQ, f.seq(), f.type());
+  return F::make_nary(negate_arithmetic_comparison(f.sig()), f.seq(), f.type());
 }
 
 template <class F>
@@ -356,13 +417,14 @@ CUDA NI std::optional<F> negate(const F& f) {
     Sig neg_sig;
     switch(f.sig()) {
       case NOT: return f.seq(0);
+      case ZEQ:
+      case REQ:
       case EQ: return negate_eq(f);
       // Total order predicates can be reversed.
-      case LEQ: neg_sig = GT; break;
-      case GEQ: neg_sig = LT; break;
-      case NEQ: neg_sig = EQ; break;
-      case LT: neg_sig = GEQ; break;
-      case GT: neg_sig = LEQ; break;
+      case ZNEQ: case ZLEQ: case ZGEQ: case ZLT: case ZGT:
+      case RNEQ: case RLEQ: case RGEQ: case RLT: case RGT:
+      case NEQ: case LEQ: case GEQ: case LT: case GT:
+        neg_sig = negate_arithmetic_comparison(f.sig()); break;
       // Partial order predicates cannot simply be reversed.
       case SUBSET:
       case SUBSETEQ:
@@ -382,37 +444,13 @@ CUDA NI std::optional<F> negate(const F& f) {
   return {};
 }
 
-CUDA Sig negate_arithmetic_comparison(Sig sig) {
-  switch(sig) {
-    case EQ: return NEQ;
-    case NEQ: return EQ;
-    case LEQ: return GT;
-    case GEQ: return LT;
-    case LT: return GEQ;
-    case GT: return LEQ;
-    default: assert(0); return sig;
-  }
-}
-
-/** True for the operators <=, <, >, >=, =, != */
+/** True for the integer and real comparisons <=, <, >, >=, =, != */
 template <class F>
 CUDA NI bool is_arithmetic_comparison(const F& f) {
-  if(f.is(F::Seq)) {
-    switch(f.sig()) {
-      case LEQ:
-      case GEQ:
-      case LT:
-      case GT:
-      case EQ:
-      case NEQ:
-        return true;
-      default: break;
-    }
-  }
-  return false;
+  return f.is(F::Seq) && is_arithmetic_comparison(f.sig());
 }
 
-/** True for the operators =, !=, subset, subseteq, supset, supseteq */
+/** True for the polymorphic operators =, != and the operators subset, subseteq, supset, supseteq */
 template <class F>
 CUDA NI bool is_set_comparison(const F& f) {
  if(f.is(F::Seq)) {
@@ -430,17 +468,14 @@ CUDA NI bool is_set_comparison(const F& f) {
   return false;
 }
 
-/** True for the operators <=, <, >, >=, =, !=, subset, subseteq, supset, supseteq */
+/** True for the (integer, real and polymorphic) operators <=, <, >, >=, =, != and for subset, subseteq, supset, supseteq */
 template <class F>
 CUDA NI bool is_comparison(const F& f) {
   if(f.is(F::Seq)) {
+    if(is_arithmetic_comparison(f.sig()) || is_polymorphic_comparison(f.sig())) {
+      return true;
+    }
     switch(f.sig()) {
-      case LEQ:
-      case GEQ:
-      case LT:
-      case GT:
-      case EQ:
-      case NEQ:
       case SUBSET:
       case SUBSETEQ:
       case SUPSET:
@@ -455,6 +490,18 @@ CUDA NI bool is_comparison(const F& f) {
 /** Returns the converse of a comparison operator (see `is_comparison`). */
 CUDA NI inline Sig converse_comparison(Sig sig) {
   switch(sig) {
+    case ZLEQ: return ZGEQ;
+    case ZGEQ: return ZLEQ;
+    case ZGT: return ZLT;
+    case ZLT: return ZGT;
+    case ZEQ: return sig;
+    case ZNEQ: return sig;
+    case RLEQ: return RGEQ;
+    case RGEQ: return RLEQ;
+    case RGT: return RLT;
+    case RLT: return RGT;
+    case REQ: return sig;
+    case RNEQ: return sig;
     case LEQ: return GEQ;
     case GEQ: return LEQ;
     case GT: return LT;
@@ -470,27 +517,6 @@ CUDA NI inline Sig converse_comparison(Sig sig) {
       break;
   }
   return sig;
-}
-
-/** Given a formula `f`, we transform all occurrences of `AVar` into logical variables. */
-template <class F, class Env>
-CUDA NI void map_avar_to_lvar(F& f, const Env& env, bool erase_type = false) {
-  switch(f.index()) {
-    case F::V:
-      f = F::make_lvar(erase_type ? UNTYPED : f.v().aty(), env.name_of(f.v()));
-      break;
-    case F::Seq:
-      for(int i = 0; i < f.seq().size(); ++i) {
-        map_avar_to_lvar(f.seq(i), env, erase_type);
-      }
-      break;
-    case F::ESeq:
-      for(int i = 0; i < f.eseq().size(); ++i) {
-        map_avar_to_lvar(f.eseq(i), env, erase_type);
-      }
-      break;
-    default: break;
-  }
 }
 
 namespace impl {
@@ -510,7 +536,7 @@ namespace impl {
   }
 
   /** Evaluate the function or predicate `sig` on the sequence of constants `seq`.
-   * It only works on Boolean and integers constants for now.
+   * It only works on Boolean and integers constants (and integer symbols) for now.
    */
   template <class F>
   CUDA F eval_seq(Sig sig, const typename F::Sequence& seq, AType atype) {
@@ -605,104 +631,113 @@ namespace impl {
         }
         break;
       }
+      case ZEQ:
+      case REQ:
       case EQ: {
         if(seq.size() == 2 && seq[0].is_constant() && seq[1].is_constant()) {
           return seq[0] == seq[1] ? F::make_true() : F::make_false();
         }
         // We detect a common pattern for equalities: x + (-y) == 0
-        if(seq.size() == 2 && seq[0].is_binary() &&
+        if(sig == ZEQ && seq.size() == 2 && seq[0].is_binary() &&
            seq[1].is(F::Z) && seq[1].z() == 0 &&
-           seq[0].sig() == ADD &&
-           seq[0].seq(1).is_unary() && seq[0].seq(1).sig() == NEG && seq[0].seq(1).seq(0).is_variable() &&
+           seq[0].sig() == ZADD &&
+           seq[0].seq(1).is_unary() && seq[0].seq(1).sig() == ZNEG && seq[0].seq(1).seq(0).is_variable() &&
            seq[0].seq(0).is_variable())
         {
-          return F::make_binary(seq[0].seq(0), EQ, seq[0].seq(1).seq(0), atype);
+          return F::make_binary(seq[0].seq(0), ZEQ, seq[0].seq(1).seq(0), atype);
         }
         break;
       }
+      case RNEQ:
       case NEQ: {
+        if(seq.size() == 2 && seq[0].is_constant() && seq[1].is_constant()) {
+          return seq[0] != seq[1] ? F::make_true() : F::make_false();
+        }
+        break;
+      }
+      case ZNEQ: {
         if(seq.size() == 2 && seq[0].is_constant() && seq[1].is_constant()) {
           return seq[0] != seq[1] ? F::make_true() : F::make_false();
         }
         // We detect a common pattern for disequalities: x + (-y) != 0
         if(seq.size() == 2 && seq[0].is_binary() &&
            seq[1].is(F::Z) && seq[1].z() == 0 &&
-           seq[0].sig() == ADD &&
-           seq[0].seq(1).is_unary() && seq[0].seq(1).sig() == NEG && seq[0].seq(1).seq(0).is_variable() &&
+           seq[0].sig() == ZADD &&
+           seq[0].seq(1).is_unary() && seq[0].seq(1).sig() == ZNEG && seq[0].seq(1).seq(0).is_variable() &&
            seq[0].seq(0).is_variable())
         {
-          return F::make_binary(seq[0].seq(0), NEQ, seq[0].seq(1).seq(0), atype);
+          return F::make_binary(seq[0].seq(0), ZNEQ, seq[0].seq(1).seq(0), atype);
         }
         // Detect `x + k != k2` where `k` and `k2` are constants. It should be generalized.
         if(seq.size() == 2 && seq[0].is_binary() &&
            is_bz(seq[1]) &&
-           seq[0].sig() == ADD &&
+           seq[0].sig() == ZADD &&
            is_bz(seq[0].seq(1)))
         {
-          return F::make_binary(seq[0].seq(0), NEQ, F::make_z(seq[1].to_z() - seq[0].seq(1).to_z()), atype);
+          return F::make_binary(seq[0].seq(0), ZNEQ, F::make_z(seq[1].to_z() - seq[0].seq(1).to_z()), atype);
         }
         // k != -x --> -k != x
-        if(seq.size() == 2 && is_bz(seq[0]) && seq[1].is_unary() && seq[1].sig() == NEG && seq[1].seq(0).is_variable()) {
-          return F::make_binary(F::make_z(-seq[0].to_z()), NEQ, seq[1].seq(0), atype);
+        if(seq.size() == 2 && is_bz(seq[0]) && seq[1].is_unary() && seq[1].sig() == ZNEG && seq[1].seq(0).is_variable()) {
+          return F::make_binary(F::make_z(-seq[0].to_z()), ZNEQ, seq[1].seq(0), atype);
         }
         // -x != k --> x != -k
-        if(seq.size() == 2 && is_bz(seq[1]) && seq[0].is_unary() && seq[0].sig() == NEG && seq[0].seq(0).is_variable()) {
-          return F::make_binary(seq[0].seq(0), NEQ, F::make_z(-seq[1].to_z()), atype);
+        if(seq.size() == 2 && is_bz(seq[1]) && seq[0].is_unary() && seq[0].sig() == ZNEG && seq[0].seq(0).is_variable()) {
+          return F::make_binary(seq[0].seq(0), ZNEQ, F::make_z(-seq[1].to_z()), atype);
         }
         break;
       }
-      case LT: {
+      case ZLT: {
         if(is_binary_z<F>(seq)) {
           return seq[0].z() < seq[1].z() ? F::make_true() : F::make_false();
         }
         break;
       }
-      case LEQ: {
+      case ZLEQ: {
         if(is_binary_z<F>(seq)) {
           return seq[0].z() <= seq[1].z() ? F::make_true() : F::make_false();
         }
         break;
       }
-      case GT: {
+      case ZGT: {
         if(is_binary_z<F>(seq)) {
           return seq[0].z() > seq[1].z() ? F::make_true() : F::make_false();
         }
         break;
       }
-      case GEQ: {
+      case ZGEQ: {
         if(is_binary_z<F>(seq)) {
           return seq[0].z() >= seq[1].z() ? F::make_true() : F::make_false();
         }
         break;
       }
-      case MIN: {
+      case ZMIN: {
         if(is_binary_z<F>(seq)) {
           return F::make_z(battery::min(seq[0].z(), seq[1].z()));
         }
         break;
       }
-      case MAX: {
+      case ZMAX: {
         if(is_binary_z<F>(seq)) {
           return F::make_z(battery::max(seq[0].z(), seq[1].z()));
         }
         break;
       }
-      case NEG: {
+      case ZNEG: {
         if(seq.size() == 1 && is_bz(seq[0])) {
           return F::make_z(-seq[0].to_z());
         }
-        if(seq.size() == 1 && seq[0].is_unary() && seq[0].sig() == NEG) {
+        if(seq.size() == 1 && seq[0].is_unary() && seq[0].sig() == ZNEG) {
           return seq[0].seq(0);
         }
         break;
       }
-      case ABS: {
+      case ZABS: {
         if(seq.size() == 1 && is_bz(seq[0])) {
           return F::make_z(abs(seq[0].to_z()));
         }
         break;
       }
-      case ADD: {
+      case ZADD: {
         typename F::Sequence residual;
         logic_int sum = 0;
         for(int i = 0; i < seq.size(); ++i) {
@@ -724,11 +759,11 @@ namespace impl {
             return residual[0];
           }
           else {
-            return F::make_nary(ADD, std::move(residual), atype);
+            return F::make_nary(ZADD, std::move(residual), atype);
           }
         }
       }
-      case MUL: {
+      case ZMUL: {
         typename F::Sequence residual;
         logic_int prod = 1;
         for(int i = 0; i < seq.size(); ++i) {
@@ -747,7 +782,7 @@ namespace impl {
             return F::make_z(0);
           }
           else if(prod == -1 && residual.size() > 0) {
-            residual[0] = F::make_unary(NEG, std::move(residual[0]), atype);
+            residual[0] = F::make_unary(ZNEG, std::move(residual[0]), atype);
           }
           else if(prod != 1) {
             residual.push_back(F::make_z(prod));
@@ -756,11 +791,11 @@ namespace impl {
             return residual[0];
           }
           else {
-            return F::make_nary(MUL, std::move(residual), atype);
+            return F::make_nary(ZMUL, std::move(residual), atype);
           }
         }
       }
-      case SUB: {
+      case ZSUB: {
         if(is_binary_bz<F>(seq)) {
           return F::make_z(seq[0].to_z() - seq[1].to_z());
         }
@@ -768,20 +803,20 @@ namespace impl {
           return seq[0];
         }
         else if(seq.size() == 2 && is_bz(seq[0]) && seq[0].to_z() == 0) {
-          return F::make_unary(NEG, seq[1], atype);
+          return F::make_unary(ZNEG, seq[1], atype);
         }
         break;
       }
-      case TDIV:
-      case FDIV:
-      case CDIV:
-      case EDIV: {
+      case ZTDIV:
+      case ZFDIV:
+      case ZCDIV:
+      case ZEDIV: {
         if(is_binary_z<F>(seq)) {
           switch(sig) {
-            case TDIV: return F::make_z(battery::tdiv(seq[0].z(), seq[1].z()));
-            case FDIV: return F::make_z(battery::fdiv(seq[0].z(), seq[1].z()));
-            case CDIV: return F::make_z(battery::cdiv(seq[0].z(), seq[1].z()));
-            case EDIV: return F::make_z(battery::ediv(seq[0].z(), seq[1].z()));
+            case ZTDIV: return F::make_z(battery::tdiv(seq[0].z(), seq[1].z()));
+            case ZFDIV: return F::make_z(battery::fdiv(seq[0].z(), seq[1].z()));
+            case ZCDIV: return F::make_z(battery::cdiv(seq[0].z(), seq[1].z()));
+            case ZEDIV: return F::make_z(battery::ediv(seq[0].z(), seq[1].z()));
             default: assert(0); break;
           }
         }
@@ -793,36 +828,48 @@ namespace impl {
         }
         break;
       }
-      case TMOD: {
+      case ZTMOD: {
         if(is_binary_z<F>(seq)) {
           return F::make_z(battery::tmod(seq[0].z(), seq[1].z()));
         }
         break;
       }
-      case FMOD: {
+      case ZFMOD: {
         if(is_binary_z<F>(seq)) {
           return F::make_z(battery::fmod(seq[0].z(), seq[1].z()));
         }
         break;
       }
-      case CMOD: {
+      case ZCMOD: {
         if(is_binary_z<F>(seq)) {
           return F::make_z(battery::cmod(seq[0].z(), seq[1].z()));
         }
         break;
       }
-      case EMOD: {
+      case ZEMOD: {
         if(is_binary_z<F>(seq)) {
           return F::make_z(battery::emod(seq[0].z(), seq[1].z()));
         }
         break;
       }
-      case POW: {
+      case ZPOW: {
         if(is_binary_bz<F>(seq)) {
           return F::make_z(battery::ipow(seq[0].to_z(), seq[1].to_z()));
         }
         else if(seq.size() == 2 && is_bz(seq[1]) && seq[1].to_z() == 0) {
           return F::make_z(1);
+        }
+        break;
+      }
+      case BOOL2INT: {
+        if(seq.size() == 1 && is_bz(seq[0])) {
+          return F::make_z(seq[0].to_z() != 0 ? 1 : 0);
+        }
+        break;
+      }
+      case INT2BOOL: {
+        if(seq.size() == 1 && is_bz(seq[0])) {
+          return F::make_bool(seq[0].to_z() != 0);
         }
         break;
       }
@@ -856,7 +903,6 @@ CUDA NI F eval(const F& f) {
     case F::R: return f;
     case F::S: return f;
     case F::B: return f;
-    case F::V: return f;
     case F::E: return f;
     case F::LV: return f;
     case F::Seq: {
@@ -897,7 +943,6 @@ CUDA NI F normalize(const F& f, battery::vector<F, Alloc>& extra) {
     case F::R:
     case F::S:
     case F::B:
-    case F::V:
     case F::E:
     case F::LV: {
       return f;
@@ -913,7 +958,7 @@ CUDA NI F normalize(const F& f, battery::vector<F, Alloc>& extra) {
       if(f.sig() == NOT) {
         assert(f.seq().size() == 1);
         if(f.seq(0).is_variable()) {
-          return F::make_binary(f.seq(0), EQ, F::make_z(0), f.type());
+          return F::make_binary(f.seq(0), ZEQ, F::make_z(0), f.type());
         }
         F fi = normalize(f.seq(0));
         auto not_f = negate(fi);
@@ -936,7 +981,7 @@ CUDA NI F normalize(const F& f, battery::vector<F, Alloc>& extra) {
       }
       /** x in {v} --> x = v */
       else if(f.is_binary() && f.sig() == IN && f.seq(1).is(F::S) && f.seq(1).s().size() == 1 && battery::get<0>(f.seq(1).s()[0]) == battery::get<1>(f.seq(1).s()[0])) {
-        return F::make_binary(f.seq(0), EQ, battery::get<0>(f.seq(1).s()[0]), f.type());
+        return F::make_binary(f.seq(0), instantiate_op(EQ, battery::get<0>(f.seq(1).s()[0])), battery::get<0>(f.seq(1).s()[0]), f.type());
       }
       else {
         typename F::Sequence normalized_seq(f.seq().get_allocator());
@@ -962,11 +1007,12 @@ template <class F>
 CUDA F itv_to_formula(const F& f, const battery::tuple<F, F>& itv, const typename F::allocator_type& alloc = typename F::allocator_type()) {
   const auto& [l, u] = itv;
   if(l == u) {
-    return F::make_binary(f, EQ, l, f.type(), alloc);
+    return F::make_binary(f, instantiate_op(EQ, l), l, f.type(), alloc);
   }
   else {
-    Sig geq_sig = l.is(F::S) ? SUPSETEQ : GEQ;
-    Sig leq_sig = l.is(F::S) ? SUBSETEQ : LEQ;
+    // An interval of sets is an interval of the inclusion order.
+    Sig geq_sig = l.is(F::S) ? SUPSETEQ : instantiate_op(GEQ, l);
+    Sig leq_sig = l.is(F::S) ? SUBSETEQ : instantiate_op(LEQ, l);
     return
       F::make_binary(
         F::make_binary(f, geq_sig, l, f.type(), alloc),
@@ -998,14 +1044,16 @@ CUDA F decompose_in_constraint(const F& f, const typename F::allocator_type& all
   return f;
 }
 
-// Decompose `t != u` into a disjunction `t < u \/ t > u`.
+// Decompose `t != u` into a disjunction `t < u \/ t > u` (for integer, real and polymorphic disequalities).
 template <class F>
 CUDA F decompose_arith_neq_constraint(const F& f, const typename F::allocator_type& alloc = typename F::allocator_type()) {
-  if(f.is_binary() && f.sig() == NEQ) {
+  if(f.is_binary() && (f.sig() == ZNEQ || f.sig() == RNEQ || f.sig() == NEQ)) {
+    Sig lt = f.sig() == ZNEQ ? ZLT : (f.sig() == RNEQ ? RLT : LT);
+    Sig gt = f.sig() == ZNEQ ? ZGT : (f.sig() == RNEQ ? RGT : GT);
     return F::make_binary(
-      F::make_binary(f.seq(0), LT, f.seq(1), f.type(), alloc),
+      F::make_binary(f.seq(0), lt, f.seq(1), f.type(), alloc),
       OR,
-      F::make_binary(f.seq(0), GT, f.seq(1), f.type(), alloc),
+      F::make_binary(f.seq(0), gt, f.seq(1), f.type(), alloc),
       f.type(), alloc);
   }
   return f;
@@ -1080,10 +1128,6 @@ struct FormulaStatistics {
 template <class F>
 size_t analyze_formula(const F& f, FormulaStatistics& stats, bool reified_context) {
   switch(f.index()) {
-    case F::V: {
-      printf("%% ERROR: Statistics generation do not work on formula with abstract variables (need LVar).\n");
-      exit(1);
-    }
     case F::Z:
     case F::R:
     case F::S:

@@ -493,9 +493,6 @@ template <class F, class Env>
 CUDA NI std::optional<std::reference_wrapper<const typename Env::variable_type>> var_in(const F& f, const Env& env) {
   const auto& g = var_in(f);
   switch(g.index()) {
-    case F::V:
-      if(g.v().is_untyped()) { return {}; }
-      else { return std::cref(env[g.v()]); }
     case F::E:
       return env.variable_of(battery::get<0>(g.exists()));
     case F::LV:

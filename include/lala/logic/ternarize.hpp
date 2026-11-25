@@ -27,7 +27,7 @@ int value_of_constant(const F& x) {
 template <class F>
 CUDA bool is_tnf(const F& f) {
   return f.is_binary() && f.seq(0).is_variable() &&
-    (f.sig() == EQ || f.sig() == EQUIV) &&
+    (f.sig() == ZEQ || f.sig() == EQUIV) &&
     f.seq(1).is_binary() && f.seq(1).seq(0).is_variable() &&
     f.seq(1).seq(1).is_variable();
 }
@@ -40,17 +40,21 @@ class Ternarizer
 public:
   using allocator_type = battery::standard_allocator;
 
+  static bool is_neq(Sig sig) {
+    return sig == ZNEQ || sig == RNEQ || sig == NEQ;
+  }
+
   /** A constraint is in extended ternary form if it is either unary (without NEQ, IN) or of the form `x = (y <op> z)`. */
   static bool is_extended_ternary_form(const F& f) {
     int vars = num_vars(f);
-    return (vars == 1 && (f.is(F::E) || (f.is_binary() && f.sig() != NEQ && f.sig() != IN && (f.seq(0).is_variable() || f.seq(1).is_variable()) && (f.seq(0).is_constant() || f.seq(1).is_constant())))) ||
-      (vars == 3 && f.is_binary() && f.sig() == EQ &&
+    return (vars == 1 && (f.is(F::E) || (f.is_binary() && !is_neq(f.sig()) && f.sig() != IN && (f.seq(0).is_variable() || f.seq(1).is_variable()) && (f.seq(0).is_constant() || f.seq(1).is_constant())))) ||
+      (vars == 3 && f.is_binary() && f.sig() == ZEQ &&
          ((f.seq(0).is_variable() && f.seq(1).is_binary() && is_ternary_op(f.seq(1).sig()) && f.seq(1).seq(0).is_variable() && f.seq(1).seq(1).is_variable())
        || (f.seq(1).is_variable() && f.seq(0).is_binary() && is_ternary_op(f.seq(0).sig()) && f.seq(0).seq(0).is_variable() && f.seq(0).seq(1).is_variable())));
   }
 
   static bool is_ternary_op(Sig sig) {
-    return sig == MAX || sig == MIN || sig == EQ || sig == LEQ || (!is_logical(sig) && !is_predicate(sig) && !is_z_modulus(sig));
+    return sig == ZMAX || sig == ZMIN || sig == ZEQ || sig == ZLEQ || (!is_logical(sig) && !is_predicate(sig) && !is_z_modulus(sig) && !is_conversion(sig));
   }
 
 private:
@@ -118,7 +122,7 @@ public:
       return F::make_lvar(UNTYPED, LVar<allocator_type>(name.data()));
     }
     auto var = introduce_var(name, f.sort().value(), true);
-    conjunction.push_back(F::make_binary(var, EQ, f));
+    conjunction.push_back(F::make_binary(var, ZEQ, f));
     return var;
   }
 
@@ -127,12 +131,12 @@ private:
   bool simplify_to_unary(F x, F y, Sig sig, F z) {
     /** Unary constraint of the form `1 <=> x <= 5`, `0 <=> x <= 5` or `1 <=> x == 5`   */
     if(is_constant_var(x) && (is_constant_var(y) || is_constant_var(z)) &&
-      (sig == LEQ || (sig == EQ && value_of_constant(x) == 1)))
+      (sig == ZLEQ || (sig == ZEQ && value_of_constant(x) == 1)))
     {
       auto yv = is_constant_var(y) ? F::make_z(value_of_constant(y)) : y;
       auto zv = is_constant_var(z) ? F::make_z(value_of_constant(z)) : z;
       if(value_of_constant(x) == 0) {
-        conjunction.push_back(F::make_binary(yv, GT, zv));
+        conjunction.push_back(F::make_binary(yv, ZGT, zv));
       }
       else {
         conjunction.push_back(F::make_binary(yv, sig, zv));
@@ -147,13 +151,13 @@ private:
     if(simplify_to_unary(x,y,sig,z)) {
       return x;
     }
-    if(sig == SUB) {
+    if(sig == ZSUB) {
       /** We simplify x = y - z into y = x + z. */
-      conjunction.push_back(F::make_binary(y, EQ, F::make_binary(x, ADD, z)));
+      conjunction.push_back(F::make_binary(y, ZEQ, F::make_binary(x, ZADD, z)));
       return x;
     }
     /** If the simplification was not possible, we add the ternary constraint. */
-    conjunction.push_back(F::make_binary(x, EQ, F::make_binary(y, sig, z)));
+    conjunction.push_back(F::make_binary(x, ZEQ, F::make_binary(y, sig, z)));
     return x;
   }
 
@@ -161,26 +165,45 @@ private:
     F x = ternarize(f.seq(0));
     switch(f.sig()) {
       /** -x ~~> t = 0 - x */
-      case NEG: {
-        F t = push_ternary(introduce_int_var(), ternarize(F::make_z(0)), SUB, x);
+      case ZNEG: {
+        F t = push_ternary(introduce_int_var(), ternarize(F::make_z(0)), ZSUB, x);
         if(toplevel) {
-          return ternarize(F::make_binary(t, NEQ, F::make_z(0)), true);
+          return ternarize(F::make_binary(t, ZNEQ, F::make_z(0)), true);
         }
         return t;
       }
       /** |x| ~~> t1 = 0 - x /\ t2 = max(x, t1) /\ t2 >= 0 */
-      case ABS: {
-        F t1 = ternarize(F::make_unary(NEG, x));
+      case ZABS: {
+        F t1 = ternarize(F::make_unary(ZNEG, x));
         F t2 = introduce_int_var();
-        compute(F::make_binary(t2, EQ, F::make_binary(x, MAX, t1)));
-        compute(F::make_binary(t2, GEQ, F::make_z(0)));
+        compute(F::make_binary(t2, ZEQ, F::make_binary(x, ZMAX, t1)));
+        compute(F::make_binary(t2, ZGEQ, F::make_z(0)));
         if(toplevel) {
-          return ternarize(F::make_binary(t2, NEQ, F::make_z(0)), true);
+          return ternarize(F::make_binary(t2, ZNEQ, F::make_z(0)), true);
         }
         return t2;
       }
       /** NOT x ~~> ternarize(x = 0) ~~> t = (x = 0) */
-      case NOT: return ternarize(F::make_binary(x, EQ, F::make_z(0)), toplevel);
+      case NOT: {
+        /** At toplevel, `not x` holds when `x = 0` (for a Boolean in {0,1} as for an integer, which is true when different from 0).
+         * It is a unary constraint, which `compute` keeps as it is (`ternarize` would reify it into `1 = (x = 0)`). */
+        if(toplevel) {
+          compute(F::make_binary(x, ZEQ, F::make_z(0)));
+          return x;
+        }
+        return ternarize(F::make_binary(x, ZEQ, F::make_z(0)));
+      }
+      /** In the ternary form, Booleans are integers in {0,1}, hence `bool2int(x)` is `x`. */
+      case BOOL2INT: {
+        /** At toplevel, `bool2int(x)` holds when `x = 1`.
+         * It is a unary constraint, which `compute` keeps as it is (`ternarize` would reify it into `1 = (x = 1)`). */
+        if(toplevel) {
+          compute(F::make_binary(x, ZEQ, F::make_z(1)));
+        }
+        return x;
+      }
+      /** int2bool(x) ~~> ternarize(x != 0) */
+      case INT2BOOL: return ternarize(F::make_binary(x, ZNEQ, F::make_z(0)), toplevel);
       case MINIMIZE:
       case MAXIMIZE: {
         conjunction.push_back(F::make_unary(f.sig(), x));
@@ -215,7 +238,7 @@ private:
    */
   F booleanize(const F& t, Sig sig) {
     if(is_logical(sig) && !is_boolean(t)) {
-      return ternarize(F::make_binary(t, NEQ, F::make_z(0)));
+      return ternarize(F::make_binary(t, ZNEQ, F::make_z(0)));
     }
     return t;
   }
@@ -248,13 +271,13 @@ private:
      * We set t0 to be the variable and proceeds. */
     if((((f.seq(0).is_variable() || f.seq(0).is_constant()) && f.seq(1).is_binary())
      ||((f.seq(1).is_variable() || f.seq(1).is_constant()) && f.seq(0).is_binary()))
-     && (f.sig() == EQUIV || f.sig() == EQ))
+     && (f.sig() == EQUIV || f.sig() == ZEQ))
     {
       int left = f.seq(0).is_binary();
       int right = f.seq(1).is_binary();
       /** If a IN constraint appears on the right side, we decompose it here and immediately call ternarize again. */
       if(f.seq(right).sig() == IN) {
-        return ternarize(F::make_binary(f.seq(left), EQ, decompose_in_constraint(f.seq(right))), toplevel);
+        return ternarize(F::make_binary(f.seq(left), f.sig(), decompose_in_constraint(f.seq(right))), toplevel);
       }
       t0 = ternarize(f.seq(left));
       f = f.seq(right);
@@ -267,9 +290,9 @@ private:
     t2 = booleanize(t2, f.sig());
     if(!almost_ternary) {
     /** We don't need to create t0 for these formulas at toplevel. */
-      if(toplevel && (f.sig() == NEQ || f.sig() == XOR || f.sig() == IMPLY || f.sig() == GT || f.sig() == LT)) {}
+      if(toplevel && (f.sig() == ZNEQ || f.sig() == XOR || f.sig() == IMPLY || f.sig() == ZGT || f.sig() == ZLT)) {}
       else if(is_logical(f.sig()) || is_predicate(f.sig())
-        || ((f.sig() == MIN || f.sig() == MAX) && is_boolean(t1) && is_boolean(t2)))
+        || ((f.sig() == ZMIN || f.sig() == ZMAX) && is_boolean(t1) && is_boolean(t2)))
       {
         t0 = toplevel ? ternarize_constant(F::make_z(1)) : introduce_bool_var();
       }
@@ -279,47 +302,47 @@ private:
     }
     switch(f.sig()) {
       case AND:
-      case MIN: return push_ternary(t0, t1, MIN, t2);
+      case ZMIN: return push_ternary(t0, t1, ZMIN, t2);
       case OR:
-      case MAX: return push_ternary(t0, t1, MAX, t2);
-      case EQ:
-      case EQUIV: return push_ternary(t0, t1, EQ, t2);
+      case ZMAX: return push_ternary(t0, t1, ZMAX, t2);
+      case ZEQ:
+      case EQUIV: return push_ternary(t0, t1, ZEQ, t2);
       // x xor y ~~> t1 = not t2 /\ t1 = (x = y)
-      case NEQ:
+      case ZNEQ:
       case XOR: {
         if(toplevel) {
-          return push_ternary(ternarize_constant(F::make_z(0)), t1, EQ, t2);
+          return push_ternary(ternarize_constant(F::make_z(0)), t1, ZEQ, t2);
         }
-        push_ternary(ternarize(F::make_unary(NOT, t0)), t1, EQ, t2);
+        push_ternary(ternarize(F::make_unary(NOT, t0)), t1, ZEQ, t2);
         return t0;
       }
       case IMPLY: return ternarize(F::make_binary(F::make_unary(NOT, t1), OR, t2), toplevel);
-      case LEQ: return push_ternary(t0, t1, LEQ, t2);
+      case ZLEQ: return push_ternary(t0, t1, ZLEQ, t2);
       // x >= y ~~> y <= x
-      case GEQ: return push_ternary(t0, t2, LEQ, t1);
+      case ZGEQ: return push_ternary(t0, t2, ZLEQ, t1);
       // x > y ~~> !(x <= y)
-      case GT: {
+      case ZGT: {
         if(toplevel) {
-          return push_ternary(ternarize_constant(F::make_z(0)), t1, LEQ, t2);
+          return push_ternary(ternarize_constant(F::make_z(0)), t1, ZLEQ, t2);
         }
-        push_ternary(ternarize(F::make_unary(NOT, t0)), t1, LEQ, t2);
+        push_ternary(ternarize(F::make_unary(NOT, t0)), t1, ZLEQ, t2);
         return t0;
       }
       // x < y ~~> y > x ~~> !(y <= x)
-      case LT: {
+      case ZLT: {
         if(toplevel) {
-          return push_ternary(ternarize_constant(F::make_z(0)), t2, LEQ, t1);
+          return push_ternary(ternarize_constant(F::make_z(0)), t2, ZLEQ, t1);
         }
-        push_ternary(ternarize(F::make_unary(NOT, t0)), t2, LEQ, t1);
+        push_ternary(ternarize(F::make_unary(NOT, t0)), t2, ZLEQ, t1);
         return t0;
       }
       // x mod y ~~> x - y * (x div y)
-      case TMOD:
-      case EMOD:
-      case FMOD:
-      case CMOD: {
+      case ZTMOD:
+      case ZEMOD:
+      case ZFMOD:
+      case ZCMOD: {
         Sig div_sig = corresponding_z_division(f.sig());
-        return push_ternary(t1, t0, ADD, ternarize(F::make_binary(t2, MUL, F::make_binary(t1, div_sig, t2)), false));
+        return push_ternary(t1, t0, ZADD, ternarize(F::make_binary(t2, ZMUL, F::make_binary(t1, div_sig, t2)), false));
       }
       default: {
         return push_ternary(t0, t1, f.sig(), t2);
@@ -361,7 +384,14 @@ private:
   F ternarize(const F& f, bool toplevel = false) {
     if (f.is_variable()) {
       if(toplevel) {
-        return ternarize(F::make_binary(f, NEQ, F::make_z(0)), true);
+        /** A Boolean variable is in {0,1}, hence it holds when `f = 1`.
+         * It is a unary constraint, which `compute` keeps as it is (`ternarize` would reify it into `1 = (f = 1)`). */
+        if(is_boolean(f)) {
+          compute(F::make_binary(f, ZEQ, F::make_z(1)));
+          return f;
+        }
+        /** An integer variable holds when it is different from 0. */
+        return ternarize(F::make_binary(f, ZNEQ, F::make_z(0)), true);
       }
       return f;
     }
@@ -434,8 +464,9 @@ public:
 /**
  * Given a formula `f`, we transform it into a conjunction of formulas of this form:
  * 1. `x <op> c` where `c` is a constant.
- * 2. `x = (y <op> z)` where `<op>` is a binary operator, either arithmetic or a comparison (`=`, `<=`).
+ * 2. `x = (y <op> z)` where `<op>` is a binary integer operator, either arithmetic or a comparison (`ZEQ`, `ZLEQ`).
  * This ternary form is used by the lala-pc/PIR solver.
+ * In this form, Booleans are integers in {0,1}: `BOOL2INT` is erased and `INT2BOOL(x)` becomes `x != 0`.
  */
 template <class F, class Env = VarEnv<battery::standard_allocator>>
 F ternarize(const F& f, const Env& env = Env(), const std::vector<int>& constants = {}) {
