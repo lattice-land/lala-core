@@ -45,28 +45,27 @@ CUDA NI TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z,
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), aty, allocator);
 }
 
-/** The comparison `>=` suited to the sort of the constant `f`: `SUPSETEQ` for sets, `RGEQ` for real numbers and `ZGEQ` otherwise (integers and Booleans). */
+/** Instantiates the polymorphic comparison `op` (`EQ`, `NEQ`, `LEQ`, `GEQ`, `LT` or `GT`) at the sort of `f`, as given by `f.sort()`:
+ * - Real numbers: the `R*` comparison (e.g., `RLEQ`).
+ * - Sets: `op` itself, since the polymorphic comparisons are the lexicographic order on sets, which has no monomorphic symbol. The inclusion order is `SUBSETEQ`, `SUPSETEQ`, etc.
+ * - Otherwise: the `Z*` comparison (e.g., `ZLEQ`). This covers integers, Booleans, and the formulas whose sort cannot be recovered without an environment (e.g., variables).
+ */
 template <class Allocator>
-CUDA Sig geq_of_constant(const TFormula<Allocator>& f) {
-  using F = TFormula<Allocator>;
-  assert(f.is_constant());
-  return f.is(F::S) ? SUPSETEQ : (f.is(F::R) ? RGEQ : ZGEQ);
-}
-
-/** The comparison `<=` suited to the sort of the constant `f` (see `geq_of_constant`). */
-template <class Allocator>
-CUDA Sig leq_of_constant(const TFormula<Allocator>& f) {
-  using F = TFormula<Allocator>;
-  assert(f.is_constant());
-  return f.is(F::S) ? SUBSETEQ : (f.is(F::R) ? RLEQ : ZLEQ);
-}
-
-/** The equality suited to the sort of the constant `f`: `EQ` (polymorphic) for sets, `REQ` for real numbers and `ZEQ` otherwise (integers and Booleans). */
-template <class Allocator>
-CUDA Sig eq_of_constant(const TFormula<Allocator>& f) {
-  using F = TFormula<Allocator>;
-  assert(f.is_constant());
-  return f.is(F::S) ? EQ : (f.is(F::R) ? REQ : ZEQ);
+CUDA Sig instantiate_op(Sig op, const TFormula<Allocator>& f) {
+  assert(is_polymorphic_comparison(op));
+  auto sort = f.sort();
+  if(sort.has_value() && sort->is_set()) {
+    return op;
+  }
+  bool real = sort.has_value() && sort->is_real();
+  switch(op) {
+    case EQ: return real ? REQ : ZEQ;
+    case NEQ: return real ? RNEQ : ZNEQ;
+    case LEQ: return real ? RLEQ : ZLEQ;
+    case GEQ: return real ? RGEQ : ZGEQ;
+    case LT: return real ? RLT : ZLT;
+    default: return real ? RGT : ZGT;
+  }
 }
 
 namespace impl {
@@ -946,7 +945,7 @@ CUDA NI F normalize(const F& f, battery::vector<F, Alloc>& extra) {
       }
       /** x in {v} --> x = v */
       else if(f.is_binary() && f.sig() == IN && f.seq(1).is(F::S) && f.seq(1).s().size() == 1 && battery::get<0>(f.seq(1).s()[0]) == battery::get<1>(f.seq(1).s()[0])) {
-        return F::make_binary(f.seq(0), eq_of_constant(battery::get<0>(f.seq(1).s()[0])), battery::get<0>(f.seq(1).s()[0]), f.type());
+        return F::make_binary(f.seq(0), instantiate_op(EQ, battery::get<0>(f.seq(1).s()[0])), battery::get<0>(f.seq(1).s()[0]), f.type());
       }
       else {
         typename F::Sequence normalized_seq(f.seq().get_allocator());
@@ -972,11 +971,12 @@ template <class F>
 CUDA F itv_to_formula(const F& f, const battery::tuple<F, F>& itv, const typename F::allocator_type& alloc = typename F::allocator_type()) {
   const auto& [l, u] = itv;
   if(l == u) {
-    return F::make_binary(f, eq_of_constant(l), l, f.type(), alloc);
+    return F::make_binary(f, instantiate_op(EQ, l), l, f.type(), alloc);
   }
   else {
-    Sig geq_sig = geq_of_constant(l);
-    Sig leq_sig = leq_of_constant(l);
+    // An interval of sets is an interval of the inclusion order.
+    Sig geq_sig = l.is(F::S) ? SUPSETEQ : instantiate_op(GEQ, l);
+    Sig leq_sig = l.is(F::S) ? SUBSETEQ : instantiate_op(LEQ, l);
     return
       F::make_binary(
         F::make_binary(f, geq_sig, l, f.type(), alloc),

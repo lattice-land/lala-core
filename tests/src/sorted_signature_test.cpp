@@ -113,6 +113,23 @@ TEST(SortedSignature, Negation) {
   EXPECT_EQ(h->sig(), GEQ);
 }
 
+TEST(SortedSignature, InstantiateOp) {
+  // Constants.
+  EXPECT_EQ(instantiate_op(GEQ, F::make_z(1)), ZGEQ);
+  EXPECT_EQ(instantiate_op(LT, real(1.5)), RLT);
+  EXPECT_EQ(instantiate_op(EQ, F::make_bool(true)), ZEQ);
+  // Sets keep the polymorphic comparison (lexicographic order).
+  EXPECT_EQ(instantiate_op(LEQ, set_z(1, 2)), LEQ);
+  EXPECT_EQ(instantiate_op(EQ, set_z(1, 2)), EQ);
+  EXPECT_EQ(instantiate_op(GEQ, F::make_binary(set_z(1, 1), UNION, set_z(2, 2))), GEQ);
+  // The sort of an application comes from its head symbol.
+  EXPECT_EQ(instantiate_op(NEQ, F::make_binary(var("x"), ZADD, var("y"))), ZNEQ);
+  EXPECT_EQ(instantiate_op(GT, F::make_binary(var("a"), RADD, var("r"))), RGT);
+  EXPECT_EQ(instantiate_op(LEQ, F::make_unary(INT2REAL, var("x"))), RLEQ);
+  // Without an environment, the sort of a variable is unknown: integers by default.
+  EXPECT_EQ(instantiate_op(EQ, var("x")), ZEQ);
+}
+
 TEST(SortedSignature, WellFormed) {
   // Integers.
   expect_wellformed(F::make_binary(F::make_binary(var("x"), ZADD, F::make_z(1)), ZLEQ, var("y")));
