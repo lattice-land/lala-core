@@ -19,11 +19,40 @@ namespace {
     s[0] = battery::make_tuple(F::make_z(l), F::make_z(u));
     return F::make_set(std::move(s));
   }
+  F empty_set() { return F::make_set(logic_set<F>()); }
+
+  /** `var x:Z, var y:Z, var a:R, var r:R, var b:B, var s:S(Z), var t:S(Z)` and the formula `f`. */
+  F with_decls(F f) {
+    F::Sequence seq;
+    seq.push_back(exists("x", S::Int));
+    seq.push_back(exists("y", S::Int));
+    seq.push_back(exists("a", S::Real));
+    seq.push_back(exists("r", S::Real));
+    seq.push_back(exists("b", S::Bool));
+    seq.push_back(F::make_exists(UNTYPED, LVar<standard_allocator>("s"), S(S::Set, S(S::Int))));
+    seq.push_back(F::make_exists(UNTYPED, LVar<standard_allocator>("t"), S(S::Set, S(S::Int))));
+    seq.push_back(std::move(f));
+    return F::make_nary(AND, std::move(seq));
+  }
 
   void expect_sort(const F& f, S::Tag tag) {
     auto s = f.sort();
     ASSERT_TRUE(s.has_value());
     EXPECT_EQ(s->tag, tag);
+  }
+
+  void expect_wellformed(const F& f) {
+    WFDiagnostic<standard_allocator> diag;
+    bool res = is_wellformed(with_decls(f), VarEnv<standard_allocator>(), diag);
+    if(!res) { diag.print(); }
+    EXPECT_TRUE(res);
+  }
+
+  /** `f` is ill-formed, and the diagnostic message contains `msg`. */
+  void expect_illformed(const F& f, const std::string& msg) {
+    WFDiagnostic<standard_allocator> diag;
+    EXPECT_FALSE(is_wellformed(with_decls(f), VarEnv<standard_allocator>(), diag));
+    EXPECT_NE(diag.message.find(msg), std::string::npos) << "message: " << diag.message;
   }
 }
 
@@ -82,4 +111,65 @@ TEST(SortedSignature, Negation) {
   auto h = negate(F::make_binary(var("s"), LT, var("t")));
   ASSERT_TRUE(h.has_value());
   EXPECT_EQ(h->sig(), GEQ);
+}
+
+TEST(SortedSignature, WellFormed) {
+  // Integers.
+  expect_wellformed(F::make_binary(F::make_binary(var("x"), ZADD, F::make_z(1)), ZLEQ, var("y")));
+  expect_wellformed(F::make_binary(F::make_binary(var("x"), ZEMOD, var("y")), ZEQ, F::make_z(0)));
+  // Real numbers and conversions.
+  expect_wellformed(F::make_binary(F::make_binary(F::make_unary(INT2REAL, var("x")), RADD, var("r")), REQ, real(2.5)));
+  expect_wellformed(F::make_binary(F::make_unary(FLOOR, var("a")), ZEQ, var("x")));
+  expect_wellformed(F::make_binary(F::make_unary(RSQRT, var("a")), RLEQ, F::make_binary(var("r"), RNROOT, F::make_z(3))));
+  // Reification: the Boolean is converted to an integer.
+  expect_wellformed(F::make_binary(
+    F::make_binary(F::make_unary(BOOL2INT, F::make_binary(var("x"), ZGT, F::make_z(4))), ZADD, F::make_unary(BOOL2INT, var("b"))),
+    ZNEQ, F::make_z(2)));
+  expect_wellformed(F::make_binary(var("b"), EQUIV, F::make_binary(var("x"), ZLEQ, var("y"))));
+  expect_wellformed(F::make_binary(F::make_unary(INT2BOOL, var("x")), AND, var("b")));
+  // Sets and polymorphic comparisons.
+  expect_wellformed(F::make_binary(var("s"), EQ, var("t")));
+  expect_wellformed(F::make_binary(var("s"), LEQ, F::make_binary(var("t"), UNION, set_z(1, 3))));
+  expect_wellformed(F::make_binary(var("s"), SUBSETEQ, empty_set()));
+  expect_wellformed(F::make_binary(var("x"), IN, set_z(0, 5)));
+  expect_wellformed(F::make_binary(F::make_unary(CARD, var("s")), ZLEQ, F::make_z(2)));
+  expect_wellformed(F::make_binary(var("b"), EQ, F::make_bool(true)));
+  // Objective and extended symbols.
+  expect_wellformed(F::make_unary(MINIMIZE, var("a")));
+  expect_wellformed(F::make_nary(LVar<standard_allocator>("search"), F::Sequence()));
+}
+
+TEST(SortedSignature, IllFormed) {
+  expect_illformed(F::make_binary(var("x"), RADD, var("r")), "int2real");
+  expect_illformed(F::make_binary(var("z"), ZLEQ, F::make_z(1)), "Undeclared variable `z`");
+  expect_illformed(F::make_binary(var("a"), ZLEQ, var("r")), "floor");
+  expect_illformed(F::make_binary(var("b"), ZADD, var("x")), "bool2int");
+  expect_illformed(F::make_binary(var("x"), AND, var("b")), "int2bool");
+  expect_illformed(F::make_binary(var("s"), EQ, var("x")), "same sort");
+  expect_illformed(F::make_unary(ZLEQ, var("x")), "expects 2 argument(s)");
+  {
+    logic_set<F> s(2);
+    s[0] = battery::make_tuple(F::make_z(1), F::make_z(2));
+    s[1] = battery::make_tuple(real(1.5), real(2.5));
+    expect_illformed(F::make_binary(var("x"), IN, F::make_set(std::move(s))), "same sort");
+  }
+  expect_illformed(F::make_binary(var("a"), IN, set_z(0, 1)), "`in` expects an element of sort Int");
+  expect_illformed(F::make_unary(MAXIMIZE, var("s")), "Int or Real");
+  // Conflicting declarations.
+  WFDiagnostic<standard_allocator> diag;
+  EXPECT_FALSE(is_wellformed(F::make_binary(exists("x", S::Int), AND, exists("x", S::Real)), VarEnv<standard_allocator>(), diag));
+  EXPECT_NE(diag.message.find("declared with the sorts"), std::string::npos);
+}
+
+TEST(SortedSignature, Environment) {
+  VarEnv<standard_allocator> env;
+  env.extends_vars(0, LVar<standard_allocator>("x"), S(S::Int));
+  EXPECT_TRUE(is_wellformed(F::make_binary(var("x"), ZLEQ, F::make_z(1)), env));
+  EXPECT_FALSE(is_wellformed(F::make_binary(var("x"), RLEQ, real(1.0)), env));
+  // A declaration conflicting with the environment.
+  EXPECT_FALSE(is_wellformed(exists("x", S::Bool), env));
+  auto s = sort_of_term(F::make_unary(INT2REAL, var("x")), env);
+  ASSERT_TRUE(s.has_value());
+  EXPECT_TRUE(s->is_real());
+  EXPECT_FALSE(sort_of_term(F::make_binary(var("x"), RADD, var("x")), env).has_value());
 }

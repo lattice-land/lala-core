@@ -7,5 +7,6 @@
 #include "ast.hpp"
 #include "env.hpp"
 #include "algorithm.hpp"
+#include "wellformed.hpp"
 
 #endif
