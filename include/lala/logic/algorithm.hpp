@@ -68,6 +68,42 @@ CUDA Sig instantiate_op(Sig op, const TFormula<Allocator>& f) {
   }
 }
 
+/** The equality predicate suited to a sort: `EQUIV` for Booleans, `ZEQ` for integers, `REQ` for real numbers and the polymorphic `EQ` otherwise (sets). */
+template <class Allocator>
+CUDA NI Sig eq_of_sort(const Sort<Allocator>& sort) {
+  if(sort.is_bool()) { return EQUIV; }
+  else if(sort.is_int()) { return ZEQ; }
+  else if(sort.is_real()) { return REQ; }
+  else { return EQ; }
+}
+
+/** The equality predicate suited to the result of the function symbol `sig` (the polymorphic `EQ` when the result sort depends on the arguments). */
+template <class Allocator = battery::standard_allocator>
+CUDA NI Sig eq_of_result(Sig sig) {
+  auto sort = result_sort_of<Allocator>(sig);
+  return sort.has_value() ? eq_of_sort(*sort) : EQ;
+}
+
+/** The equality predicate suited to the constant `c`. */
+template <class Allocator, class ExtendedSig>
+CUDA NI Sig eq_of_value(const TFormula<Allocator, ExtendedSig>& c) {
+  auto sort = c.sort();
+  return sort.has_value() ? eq_of_sort(*sort) : EQ;
+}
+
+/** The equality predicate suited to the variable declared in `decl` (an existential, possibly in a conjunction). */
+template <class Allocator, class ExtendedSig>
+CUDA NI Sig eq_of_decl(const TFormula<Allocator, ExtendedSig>& decl) {
+  using F = TFormula<Allocator, ExtendedSig>;
+  if(decl.is(F::E)) {
+    return eq_of_sort(battery::get<1>(decl.exists()));
+  }
+  else if(decl.is(F::Seq) && decl.sig() == AND && decl.seq().size() > 0) {
+    return eq_of_decl(decl.seq(0));
+  }
+  return EQ;
+}
+
 namespace impl {
   template<class Allocator, class ExtendedSig>
   CUDA NI const TFormula<Allocator, ExtendedSig>& var_in_impl(const TFormula<Allocator, ExtendedSig>& f, bool& found);

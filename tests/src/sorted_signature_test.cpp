@@ -113,6 +113,24 @@ TEST(SortedSignature, Negation) {
   EXPECT_EQ(h->sig(), GEQ);
 }
 
+TEST(SortedSignature, EqualityOfSort) {
+  EXPECT_EQ(eq_of_sort(S(S::Bool)), EQUIV);
+  EXPECT_EQ(eq_of_sort(S(S::Int)), ZEQ);
+  EXPECT_EQ(eq_of_sort(S(S::Real)), REQ);
+  EXPECT_EQ(eq_of_sort(S(S::Set, S(S::Int))), EQ);
+  EXPECT_EQ(eq_of_result(ZADD), ZEQ);
+  EXPECT_EQ(eq_of_result(RADD), REQ);
+  EXPECT_EQ(eq_of_result(ZLEQ), EQUIV);
+  EXPECT_EQ(eq_of_result(UNION), EQ); // the result sort depends on the arguments.
+  EXPECT_EQ(eq_of_value(F::make_z(1)), ZEQ);
+  EXPECT_EQ(eq_of_value(real(1.5)), REQ);
+  EXPECT_EQ(eq_of_value(F::make_bool(true)), EQUIV);
+  EXPECT_EQ(eq_of_value(set_z(1, 2)), EQ);
+  EXPECT_EQ(eq_of_decl(exists("b", S::Bool)), EQUIV);
+  EXPECT_EQ(eq_of_decl(F::make_binary(exists("x", S::Int), AND, var("x"))), ZEQ);
+  EXPECT_EQ(eq_of_decl(var("x")), EQ);
+}
+
 TEST(SortedSignature, InstantiateOp) {
   // Constants.
   EXPECT_EQ(instantiate_op(GEQ, F::make_z(1)), ZGEQ);
