@@ -231,6 +231,17 @@ TEST(SortedSignature, IllFormed) {
   }
   expect_illformed(F::make_binary(var("a"), IN, set_z(0, 1)), "`in` expects an element of sort Int");
   expect_illformed(F::make_unary(MAXIMIZE, var("s")), "Int or Real");
+  // A formula has the sort Bool, also at toplevel: an integer term is not a formula.
+  expect_illformed(F::make_unary(BOOL2INT, var("b")), "`and` expects an argument of sort Bool");
+  {
+    WFDiagnostic<standard_allocator> d;
+    EXPECT_FALSE(is_wellformed(F::make_unary(BOOL2INT, F::make_bool(true)), VarEnv<standard_allocator>(), d));
+    EXPECT_NE(d.message.find("A formula must have the sort Bool, but this term has sort Int (use `int2bool`"), std::string::npos) << "message: " << d.message;
+    EXPECT_FALSE(is_wellformed(F::make_binary(exists("x", S::Int), AND, var("x"))));
+    EXPECT_FALSE(is_wellformed(F::make_z(1)));
+    EXPECT_FALSE(is_wellformed(real(1.5)));
+    EXPECT_TRUE(is_wellformed(F::make_bool(true)));
+  }
   // Conflicting declarations.
   WFDiagnostic<standard_allocator> diag;
   EXPECT_FALSE(is_wellformed(F::make_binary(exists("x", S::Int), AND, exists("x", S::Real)), VarEnv<standard_allocator>(), diag));

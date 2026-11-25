@@ -239,6 +239,19 @@ public:
     }
   }
 
+  /** Check that `f` is a formula, i.e., a well-formed term of sort `Bool`.
+   * For instance, the integer term `bool2int(b)` is not a formula, hence it cannot occur at toplevel. */
+  bool check_formula(const F& f) {
+    auto s = infer(f);
+    if(!s.has_value()) {
+      return false;
+    }
+    if(!s->is(sort_type::Bool)) {
+      return error(f, "A formula must have the sort Bool, but this term has sort " + s->to_string() + conversion_hint(*s, sort_type::Bool) + ".");
+    }
+    return true;
+  }
+
 private:
   std::optional<SortInfo> infer_set(const F& f) {
     const auto& set = f.s();
@@ -388,12 +401,13 @@ private:
 
 } // namespace impl
 
-/** \return `true` if `f` is well-formed with respect to the sorted signature, where the sorts of the variables are given by the existential quantifiers in `f` or by `env`.
+/** \return `true` if `f` is a well-formed formula with respect to the sorted signature, where the sorts of the variables are given by the existential quantifiers in `f` or by `env`.
+ * A formula has the sort `Bool`; use `sort_of_term` for terms of other sorts.
  * If `f` is not well-formed and `diag` is not null, `diag` explains the first error found. */
 template <class F, class Env = VarEnv<battery::standard_allocator>>
 bool is_wellformed(const F& f, const Env& env, WFDiagnostic<typename F::allocator_type>* diag) {
   impl::WellformedChecker<F, Env> checker(env, diag);
-  return checker.collect_existentials(f) && checker.infer(f).has_value();
+  return checker.collect_existentials(f) && checker.check_formula(f);
 }
 
 template <class F, class Env = VarEnv<battery::standard_allocator>>
