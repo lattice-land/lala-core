@@ -295,7 +295,7 @@ public:
           std::swap(y, z);
         }
         switch(sig) {
-          case ADD: {
+          case ZADD: {
             /** x = x + z -> z = 0 and  x = y + x -> y = 0 */
             if(x == y || x == z) {
               int y2 = x == y ? z : y;
@@ -310,12 +310,12 @@ public:
             else if(y == z) {
               tnf[i].seq(1) = F::make_binary(
                 F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y})),
-                MUL,
+                ZMUL,
                 F::make_lvar(UNTYPED, LVar<allocator_type>("__CONSTANT_2")));
             }
             break;
           }
-          case MUL: {
+          case ZMUL: {
             /** x = x * k -> x = 0 (if k != 1), true otherwise. */
             if(x == y && z_is_c) {
               if(vstore[z] != ONE) {
@@ -346,7 +346,7 @@ public:
             }
             break;
           }
-          case EDIV: {
+          case ZEDIV: {
             /** x = 1/x -> x \in {-1,1} (over-approximated so the constraint cannot not eliminated) */
             if(vstore[y] == ONE && x == z) {
               has_changed |= vstore[x].meet(universe_type(-1,1));
@@ -369,7 +369,7 @@ public:
             }
             break;
           }
-          case EMOD: {
+          case ZEMOD: {
             /** x = x mod x -> x = 0 */
             if(x == y && y == z) {
               vstore[x].meet(ZERO);
@@ -390,8 +390,8 @@ public:
             }
             break;
           }
-          case MIN:
-          case MAX: {
+          case ZMIN:
+          case ZMAX: {
             /** x = min/max(y, y) -> x = y */
             if(y == z) {
               replace_by_equivalence(x, y, i, stats.eliminated_constraints_by_as());
@@ -401,19 +401,19 @@ public:
             else if(x == y || x == z) {
               int y2 = x == y ? z : y;
               int x2 = x;
-              if(sig == MAX) {
+              if(sig == ZMAX) {
                 std::swap(x2, y2);
               }
               tnf[i].seq(0) = F::make_lvar(UNTYPED, LVar<allocator_type>("__CONSTANT_1"));
               tnf[i].seq(1) = F::make_binary(
                 F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, x2})),
-                LEQ,
+                ZLEQ,
                 F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y2})));
             }
             break;
           }
           case EQUIV:
-          case EQ: {
+          case ZEQ: {
             if(vstore[x] == ONE) {
               replace_by_equivalence(y, z, i, stats.eliminated_equality_constraints());
             }
@@ -436,7 +436,7 @@ public:
             }
             break;
           }
-          case LEQ: {
+          case ZLEQ: {
             /** x = (x <= k) -> x = 0 (k < 0), x = 1 (k > 0), false (k = 0) */
             if(x == y && z_is_c) {
               int k = vstore[z].lb();
@@ -577,10 +577,10 @@ private:
     if(u.is_top()) { return F::make_true(); }
     F var = F::make_lvar(UNTYPED, env.name_of(x));
     if(u.lb().is_top()) {
-      return F::make_binary(var, LEQ, F::make_z(u.ub().load()), UNTYPED, get_allocator());
+      return F::make_binary(var, ZLEQ, F::make_z(u.ub().load()), UNTYPED, get_allocator());
     }
     else if(u.ub().is_top()) {
-      return F::make_binary(var, GEQ, F::make_z(u.lb().load()), UNTYPED, get_allocator());
+      return F::make_binary(var, ZGEQ, F::make_z(u.lb().load()), UNTYPED, get_allocator());
     }
     logic_set<F> dom(1, get_allocator());
     dom[0] = battery::make_tuple(F::make_z(u.lb().load()), F::make_z(u.ub().load()));

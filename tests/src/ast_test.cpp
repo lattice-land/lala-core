@@ -27,8 +27,8 @@ TEST(VarTest, MakeVar) {
 TEST(AST, NumVars) {
   using F = TFormula<standard_allocator>;
   auto var_x = LVar<standard_allocator>("x");
-  auto f1 = make_v_op_z(var_x, LEQ, 1);
-  auto f2 = make_v_op_z(var_x, LEQ, 0);
+  auto f1 = make_v_op_z(var_x, ZLEQ, 1);
+  auto f2 = make_v_op_z(var_x, ZLEQ, 0);
   auto f3 = F::make_binary(f1, AND, f2);
   EXPECT_EQ(num_vars(f1), 1);
   EXPECT_EQ(num_vars(f2), 1);
@@ -39,10 +39,10 @@ TEST(AST, ExtractTy) {
   using F = TFormula<standard_allocator>;
   auto var_x = LVar<standard_allocator>("x");
   auto var_y = LVar<standard_allocator>("y");
-  auto f1 = F::make_binary(F::make_lvar(0, var_x), LEQ, F::make_z(10), 0);
-  auto f2 = F::make_binary(F::make_lvar(0, var_x), LEQ, F::make_lvar(0, var_y), 1);
-  auto f3 = F::make_binary(F::make_lvar(0, var_x), GEQ, F::make_z(0), 0);
-  auto f4 = F::make_binary(F::make_lvar(0, var_x), GEQ, F::make_lvar(0, var_y), 1);
+  auto f1 = F::make_binary(F::make_lvar(0, var_x), ZLEQ, F::make_z(10), 0);
+  auto f2 = F::make_binary(F::make_lvar(0, var_x), ZLEQ, F::make_lvar(0, var_y), 1);
+  auto f3 = F::make_binary(F::make_lvar(0, var_x), ZGEQ, F::make_z(0), 0);
+  auto f4 = F::make_binary(F::make_lvar(0, var_x), ZGEQ, F::make_lvar(0, var_y), 1);
   auto f = F::make_binary(f1, AND,
     F::make_binary(f2, AND,
       F::make_binary(f3, AND, f4, 1), 1), 1);

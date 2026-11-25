@@ -79,38 +79,48 @@ public:
   We represent \f$ X \f$ by strings (see `LVar`), while \f$ F \f$ and \f$ P \f$ are described in the following enumeration `Sig`.
   For programming conveniency, we suppose that logical connectors are included in the set of predicates and thus are in the signature as well.
   Finally, function symbols and predicates are at the "same level".
-  Hence a predicate can occur as the argument of a function, which is convenient when modelling, consider for example a cardinality constraint: \f$ ((x > 4) + (y < 4) + (z = 3)) \neq 2 \f$.
+  Hence a predicate can occur as the argument of a function (after conversion with `BOOL2INT`), which is convenient when modelling, consider for example a cardinality constraint: \f$ (\mathit{bool2int}(x > 4) + \mathit{bool2int}(y < 4) + \mathit{bool2int}(z = 3)) \neq 2 \f$.
 
-  Symbols are sometimes overloaded across different universe of discourse.
-  For instance, `ADD` can be used over integers, reals and even set of integers (pairwise addition).
+  The signature is sorted (see `Sort`), and there are two kinds of symbols:
+    * Monomorphic symbols, whose sorts are fixed by their names. Arithmetic symbols are prefixed by their carrier: `Z` for integers (e.g., `ZADD`) and `R` for real numbers (e.g., `RADD`).
+    * Polymorphic symbols, which are not prefixed: the comparisons `EQ`, `NEQ`, `LEQ`, `GEQ`, `LT`, `GT`, the set symbols and `ITE`.
+      Polymorphic comparisons are used over sets (lexicographic ordering) but could eventually be used for any sort.
+  There is no implicit coercion between sorts: we use the conversion symbols `FLOOR`, `CEIL`, `TRUNC`, `INT2REAL`, `BOOL2INT` and `INT2BOOL`.
 
   Division and modulus are defined as usual over continuous domains such as rational and real numbers.
   However, it gets more tricky when defined over discrete domains such as integers and floating-point numbers, since there is not a single definition of division and modulus.
   The various kinds of discrete divisions are explained in (Leijend D. (2003). Division and Modulus for Computer Scientists), and we add four of those definitions to the logical signature.
   There are several use-cases of modulus and division:
-    * If you write a constraint model, you probably want to use euclidean division and modulus (EDIV, EMOD) as this is the most "mathematical" definition.
+    * If you write a constraint model, you probably want to use euclidean division and modulus (ZEDIV, ZEMOD) as this is the most "mathematical" definition.
     * If you intend to model the semantics of a programming language, you should use the same kind of division as the one present in your programming language (most likely truncated division).
  */
 enum Sig {
   ///@{
-  NEG, ABS, ///< Unary arithmetic function symbols.
-  ADD, SUB, MUL, POW, MIN, MAX,  ///< Binary arithmetic function symbols.
-  SQRT, EXP, LN, ///< Square root, natural exponential and natural logarithm function symbols.
-  NROOT, LOG, ///< nth root and logarithm to base (both binary function symbols).
-  SIN, COS, TAN, ASIN, ACOS, ATAN, SINH, COSH, TANH, ASINH, ACOSH, ATANH, ///< Trigonometric unary function symbols.
-  DIV, MOD, ///< Division and modulus over continuous domains (e.g., floating-point numbers and rational).
-  TDIV, TMOD, ///< Truncated division, present in most programming languages, is defined as \f$ a\,\mathbf{tdiv}\,b = \mathit{trunc}(a/b) \f$, i.e., it rounds towards zero. Modulus is defined as \f$ a\,\mathbf{tmod}\,b = a - b * (a\,\mathbf{tdiv}\,b) \f$.
-  FDIV, FMOD, ///< Floor division (Knuth D. (1972). The Art of Computer Programming, Vol 1, Fundamental Algorithms), is defined as \f$ a\,\mathbf{fdiv}\,b = \lfloor a/b \rfloor \f$, i.e., it rounds towards negative infinity. Modulus is defined as \f$ a\,\mathbf{fmod}\,b = a - b * (a\,\mathbf{fdiv}\,b) \f$.
-  CDIV, CMOD, ///< Ceil division is defined as \f$ a\,\mathbf{cdiv}\,b = \lceil a/b \rceil \f$. Modulus is defined as \f$ a\,\mathbf{cmod}\,b = a - b * (a\,\mathbf{cdiv}\,b) \f$.
-  EDIV, EMOD, ///< Euclidean division (Boute T. R. (1992). The Euclidean definition of the functions div and mod). The properties satisfy by this division are: (1) \f$ a\,\mathbf{ediv}\,b \in \mathbb{Z} \f$, (2) \f$ a = b * (a\,\mathbf{ediv}\,b) + (a\,\mathbf{emod}\,b) \f$ and (3) \f$ 0 \leq a\,\mathbf{emod}\,b < |b|\f$. Further, note that Euclidean division satisfies \f$ a\,\mathbf{ediv}\,(-b) = -(a\,\mathbf{ediv}\,b) \f$ and \f$ a\,\mathbf{emod}\,(-b) = a\,\mathbf{emod}\,b \f$.
+  ZNEG, ZABS, ///< Unary integer arithmetic function symbols.
+  ZADD, ZSUB, ZMUL, ZPOW, ZMIN, ZMAX, ///< Binary integer arithmetic function symbols. The exponent of `ZPOW` must be positive.
+  ZTDIV, ZTMOD, ///< Truncated division, present in most programming languages, is defined as \f$ a\,\mathbf{tdiv}\,b = \mathit{trunc}(a/b) \f$, i.e., it rounds towards zero. Modulus is defined as \f$ a\,\mathbf{tmod}\,b = a - b * (a\,\mathbf{tdiv}\,b) \f$.
+  ZFDIV, ZFMOD, ///< Floor division (Knuth D. (1972). The Art of Computer Programming, Vol 1, Fundamental Algorithms), is defined as \f$ a\,\mathbf{fdiv}\,b = \lfloor a/b \rfloor \f$, i.e., it rounds towards negative infinity. Modulus is defined as \f$ a\,\mathbf{fmod}\,b = a - b * (a\,\mathbf{fdiv}\,b) \f$.
+  ZCDIV, ZCMOD, ///< Ceil division is defined as \f$ a\,\mathbf{cdiv}\,b = \lceil a/b \rceil \f$. Modulus is defined as \f$ a\,\mathbf{cmod}\,b = a - b * (a\,\mathbf{cdiv}\,b) \f$.
+  ZEDIV, ZEMOD, ///< Euclidean division (Boute T. R. (1992). The Euclidean definition of the functions div and mod). The properties satisfy by this division are: (1) \f$ a\,\mathbf{ediv}\,b \in \mathbb{Z} \f$, (2) \f$ a = b * (a\,\mathbf{ediv}\,b) + (a\,\mathbf{emod}\,b) \f$ and (3) \f$ 0 \leq a\,\mathbf{emod}\,b < |b|\f$. Further, note that Euclidean division satisfies \f$ a\,\mathbf{ediv}\,(-b) = -(a\,\mathbf{ediv}\,b) \f$ and \f$ a\,\mathbf{emod}\,(-b) = a\,\mathbf{emod}\,b \f$.
+  RNEG, RABS, ///< Unary real arithmetic function symbols.
+  RADD, RSUB, RMUL, RPOW, RMIN, RMAX, ///< Binary real arithmetic function symbols.
+  RDIV, ///< Division over real numbers.
+  RSQRT, REXP, RLN, ///< Square root, natural exponential and natural logarithm function symbols.
+  RNROOT, RLOG, ///< nth root (the index is an integer) and logarithm to base (both binary function symbols).
+  RSIN, RCOS, RTAN, RASIN, RACOS, RATAN, RSINH, RCOSH, RTANH, RASINH, RACOSH, RATANH, ///< Trigonometric unary function symbols.
+  FLOOR, CEIL, TRUNC, ///< Conversions from real to integer.
+  INT2REAL, ///< Conversion from integer to real.
+  BOOL2INT, ///< Conversion from Boolean to integer (false is 0 and true is 1).
+  INT2BOOL, ///< Conversion from integer to Boolean (0 is false, and any other integer is true).
   UNION, INTERSECTION, DIFFERENCE, SYMMETRIC_DIFFERENCE, COMPLEMENT, ///< Set functions.
   SUBSET, SUBSETEQ, SUPSET, SUPSETEQ, ///< Set inclusion predicates.
   IN, ///< Set membership predicate.
   CARD, ///< Cardinality function from set to integer.
   HULL, ///< Unary function performing the convex hull of a set, e.g., \f$ \mathit{hull}(s) = \{x \;|\; \mathit{min}(s) \leq x \leq \mathit{max}(s) \} \f$.
   CONVEX, ///< Unary predicate, requiring \f$ s = \mathit{hull}(s) \f$.
-  EQ, NEQ, ///< Equality relations.
-  LEQ, GEQ, LT, GT, ///< Arithmetic comparison predicates. When applied to set, it corresponds to the lexicographic ordering of the sorted set according the underlying natural ordering of the elements in the set.
+  ZEQ, ZNEQ, ZLEQ, ZGEQ, ZLT, ZGT, ///< Integer comparison predicates.
+  REQ, RNEQ, RLEQ, RGEQ, RLT, RGT, ///< Real comparison predicates.
+  EQ, NEQ, LEQ, GEQ, LT, GT, ///< Polymorphic comparison predicates. When applied to sets, the ordering is the lexicographic ordering of the sorted sets according to the underlying natural ordering of the elements.
   AND, OR, IMPLY, EQUIV, NOT, XOR, ///< Logical connector.
   ITE, ///< If-then-else
   MAXIMIZE, ///< Unary "meta-predicate" indicating that its argument must be maximized, according to the increasing ordering of the underlying universe of discourse. This is not a predicate because it is defined on the solutions space of the whole formulas.
@@ -118,68 +128,94 @@ enum Sig {
   ///@}
 };
 
+/** Pretty-printing of the symbols. Integer symbols and polymorphic comparisons use the usual notation, while real symbols are suffixed by a dot when the integer symbol has the same notation (e.g., `+` and `+.`). */
 CUDA NI inline const char* string_of_sig(Sig sig) {
   switch(sig) {
-    case NEG: return "-";
-    case ABS: return "abs";
-    case ADD: return "+";
-    case SUB: return "-";
-    case MUL: return "*";
-    case DIV: return "/";
-    case TDIV: return "tdiv";
-    case FDIV: return "fdiv";
-    case CDIV: return "cdiv";
-    case EDIV: return "ediv";
-    case MOD: return "%%";
-    case TMOD: return "tmod";
-    case FMOD: return "fmod";
-    case CMOD: return "cmod";
-    case EMOD: return "emod";
-    case POW: return "^";
-    case SQRT: return "sqrt";
-    case EXP: return "exp";
-    case LN: return "ln";
-    case NROOT: return "nroot";
-    case LOG: return "log";
-    case SIN: return "sin";
-    case COS: return "cos";
-    case TAN: return "tan";
-    case ASIN: return "asin";
-    case ACOS: return "acos";
-    case ATAN: return "atan";
-    case SINH: return "sinh";
-    case COSH: return "cosh";
-    case TANH: return "tanh";
-    case ASINH: return "asinh";
-    case ACOSH: return "acosh";
-    case ATANH: return "atanh";
-    case MIN: return "min";
-    case MAX: return "max";
-    case UNION: return "\u222A";
-    case INTERSECTION: return "\u2229";
+    case ZNEG: return "-";
+    case ZABS: return "abs";
+    case ZADD: return "+";
+    case ZSUB: return "-";
+    case ZMUL: return "*";
+    case ZPOW: return "^";
+    case ZMIN: return "min";
+    case ZMAX: return "max";
+    case ZTDIV: return "tdiv";
+    case ZTMOD: return "tmod";
+    case ZFDIV: return "fdiv";
+    case ZFMOD: return "fmod";
+    case ZCDIV: return "cdiv";
+    case ZCMOD: return "cmod";
+    case ZEDIV: return "ediv";
+    case ZEMOD: return "emod";
+    case RNEG: return "-.";
+    case RABS: return "abs.";
+    case RADD: return "+.";
+    case RSUB: return "-.";
+    case RMUL: return "*.";
+    case RPOW: return "^.";
+    case RMIN: return "min.";
+    case RMAX: return "max.";
+    case RDIV: return "/";
+    case RSQRT: return "sqrt";
+    case REXP: return "exp";
+    case RLN: return "ln";
+    case RNROOT: return "nroot";
+    case RLOG: return "log";
+    case RSIN: return "sin";
+    case RCOS: return "cos";
+    case RTAN: return "tan";
+    case RASIN: return "asin";
+    case RACOS: return "acos";
+    case RATAN: return "atan";
+    case RSINH: return "sinh";
+    case RCOSH: return "cosh";
+    case RTANH: return "tanh";
+    case RASINH: return "asinh";
+    case RACOSH: return "acosh";
+    case RATANH: return "atanh";
+    case FLOOR: return "floor";
+    case CEIL: return "ceil";
+    case TRUNC: return "trunc";
+    case INT2REAL: return "int2real";
+    case BOOL2INT: return "bool2int";
+    case INT2BOOL: return "int2bool";
+    case UNION: return "∪";
+    case INTERSECTION: return "∩";
     case DIFFERENCE: return "\\";
-    case SYMMETRIC_DIFFERENCE: return "\u2296";
+    case SYMMETRIC_DIFFERENCE: return "⊖";
     case COMPLEMENT: return "complement";
-    case IN: return "\u2208";
-    case SUBSET: return "\u2282";
-    case SUBSETEQ: return "\u2286";
-    case SUPSET: return "\u2283";
-    case SUPSETEQ: return "\u2287";
+    case IN: return "∈";
+    case SUBSET: return "⊂";
+    case SUBSETEQ: return "⊆";
+    case SUPSET: return "⊃";
+    case SUPSETEQ: return "⊇";
     case CARD: return "card";
     case HULL: return "hull";
     case CONVEX: return "convex";
+    case ZEQ: return "=";
+    case ZNEQ: return "≠";
+    case ZLEQ: return "≤";
+    case ZGEQ: return "≥";
+    case ZLT: return "<";
+    case ZGT: return ">";
+    case REQ: return "=.";
+    case RNEQ: return "≠.";
+    case RLEQ: return "≤.";
+    case RGEQ: return "≥.";
+    case RLT: return "<.";
+    case RGT: return ">.";
     case EQ: return "=";
-    case NEQ: return "\u2260";
-    case LEQ: return "\u2264";
-    case GEQ: return "\u2265";
+    case NEQ: return "≠";
+    case LEQ: return "≤";
+    case GEQ: return "≥";
     case LT: return "<";
     case GT: return ">";
-    case AND: return "\u2227";
-    case OR: return "\u2228";
-    case IMPLY: return "\u21D2";
-    case EQUIV: return "\u21D4";
-    case NOT: return "\u00AC";
-    case XOR: return "\u2295";
+    case AND: return "∧";
+    case OR: return "∨";
+    case IMPLY: return "⇒";
+    case EQUIV: return "⇔";
+    case NOT: return "¬";
+    case XOR: return "⊕";
     case ITE: return "ite";
     case MAXIMIZE: return "maximize";
     case MINIMIZE: return "minimize";
@@ -189,15 +225,51 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
     }
   }
 
+  /** Textual name of the symbols (unambiguous, e.g., `zadd` and `radd`). */
   CUDA NI inline const char* string_of_sig_txt(Sig sig) {
     switch(sig) {
-      case NEG: return "neg";
-      case ADD: return "add";
-      case SUB: return "sub";
-      case MUL: return "mul";
-      case DIV: return "div";
-      case MOD: return "mod";
-      case POW: return "pow";
+      case ZNEG: return "zneg";
+      case ZABS: return "zabs";
+      case ZADD: return "zadd";
+      case ZSUB: return "zsub";
+      case ZMUL: return "zmul";
+      case ZPOW: return "zpow";
+      case ZMIN: return "zmin";
+      case ZMAX: return "zmax";
+      case ZTDIV: return "ztdiv";
+      case ZTMOD: return "ztmod";
+      case ZFDIV: return "zfdiv";
+      case ZFMOD: return "zfmod";
+      case ZCDIV: return "zcdiv";
+      case ZCMOD: return "zcmod";
+      case ZEDIV: return "zediv";
+      case ZEMOD: return "zemod";
+      case RNEG: return "rneg";
+      case RABS: return "rabs";
+      case RADD: return "radd";
+      case RSUB: return "rsub";
+      case RMUL: return "rmul";
+      case RPOW: return "rpow";
+      case RMIN: return "rmin";
+      case RMAX: return "rmax";
+      case RDIV: return "rdiv";
+      case RSQRT: return "rsqrt";
+      case REXP: return "rexp";
+      case RLN: return "rln";
+      case RNROOT: return "rnroot";
+      case RLOG: return "rlog";
+      case RSIN: return "rsin";
+      case RCOS: return "rcos";
+      case RTAN: return "rtan";
+      case RASIN: return "rasin";
+      case RACOS: return "racos";
+      case RATAN: return "ratan";
+      case RSINH: return "rsinh";
+      case RCOSH: return "rcosh";
+      case RTANH: return "rtanh";
+      case RASINH: return "rasinh";
+      case RACOSH: return "racosh";
+      case RATANH: return "ratanh";
       case UNION: return "union";
       case INTERSECTION: return "intersection";
       case DIFFERENCE: return "difference";
@@ -207,6 +279,18 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
       case SUBSETEQ: return "subseteq";
       case SUPSET: return "supset";
       case SUPSETEQ: return "supseteq";
+      case ZEQ: return "zeq";
+      case ZNEQ: return "zneq";
+      case ZLEQ: return "zleq";
+      case ZGEQ: return "zgeq";
+      case ZLT: return "zlt";
+      case ZGT: return "zgt";
+      case REQ: return "req";
+      case RNEQ: return "rneq";
+      case RLEQ: return "rleq";
+      case RGEQ: return "rgeq";
+      case RLT: return "rlt";
+      case RGT: return "rgt";
       case EQ: return "eq";
       case NEQ: return "neq";
       case LEQ: return "leq";
@@ -224,23 +308,43 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
   }
 
   CUDA NI inline constexpr bool is_prefix(Sig sig) {
-    return sig == ABS || sig == SQRT || sig == EXP || sig == LN || sig == NROOT || sig == LOG || sig == SIN || sig == COS || sig == TAN || sig == ASIN || sig == ACOS || sig == ATAN || sig == SINH || sig == COSH || sig == TANH || sig == ASINH || sig == ACOSH || sig == ATANH || sig == MIN || sig == MAX || sig == COMPLEMENT || sig == CARD || sig == HULL || sig == CONVEX || sig == ITE || sig == MAXIMIZE || sig == MINIMIZE;
+    return sig == ZABS || sig == RABS || sig == ZMIN || sig == ZMAX || sig == RMIN || sig == RMAX
+      || sig == RSQRT || sig == REXP || sig == RLN || sig == RNROOT || sig == RLOG
+      || sig == RSIN || sig == RCOS || sig == RTAN || sig == RASIN || sig == RACOS || sig == RATAN
+      || sig == RSINH || sig == RCOSH || sig == RTANH || sig == RASINH || sig == RACOSH || sig == RATANH
+      || sig == FLOOR || sig == CEIL || sig == TRUNC || sig == INT2REAL || sig == BOOL2INT || sig == INT2BOOL
+      || sig == COMPLEMENT || sig == CARD || sig == HULL || sig == CONVEX || sig == ITE || sig == MAXIMIZE || sig == MINIMIZE;
+  }
+
+  /** Integer arithmetic function symbols (`ZNEG`...`ZEMOD`). */
+  CUDA NI inline constexpr bool is_z_arith(Sig sig) {
+    return sig >= ZNEG && sig <= ZEMOD;
+  }
+
+  /** Real arithmetic function symbols (`RNEG`...`RATANH`). */
+  CUDA NI inline constexpr bool is_r_arith(Sig sig) {
+    return sig >= RNEG && sig <= RATANH;
+  }
+
+  /** Conversion symbols between Booleans, integers and real numbers. */
+  CUDA NI inline constexpr bool is_conversion(Sig sig) {
+    return sig == FLOOR || sig == CEIL || sig == TRUNC || sig == INT2REAL || sig == BOOL2INT || sig == INT2BOOL;
   }
 
   CUDA NI inline constexpr bool is_z_division(Sig sig) {
-    return sig == TDIV || sig == EDIV || sig == FDIV || sig == CDIV;
+    return sig == ZTDIV || sig == ZEDIV || sig == ZFDIV || sig == ZCDIV;
   }
 
   CUDA NI inline constexpr bool is_z_modulus(Sig sig) {
-    return sig == TMOD || sig == EMOD || sig == FMOD || sig == CMOD;
+    return sig == ZTMOD || sig == ZEMOD || sig == ZFMOD || sig == ZCMOD;
   }
 
   CUDA NI inline constexpr Sig corresponding_z_division(Sig sig) {
     switch(sig) {
-      case TMOD: return TDIV;
-      case EMOD: return EDIV;
-      case FMOD: return FDIV;
-      case CMOD: return CDIV;
+      case ZTMOD: return ZTDIV;
+      case ZEMOD: return ZEDIV;
+      case ZFMOD: return ZFDIV;
+      case ZCMOD: return ZCDIV;
       default:
         assert(false);
         return sig; // To silence compiler warning.
@@ -248,25 +352,41 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
   }
 
   CUDA NI inline constexpr bool is_division(Sig sig) {
-    return sig == DIV || is_z_division(sig);
+    return sig == RDIV || is_z_division(sig);
   }
 
   CUDA NI inline constexpr bool is_modulo(Sig sig) {
-    return sig == MOD || is_z_modulus(sig);
+    return is_z_modulus(sig);
   }
 
   CUDA NI inline constexpr bool is_associative(Sig sig) {
-    return sig == ADD || sig == MUL || sig == AND || sig == OR || sig == EQUIV || sig == XOR
-      || sig == UNION || sig == INTERSECTION || sig == MAX || sig == MIN;
+    return sig == ZADD || sig == ZMUL || sig == RADD || sig == RMUL
+      || sig == ZMIN || sig == ZMAX || sig == RMIN || sig == RMAX
+      || sig == AND || sig == OR || sig == EQUIV || sig == XOR
+      || sig == UNION || sig == INTERSECTION;
   }
 
   CUDA NI inline constexpr bool is_commutative(Sig sig) {
     // All operators defined in `is_associative` are also commutative for now.
-    return is_associative(sig) || sig == EQ;
+    return is_associative(sig) || sig == ZEQ || sig == REQ || sig == EQ;
   }
 
+  CUDA NI inline constexpr bool is_z_comparison(Sig sig) {
+    return sig >= ZEQ && sig <= ZGT;
+  }
+
+  CUDA NI inline constexpr bool is_r_comparison(Sig sig) {
+    return sig >= REQ && sig <= RGT;
+  }
+
+  /** Polymorphic comparisons (`EQ`, `NEQ`, `LEQ`, `GEQ`, `LT`, `GT`). */
+  CUDA NI inline constexpr bool is_polymorphic_comparison(Sig sig) {
+    return sig >= EQ && sig <= GT;
+  }
+
+  /** Monomorphic comparisons over integers or real numbers. */
   CUDA NI inline constexpr bool is_arithmetic_comparison(Sig sig) {
-    return sig == LEQ || sig == GEQ || sig == EQ || sig == NEQ || sig == GT || sig == LT;
+    return is_z_comparison(sig) || is_r_comparison(sig);
   }
 
   CUDA NI inline constexpr bool is_logical(Sig sig) {
@@ -274,8 +394,24 @@ CUDA NI inline const char* string_of_sig(Sig sig) {
   }
 
   CUDA NI inline constexpr bool is_predicate(Sig sig) {
-    return sig == IN || sig == SUBSET || sig == SUBSETEQ || sig == SUPSET || sig == SUPSETEQ ||
-        sig == EQ || sig == NEQ || sig == LEQ || sig == GEQ || sig == LT || sig == GT;
+    return sig == IN || sig == SUBSET || sig == SUBSETEQ || sig == SUPSET || sig == SUPSETEQ
+      || is_arithmetic_comparison(sig) || is_polymorphic_comparison(sig);
+  }
+
+  /** \return The sort of the result of the symbol `sig`, or `{}` if it depends on the sorts of its arguments (set functions and `ITE`). */
+  template <class Allocator>
+  CUDA NI std::optional<Sort<Allocator>> result_sort_of(Sig sig) {
+    using sort_t = Sort<Allocator>;
+    if(is_z_arith(sig) || sig == FLOOR || sig == CEIL || sig == TRUNC || sig == BOOL2INT || sig == CARD) {
+      return sort_t(sort_t::Int);
+    }
+    if(is_r_arith(sig) || sig == INT2REAL) {
+      return sort_t(sort_t::Real);
+    }
+    if(is_predicate(sig) || is_logical(sig) || sig == CONVEX || sig == INT2BOOL || sig == MAXIMIZE || sig == MINIMIZE) {
+      return sort_t(sort_t::Bool);
+    }
+    return {};
   }
 }
 
@@ -318,7 +454,7 @@ public:
     LogicSet, ///< Set of Booleans, integers, reals or sets.
     LogicalVar, ///< Logical variable
     Existential,     ///< Existential quantifier
-    battery::tuple<Sig, Sequence>,  ///< ADD, SUB, ..., EQ, ..., AND, .., NOT
+    battery::tuple<Sig, Sequence>,  ///< ZADD, RSUB, ..., ZEQ, ..., AND, .., NOT
     battery::tuple<ExtendedSig, Sequence>  ///< see above
   >;
 
@@ -420,6 +556,11 @@ public:
     return type() == UNTYPED;
   }
 
+  /** \return The sort of the formula when it can be determined without an environment:
+   *   - Constants.
+   *   - Existential quantifiers: the sort of the quantified variable.
+   *   - Symbols with a fixed result sort (see `result_sort_of`), otherwise the sort of (one of) the arguments of set functions and `ITE`.
+   * Logical variables and extended symbols have no sort here (`{}`). */
   CUDA NI std::optional<Sort<allocator_type>> sort() const {
     using sort_t = Sort<allocator_type>;
     switch(formula.index()) {
@@ -442,6 +583,20 @@ public:
         break;
       }
       case E: return battery::get<1>(exists());
+      case Seq: {
+        auto res = result_sort_of<allocator_type>(sig());
+        if(res.has_value()) {
+          return res;
+        }
+        // The sort of `ITE(c, a, b)` is the sort of `a` or `b`; the sort of set functions is the sort of (one of) their arguments.
+        for(int i = (sig() == ITE ? 1 : 0); i < seq().size(); ++i) {
+          auto subsort = seq(i).sort();
+          if(subsort.has_value()) {
+            return subsort;
+          }
+        }
+        break;
+      }
     }
     return {};
   }
