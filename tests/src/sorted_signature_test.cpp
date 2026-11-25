@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 #include "battery/allocator.hpp"
 #include "lala/logic/logic.hpp"
+#include "lala/logic/ternarize.hpp"
 
 using namespace lala;
 using namespace battery;
@@ -111,6 +112,46 @@ TEST(SortedSignature, Negation) {
   auto h = negate(F::make_binary(var("s"), LT, var("t")));
   ASSERT_TRUE(h.has_value());
   EXPECT_EQ(h->sig(), GEQ);
+}
+
+namespace {
+  /** The ternary form of `f` (with the declarations `var a:B, var b:B`) contains the unary constraints `expected`, and no reified constraint. */
+  void expect_unary_ternary_form(const F& f, const std::vector<F>& expected) {
+    F::Sequence seq;
+    seq.push_back(exists("a", S::Bool));
+    seq.push_back(exists("b", S::Bool));
+    seq.push_back(f);
+    auto t = ternarize(F::make_nary(AND, std::move(seq)));
+    ASSERT_TRUE(t.is(F::Seq) && t.sig() == AND);
+    for(int i = 0; i < t.seq().size(); ++i) {
+      EXPECT_FALSE(num_vars(t.seq(i)) > 1) << "reified constraint in the ternary form";
+    }
+    for(const auto& e : expected) {
+      bool found = false;
+      for(int i = 0; i < t.seq().size(); ++i) {
+        found |= t.seq(i) == e;
+      }
+      EXPECT_TRUE(found);
+    }
+  }
+
+  F var_eq(const char* name, int v) { return F::make_binary(var(name), ZEQ, F::make_z(v)); }
+}
+
+TEST(SortedSignature, TernarizeBooleanToplevel) {
+  // `bool2int(b)` at toplevel is not well-formed, but the ternary form is a lower-level language where Booleans are integers.
+  expect_unary_ternary_form(F::make_unary(BOOL2INT, var("b")), {var_eq("b", 1)});
+  expect_unary_ternary_form(var("b"), {var_eq("b", 1)});
+  expect_unary_ternary_form(F::make_unary(NOT, var("b")), {var_eq("b", 0)});
+  // `bool_lt(a, b)` in FlatZinc is `not a /\ b`.
+  expect_unary_ternary_form(F::make_binary(F::make_unary(NOT, var("a")), AND, var("b")), {var_eq("a", 0), var_eq("b", 1)});
+  // An integer variable at toplevel holds when it is different from 0 (reified, as `x != 0` is not an interval).
+  auto t = ternarize(F::make_binary(exists("x", S::Int), AND, var("x")));
+  bool reified = false;
+  for(int i = 0; i < t.seq().size(); ++i) {
+    reified |= num_vars(t.seq(i)) > 1;
+  }
+  EXPECT_TRUE(reified);
 }
 
 TEST(SortedSignature, EqualityOfSort) {

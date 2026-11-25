@@ -184,11 +184,21 @@ private:
         return t2;
       }
       /** NOT x ~~> ternarize(x = 0) ~~> t = (x = 0) */
-      case NOT: return ternarize(F::make_binary(x, ZEQ, F::make_z(0)), toplevel);
+      case NOT: {
+        /** At toplevel, `not x` holds when `x = 0` (for a Boolean in {0,1} as for an integer, which is true when different from 0).
+         * It is a unary constraint, which `compute` keeps as it is (`ternarize` would reify it into `1 = (x = 0)`). */
+        if(toplevel) {
+          compute(F::make_binary(x, ZEQ, F::make_z(0)));
+          return x;
+        }
+        return ternarize(F::make_binary(x, ZEQ, F::make_z(0)));
+      }
       /** In the ternary form, Booleans are integers in {0,1}, hence `bool2int(x)` is `x`. */
       case BOOL2INT: {
+        /** At toplevel, `bool2int(x)` holds when `x = 1`.
+         * It is a unary constraint, which `compute` keeps as it is (`ternarize` would reify it into `1 = (x = 1)`). */
         if(toplevel) {
-          return ternarize(F::make_binary(x, ZNEQ, F::make_z(0)), true);
+          compute(F::make_binary(x, ZEQ, F::make_z(1)));
         }
         return x;
       }
@@ -374,6 +384,13 @@ private:
   F ternarize(const F& f, bool toplevel = false) {
     if (f.is_variable()) {
       if(toplevel) {
+        /** A Boolean variable is in {0,1}, hence it holds when `f = 1`.
+         * It is a unary constraint, which `compute` keeps as it is (`ternarize` would reify it into `1 = (f = 1)`). */
+        if(is_boolean(f)) {
+          compute(F::make_binary(f, ZEQ, F::make_z(1)));
+          return f;
+        }
+        /** An integer variable holds when it is different from 0. */
         return ternarize(F::make_binary(f, ZNEQ, F::make_z(0)), true);
       }
       return f;
