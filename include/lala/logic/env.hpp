@@ -16,8 +16,6 @@
 #include "ast.hpp"
 #include "algorithm.hpp"
 
-#include <string>
-#include <unordered_map>
 #include <functional>
 
 namespace lala {
@@ -26,24 +24,23 @@ template<class Allocator>
 struct Variable {
   template<class T>
   using bvector = battery::vector<T, Allocator>;
-  using bstring = battery::string<Allocator>;
 
-  bstring name;
+  Symbol name;
   Sort<Allocator> sort;
   bvector<AVar> avars;
 
   Variable(Variable<Allocator>&&) = default;
   Variable(const Variable<Allocator>&) = default;
 
-  CUDA NI Variable(const bstring& name, const Sort<Allocator>& sort, AVar av, const Allocator& allocator = Allocator{})
-    : name(name, allocator), sort(sort, allocator), avars(allocator)
+  CUDA NI Variable(Symbol name, const Sort<Allocator>& sort, AVar av, const Allocator& allocator = Allocator{})
+    : name(name), sort(sort, allocator), avars(allocator)
   {
     avars.push_back(av);
   }
 
   template <class Alloc2>
   CUDA NI Variable(const Variable<Alloc2>& other, const Allocator& allocator = Allocator{})
-    : name(other.name, allocator)
+    : name(other.name)
     , sort(other.sort, allocator)
     , avars(other.avars, allocator)
   {}
@@ -58,216 +55,10 @@ struct Variable {
   }
 };
 
-template <class Allocator>
-struct ListVarIndex {
-  using allocator_type = Allocator;
-  using this_type = ListVarIndex<Allocator>;
-  using variable_type = Variable<Allocator>;
-
-  template<class T>
-  using bvector = battery::vector<T, Allocator>;
-  using bstring = battery::string<Allocator>;
-
-  bvector<variable_type>* lvars;
-
-  CUDA ListVarIndex(bvector<variable_type>* lvars): lvars(lvars) {}
-  CUDA ListVarIndex(this_type&&, bvector<variable_type>* lvars): lvars(lvars) {}
-  CUDA ListVarIndex(const this_type&, bvector<variable_type>* lvars): lvars(lvars) {}
-
-  template <class Alloc2>
-  CUDA ListVarIndex(const ListVarIndex<Alloc2>&, bvector<variable_type>* lvars)
-    : lvars(lvars)
-  {}
-
-  // For this operator=, we suppose `lvars` is updated before.
-  CUDA this_type& operator=(this_type&& other) {
-    return *this;
-  }
-
-  CUDA this_type& operator=(const this_type& other) {
-    return *this;
-  }
-
-  CUDA std::optional<size_t> lvar_index_of(const char* lv) const {
-    for(size_t i = 0; i < lvars->size(); ++i) {
-      if((*lvars)[i].name == lv) {
-        return i;
-      }
-    }
-    return {};
-  }
-
-  CUDA void push_back(variable_type&& var) {
-    lvars->push_back(std::move(var));
-  }
-
-  CUDA void erase(const char* lv) {}
-
-  CUDA void set_lvars(bvector<variable_type>* lvars) {
-    this->lvars = lvars;
-  }
-};
-
-template <class Allocator>
-struct HashMapVarIndex {
-  using allocator_type = Allocator;
-  using this_type = ListVarIndex<Allocator>;
-  using variable_type = Variable<Allocator>;
-
-  template<class T>
-  using bvector = battery::vector<T, Allocator>;
-  using bstring = battery::string<Allocator>;
-
-  bvector<variable_type>* lvars;
-  std::unordered_map<std::string, size_t> lvar_index;
-
-  HashMapVarIndex(bvector<variable_type>* lvars): lvars(lvars) {
-    for(size_t i = 0; i < lvars->size(); ++i) {
-      lvar_index[std::string((*lvars)[i].name.data())] = i;
-    }
-  }
-
-  HashMapVarIndex(this_type&& other, bvector<variable_type>* lvars)
-   : lvars(lvars), lvar_index(std::move(other.lvar_index)) {}
-
-  HashMapVarIndex(const this_type& other, bvector<variable_type>* lvars)
-   : lvars(lvars), lvar_index(other.lvar_index) {}
-
-  template <class Alloc2>
-  HashMapVarIndex(const HashMapVarIndex<Alloc2>& other, bvector<variable_type>* lvars)
-    : lvars(lvars), lvar_index(other.lvar_index)
-  {}
-
-  // For this operator=, we suppose `lvars` is updated before.
-  this_type& operator=(this_type&& other) {
-    lvar_index = std::move(other.lvar_index);
-    return *this;
-  }
-  this_type& operator=(const this_type& other) {
-    lvar_index = other.lvar_index;
-    return *this;
-  }
-
-  std::optional<size_t> lvar_index_of(const char* lv) const {
-    auto it = lvar_index.find(std::string(lv));
-    if(it != lvar_index.end()) {
-      return {it->second};
-    }
-    return {};
-  }
-
-  void push_back(variable_type&& var) {
-    lvar_index[std::string(var.name.data())] = lvars->size();
-    lvars->push_back(std::move(var));
-  }
-
-  void erase(const char* lv) {
-    lvar_index.erase(std::string(lv));
-  }
-
-  void set_lvars(bvector<variable_type>* lvars) {
-    this->lvars = lvars;
-  }
-};
-
-template <class Allocator>
-struct DispatchIndex {
-  using allocator_type = Allocator;
-  using this_type = ListVarIndex<Allocator>;
-  using variable_type = Variable<Allocator>;
-
-  template<class T>
-  using bvector = battery::vector<T, Allocator>;
-  using bstring = battery::string<Allocator>;
-
-  battery::unique_ptr<HashMapVarIndex<allocator_type>, allocator_type> cpu_index;
-  battery::unique_ptr<ListVarIndex<allocator_type>, allocator_type> gpu_index;
-
-  CUDA DispatchIndex(bvector<variable_type>* lvars): cpu_index(nullptr), gpu_index(nullptr) {
-    gpu_index = std::move(battery::allocate_unique<ListVarIndex<allocator_type>>(lvars->get_allocator(), lvars));
-    #ifndef __CUDA_ARCH__
-      cpu_index = std::move(battery::allocate_unique<HashMapVarIndex<allocator_type>>(lvars->get_allocator(), lvars));
-    #endif
-  }
-
-  CUDA DispatchIndex(this_type&& other, bvector<variable_type>* lvars)
-   : gpu_index(std::move(other.gpu_index))
-  {
-    #ifndef __CUDA_ARCH__
-      cpu_index = std::move(other.cpu_index);
-    #endif
-  }
-
-  CUDA DispatchIndex(const this_type& other, bvector<variable_type>* lvars)
-  {
-    gpu_index = std::move(battery::allocate_unique<ListVarIndex<allocator_type>>(lvars->get_allocator(), *other.gpu_index, lvars));
-    #ifndef __CUDA_ARCH__
-      cpu_index = std::move(battery::allocate_unique<HashMapVarIndex<allocator_type>>(lvars->get_allocator(), *other.cpu_index, lvars));
-    #endif
-  }
-
-  template <class Alloc2>
-  CUDA DispatchIndex(const DispatchIndex<Alloc2>& other, bvector<variable_type>* lvars)
-  {
-    gpu_index = std::move(battery::allocate_unique<ListVarIndex<allocator_type>>(lvars->get_allocator(), *other.gpu_index, lvars));
-    #ifndef __CUDA_ARCH__
-      cpu_index = std::move(battery::allocate_unique<HashMapVarIndex<allocator_type>>(lvars->get_allocator(), *other.cpu_index, lvars));
-    #endif
-  }
-
-  // For this operator=, we suppose `lvars` is updated before.
-  CUDA this_type& operator=(this_type&& other) {
-    gpu_index = std::move(other.gpu_index);
-    #ifndef __CUDA_ARCH__
-      cpu_index = std::move(other.cpu_index);
-    #endif
-    return *this;
-  }
-
-  CUDA this_type& operator=(const this_type& other) {
-    *gpu_index = *other.gpu_index;
-    #ifndef __CUDA_ARCH__
-      *cpu_index = *other.cpu_index;
-    #endif
-    return *this;
-  }
-
-  CUDA std::optional<size_t> lvar_index_of(const char* lv) const {
-    #ifdef __CUDA_ARCH__
-      return gpu_index->lvar_index_of(lv);
-    #else
-      return cpu_index->lvar_index_of(lv);
-    #endif
-  }
-
-  CUDA void push_back(variable_type&& var) {
-    #ifdef __CUDA_ARCH__
-      gpu_index->push_back(std::move(var));
-    #else
-      cpu_index->push_back(std::move(var));
-    #endif
-  }
-
-  CUDA void erase(const char* lv) {
-    #ifdef __CUDA_ARCH__
-      gpu_index->erase(lv);
-    #else
-      cpu_index->erase(lv);
-    #endif
-  }
-
-  CUDA void set_lvars(bvector<variable_type>* lvars) {
-    gpu_index->set_lvars(lvars);
-    #ifndef __CUDA_ARCH__
-      cpu_index->set_lvars(lvars);
-    #endif
-  }
-};
-
-/** A `VarEnv` is a variable environment mapping between logical variables and abstract variables. */
+/** A `VarEnv` is a variable environment mapping between logical variables and abstract variables.
+ * The logical variables are found by their symbol in constant time, on the CPU as well as on the GPU. */
 template <class Allocator>
 class VarEnv {
-  template <class F> using fstring = battery::string<typename F::allocator_type>;
 public:
   using allocator_type = Allocator;
   using this_type = VarEnv<Allocator>;
@@ -276,7 +67,6 @@ public:
 
   template<class T>
   using bvector = battery::vector<T, Allocator>;
-  using bstring = battery::string<Allocator>;
 
   using variable_type = Variable<Allocator>;
 
@@ -286,11 +76,27 @@ public:
 private:
   bvector<variable_type> lvars;
   bvector<bvector<size_t>> avar2lvar;
-  DispatchIndex<allocator_type> var_index; // Note that this must always be declared *after* `lvars` because it stores a reference to it.
+  /** `symbol2lvar[s]` is the index in `lvars` of the variable whose symbol has the identifier `s`, or -1 if there is none. */
+  bvector<int> symbol2lvar;
+
+  CUDA NI std::optional<size_t> lvar_index_of(Symbol lv) const {
+    if(lv.id() >= 0 && lv.id() < symbol2lvar.size() && symbol2lvar[lv.id()] != -1) {
+      return static_cast<size_t>(symbol2lvar[lv.id()]);
+    }
+    return {};
+  }
+
+  CUDA NI void set_lvar_index(Symbol lv, int index) {
+    assert(lv.is_valid());
+    while(symbol2lvar.size() <= lv.id()) {
+      symbol2lvar.push_back(-1);
+    }
+    symbol2lvar[lv.id()] = index;
+  }
 
 public:
   CUDA NI AType extends_abstract_dom() {
-    avar2lvar.push_back(bvector<int>(get_allocator()));
+    avar2lvar.push_back(bvector<size_t>(get_allocator()));
     return static_cast<AType>(avar2lvar.size()) - 1;
   }
 
@@ -301,12 +107,12 @@ public:
     }
   }
 
-  template <class Alloc2, class Alloc3>
-  CUDA NI AVar extends_vars(AType aty, const battery::string<Alloc2>& name, const Sort<Alloc3>& sort) {
+  template <class Alloc3>
+  CUDA NI AVar extends_vars(AType aty, Symbol name, const Sort<Alloc3>& sort) {
     extends_abstract_doms(aty);
     AVar avar(aty, static_cast<int>(avar2lvar[aty].size()));
     // We first verify the variable doesn't already exist.
-    auto lvar_idx = var_index.lvar_index_of(name.data());
+    auto lvar_idx = lvar_index_of(name);
     if(lvar_idx.has_value()) {
       auto avar_opt = lvars[*lvar_idx].avar_of(aty);
       if(avar_opt.has_value()) {
@@ -317,39 +123,40 @@ public:
       }
     }
     else {
-      lvar_idx ={lvars.size()};
-      var_index.push_back(Variable<allocator_type>{name, sort, avar, get_allocator()});
+      lvar_idx = {lvars.size()};
+      set_lvar_index(name, static_cast<int>(lvars.size()));
+      lvars.push_back(Variable<allocator_type>{name, Sort<allocator_type>(sort, get_allocator()), avar, get_allocator()});
     }
     avar2lvar[aty].push_back(*lvar_idx);
     return avar;
   }
 
 public:
-  CUDA VarEnv(const Allocator& allocator): lvars(allocator), avar2lvar(allocator), var_index(&lvars) {}
-  CUDA VarEnv(this_type&& other): lvars(std::move(other.lvars)), avar2lvar(std::move(other.avar2lvar)), var_index(std::move(other.var_index), &lvars) {}
+  CUDA VarEnv(const Allocator& allocator): lvars(allocator), avar2lvar(allocator), symbol2lvar(allocator) {}
+  CUDA VarEnv(this_type&& other)
+    : lvars(std::move(other.lvars)), avar2lvar(std::move(other.avar2lvar)), symbol2lvar(std::move(other.symbol2lvar)) {}
   CUDA VarEnv(): VarEnv(Allocator{}) {}
-  CUDA VarEnv(const this_type& other): lvars(other.lvars), avar2lvar(other.avar2lvar), var_index(other.var_index, &lvars) {}
+  CUDA VarEnv(const this_type& other)
+    : lvars(other.lvars), avar2lvar(other.avar2lvar), symbol2lvar(other.symbol2lvar) {}
 
   template <class Alloc2>
   CUDA VarEnv(const VarEnv<Alloc2>& other, const Allocator& allocator = Allocator{})
     : lvars(other.lvars, allocator)
     , avar2lvar(other.avar2lvar, allocator)
-    , var_index(other.var_index, &lvars)
+    , symbol2lvar(other.symbol2lvar, allocator)
   {}
 
   CUDA this_type& operator=(this_type&& other) {
     lvars = std::move(other.lvars);
     avar2lvar = std::move(other.avar2lvar);
-    var_index = std::move(other.var_index);
-    var_index.set_lvars(&lvars);
+    symbol2lvar = std::move(other.symbol2lvar);
     return *this;
   }
 
   CUDA this_type& operator=(const this_type& other) {
     lvars = other.lvars;
     avar2lvar = other.avar2lvar;
-    var_index = DispatchIndex<allocator_type>(other.var_index, &lvars);
-    var_index.set_lvars(&lvars);
+    symbol2lvar = other.symbol2lvar;
     return *this;
   }
 
@@ -357,8 +164,7 @@ public:
   CUDA this_type& operator=(const VarEnv<Alloc2>& other) {
     lvars = other.lvars;
     avar2lvar = other.avar2lvar;
-    var_index = DispatchIndex<allocator_type>(other.var_index, &lvars);
-    var_index.set_lvars(&lvars);
+    symbol2lvar = other.symbol2lvar;
     return *this;
   }
 
@@ -385,14 +191,12 @@ public:
 
   CUDA void print() const {
     printf("Environment (%lu variables): \n", num_vars());
-    printf("index\t name               sort\tavars\n");
+    printf("index\t name\t sort\tavars\n");
     for(int i = 0; i < num_vars(); ++i) {
       printf("%d\t", i);
       const auto& var = lvars[i];
-      printf("%s", var.name.data());
-      for(int i = var.name.size(); i < 20; ++i) {
-        printf(" ");
-      }
+      var.name.print();
+      printf("\t");
       var.sort.print(); printf("\t\t");
       for(int j = 0; j < var.avars.size(); ++j) {
         printf("(%d,%d)", var.avars[j].aty(), var.avars[j].vid());
@@ -404,8 +208,8 @@ public:
     }
   }
 
-  CUDA NI std::optional<std::reference_wrapper<const variable_type>> variable_of(const char* lv) const {
-    auto r = var_index.lvar_index_of(lv);
+  CUDA NI std::optional<std::reference_wrapper<const variable_type>> variable_of(Symbol lv) const {
+    auto r = lvar_index_of(lv);
     if(r.has_value()) {
       return std::cref(lvars[*r]);
     }
@@ -414,18 +218,31 @@ public:
     }
   }
 
+  /** Find a variable by its name (only on the host, through the `SymbolTable`). */
+  std::optional<std::reference_wrapper<const variable_type>> variable_of(const char* lv) const {
+    auto s = Symbol::find(lv);
+    if(s.has_value()) {
+      return variable_of(*s);
+    }
+    return {};
+  }
+
   template <class Alloc2>
-  CUDA std::optional<std::reference_wrapper<const variable_type>> variable_of(const battery::string<Alloc2>& lv) const {
+  std::optional<std::reference_wrapper<const variable_type>> variable_of(const battery::string<Alloc2>& lv) const {
     return variable_of(lv.data());
   }
 
-  template <class Alloc2>
-  CUDA bool contains(const battery::string<Alloc2>& lv) const {
-    return contains(lv.data());
+  CUDA bool contains(Symbol lv) const {
+    return lvar_index_of(lv).has_value();
   }
 
-  CUDA bool contains(const char* lv) const {
+  bool contains(const char* lv) const {
     return variable_of(lv).has_value();
+  }
+
+  template <class Alloc2>
+  bool contains(const battery::string<Alloc2>& lv) const {
+    return contains(lv.data());
   }
 
   CUDA bool contains(AVar av) const {
@@ -443,7 +260,7 @@ public:
     return lvars[avar2lvar[av.aty()][av.vid()]];
   }
 
-  CUDA const bstring& name_of(AVar av) const {
+  CUDA Symbol name_of(AVar av) const {
     return (*this)[av].name;
   }
 
@@ -473,7 +290,7 @@ public:
     assert(lvars.size() >= snap.lvars_snap.size());
     assert(avar2lvar.size() >= snap.avar2lvar_snap.size());
     while(lvars.size() > snap.lvars_snap.size()) {
-      var_index.erase(lvars.back().name.data());
+      symbol2lvar[lvars.back().name.id()] = -1;
       lvars.pop_back();
     }
     for(int i = 0; i < lvars.size(); ++i) {

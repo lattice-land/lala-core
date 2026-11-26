@@ -168,8 +168,8 @@ public:
 public:
   /** Print the abstract universe of `vname` taking into account simplifications (representative variable and constant).
   */
-  template <class Alloc, class Abs, class Env>
-  CUDA void print_variable(const LVar<Alloc>& vname, const Env& benv, const Abs& b) const {
+  template <class Abs, class Env>
+  CUDA void print_variable(Symbol vname, const Env& benv, const Abs& b) const {
     assert(env.variable_of(vname).has_value());
     const auto& local_var = env.variable_of(vname)->get();
     assert(local_var.avar_of(store_aty).has_value());

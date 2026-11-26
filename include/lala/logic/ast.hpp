@@ -11,6 +11,7 @@
 #include "battery/shared_ptr.hpp"
 #include "battery/unique_ptr.hpp"
 #include "sort.hpp"
+#include "symbol.hpp"
 #include <optional>
 
 #ifdef _WINDOWS
@@ -20,9 +21,10 @@
 
 namespace lala {
 
-/** A "logical variable" is just the name of the variable. */
+/** A "logical variable" is just the name of the variable, represented by a `Symbol` (an identifier in the `SymbolTable`).
+ * The allocator is not used anymore (the name is stored once in the `SymbolTable`), it is kept for compatibility. */
 template<class Allocator>
-using LVar = battery::string<Allocator>;
+using LVar = Symbol;
 
 /** The kind of interpretation operations. */
 enum class IKind {
@@ -76,7 +78,7 @@ public:
 };
 
 /** A first-order signature is a triple \f$ (X, F, P) \f$ where \f$ X \f$ is the set of variables, \f$ F \f$ the set of function symbols and \f$ P \f$ the set of predicates.
-  We represent \f$ X \f$ by strings (see `LVar`), while \f$ F \f$ and \f$ P \f$ are described in the following enumeration `Sig`.
+  We represent \f$ X \f$ by symbols (see `LVar` and `Symbol`), while \f$ F \f$ and \f$ P \f$ are described in the following enumeration `Sig`.
   For programming conveniency, we suppose that logical connectors are included in the set of predicates and thus are in the signature as well.
   Finally, function symbols and predicates are at the "same level".
   Hence a predicate can occur as the argument of a function (after conversion with `BOOL2INT`), which is convenient when modelling, consider for example a cardinality constraint: \f$ (\mathit{bool2int}(x > 4) + \mathit{bool2int}(y < 4) + \mathit{bool2int}(z = 3)) \neq 2 \f$.
@@ -508,11 +510,11 @@ public:
       case R: formula = Formula::template create<R>(other.r()); break;
       case S: formula = Formula::template create<S>(LogicSet(other.s(), allocator));
         break;
-      case LV: formula = Formula::template create<LV>(LogicalVar(other.lv(), allocator)); break;
+      case LV: formula = Formula::template create<LV>(other.lv()); break;
       case E: formula = Formula::template create<E>(
         battery::make_tuple(
-          LogicalVar(battery::get<0>(other.exists()), allocator),
-          battery::get<1>(other.exists())));
+          battery::get<0>(other.exists()),
+          Sort<Allocator>(battery::get<1>(other.exists()), allocator)));
         break;
       case Seq:
         formula = Formula::template create<Seq>(

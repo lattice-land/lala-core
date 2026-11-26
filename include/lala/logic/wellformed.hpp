@@ -68,7 +68,8 @@ private:
   };
 
   const Env& env;
-  std::unordered_map<std::string, sort_type> scope;
+  /** The sorts of the variables declared in the formula, by the identifier of their symbol. */
+  std::unordered_map<int, sort_type> scope;
   diagnostic_type* diag;
 
   bool error(const F& f, const std::string& msg) {
@@ -173,20 +174,20 @@ private:
 
   bool declare(const F& f) {
     const auto& [lvar, sort] = f.exists();
-    std::string name(lvar.data());
+    const std::string& name = lvar.str();
     sort_type s(sort);
-    auto it = scope.find(name);
+    auto it = scope.find(lvar.id());
     if(it != scope.end()) {
       if(!(it->second == s)) {
         return error(f, "The variable `" + name + "` is declared with the sorts " + string_of_sort(it->second) + " and " + string_of_sort(s) + ".");
       }
       return true;
     }
-    auto var = env.variable_of(name.data());
+    auto var = env.variable_of(lvar);
     if(var.has_value() && !(sort_type(var->get().sort) == s)) {
       return error(f, "The variable `" + name + "` is declared with the sort " + string_of_sort(s) + " but has the sort " + string_of_sort(sort_type(var->get().sort)) + " in the environment.");
     }
-    scope.emplace(name, s);
+    scope.emplace(lvar.id(), s);
     return true;
   }
 
@@ -218,16 +219,15 @@ public:
       case F::R: return SortInfo(make_sort(sort_type::Real));
       case F::S: return infer_set(f);
       case F::LV: {
-        std::string name(f.lv().data());
-        auto it = scope.find(name);
+        auto it = scope.find(f.lv().id());
         if(it != scope.end()) {
           return SortInfo(it->second);
         }
-        auto var = env.variable_of(name.data());
+        auto var = env.variable_of(f.lv());
         if(var.has_value()) {
           return SortInfo(sort_type(var->get().sort));
         }
-        error(f, "Undeclared variable `" + name + "`.");
+        error(f, "Undeclared variable `" + f.lv().str() + "`.");
         return {};
       }
       case F::E: return SortInfo(make_sort(sort_type::Bool));

@@ -87,7 +87,7 @@ TEST(SortedSignature, SortFromArguments) {
 
 TEST(SortedSignature, SortUnchanged) {
   EXPECT_FALSE(var("x").sort().has_value());
-  EXPECT_FALSE(F::make_nary(LVar<standard_allocator>("search"), F::Sequence()).sort().has_value());
+  EXPECT_FALSE(F::make_nary(battery::string<standard_allocator>("search"), F::Sequence()).sort().has_value());
   expect_sort(exists("x", S::Real), S::Real); // the sort of the quantified variable.
   expect_sort(F::make_z(1), S::Int);
   expect_sort(real(1.5), S::Real);
@@ -212,7 +212,7 @@ TEST(SortedSignature, WellFormed) {
   expect_wellformed(F::make_binary(var("b"), EQ, F::make_bool(true)));
   // Objective and extended symbols.
   expect_wellformed(F::make_unary(MINIMIZE, var("a")));
-  expect_wellformed(F::make_nary(LVar<standard_allocator>("search"), F::Sequence()));
+  expect_wellformed(F::make_nary(battery::string<standard_allocator>("search"), F::Sequence()));
 }
 
 TEST(SortedSignature, IllFormed) {
