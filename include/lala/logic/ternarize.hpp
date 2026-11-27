@@ -9,8 +9,7 @@ namespace lala {
 template <class F>
 bool is_constant_var(const F& x) {
   if(x.is(F::LV)) {
-    std::string varname(x.lv().data());
-    return varname.starts_with("__CONSTANT_");
+    return x.lv().str().starts_with("__CONSTANT_");
   }
   return false;
 }
@@ -18,8 +17,7 @@ bool is_constant_var(const F& x) {
 template <class F>
 int value_of_constant(const F& x) {
   assert(is_constant_var(x));
-  std::string varname(x.lv().data());
-  varname = varname.substr(11);
+  std::string varname = x.lv().str().substr(11);
   varname[0] = varname[0] == 'm' ? '-' : varname[0];
   return std::stoi(varname);
 }
@@ -77,7 +75,7 @@ public:
   {
     /** We skip all the temporary variables already created in the environment. */
     for(int i = 0; i < env.num_vars(); ++i) {
-      introduce_existing_var(std::string(env[i].name.data()));
+      introduce_existing_var(env[i].name.str());
     }
   }
 
@@ -85,17 +83,18 @@ private:
   const Env& env;
   battery::vector<F, allocator_type> conjunction;
   battery::vector<F, allocator_type> existentials;
-  std::unordered_map<std::string, int> name2exists;
+  /** The position in `existentials` of each variable. */
+  std::unordered_map<SymID, int> name2exists;
   unsigned int introduced_int_vars;
   unsigned int introduced_bool_vars;
   unsigned int introduced_constants;
 
   F introduce_var(const std::string& name, auto sort, bool constant) {
-    auto var_name = LVar<allocator_type>(name.data());
-    assert(!env.contains(name.data()));
+    SymID var_name(name);
+    assert(!env.contains(var_name));
     existentials.push_back(F::make_exists(UNTYPED, var_name, sort));
-    assert(!name2exists.contains(name));
-    name2exists[name] = existentials.size() - 1;
+    assert(!name2exists.contains(var_name));
+    name2exists[var_name] = existentials.size() - 1;
     if(constant) { introduced_constants++; }
     else if(sort.is_int()) { introduced_int_vars++; }
     else if(sort.is_bool()) { introduced_bool_vars++; }
@@ -118,8 +117,9 @@ public:
     auto index = f.to_z();
     std::string name = "__CONSTANT_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(abs(index));
     // if the constant is already a logical variable, we return it.
-    if (name2exists.contains(name) || env.contains(name.data())) {
-      return F::make_lvar(UNTYPED, LVar<allocator_type>(name.data()));
+    SymID var_name(name);
+    if (name2exists.contains(var_name) || env.contains(var_name)) {
+      return F::make_lvar(UNTYPED, var_name);
     }
     auto var = introduce_var(name, f.sort().value(), true);
     conjunction.push_back(F::make_binary(var, ZEQ, f));
@@ -217,12 +217,12 @@ private:
 
   bool is_boolean(const F& f) {
     assert(f.is(F::LV));
-    std::string varname(f.lv().data());
-    if(name2exists.contains(varname)) {
-      return battery::get<1>(existentials[name2exists[varname]].exists()).is_bool();
+    auto it = name2exists.find(f.lv());
+    if(it != name2exists.end()) {
+      return battery::get<1>(existentials[it->second].exists()).is_bool();
     }
     else {
-      auto var_opt = env.variable_of(varname.data());
+      auto var_opt = env.variable_of(f.lv());
       if(var_opt.has_value()) {
         return var_opt->get().sort.is_bool();
       }
@@ -426,14 +426,14 @@ public:
     }
     else if(f.is(F::E)) {
       existentials.push_back(f);
-      std::string varname(battery::get<0>(f.exists()).data());
-      name2exists[varname] = existentials.size() - 1;
+      SymID var_name = battery::get<0>(f.exists());
+      name2exists[var_name] = existentials.size() - 1;
       /** If ternarize has been called before, some temporary variables __VAR_Z_* and __VAR_B_* might already have been created.
        * In that case, we need to update the counters to avoid conflicts.
        * This is not perfect, because it requires existential quantifier to be in the beginning of the formula (before we introduce any variable).
        * For more robustness, we should rename the variables in the formula, if introduced_int_vars >= X in __VAR_Z_X.
        */
-      introduce_existing_var(varname);
+      introduce_existing_var(var_name.str());
     }
     else if(!f.is(F::ESeq) && !is_extended_ternary_form(f)) {
       ternarize(f, true);

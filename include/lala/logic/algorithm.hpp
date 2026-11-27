@@ -39,8 +39,8 @@ CUDA NI bool is_var_equality(const TFormula<Allocator, ExtendedSig>& f) {
     && f.seq(1).is(F::LV);
 }
 
-template<class Allocator>
-CUDA NI TFormula<Allocator> make_v_op_z(LVar<Allocator> v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
+template<class Allocator = battery::standard_allocator>
+CUDA NI TFormula<Allocator> make_v_op_z(SymID v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), aty, allocator);
 }
@@ -1060,7 +1060,7 @@ CUDA F decompose_arith_neq_constraint(const F& f, const typename F::allocator_ty
 }
 
 template <class F>
-std::optional<LVar<typename F::allocator_type>> find_maximize_var(const F& f) {
+std::optional<SymID> find_maximize_var(const F& f) {
   if(f.is(F::Seq)) {
     if(f.sig() == Sig::MAXIMIZE && f.seq(0).is(F::LV)) {
       return {f.seq(0).lv()};
@@ -1078,7 +1078,7 @@ std::optional<LVar<typename F::allocator_type>> find_maximize_var(const F& f) {
 }
 
 template <class F>
-std::optional<typename F::Existential> find_existential_of(const F& f, const LVar<typename F::allocator_type>& var) {
+std::optional<typename F::Existential> find_existential_of(const F& f, const SymID& var) {
   if(f.is(F::E)) {
     if(battery::get<0>(f.exists()) == var) {
       return {f.exists()};
@@ -1111,7 +1111,7 @@ struct FormulaStatistics {
   // Count all the predicate symbols occuring in the formula in a non-conjective logical context (e.g., below a NOT, OR, IMPLY, EQUIV).
   std::unordered_map<Sig, size_t> reified_predicates;
   // The number of occurrences of each logical variable in the formula. It is useful to compute `histogram_vars_degree`.
-  std::unordered_map<std::string, size_t> vars_occurrences;
+  std::unordered_map<SymID, size_t> vars_occurrences;
   // histogram_vars_degree[var_degree] = number of variables with degree var_degree in the formula.
   // Repetition of variables in the same constraints are counted.
   std::unordered_map<size_t, size_t> histogram_vars_degree;
@@ -1138,7 +1138,7 @@ size_t analyze_formula(const F& f, FormulaStatistics& stats, bool reified_contex
       return 0;
     }
     case F::LV: {
-      stats.vars_occurrences[std::string(f.lv().data())] += 1;
+      stats.vars_occurrences[f.lv()] += 1;
       return 1;
     }
     case F::Seq: {

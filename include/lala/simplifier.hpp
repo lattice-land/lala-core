@@ -168,8 +168,8 @@ public:
 public:
   /** Print the abstract universe of `vname` taking into account simplifications (representative variable and constant).
   */
-  template <class Alloc, class Abs, class Env>
-  CUDA void print_variable(const LVar<Alloc>& vname, const Env& benv, const Abs& b) const {
+  template <class Abs, class Env>
+  CUDA void print_variable(SymID vname, const Env& benv, const Abs& b) const {
     assert(env.variable_of(vname).has_value());
     const auto& local_var = env.variable_of(vname)->get();
     assert(local_var.avar_of(store_aty).has_value());
@@ -311,7 +311,7 @@ public:
               tnf[i].seq(1) = F::make_binary(
                 F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y})),
                 ZMUL,
-                F::make_lvar(UNTYPED, LVar<allocator_type>("__CONSTANT_2")));
+                F::make_lvar(UNTYPED, SymID("__CONSTANT_2")));
             }
             break;
           }
@@ -404,7 +404,7 @@ public:
               if(sig == ZMAX) {
                 std::swap(x2, y2);
               }
-              tnf[i].seq(0) = F::make_lvar(UNTYPED, LVar<allocator_type>("__CONSTANT_1"));
+              tnf[i].seq(0) = F::make_lvar(UNTYPED, SymID("__CONSTANT_1"));
               tnf[i].seq(1) = F::make_binary(
                 F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, x2})),
                 ZLEQ,
