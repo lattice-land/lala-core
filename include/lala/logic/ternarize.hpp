@@ -90,7 +90,7 @@ private:
   unsigned int introduced_constants;
 
   F introduce_var(const std::string& name, auto sort, bool constant) {
-    Symbol var_name(name);
+    SymID var_name(name);
     assert(!env.contains(var_name));
     existentials.push_back(F::make_exists(UNTYPED, var_name, sort));
     assert(!name2exists.contains(var_name.id()));
@@ -117,7 +117,7 @@ public:
     auto index = f.to_z();
     std::string name = "__CONSTANT_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(abs(index));
     // if the constant is already a logical variable, we return it.
-    Symbol var_name(name);
+    SymID var_name(name);
     if (name2exists.contains(var_name.id()) || env.contains(var_name)) {
       return F::make_lvar(UNTYPED, var_name);
     }
@@ -426,7 +426,7 @@ public:
     }
     else if(f.is(F::E)) {
       existentials.push_back(f);
-      Symbol var_name = battery::get<0>(f.exists());
+      SymID var_name = battery::get<0>(f.exists());
       name2exists[var_name.id()] = existentials.size() - 1;
       /** If ternarize has been called before, some temporary variables __VAR_Z_* and __VAR_B_* might already have been created.
        * In that case, we need to update the counters to avoid conflicts.

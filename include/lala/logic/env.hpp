@@ -25,14 +25,14 @@ struct Variable {
   template<class T>
   using bvector = battery::vector<T, Allocator>;
 
-  Symbol name;
+  SymID name;
   Sort<Allocator> sort;
   bvector<AVar> avars;
 
   Variable(Variable<Allocator>&&) = default;
   Variable(const Variable<Allocator>&) = default;
 
-  CUDA NI Variable(Symbol name, const Sort<Allocator>& sort, AVar av, const Allocator& allocator = Allocator{})
+  CUDA NI Variable(SymID name, const Sort<Allocator>& sort, AVar av, const Allocator& allocator = Allocator{})
     : name(name), sort(sort, allocator), avars(allocator)
   {
     avars.push_back(av);
@@ -79,14 +79,14 @@ private:
   /** `symbol2lvar[s]` is the index in `lvars` of the variable whose symbol has the identifier `s`, or -1 if there is none. */
   bvector<int> symbol2lvar;
 
-  CUDA NI std::optional<size_t> lvar_index_of(Symbol lv) const {
+  CUDA NI std::optional<size_t> lvar_index_of(SymID lv) const {
     if(lv.id() >= 0 && lv.id() < symbol2lvar.size() && symbol2lvar[lv.id()] != -1) {
       return static_cast<size_t>(symbol2lvar[lv.id()]);
     }
     return {};
   }
 
-  CUDA NI void set_lvar_index(Symbol lv, int index) {
+  CUDA NI void set_lvar_index(SymID lv, int index) {
     assert(lv.is_valid());
     while(symbol2lvar.size() <= lv.id()) {
       symbol2lvar.push_back(-1);
@@ -108,7 +108,7 @@ public:
   }
 
   template <class Alloc3>
-  CUDA NI AVar extends_vars(AType aty, Symbol name, const Sort<Alloc3>& sort) {
+  CUDA NI AVar extends_vars(AType aty, SymID name, const Sort<Alloc3>& sort) {
     extends_abstract_doms(aty);
     AVar avar(aty, static_cast<int>(avar2lvar[aty].size()));
     // We first verify the variable doesn't already exist.
@@ -208,7 +208,7 @@ public:
     }
   }
 
-  CUDA NI std::optional<std::reference_wrapper<const variable_type>> variable_of(Symbol lv) const {
+  CUDA NI std::optional<std::reference_wrapper<const variable_type>> variable_of(SymID lv) const {
     auto r = lvar_index_of(lv);
     if(r.has_value()) {
       return std::cref(lvars[*r]);
@@ -220,7 +220,7 @@ public:
 
   /** Find a variable by its name (only on the host, through the `SymbolTable`). */
   std::optional<std::reference_wrapper<const variable_type>> variable_of(const char* lv) const {
-    auto s = Symbol::find(lv);
+    auto s = SymID::find(lv);
     if(s.has_value()) {
       return variable_of(*s);
     }
@@ -232,7 +232,7 @@ public:
     return variable_of(lv.data());
   }
 
-  CUDA bool contains(Symbol lv) const {
+  CUDA bool contains(SymID lv) const {
     return lvar_index_of(lv).has_value();
   }
 
@@ -260,7 +260,7 @@ public:
     return lvars[avar2lvar[av.aty()][av.vid()]];
   }
 
-  CUDA Symbol name_of(AVar av) const {
+  CUDA SymID name_of(AVar av) const {
     return (*this)[av].name;
   }
 

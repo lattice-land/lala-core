@@ -169,7 +169,7 @@ public:
   /** Print the abstract universe of `vname` taking into account simplifications (representative variable and constant).
   */
   template <class Abs, class Env>
-  CUDA void print_variable(Symbol vname, const Env& benv, const Abs& b) const {
+  CUDA void print_variable(SymID vname, const Env& benv, const Abs& b) const {
     assert(env.variable_of(vname).has_value());
     const auto& local_var = env.variable_of(vname)->get();
     assert(local_var.avar_of(store_aty).has_value());

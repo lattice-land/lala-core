@@ -40,7 +40,7 @@ CUDA NI bool is_var_equality(const TFormula<Allocator, ExtendedSig>& f) {
 }
 
 template<class Allocator = battery::standard_allocator>
-CUDA NI TFormula<Allocator> make_v_op_z(Symbol v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
+CUDA NI TFormula<Allocator> make_v_op_z(SymID v, Sig sig, logic_int z, AType aty = UNTYPED, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   return F::make_binary(F::make_lvar(UNTYPED, std::move(v)), sig, F::make_z(z), aty, allocator);
 }

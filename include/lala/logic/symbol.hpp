@@ -65,33 +65,33 @@ public:
 /** A symbol is the name of a logical variable, represented by its identifier in the `SymbolTable`.
  * Comparing and copying symbols is constant time, and they can be used on the GPU.
  * The constructors from strings and `data()` are only available on the host, as they use the `SymbolTable`. */
-class Symbol {
+class SymID {
   int id_;
 
 public:
   /** An invalid symbol. */
-  CUDA constexpr Symbol(): id_(-1) {}
+  CUDA constexpr SymID(): id_(-1) {}
 
   /** Intern `name` in the `SymbolTable`. */
-  Symbol(const char* name): id_(SymbolTable::instance().intern(std::string(name))) {}
-  Symbol(const std::string& name): id_(SymbolTable::instance().intern(name)) {}
+  SymID(const char* name): id_(SymbolTable::instance().intern(std::string(name))) {}
+  SymID(const std::string& name): id_(SymbolTable::instance().intern(name)) {}
   template <class Alloc>
-  Symbol(const battery::string<Alloc>& name): Symbol(name.data()) {}
+  SymID(const battery::string<Alloc>& name): SymID(name.data()) {}
 
-  CUDA constexpr Symbol(const Symbol&) = default;
-  CUDA constexpr Symbol& operator=(const Symbol&) = default;
+  CUDA constexpr SymID(const SymID&) = default;
+  CUDA constexpr SymID& operator=(const SymID&) = default;
 
   /** \return The symbol of `name` if `name` is in the `SymbolTable` (without adding it). */
-  static std::optional<Symbol> find(const char* name) {
+  static std::optional<SymID> find(const char* name) {
     auto id = SymbolTable::instance().find(std::string(name));
     if(id.has_value()) {
-      return Symbol::from_id(*id);
+      return SymID::from_id(*id);
     }
     return {};
   }
 
-  CUDA static constexpr Symbol from_id(int id) {
-    Symbol s;
+  CUDA static constexpr SymID from_id(int id) {
+    SymID s;
     s.id_ = id;
     return s;
   }
@@ -122,9 +122,9 @@ public:
   }
 };
 
-CUDA constexpr inline bool operator==(const Symbol& a, const Symbol& b) { return a.id() == b.id(); }
-CUDA constexpr inline bool operator!=(const Symbol& a, const Symbol& b) { return a.id() != b.id(); }
-CUDA constexpr inline bool operator<(const Symbol& a, const Symbol& b) { return a.id() < b.id(); }
+CUDA constexpr inline bool operator==(const SymID& a, const SymID& b) { return a.id() == b.id(); }
+CUDA constexpr inline bool operator!=(const SymID& a, const SymID& b) { return a.id() != b.id(); }
+CUDA constexpr inline bool operator<(const SymID& a, const SymID& b) { return a.id() < b.id(); }
 
 } // namespace lala
 
