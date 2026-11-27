@@ -32,6 +32,17 @@ TEST(SymID, FindDoesNotIntern) {
   EXPECT_EQ(*found, z);
 }
 
+TEST(SymID, MapKey) {
+  std::unordered_map<SymID, int> m;
+  m[SymID("symbol_test_k1")] = 1;
+  m[SymID("symbol_test_k2")] = 2;
+  m[SymID("symbol_test_k1")] += 10;
+  EXPECT_EQ(m.size(), 2);
+  EXPECT_EQ(m.at(SymID("symbol_test_k1")), 11);
+  EXPECT_EQ(m.at(SymID("symbol_test_k2")), 2);
+  EXPECT_FALSE(m.contains(SymID("symbol_test_k3")));
+}
+
 TEST(SymID, NamesAreStable) {
   // The name returned by `data()` stays valid when the table grows and is rehashed.
   SymID a("symbol_test_a");

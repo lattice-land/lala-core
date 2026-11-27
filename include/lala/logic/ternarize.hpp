@@ -83,8 +83,8 @@ private:
   const Env& env;
   battery::vector<F, allocator_type> conjunction;
   battery::vector<F, allocator_type> existentials;
-  /** The position in `existentials` of each variable, by the identifier of its symbol. */
-  std::unordered_map<int, int> name2exists;
+  /** The position in `existentials` of each variable. */
+  std::unordered_map<SymID, int> name2exists;
   unsigned int introduced_int_vars;
   unsigned int introduced_bool_vars;
   unsigned int introduced_constants;
@@ -93,8 +93,8 @@ private:
     SymID var_name(name);
     assert(!env.contains(var_name));
     existentials.push_back(F::make_exists(UNTYPED, var_name, sort));
-    assert(!name2exists.contains(var_name.id()));
-    name2exists[var_name.id()] = existentials.size() - 1;
+    assert(!name2exists.contains(var_name));
+    name2exists[var_name] = existentials.size() - 1;
     if(constant) { introduced_constants++; }
     else if(sort.is_int()) { introduced_int_vars++; }
     else if(sort.is_bool()) { introduced_bool_vars++; }
@@ -118,7 +118,7 @@ public:
     std::string name = "__CONSTANT_" + (index < 0 ? std::string("m") : std::string("")) + std::to_string(abs(index));
     // if the constant is already a logical variable, we return it.
     SymID var_name(name);
-    if (name2exists.contains(var_name.id()) || env.contains(var_name)) {
+    if (name2exists.contains(var_name) || env.contains(var_name)) {
       return F::make_lvar(UNTYPED, var_name);
     }
     auto var = introduce_var(name, f.sort().value(), true);
@@ -217,7 +217,7 @@ private:
 
   bool is_boolean(const F& f) {
     assert(f.is(F::LV));
-    auto it = name2exists.find(f.lv().id());
+    auto it = name2exists.find(f.lv());
     if(it != name2exists.end()) {
       return battery::get<1>(existentials[it->second].exists()).is_bool();
     }
@@ -427,7 +427,7 @@ public:
     else if(f.is(F::E)) {
       existentials.push_back(f);
       SymID var_name = battery::get<0>(f.exists());
-      name2exists[var_name.id()] = existentials.size() - 1;
+      name2exists[var_name] = existentials.size() - 1;
       /** If ternarize has been called before, some temporary variables __VAR_Z_* and __VAR_B_* might already have been created.
        * In that case, we need to update the counters to avoid conflicts.
        * This is not perfect, because it requires existential quantifier to be in the beginning of the formula (before we introduce any variable).

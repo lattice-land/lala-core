@@ -8,6 +8,7 @@
 #include <vector>
 #include <optional>
 #include <unordered_map>
+#include <functional>
 #include "battery/utility.hpp"
 #include "battery/string.hpp"
 
@@ -127,5 +128,13 @@ CUDA constexpr inline bool operator!=(const SymID& a, const SymID& b) { return a
 CUDA constexpr inline bool operator<(const SymID& a, const SymID& b) { return a.id() < b.id(); }
 
 } // namespace lala
+
+/** Hashing a symbol is hashing its identifier, so `SymID` can be the key of a `std::unordered_map`. */
+template <>
+struct std::hash<lala::SymID> {
+  size_t operator()(const lala::SymID& s) const noexcept {
+    return std::hash<int>{}(s.id());
+  }
+};
 
 #endif // LALA_CORE_SYMBOL_HPP

@@ -68,8 +68,8 @@ private:
   };
 
   const Env& env;
-  /** The sorts of the variables declared in the formula, by the identifier of their symbol. */
-  std::unordered_map<int, sort_type> scope;
+  /** The sorts of the variables declared in the formula. */
+  std::unordered_map<SymID, sort_type> scope;
   diagnostic_type* diag;
 
   bool error(const F& f, const std::string& msg) {
@@ -176,7 +176,7 @@ private:
     const auto& [lvar, sort] = f.exists();
     const std::string& name = lvar.str();
     sort_type s(sort);
-    auto it = scope.find(lvar.id());
+    auto it = scope.find(lvar);
     if(it != scope.end()) {
       if(!(it->second == s)) {
         return error(f, "The variable `" + name + "` is declared with the sorts " + string_of_sort(it->second) + " and " + string_of_sort(s) + ".");
@@ -187,7 +187,7 @@ private:
     if(var.has_value() && !(sort_type(var->get().sort) == s)) {
       return error(f, "The variable `" + name + "` is declared with the sort " + string_of_sort(s) + " but has the sort " + string_of_sort(sort_type(var->get().sort)) + " in the environment.");
     }
-    scope.emplace(lvar.id(), s);
+    scope.emplace(lvar, s);
     return true;
   }
 
@@ -219,7 +219,7 @@ public:
       case F::R: return SortInfo(make_sort(sort_type::Real));
       case F::S: return infer_set(f);
       case F::LV: {
-        auto it = scope.find(f.lv().id());
+        auto it = scope.find(f.lv());
         if(it != scope.end()) {
           return SortInfo(it->second);
         }

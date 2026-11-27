@@ -1111,7 +1111,7 @@ struct FormulaStatistics {
   // Count all the predicate symbols occuring in the formula in a non-conjective logical context (e.g., below a NOT, OR, IMPLY, EQUIV).
   std::unordered_map<Sig, size_t> reified_predicates;
   // The number of occurrences of each logical variable in the formula. It is useful to compute `histogram_vars_degree`.
-  std::unordered_map<int, size_t> vars_occurrences; // Keyed by the identifier of the symbol of the variable.
+  std::unordered_map<SymID, size_t> vars_occurrences;
   // histogram_vars_degree[var_degree] = number of variables with degree var_degree in the formula.
   // Repetition of variables in the same constraints are counted.
   std::unordered_map<size_t, size_t> histogram_vars_degree;
@@ -1138,7 +1138,7 @@ size_t analyze_formula(const F& f, FormulaStatistics& stats, bool reified_contex
       return 0;
     }
     case F::LV: {
-      stats.vars_occurrences[f.lv().id()] += 1;
+      stats.vars_occurrences[f.lv()] += 1;
       return 1;
     }
     case F::Seq: {
