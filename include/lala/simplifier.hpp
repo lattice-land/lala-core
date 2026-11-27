@@ -311,7 +311,7 @@ public:
               tnf[i].seq(1) = F::make_binary(
                 F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, y})),
                 ZMUL,
-                F::make_lvar(UNTYPED, LVar("__CONSTANT_2")));
+                F::make_lvar(UNTYPED, SymID("__CONSTANT_2")));
             }
             break;
           }
@@ -404,7 +404,7 @@ public:
               if(sig == ZMAX) {
                 std::swap(x2, y2);
               }
-              tnf[i].seq(0) = F::make_lvar(UNTYPED, LVar("__CONSTANT_1"));
+              tnf[i].seq(0) = F::make_lvar(UNTYPED, SymID("__CONSTANT_1"));
               tnf[i].seq(1) = F::make_binary(
                 F::make_lvar(UNTYPED, env.name_of(AVar{store_aty, x2})),
                 ZLEQ,

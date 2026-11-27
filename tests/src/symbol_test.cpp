@@ -46,7 +46,7 @@ TEST(SymID, NamesAreStable) {
 
 TEST(SymID, FormulasAndEnvironments) {
   // Formulas built separately share the symbols of their variables.
-  auto f1 = F::make_binary(F::make_lvar(UNTYPED, LVar("symbol_test_v")), ZLEQ, F::make_z(1));
+  auto f1 = F::make_binary(F::make_lvar(UNTYPED, SymID("symbol_test_v")), ZLEQ, F::make_z(1));
   auto f2 = F::make_binary(F::make_lvar(UNTYPED, SymID(std::string("symbol_test_v"))), ZLEQ, F::make_z(1));
   EXPECT_EQ(f1, f2);
   EXPECT_NE(f1, F::make_binary(F::make_lvar(UNTYPED, SymID("symbol_test_w")), ZLEQ, F::make_z(1)));

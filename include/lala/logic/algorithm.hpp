@@ -1060,7 +1060,7 @@ CUDA F decompose_arith_neq_constraint(const F& f, const typename F::allocator_ty
 }
 
 template <class F>
-std::optional<LVar> find_maximize_var(const F& f) {
+std::optional<SymID> find_maximize_var(const F& f) {
   if(f.is(F::Seq)) {
     if(f.sig() == Sig::MAXIMIZE && f.seq(0).is(F::LV)) {
       return {f.seq(0).lv()};
@@ -1078,7 +1078,7 @@ std::optional<LVar> find_maximize_var(const F& f) {
 }
 
 template <class F>
-std::optional<typename F::Existential> find_existential_of(const F& f, const LVar& var) {
+std::optional<typename F::Existential> find_existential_of(const F& f, const SymID& var) {
   if(f.is(F::E)) {
     if(battery::get<0>(f.exists()) == var) {
       return {f.exists()};

@@ -107,8 +107,8 @@ public:
     }
   }
 
-  template <class Alloc3>
-  CUDA NI AVar extends_vars(AType aty, SymID name, const Sort<Alloc3>& sort) {
+  template <class Alloc2>
+  CUDA NI AVar extends_vars(AType aty, SymID name, const Sort<Alloc2>& sort) {
     extends_abstract_doms(aty);
     AVar avar(aty, static_cast<int>(avar2lvar[aty].size()));
     // We first verify the variable doesn't already exist.

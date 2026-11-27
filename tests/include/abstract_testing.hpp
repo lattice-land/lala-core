@@ -12,8 +12,8 @@ using namespace battery;
 
 using F = TFormula<standard_allocator>;
 
-static LVar var_x = "x";
-static LVar var_y = "y";
+static SymID var_x = "x";
+static SymID var_y = "y";
 
 /** We must have `A::bot() < mid < A::top()`. */
 template <class A>

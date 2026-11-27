@@ -26,7 +26,7 @@ TEST(VarTest, MakeVar) {
 
 TEST(AST, NumVars) {
   using F = TFormula<standard_allocator>;
-  auto var_x = LVar("x");
+  auto var_x = SymID("x");
   auto f1 = make_v_op_z(var_x, ZLEQ, 1);
   auto f2 = make_v_op_z(var_x, ZLEQ, 0);
   auto f3 = F::make_binary(f1, AND, f2);
@@ -37,8 +37,8 @@ TEST(AST, NumVars) {
 
 TEST(AST, ExtractTy) {
   using F = TFormula<standard_allocator>;
-  auto var_x = LVar("x");
-  auto var_y = LVar("y");
+  auto var_x = SymID("x");
+  auto var_y = SymID("y");
   auto f1 = F::make_binary(F::make_lvar(0, var_x), ZLEQ, F::make_z(10), 0);
   auto f2 = F::make_binary(F::make_lvar(0, var_x), ZLEQ, F::make_lvar(0, var_y), 1);
   auto f3 = F::make_binary(F::make_lvar(0, var_x), ZGEQ, F::make_z(0), 0);
