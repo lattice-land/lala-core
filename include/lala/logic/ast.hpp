@@ -21,9 +21,7 @@
 
 namespace lala {
 
-/** A "logical variable" is just the name of the variable, represented by a `SymID` (an identifier in the `SymbolTable`).
- * The allocator is not used anymore (the name is stored once in the `SymbolTable`), it is kept for compatibility. */
-template<class Allocator>
+/** A "logical variable" is just the name of the variable, represented by a `SymID` (an identifier in the `SymbolTable`, where the name is stored once). */
 using LVar = SymID;
 
 /** The kind of interpretation operations. */
@@ -446,7 +444,7 @@ public:
   using allocator_type = Allocator;
   using this_type = TFormula<Allocator, ExtendedSig>;
   using Sequence = battery::vector<this_type, Allocator>;
-  using LogicalVar = LVar<Allocator>;
+  using LogicalVar = LVar;
   using Existential = battery::tuple<LogicalVar, Sort<Allocator>>;
   using LogicSet = logic_set<this_type>;
   using Formula = battery::variant<

@@ -12,8 +12,8 @@ using F = TFormula<standard_allocator>;
 using S = Sort<standard_allocator>;
 
 namespace {
-  F var(const char* name) { return F::make_lvar(UNTYPED, LVar<standard_allocator>(name)); }
-  F exists(const char* name, S::Tag tag) { return F::make_exists(UNTYPED, LVar<standard_allocator>(name), S(tag)); }
+  F var(const char* name) { return F::make_lvar(UNTYPED, LVar(name)); }
+  F exists(const char* name, S::Tag tag) { return F::make_exists(UNTYPED, LVar(name), S(tag)); }
   F real(double r) { return F::make_real(r, r); }
   F set_z(logic_int l, logic_int u) {
     logic_set<F> s(1);
@@ -30,8 +30,8 @@ namespace {
     seq.push_back(exists("a", S::Real));
     seq.push_back(exists("r", S::Real));
     seq.push_back(exists("b", S::Bool));
-    seq.push_back(F::make_exists(UNTYPED, LVar<standard_allocator>("s"), S(S::Set, S(S::Int))));
-    seq.push_back(F::make_exists(UNTYPED, LVar<standard_allocator>("t"), S(S::Set, S(S::Int))));
+    seq.push_back(F::make_exists(UNTYPED, LVar("s"), S(S::Set, S(S::Int))));
+    seq.push_back(F::make_exists(UNTYPED, LVar("t"), S(S::Set, S(S::Int))));
     seq.push_back(std::move(f));
     return F::make_nary(AND, std::move(seq));
   }
@@ -250,7 +250,7 @@ TEST(SortedSignature, IllFormed) {
 
 TEST(SortedSignature, Environment) {
   VarEnv<standard_allocator> env;
-  env.extends_vars(0, LVar<standard_allocator>("x"), S(S::Int));
+  env.extends_vars(0, LVar("x"), S(S::Int));
   EXPECT_TRUE(is_wellformed(F::make_binary(var("x"), ZLEQ, F::make_z(1)), env));
   EXPECT_FALSE(is_wellformed(F::make_binary(var("x"), RLEQ, real(1.0)), env));
   // A declaration conflicting with the environment.
