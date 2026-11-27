@@ -70,13 +70,11 @@ private:
   const Env& env;
   /** The sorts of the variables declared in the formula. */
   std::unordered_map<SymID, sort_type> scope;
-  diagnostic_type* diag;
+  diagnostic_type& diag;
 
   bool error(const F& f, const std::string& msg) {
-    if(diag != nullptr) {
-      diag->subformula = f;
-      diag->message = msg;
-    }
+    diag.subformula = f;
+    diag.message = msg;
     return false;
   }
 
@@ -192,7 +190,7 @@ private:
   }
 
 public:
-  WellformedChecker(const Env& env, diagnostic_type* diag): env(env), diag(diag) {}
+  WellformedChecker(const Env& env, diagnostic_type& diag): env(env), diag(diag) {}
 
   /** First pass: collect the existentially quantified variables of `f`. */
   bool collect_existentials(const F& f) {
@@ -403,21 +401,18 @@ private:
 
 /** \return `true` if `f` is a well-formed formula with respect to the sorted signature, where the sorts of the variables are given by the existential quantifiers in `f` or by `env`.
  * A formula has the sort `Bool`; use `sort_of_term` for terms of other sorts.
- * If `f` is not well-formed and `diag` is not null, `diag` explains the first error found. */
+ * If `f` is not well-formed, `diag` explains the first error found. */
 template <class F, class Env = VarEnv<battery::standard_allocator>>
-bool is_wellformed(const F& f, const Env& env, WFDiagnostic<typename F::allocator_type>* diag) {
+bool is_wellformed(const F& f, const Env& env, WFDiagnostic<typename F::allocator_type>& diag) {
   impl::WellformedChecker<F, Env> checker(env, diag);
   return checker.collect_existentials(f) && checker.check_formula(f);
 }
 
-template <class F, class Env = VarEnv<battery::standard_allocator>>
-bool is_wellformed(const F& f, const Env& env, WFDiagnostic<typename F::allocator_type>& diag) {
-  return is_wellformed(f, env, &diag);
-}
-
+/** Same as above, when the explanation of the error is not needed. */
 template <class F, class Env = VarEnv<battery::standard_allocator>>
 bool is_wellformed(const F& f, const Env& env = Env()) {
-  return is_wellformed(f, env, static_cast<WFDiagnostic<typename F::allocator_type>*>(nullptr));
+  WFDiagnostic<typename F::allocator_type> diag;
+  return is_wellformed(f, env, diag);
 }
 
 /** \return The sort of the term `t` if it is well-formed, where the sorts of the variables are given by `env` (and the existential quantifiers in `t`).
@@ -425,7 +420,8 @@ bool is_wellformed(const F& f, const Env& env = Env()) {
  * The result is `{}` if `t` is not well-formed, or if its sort is a set of unknown elements (e.g., the empty set). */
 template <class F, class Env = VarEnv<battery::standard_allocator>>
 std::optional<Sort<typename F::allocator_type>> sort_of_term(const F& t, const Env& env = Env()) {
-  impl::WellformedChecker<F, Env> checker(env, nullptr);
+  WFDiagnostic<typename F::allocator_type> diag;
+  impl::WellformedChecker<F, Env> checker(env, diag);
   if(!checker.collect_existentials(t)) { return {}; }
   auto s = checker.infer(t);
   if(s.has_value() && s->sort.has_value()) {
